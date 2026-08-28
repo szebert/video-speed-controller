@@ -1,0 +1,68 @@
+---
+description: Repository-wide working agreement for AI agents.
+alwaysApply: true
+---
+
+# Project Contract
+
+Follow the repository's current approved plans, specifications, documentation,
+tests, and established implementation decisions.
+
+## Source of truth
+
+- Read the relevant repository context before making changes.
+- Treat the current approved plan/specification for a task as authoritative.
+- Do not silently redesign or contradict settled decisions.
+- If current user instructions intentionally change an older repository decision,
+  follow the newer instruction and update or flag stale documentation as appropriate.
+- If repository sources conflict materially, surface the conflict instead of guessing.
+
+## Scope
+
+- Implement the requested work, not speculative future work.
+- Prefer the smallest clear change that satisfies the current requirements.
+- Do not add abstractions, compatibility layers, migrations, dependencies, or
+  infrastructure without a concrete current need.
+- Do not perform unrelated refactors, renames, formatting, or cleanup while
+  completing a focused task.
+- Preserve existing behavior unless the task intentionally changes it.
+
+## Repository discipline
+
+- Inspect existing files before editing them.
+- Preserve user-authored work and existing repository conventions.
+- Do not edit generated output or dependency directories when the source or
+  configuration should be changed instead.
+- Do not change project identity, licensing, package manager, or publishing
+  configuration unless explicitly requested.
+
+## Package manager
+
+- Use pnpm exclusively.
+- Do not use npm, npx, Yarn, or Bun.
+- Use `pnpm exec` for installed CLIs and `pnpm dlx` for one-off CLIs.
+- Keep `pnpm-lock.yaml` as the only dependency lockfile.
+- Do not hand-edit the lockfile.
+
+## Verification
+
+- Add or update tests when behavior changes and testing is appropriate.
+- Run the relevant available checks after making changes.
+- Fix implementation-caused failures rather than weakening tests.
+- Never claim a test, build, lint, typecheck, or manual verification passed
+  unless it was actually performed successfully.
+- Clearly state anything that could not be verified.
+
+## Safety
+
+- Do not run destructive Git commands or discard uncommitted work.
+- Do not create commits, push, force-push, create tags, publish packages,
+  create releases, or submit to external stores unless explicitly requested.
+- Do not expose secrets or credentials.
+
+## Project tooling
+
+- Repository rules and current project specifications take precedence over
+  generic recommendations from external skills or tools.
+- Skills provide guidance and workflows; they do not redefine product behavior
+  or architecture.

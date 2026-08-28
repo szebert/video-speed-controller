@@ -1,0 +1,48 @@
+---
+description: Project-specific Chrome extension invariants. Apply when changing extension runtime, permissions, state, messaging, content scripts, or media behavior.
+globs: src/**, e2e/**, wxt.config.*
+alwaysApply: false
+---
+
+# Extension Invariants
+
+Before changing extension runtime behavior, read the relevant current plan/specification.
+The plan is the detailed source of truth; this rule only protects cross-cutting project decisions.
+
+## Permissions and access
+
+- Chrome-managed permissions are the source of truth for site access.
+- Do not introduce a separate enabled/disabled-sites authority unless the current specification explicitly changes that design.
+- Permission requests/removals that require user consent belong in the user-gesture path.
+- Do not broaden extension permissions merely to make implementation easier.
+
+## State
+
+- Keep durable user preference, current tab behavior, and Chrome-managed permission state conceptually separate.
+- Do not make storage writes part of the critical playback path.
+- Do not let frame- or media-local behavior silently mutate tab-wide or persisted user intent.
+
+## Frames and content scripts
+
+- Preserve the current top-frame/child-frame authority model defined by the plan.
+- Do not let a child frame invent tab-wide state.
+- Permission removal must reconcile already-running content scripts, not only future registrations.
+- Treat opaque/fallback-frame behavior according to the current specification rather than guessing from `location.origin`.
+
+## Media behavior
+
+- Tab-level requested speed and per-video arbitration are separate concerns.
+- A single hostile or unusual player must not disable or rewrite state for other videos.
+- Preserve one-controller-per-video and lifecycle cleanup guarantees.
+
+## Privacy
+
+- Do not add analytics, telemetry, accounts, remote configuration, remote code,
+  or extension-originated network services unless explicitly approved.
+
+## External guidance
+
+- Generic Chrome-extension skills and documentation are advisory.
+- Project specifications and repository rules define this extension's intended behavior.
+- If platform behavior appears to contradict the current specification, verify the conflict
+  and surface it rather than silently redesigning the architecture.

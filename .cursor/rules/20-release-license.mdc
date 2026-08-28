@@ -1,0 +1,39 @@
+---
+description: Licensing, package identity, and release-safety rules.
+globs: package.json,LICENSE,README.md,PRIVACY.md,SECURITY.md,CHROMEWEBSTORE.md,CHANGELOG.md,.github/**/*,scripts/**/*
+alwaysApply: false
+---
+
+# License and Release
+
+Follow the repository's current release documentation and approved release plan.
+
+## License
+
+- The project is licensed under `GPL-3.0-only` unless explicitly relicensed.
+- Do not change it to `GPL-3.0-or-later` or another license without explicit approval.
+- Keep the root `LICENSE` as the standard unmodified GNU GPLv3 text.
+- Do not add custom restrictions to the GPL.
+- Preserve required third-party copyright and license notices.
+- Do not imply that GPLv3 prohibits commercial use.
+
+## Package identity
+
+- Preserve established project, repository, package, and release-artifact identity unless explicitly changed.
+- Keep the JavaScript package private unless publishing it is intentionally approved.
+- Use the repository's configured package manager and committed lockfile.
+
+## Releases
+
+- A distributed binary must correspond to identifiable source for that same release.
+- Keep release version, source tag/commit, and distributed artifact consistent.
+- Build release artifacts from repository source; do not patch generated ZIP contents by hand.
+- Preserve reproducibility metadata and integrity checks required by the current release process.
+- The artifact published through different distribution channels must match when the release process requires identical binaries.
+
+## Release safety
+
+- Do not publish packages, create tags, create releases, or submit to an external store
+  unless the user explicitly requests that release action.
+- Verification or dry-run release work does not imply authorization to publish.
+- Never weaken release or licensing checks merely to make a pipeline pass.
