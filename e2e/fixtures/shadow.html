@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OS VSC shadow fixture</title>
+  </head>
+  <body>
+    <div id="host"></div>
+    <script>
+      const host = document.getElementById('host');
+      const shadow = host.attachShadow({ mode: 'open' });
+      const video = document.createElement('video');
+      video.id = 'shadow-video';
+      video.controls = true;
+      video.muted = true;
+      shadow.append(video);
+    </script>
+  </body>
+</html>

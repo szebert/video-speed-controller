@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OS VSC feed fixture</title>
+  </head>
+  <body>
+    <div id="a"></div>
+    <div id="b"></div>
+    <button id="move" type="button">Reparent</button>
+    <script>
+      const video = document.createElement('video');
+      video.id = 'recycled';
+      video.controls = true;
+      video.muted = true;
+      document.getElementById('a').append(video);
+      document.getElementById('move').onclick = () => {
+        document.getElementById('b').append(video);
+      };
+    </script>
+  </body>
+</html>

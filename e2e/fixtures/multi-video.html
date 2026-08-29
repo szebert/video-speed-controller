@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OS VSC multi-video fixture</title>
+  </head>
+  <body>
+    <video id="v1" controls muted src="data:video/mp4;base64,AAAA"></video>
+    <video id="v2" controls muted></video>
+    <video id="v3" controls muted></video>
+    <button id="add-fourth" type="button">Add fourth</button>
+    <script>
+      document.getElementById('add-fourth').onclick = () => {
+        const video = document.createElement('video');
+        video.id = 'v4';
+        video.controls = true;
+        video.muted = true;
+        document.body.append(video);
+      };
+    </script>
+  </body>
+</html>
