@@ -1,0 +1,35 @@
+---
+description: Keep popup, options, and form UI from shifting when state or copy changes.
+globs: **/*.css, **/*.tsx
+alwaysApply: false
+---
+
+# Layout stability
+
+Extension surfaces (popup, options, any future page) resize to content. Treat
+conditional size changes as layout shift: helper text, validation, empty
+states, badges, toasts, and expanding inputs.
+
+Keep geometry stable across states:
+
+- Reserve space for status, errors, and optional chrome (`min-height` / `min-width`)
+- Overlay chips, tooltips, and explanations; do not insert a new row
+- Swap copy in place; do not mount or unmount siblings that own layout
+- Size inputs and controls for their longest valid value, suffix, or placeholder
+
+```tsx
+// ❌ BAD — error/help appears and the page grows
+{error ? <p>{error}</p> : null}
+
+// ✅ GOOD — reserved slot or overlay; neighbors do not move
+<p className="field-status">{error ?? '\u00a0'}</p>
+```
+
+```css
+.field-status {
+  min-height: 1.35em;
+}
+```
+
+Put extra copy in a reserved slot, an overlay, or `aria` text — not a new block
+under the control.

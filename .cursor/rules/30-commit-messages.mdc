@@ -1,0 +1,29 @@
+---
+description: Commit message pattern and trailer rules for this repository.
+alwaysApply: true
+---
+
+# Commit messages
+
+Use `type(scope): summary` to match repository history. Only commit when asked.
+
+- **type:** `feat`, `fix`, `test`, or `chore`
+- **scope:** the area that changed (`extension`, `e2e`, `unit`, `ci`, `package`, `tooling`)
+- **summary:** imperative, lowercase after the colon, no trailing period
+- **body:** optional `-` bullets only when they add why the subject does not cover
+- **trailers:** never add Cursor, Copilot, or other AI `Co-authored-by`, `Made-with`, or `Generated-by` lines
+
+```text
+❌ BAD
+Fixed the HMR crash.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+
+✅ GOOD
+fix(extension): add empty matches so WXT HMR does not crash
+
+- Leave matches empty so optional host permissions stay optional
+```
+
+After `git commit` or `git commit --amend`, check `git log -1 --format='%B'`
+and rewrite HEAD if a wrapper left a forbidden trailer in history.
