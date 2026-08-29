@@ -51,6 +51,8 @@
   background: var(--track);
   color: var(--fg);
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .speed-buttons button:disabled {
@@ -78,4 +80,6 @@
   align-items: center;
   gap: 12px;
   font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
 }
