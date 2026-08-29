@@ -94,7 +94,13 @@ type ExtensionFixtures = {
 };
 
 export const test = base.extend<ExtensionFixtures>({
-  context: async (_fixtures, use, testInfo) => {
+  context: async (
+    // Playwright 1.62+ requires object destructuring here.
+    // eslint-disable-next-line no-empty-pattern -- no parent fixtures
+    {},
+    use,
+    testInfo,
+  ) => {
     ensureExtensionBuild();
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
