@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Check tag, license, and lockfile
+        run: pnpm check:release
+      - name: Notices
+        run: pnpm notices
+      - name: Build ZIP
+        run: pnpm zip
+      - name: Require matching ZIP
+        env:
+          REQUIRE_ZIP: '1'
+        run: pnpm check:release
+      - name: Hash ZIP
+        id: hash
+        run: |
+          ZIP="opensource-video-speed-controller-${GITHUB_REF_NAME#v}-chrome.zip"
+          FILE=".output/${ZIP}"
+          if [ ! -f "$FILE" ]; then FILE="$ZIP"; fi
+          echo "zip=$FILE" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$FILE" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "commit=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+      - name: Upload immutable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-zip
+          path: ${{ steps.hash.outputs.zip }}
+          if-no-files-found: error
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: ${{ steps.hash.outputs.zip }}
+          body: |
+            Corresponding source: this tag (`${{ github.ref_name }}`) at commit `${{ steps.hash.outputs.commit }}`.
+
+            Chrome ZIP SHA-256: `${{ steps.hash.outputs.sha256 }}`
+
+            First Chrome Web Store listing is manual. Later publishes may use CWS API v2 + STAGED_PUBLISH and must attach this same ZIP.
