@@ -1,0 +1,81 @@
+.popup {
+  padding: 16px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.popup h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.muted,
+.unavailable,
+.notice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.notice {
+  color: var(--danger);
+}
+
+.speed-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.speed-readout {
+  text-align: center;
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.speed-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.speed-buttons button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--track);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.speed-buttons button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.speed-slider {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.speed-slider input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.enable-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
