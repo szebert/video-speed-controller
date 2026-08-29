@@ -40,6 +40,8 @@ function reconcileAccess(allowedHostPatterns: HostPattern[]): void {
 
 export default defineContentScript({
   registration: 'runtime',
+  // WXT HMR calls matches.map; keep empty so host_permissions stay optional.
+  matches: [],
   allFrames: true,
   matchAboutBlank: true,
   runAt: 'document_idle',
