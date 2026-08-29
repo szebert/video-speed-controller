@@ -27,7 +27,12 @@ export class MediaController {
 
   destroy(): void {
     this.clearRetry();
+    const restoreDefault = this.targetSpeed != null && !this.surrendered;
+    this.targetSpeed = null;
     this.abort.abort();
+    if (restoreDefault) {
+      this.writeRate(1);
+    }
   }
 
   private onRateChange = (): void => {

@@ -23,4 +23,15 @@ describe('engine lifecycle', () => {
     expect(third).not.toBe(first);
     expect(third.active).toBe(true);
   });
+
+  it('restores controlled videos to 1x when the engine is destroyed', () => {
+    const video = document.createElement('video');
+    document.body.append(video);
+    const engine = startEngine();
+    engine.setTarget(2.5);
+    expect(video.playbackRate).toBe(2.5);
+
+    expect(destroyEngine()).toBe(true);
+    expect(video.playbackRate).toBe(1);
+  });
 });

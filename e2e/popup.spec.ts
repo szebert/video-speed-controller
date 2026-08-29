@@ -50,4 +50,7 @@ test('unsupported pages keep Enable disabled', async ({ context, extensionId, se
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(popup.getByText('OS VSC isn’t available on this page')).toBeVisible();
   await expect(popup.getByRole('checkbox', { name: 'Enabled on this site' })).toBeDisabled();
+  await expect(popup.getByRole('button', { name: 'Faster' })).toBeDisabled();
+  await expect(popup.locator('.speed-readout')).toHaveText('1.00×');
+  await expect(popup.locator('.speed-badge')).toHaveCount(0);
 });

@@ -35,4 +35,41 @@ describe('MediaController isolation', () => {
     cb.destroy();
     vi.useRealTimers();
   });
+
+  it('restores 1x on destroy when still controlling the video', () => {
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    expect(video.playbackRate).toBe(2);
+
+    controller.destroy();
+    expect(video.playbackRate).toBe(1);
+  });
+
+  it('leaves a surrendered video at the player rate on destroy', () => {
+    vi.useFakeTimers();
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    video.playbackRate = 1.5;
+    video.dispatchEvent(new Event('ratechange'));
+    for (let i = 0; i < 4; i += 1) {
+      vi.runOnlyPendingTimers();
+      video.playbackRate = 1.5;
+      video.dispatchEvent(new Event('ratechange'));
+    }
+    expect(controller.surrendered).toBe(true);
+
+    controller.destroy();
+    expect(video.playbackRate).toBe(1.5);
+    vi.useRealTimers();
+  });
+
+  it('does not change rate on destroy when no target was applied', () => {
+    const video = document.createElement('video');
+    video.playbackRate = 1.25;
+    const controller = new MediaController(video);
+    controller.destroy();
+    expect(video.playbackRate).toBe(1.25);
+  });
 });

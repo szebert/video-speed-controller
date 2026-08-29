@@ -10,6 +10,7 @@ import {
 type SpeedControlsProps = {
   displaySpeed: number;
   disabled: boolean;
+  showOffBadge?: boolean;
   policy?: SpeedPolicy;
   onAdjust: (direction: 1 | -1) => void;
   onReset: () => void;
@@ -20,16 +21,21 @@ type SpeedControlsProps = {
 export function SpeedControls({
   displaySpeed,
   disabled,
+  showOffBadge = false,
   policy = DEFAULT_SPEED_POLICY,
   onAdjust,
   onReset,
   onPreviewSlider,
   onCommitSlider,
 }: SpeedControlsProps) {
+  const readout = formatSpeed(displaySpeed);
   return (
-    <div className="speed-controls">
-      <div className="speed-readout" aria-live="polite">
-        {formatSpeed(displaySpeed)}
+    <div className={disabled ? 'speed-controls is-disabled' : 'speed-controls'}>
+      <div className="speed-readout-wrap">
+        <div className="speed-readout" aria-live="polite">
+          {readout}
+        </div>
+        {showOffBadge ? <span className="speed-badge">Disabled</span> : null}
       </div>
       <div className="speed-buttons">
         <button type="button" disabled={disabled} onClick={() => onAdjust(-1)} aria-label="Slower">

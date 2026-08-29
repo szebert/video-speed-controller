@@ -39,6 +39,10 @@ describe('media registry', () => {
     registry.ensureController(d);
     expect(d.playbackRate).toBe(2);
     registry.destroy();
+    expect(a.playbackRate).toBe(1);
+    expect(b.playbackRate).toBe(1);
+    expect(c.playbackRate).toBe(1);
+    expect(d.playbackRate).toBe(1);
   });
 
   it('does not destroy a reparented connected video', () => {

@@ -27,7 +27,8 @@ describe('speed policy', () => {
     ).toBe(2);
   });
 
-  it('uses siteSpeed when there is no site access', () => {
+  it('uses stored siteSpeed when there is no site access', () => {
+    expect(displaySpeed({ siteAccess: false, siteSpeed: 2.25, tabTarget: 2.25 })).toBe(2.25);
     expect(displaySpeed({ siteAccess: false, siteSpeed: 3.25, tabTarget: null })).toBe(3.25);
     expect(displaySpeed({ siteAccess: false, siteSpeed: null, tabTarget: 2 })).toBe(1);
   });

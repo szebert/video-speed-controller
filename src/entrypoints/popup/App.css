@@ -3,6 +3,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow: hidden;
 }
 
 .popup h1 {
@@ -31,11 +32,37 @@
   gap: 12px;
 }
 
+.speed-readout-wrap {
+  position: relative;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .speed-readout {
   text-align: center;
   font-size: 28px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
+}
+
+.speed-controls.is-disabled .speed-readout {
+  color: var(--muted);
+}
+
+.speed-badge {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: var(--track);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
 
 .speed-buttons {
@@ -72,6 +99,10 @@
 .speed-slider input {
   width: 100%;
   accent-color: var(--accent);
+}
+
+.speed-slider input:disabled {
+  opacity: 0.45;
 }
 
 .enable-row {

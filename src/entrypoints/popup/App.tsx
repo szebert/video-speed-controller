@@ -189,7 +189,8 @@ export function App() {
       <h1>OS Video Speed Controller</h1>
       <SpeedControls
         displaySpeed={shown}
-        disabled={false}
+        disabled={!view.siteAccess}
+        showOffBadge={!view.siteAccess}
         onAdjust={(direction) => {
           void sendSpeed(adjustSpeed(currentForAdjust, direction, DEFAULT_SPEED_POLICY));
         }}
