@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 
 # WXT generated files
 .wxt/
@@ -8,19 +9,28 @@ node_modules/
 # Tests / coverage
 coverage/
 playwright-report/
+blob-report/
 test-results/
+.tmp-chrome-profile/
 
 # Environment / secrets
 .env
 .env.*
 !.env.example
 
-# Logs
+# Logs / caches
 *.log
 pnpm-debug.log*
+.eslintcache
+*.tsbuildinfo
+.vite/
 
 # OS / editor noise
 .DS_Store
+Thumbs.db
+.idea/
 
-# Generated release artifacts
+# Generated / private packaging artifacts
 opensource-video-speed-controller-*-chrome.zip
+*.pem
+*.crx
