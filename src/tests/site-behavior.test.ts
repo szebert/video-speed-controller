@@ -4,10 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SPEED_POLICY } from '../core/speed';
 import {
   mergeOverrideField,
+  overlayPositionFromGrid,
+  overlayPositionToGrid,
   parseSiteSettings,
   resolveSiteBehavior,
   toEffectiveBehavior,
   toSyncEligibleSiteRecord,
+  isOverlayPosition,
+  OVERLAY_POSITION,
   SITE_INHERIT_SYNC_RETENTION_MS,
   type Override,
 } from '../settings/site-behavior';
@@ -16,7 +20,10 @@ describe('site behavior resolution', () => {
   it('uses built-in defaults when no overrides exist', () => {
     const resolved = resolveSiteBehavior({}, {});
     expect(resolved.speed).toEqual({ value: 1, source: 'built-in' });
-    expect(resolved.overlayPosition).toEqual({ value: 'top-center', source: 'built-in' });
+    expect(resolved.overlayPosition).toEqual({
+      value: OVERLAY_POSITION.TOP_CENTER,
+      source: 'built-in',
+    });
     expect(resolved.overlayAutoHide).toEqual({ value: false, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
   });
@@ -54,12 +61,15 @@ describe('site behavior resolution', () => {
     const resolved = resolveSiteBehavior(
       {
         speed: { kind: 'value', value: 1.25, updatedAt: 10 },
-        overlayPosition: { kind: 'value', value: 'bottom-right', updatedAt: 10 },
+        overlayPosition: { kind: 'value', value: OVERLAY_POSITION.BOTTOM_RIGHT, updatedAt: 10 },
       },
       { speed: { kind: 'value', value: 1.75, updatedAt: 20 } },
     );
     expect(resolved.speed.source).toBe('site');
-    expect(resolved.overlayPosition).toEqual({ value: 'bottom-right', source: 'global' });
+    expect(resolved.overlayPosition).toEqual({
+      value: OVERLAY_POSITION.BOTTOM_RIGHT,
+      source: 'global',
+    });
   });
 
   it('clamps effective speed without rewriting stored semantic state', () => {
@@ -154,5 +164,30 @@ describe('sync-eligible projection', () => {
         SITE_INHERIT_SYNC_RETENTION_MS + 1,
       ),
     ).toBeNull();
+  });
+});
+
+describe('overlay position grid', () => {
+  it('uses named constants for the row-major 3x3 grid', () => {
+    expect(OVERLAY_POSITION.TOP_LEFT).toBe(0);
+    expect(OVERLAY_POSITION.TOP_CENTER).toBe(1);
+    expect(OVERLAY_POSITION.CENTER).toBe(4);
+    expect(OVERLAY_POSITION.BOTTOM_RIGHT).toBe(8);
+    expect(overlayPositionToGrid(0)).toEqual({ row: 0, column: 0 });
+    expect(overlayPositionToGrid(1)).toEqual({ row: 0, column: 1 });
+    expect(overlayPositionToGrid(4)).toEqual({ row: 1, column: 1 });
+    expect(overlayPositionToGrid(8)).toEqual({ row: 2, column: 2 });
+    expect(overlayPositionFromGrid(0, 0)).toBe(0);
+    expect(overlayPositionFromGrid(1, 1)).toBe(4);
+    expect(overlayPositionFromGrid(2, 2)).toBe(8);
+  });
+
+  it('accepts only integer codes 0 through 8', () => {
+    expect(isOverlayPosition(0)).toBe(true);
+    expect(isOverlayPosition(8)).toBe(true);
+    expect(isOverlayPosition(-1)).toBe(false);
+    expect(isOverlayPosition(9)).toBe(false);
+    expect(isOverlayPosition(1.5)).toBe(false);
+    expect(isOverlayPosition('top-center')).toBe(false);
   });
 });

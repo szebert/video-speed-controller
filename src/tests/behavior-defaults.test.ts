@@ -6,6 +6,7 @@ import {
   readGlobalBehaviorOverrides,
   resetBehaviorDefaultsRepairBackoff,
 } from '../storage/behavior-defaults';
+import { OVERLAY_POSITION } from '../settings/site-behavior';
 import { memoryDurable } from './memory-store';
 
 describe('global behavior defaults', () => {
@@ -44,7 +45,7 @@ describe('global behavior defaults', () => {
     await persistGlobalBehaviorOverrides(
       (current, now) => ({
         ...current,
-        overlayPosition: { kind: 'value', value: 'bottom-left', updatedAt: now },
+        overlayPosition: { kind: 'value', value: OVERLAY_POSITION.BOTTOM_LEFT, updatedAt: now },
       }),
       { sync, local, now: () => 9 },
     );
@@ -54,7 +55,7 @@ describe('global behavior defaults', () => {
     );
     expect(sync.data['defaults:site-behavior']).toMatchObject({
       overrides: {
-        overlayPosition: { kind: 'value', value: 'bottom-left', updatedAt: 9 },
+        overlayPosition: { kind: 'value', value: OVERLAY_POSITION.BOTTOM_LEFT, updatedAt: 9 },
         speed: { kind: 'value', value: 1.5, updatedAt: 11 },
       },
     });

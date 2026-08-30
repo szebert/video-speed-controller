@@ -13,28 +13,35 @@ export const SYNC_TARGET_MAX_BYTES = 80 * 1024;
 export const GLOBAL_BEHAVIOR_KEY = 'defaults:site-behavior';
 export const THEME_KEY = 'pref:theme';
 
-export type OverlayPosition =
-  | 'top-left'
-  | 'top-center'
-  | 'top-right'
-  | 'center-left'
-  | 'center'
-  | 'center-right'
-  | 'bottom-left'
-  | 'bottom-center'
-  | 'bottom-right';
+export const OVERLAY_POSITION = {
+  TOP_LEFT: 0,
+  TOP_CENTER: 1,
+  TOP_RIGHT: 2,
+  CENTER_LEFT: 3,
+  CENTER: 4,
+  CENTER_RIGHT: 5,
+  BOTTOM_LEFT: 6,
+  BOTTOM_CENTER: 7,
+  BOTTOM_RIGHT: 8,
+} as const;
 
-export const OVERLAY_POSITIONS = [
-  'top-left',
-  'top-center',
-  'top-right',
-  'center-left',
-  'center',
-  'center-right',
-  'bottom-left',
-  'bottom-center',
-  'bottom-right',
-] as const satisfies readonly OverlayPosition[];
+export type OverlayPosition = (typeof OVERLAY_POSITION)[keyof typeof OVERLAY_POSITION];
+
+export type GridIndex = 0 | 1 | 2;
+
+export function overlayPositionToGrid(position: OverlayPosition): {
+  row: GridIndex;
+  column: GridIndex;
+} {
+  return {
+    row: Math.floor(position / 3) as GridIndex,
+    column: (position % 3) as GridIndex,
+  };
+}
+
+export function overlayPositionFromGrid(row: GridIndex, column: GridIndex): OverlayPosition {
+  return (row * 3 + column) as OverlayPosition;
+}
 
 export type SiteHotkeyAction = 'increaseSpeed' | 'decreaseSpeed' | 'resetSpeed';
 
@@ -94,14 +101,14 @@ export type ResolvedSiteBehavior = {
 
 export const BUILT_IN_SITE_BEHAVIOR: SiteBehavior = {
   speed: 1,
-  overlayPosition: 'top-center',
+  overlayPosition: OVERLAY_POSITION.TOP_CENTER,
   overlayAutoHide: false,
   overlayAutoHideDelayMs: 2000,
   hotkeys: {},
 };
 
 export function isOverlayPosition(value: unknown): value is OverlayPosition {
-  return typeof value === 'string' && (OVERLAY_POSITIONS as readonly string[]).includes(value);
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 8;
 }
 
 export function isSiteHotkeyAction(value: unknown): value is SiteHotkeyAction {
