@@ -58,8 +58,8 @@ export default defineContentScript({
         if (!isExtensionRequest(message)) {
           return false;
         }
-        if (message.type === 'APPLY_TAB_TARGET') {
-          engine.setTarget(message.targetSpeed);
+        if (message.type === 'APPLY_TAB_BEHAVIOR') {
+          engine.setBehavior(message.behavior);
           sendResponse({ ok: true });
           return false;
         }

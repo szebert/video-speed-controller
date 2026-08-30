@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { enableSite } from '../background/enable-site';
 import type { TabStateStore } from '../storage/tab-state';
+import { tabBehavior } from './tab-behavior-fixture';
 
 function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
   const data: Record<string, unknown> = {};
@@ -26,25 +27,46 @@ function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
 }
 
 describe('ENABLE_SITE', () => {
-  it('seeds tabTarget from siteSpeed without writing storage', async () => {
+  it('seeds full applied behavior without writing durable storage', async () => {
     const tabStore = memoryTabStore();
     const persist = vi.fn();
+    const seeded = tabBehavior(3.25);
+    const apply = vi.fn();
     const result = await enableSite(2, 'https://www.youtube.com/watch', {
       tabStore,
-      readSpeed: vi.fn(async () => 3.25),
-      apply: vi.fn(),
+      readBehavior: vi.fn(async () => seeded),
+      apply,
       ensure: vi.fn(),
     });
     expect(result).toEqual({ ok: true, targetSpeed: 3.25 });
-    expect(tabStore.data['tab:2']).toEqual({ targetSpeed: 3.25 });
+    expect(tabStore.data['tab:2']).toEqual(seeded);
+    expect(apply).toHaveBeenCalledWith(2, seeded);
     expect(persist).not.toHaveBeenCalled();
+  });
+
+  it('reapplies existing full tab state', async () => {
+    const tabStore = memoryTabStore();
+    const existing = tabBehavior(1.75);
+    await tabStore.set({ 'tab:2': existing });
+    const apply = vi.fn();
+    const readBehavior = vi.fn(async () => tabBehavior(3));
+    const result = await enableSite(2, 'https://www.youtube.com/watch', {
+      tabStore,
+      readBehavior,
+      apply,
+      ensure: vi.fn(),
+    });
+    expect(result).toEqual({ ok: true, targetSpeed: 1.75 });
+    expect(readBehavior).not.toHaveBeenCalled();
+    expect(apply).toHaveBeenCalledWith(2, existing);
+    expect(tabStore.data['tab:2']).toEqual(existing);
   });
 
   it('rolls back a provisional tabTarget if apply throws', async () => {
     const tabStore = memoryTabStore();
     const result = await enableSite(2, 'https://www.youtube.com/watch', {
       tabStore,
-      readSpeed: vi.fn(async () => 3.25),
+      readBehavior: vi.fn(async () => tabBehavior(3.25)),
       apply: async () => {
         throw new Error('send failed');
       },
@@ -58,7 +80,7 @@ describe('ENABLE_SITE', () => {
     const tabStore = memoryTabStore();
     const result = await enableSite(2, 'https://www.youtube.com/watch', {
       tabStore,
-      readSpeed: vi.fn(async () => 3.25),
+      readBehavior: vi.fn(async () => tabBehavior(3.25)),
       apply: vi.fn(),
       ensure: vi.fn(async () => {
         throw new Error('top-frame injection failed');

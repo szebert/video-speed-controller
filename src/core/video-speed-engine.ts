@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import type { AppliedTabBehavior } from './applied-tab-behavior';
 import { MediaRegistry } from './media-registry';
 
 export type VideoSpeedEngine = {
   active: boolean;
   listening: boolean;
-  setTarget: (speed: number) => void;
+  setBehavior: (behavior: AppliedTabBehavior) => void;
   destroy: () => void;
   registry: MediaRegistry;
 };
@@ -20,11 +21,11 @@ function createEngine(): VideoSpeedEngine {
     active: true,
     listening: false,
     registry,
-    setTarget(speed: number) {
+    setBehavior(behavior: AppliedTabBehavior) {
       if (!engine.active) {
         return;
       }
-      registry.setTarget(speed);
+      registry.setBehavior(behavior);
     },
     destroy() {
       if (!engine.active) {

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { resolveEffectiveSpeed } from '../core/speed';
+import { builtInAppliedTabBehavior, type AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type { FrameReadyResponse } from '../core/messages';
 import { getSiteKey } from '../storage/site-key';
-import { readSiteSpeed } from '../storage/site-settings';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
-import { applyTabTarget } from './broadcast';
+import { readAppliedTabBehavior, type AppliedBehaviorReader } from './applied-behavior';
+import { applyTabBehavior } from './broadcast';
 
 export type FrameReadyDeps = {
   tabStore?: TabStateStore;
-  readSpeed?: typeof readSiteSpeed;
-  apply?: typeof applyTabTarget;
+  readBehavior?: AppliedBehaviorReader;
+  apply?: typeof applyTabBehavior;
 };
 
 export async function handleFrameReady(
@@ -23,12 +23,12 @@ export async function handleFrameReady(
   }
 
   const tabStore = deps.tabStore;
-  const apply = deps.apply ?? applyTabTarget;
+  const apply = deps.apply ?? applyTabBehavior;
   const existing = await getTabState(tabId, tabStore);
   const isTopFrame = sender.frameId === 0;
 
   if (existing) {
-    await apply(tabId, existing.targetSpeed);
+    await apply(tabId, existing);
     return { action: 'applied' };
   }
 
@@ -38,14 +38,21 @@ export async function handleFrameReady(
 
   const url = sender.url ?? sender.tab?.url;
   const siteKey = url ? getSiteKey(url) : { supported: false as const };
-  const readSpeed =
-    deps.readSpeed ?? ((targetUrl: string) => readSiteSpeed(targetUrl, { touchUsage: true }));
-  const siteSpeed = siteKey.supported && url ? await readSpeed(url) : null;
-  const targetSpeed = resolveEffectiveSpeed(siteSpeed);
-  await setTabState(tabId, { targetSpeed }, tabStore);
+  const readBehavior = deps.readBehavior ?? readAppliedTabBehavior;
+  let behavior: AppliedTabBehavior;
+  if (siteKey.supported && url) {
+    try {
+      behavior = await readBehavior(url);
+    } catch {
+      behavior = builtInAppliedTabBehavior();
+    }
+  } else {
+    behavior = builtInAppliedTabBehavior();
+  }
+  await setTabState(tabId, behavior, tabStore);
 
   try {
-    await apply(tabId, targetSpeed);
+    await apply(tabId, behavior);
   } catch (error) {
     await clearTabState(tabId, tabStore);
     throw error;

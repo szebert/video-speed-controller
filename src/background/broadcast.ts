@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { HostPattern } from '../access/site-access';
-import type { ApplyTabTargetRequest, ReconcileAccessRequest } from '../core/messages';
+import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
+import type { ApplyTabBehaviorRequest, ReconcileAccessRequest } from '../core/messages';
 
 export type TabMessenger = {
   query: (queryInfo: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>;
@@ -17,7 +18,7 @@ function isNoReceiverError(error: unknown): boolean {
 }
 
 export async function broadcastToAllTabs(
-  message: ReconcileAccessRequest | ApplyTabTargetRequest,
+  message: ReconcileAccessRequest | ApplyTabBehaviorRequest,
   tabs: TabMessenger = chrome.tabs,
 ): Promise<void> {
   const allTabs = await tabs.query({});
@@ -36,16 +37,16 @@ export async function broadcastToAllTabs(
   );
 }
 
-export async function applyTabTarget(
+export async function applyTabBehavior(
   tabId: number,
-  targetSpeed: number,
+  behavior: AppliedTabBehavior,
   tabs: TabMessenger = chrome.tabs,
 ): Promise<void> {
   try {
     await tabs.sendMessage(tabId, {
-      type: 'APPLY_TAB_TARGET',
-      targetSpeed,
-    } satisfies ApplyTabTargetRequest);
+      type: 'APPLY_TAB_BEHAVIOR',
+      behavior,
+    } satisfies ApplyTabBehaviorRequest);
   } catch (error) {
     if (!isNoReceiverError(error)) {
       throw error;

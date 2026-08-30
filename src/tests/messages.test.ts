@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { isExtensionRequest } from '../core/messages';
+import { tabBehavior } from './tab-behavior-fixture';
 
 describe('isExtensionRequest', () => {
   it('requires a complete payload for each message type', () => {
@@ -20,8 +21,43 @@ describe('isExtensionRequest', () => {
     ).toBe(true);
     expect(isExtensionRequest({ type: 'FRAME_READY' })).toBe(true);
     expect(isExtensionRequest({ type: 'TOP_FRAME_DESTROYED' })).toBe(true);
-    expect(isExtensionRequest({ type: 'APPLY_TAB_TARGET', targetSpeed: 1.5 })).toBe(true);
-    expect(isExtensionRequest({ type: 'APPLY_TAB_TARGET', targetSpeed: Number.NaN })).toBe(false);
+    expect(isExtensionRequest({ type: 'APPLY_TAB_BEHAVIOR', behavior: tabBehavior(1.5) })).toBe(
+      true,
+    );
+    expect(isExtensionRequest({ type: 'APPLY_TAB_BEHAVIOR', behavior: { targetSpeed: 1.5 } })).toBe(
+      false,
+    );
+    expect(
+      isExtensionRequest({
+        type: 'APPLY_TAB_BEHAVIOR',
+        behavior: { ...tabBehavior(1.5), overlayPosition: 'top-center' },
+      }),
+    ).toBe(false);
+    expect(
+      isExtensionRequest({
+        type: 'APPLY_TAB_BEHAVIOR',
+        behavior: { ...tabBehavior(1.5), overlayPosition: 9 },
+      }),
+    ).toBe(false);
+    expect(
+      isExtensionRequest({
+        type: 'APPLY_TAB_BEHAVIOR',
+        behavior: { ...tabBehavior(Number.POSITIVE_INFINITY) },
+      }),
+    ).toBe(false);
+    expect(
+      isExtensionRequest({
+        type: 'APPLY_TAB_BEHAVIOR',
+        behavior: { ...tabBehavior(1.5), overlayAutoHide: 'yes' },
+      }),
+    ).toBe(false);
+    expect(
+      isExtensionRequest({
+        type: 'APPLY_TAB_BEHAVIOR',
+        behavior: { ...tabBehavior(1.5), overlayAutoHideDelayMs: Number.NaN },
+      }),
+    ).toBe(false);
+    expect(isExtensionRequest({ type: 'APPLY_TAB_BEHAVIOR', targetSpeed: 1.5 })).toBe(false);
     expect(
       isExtensionRequest({ type: 'RECONCILE_ACCESS', allowedHostPatterns: ['https://*/*'] }),
     ).toBe(true);

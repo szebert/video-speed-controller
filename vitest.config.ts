@@ -13,5 +13,6 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/tests/**/*.test.ts'],
     globals: false,
+    setupFiles: ['./src/tests/resize-observer-stub.ts'],
   },
 });

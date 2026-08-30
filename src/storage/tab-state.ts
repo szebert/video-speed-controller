@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-export type TabTargetState = {
-  targetSpeed: number;
-};
+import { isAppliedTabBehavior, type AppliedTabBehavior } from '../core/applied-tab-behavior';
+
+export type TabTargetState = AppliedTabBehavior;
 
 export type TabStateStore = {
   get: (
@@ -13,15 +13,6 @@ export type TabStateStore = {
 };
 
 const tabKey = (tabId: number): string => `tab:${tabId}`;
-
-function isTabTargetState(value: unknown): value is TabTargetState {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    typeof (value as TabTargetState).targetSpeed === 'number' &&
-    Number.isFinite((value as TabTargetState).targetSpeed)
-  );
-}
 
 function sessionStore(): TabStateStore {
   return chrome.storage.session;
@@ -34,7 +25,7 @@ export async function getTabState(
   const key = tabKey(tabId);
   const result = await store.get(key);
   const value = result[key];
-  return isTabTargetState(value) ? value : null;
+  return isAppliedTabBehavior(value) ? value : null;
 }
 
 export async function setTabState(

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { HostPattern } from '../access/site-access';
+import { isAppliedTabBehavior, type AppliedTabBehavior } from './applied-tab-behavior';
 
 export type GetPopupStateRequest = {
   type: 'GET_POPUP_STATE';
@@ -40,9 +41,9 @@ export type TopFrameDestroyedRequest = {
   type: 'TOP_FRAME_DESTROYED';
 };
 
-export type ApplyTabTargetRequest = {
-  type: 'APPLY_TAB_TARGET';
-  targetSpeed: number;
+export type ApplyTabBehaviorRequest = {
+  type: 'APPLY_TAB_BEHAVIOR';
+  behavior: AppliedTabBehavior;
 };
 
 export type ExtensionRequest =
@@ -53,7 +54,7 @@ export type ExtensionRequest =
   | FrameReadyRequest
   | ReconcileAccessRequest
   | TopFrameDestroyedRequest
-  | ApplyTabTargetRequest;
+  | ApplyTabBehaviorRequest;
 
 export type PopupStateResponse = {
   supported: boolean;
@@ -96,8 +97,8 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
     case 'FRAME_READY':
     case 'TOP_FRAME_DESTROYED':
       return true;
-    case 'APPLY_TAB_TARGET':
-      return Number.isFinite((value as { targetSpeed?: unknown }).targetSpeed);
+    case 'APPLY_TAB_BEHAVIOR':
+      return isAppliedTabBehavior((value as { behavior?: unknown }).behavior);
     case 'RECONCILE_ACCESS':
       return (
         Array.isArray((value as { allowedHostPatterns?: unknown }).allowedHostPatterns) &&

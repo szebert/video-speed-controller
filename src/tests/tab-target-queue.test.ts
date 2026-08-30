@@ -6,6 +6,7 @@ import { handleFrameReady } from '../background/frame-ready';
 import { setSpeed } from '../background/set-speed';
 import { enqueueTabMutation, resetTabMutationQueue } from '../background/tab-mutation-queue';
 import { clearTabState, type TabStateStore } from '../storage/tab-state';
+import { tabBehavior } from './tab-behavior-fixture';
 
 function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
   const data: Record<string, unknown> = {};
@@ -43,10 +44,10 @@ describe('tab-target queue races', () => {
     const enable = enqueueTabMutation(1, () =>
       enableSite(1, 'https://www.youtube.com/watch', {
         tabStore,
-        readSpeed: async () => 1,
-        apply: async (_tabId, speed) => {
+        readBehavior: async () => tabBehavior(1),
+        apply: async (_tabId, behavior) => {
           await hold;
-          applied.push(speed);
+          applied.push(behavior.targetSpeed);
         },
         ensure: async () => undefined,
       }),
@@ -55,8 +56,8 @@ describe('tab-target queue races', () => {
       setSpeed(1, 'https://www.youtube.com/watch', 1.25, {
         tabStore,
         persist: async () => undefined,
-        apply: async (_tabId, speed) => {
-          applied.push(speed);
+        apply: async (_tabId, behavior) => {
+          applied.push(behavior.targetSpeed);
         },
         ensure: async () => undefined,
       }),
@@ -66,7 +67,7 @@ describe('tab-target queue races', () => {
     await enable;
     await set;
     expect(applied).toEqual([1, 1.25]);
-    expect(tabStore.data['tab:1']).toEqual({ targetSpeed: 1.25 });
+    expect(tabStore.data['tab:1']).toEqual(tabBehavior(1.25));
   });
 
   it('lets SET_SPEED win after a queued FRAME_READY apply', async () => {
@@ -85,10 +86,10 @@ describe('tab-target queue races', () => {
         },
         {
           tabStore,
-          readSpeed: async () => 1,
-          apply: async (_tabId, speed) => {
+          readBehavior: async () => tabBehavior(1),
+          apply: async (_tabId, behavior) => {
             await hold;
-            applied.push(speed);
+            applied.push(behavior.targetSpeed);
           },
         },
       ),
@@ -97,8 +98,8 @@ describe('tab-target queue races', () => {
       setSpeed(4, 'https://www.youtube.com/watch', 1.25, {
         tabStore,
         persist: async () => undefined,
-        apply: async (_tabId, speed) => {
-          applied.push(speed);
+        apply: async (_tabId, behavior) => {
+          applied.push(behavior.targetSpeed);
         },
         ensure: async () => undefined,
       }),
@@ -107,7 +108,7 @@ describe('tab-target queue races', () => {
     await ready;
     await set;
     expect(applied).toEqual([1, 1.25]);
-    expect(tabStore.data['tab:4']).toEqual({ targetSpeed: 1.25 });
+    expect(tabStore.data['tab:4']).toEqual(tabBehavior(1.25));
   });
 
   it('clears the tab target after an in-flight SET_SPEED', async () => {
@@ -120,6 +121,7 @@ describe('tab-target queue races', () => {
       setSpeed(2, 'https://www.youtube.com/watch', 1.25, {
         tabStore,
         persist: async () => undefined,
+        readOverlay: async () => tabBehavior(1),
         apply: async () => {
           await hold;
         },

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type { SetSpeedResponse } from '../core/messages';
 import {
   persistSiteSpeedInherit,
@@ -7,7 +8,8 @@ import {
   type SiteSettingsDeps,
 } from '../storage/site-settings';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
-import { applyTabTarget } from './broadcast';
+import { readOverlaySeed, type OverlaySeed } from './applied-behavior';
+import { applyTabBehavior } from './broadcast';
 import { ensureCurrentTabEngine, type ScriptInjector } from './inject';
 
 export type ResetSiteSpeedDeps = {
@@ -15,7 +17,8 @@ export type ResetSiteSpeedDeps = {
   tabStore?: TabStateStore;
   persistInherit?: (url: string) => Promise<void>;
   resolveSpeed?: (url: string) => Promise<number>;
-  apply?: typeof applyTabTarget;
+  readOverlay?: (url: string) => Promise<OverlaySeed>;
+  apply?: typeof applyTabBehavior;
   ensure?: typeof ensureCurrentTabEngine;
   storage?: SiteSettingsDeps;
 };
@@ -52,13 +55,15 @@ export async function resetSiteSpeed(
 
   const tabStore = deps.tabStore;
   const previous = await getTabState(tabId, tabStore);
-  await setTabState(tabId, { targetSpeed }, tabStore);
+  const overlay = previous ?? (await (deps.readOverlay ?? readOverlaySeed)(url));
+  const next: AppliedTabBehavior = { ...overlay, targetSpeed };
+  await setTabState(tabId, next, tabStore);
 
   const ensure = deps.ensure ?? ensureCurrentTabEngine;
-  const apply = deps.apply ?? applyTabTarget;
+  const apply = deps.apply ?? applyTabBehavior;
   try {
     await ensure(tabId, deps.scripting);
-    await apply(tabId, targetSpeed);
+    await apply(tabId, next);
   } catch (error) {
     await restoreTabTarget(tabId, previous, tabStore);
     return {

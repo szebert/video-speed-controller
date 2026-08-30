@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleFrameReady } from '../background/frame-ready';
 import type { TabStateStore } from '../storage/tab-state';
+import { tabBehavior } from './tab-behavior-fixture';
 
 function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
   const data: Record<string, unknown> = {};
@@ -26,9 +27,10 @@ function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
 }
 
 describe('FRAME_READY', () => {
-  it('does not overwrite an existing tabTarget from a later top-frame handshake', async () => {
+  it('does not overwrite an existing full tab state from a later top-frame handshake', async () => {
     const tabStore = memoryTabStore();
-    await tabStore.set({ 'tab:9': { targetSpeed: 2 } });
+    const existing = tabBehavior(2);
+    await tabStore.set({ 'tab:9': existing });
     const apply = vi.fn();
     const response = await handleFrameReady(
       {
@@ -36,12 +38,29 @@ describe('FRAME_READY', () => {
         frameId: 0,
         url: 'https://youtube.com',
       },
-      { tabStore, apply },
+      { tabStore, apply, readBehavior: async () => tabBehavior(1) },
     );
 
     expect(response).toEqual({ action: 'applied' });
-    expect(apply).toHaveBeenCalledWith(9, 2);
-    expect(tabStore.data['tab:9']).toEqual({ targetSpeed: 2 });
+    expect(apply).toHaveBeenCalledWith(9, existing);
+    expect(tabStore.data['tab:9']).toEqual(existing);
+  });
+
+  it('seeds full behavior for a top-frame handshake', async () => {
+    const tabStore = memoryTabStore();
+    const seeded = tabBehavior(1.25);
+    const apply = vi.fn();
+    const response = await handleFrameReady(
+      {
+        tab: { id: 3, url: 'https://www.youtube.com/watch' } as chrome.tabs.Tab,
+        frameId: 0,
+        url: 'https://www.youtube.com/watch',
+      },
+      { tabStore, apply, readBehavior: async () => seeded },
+    );
+    expect(response).toEqual({ action: 'applied' });
+    expect(apply).toHaveBeenCalledWith(3, seeded);
+    expect(tabStore.data['tab:3']).toEqual(seeded);
   });
 
   it('keeps child frames dormant when no tabTarget exists', async () => {
@@ -68,7 +87,7 @@ describe('FRAME_READY', () => {
         },
         {
           tabStore,
-          readSpeed: async () => 1.25,
+          readBehavior: async () => tabBehavior(1.25),
           apply: async () => {
             throw new Error('send failed');
           },
