@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { i18n } from '#i18n';
 import { useEffect, useState, type ReactNode } from 'react';
+import { t } from '@/i18n/t';
 import {
   E2E_POPUP_TARGET_TAB_ID_KEY,
   E2E_POPUP_TARGET_URL_KEY,
@@ -70,7 +70,7 @@ function PopupShell({ children, notice }: { children: ReactNode; notice?: string
   return (
     <div className="flex min-w-xs w-xs flex-col">
       <header className="flex items-center justify-between gap-3 px-4 pt-4">
-        <h1 className="text-sm font-semibold">{i18n.t('popupTitle')}</h1>
+        <h1 className="text-sm font-semibold">{t('popupTitle')}</h1>
         <ModeToggle />
       </header>
       <main className="flex flex-col gap-4 p-4">{children}</main>
@@ -89,14 +89,15 @@ function EnableSwitch({
   onChange?: (enabled: boolean) => void;
 }) {
   return (
-    <Switch
-      isSelected={isSelected}
-      isDisabled={isDisabled}
-      onChange={onChange}
-      className="flex w-full flex-row-reverse items-center justify-between gap-3 after:hidden"
-    >
-      {i18n.t('enabledOnThisSite')}
-    </Switch>
+    <div className="flex w-full items-center justify-between gap-3 text-sm">
+      <span id="enabled-on-this-site">{t('enabledOnThisSite')}</span>
+      <Switch
+        aria-labelledby="enabled-on-this-site"
+        isSelected={isSelected}
+        isDisabled={isDisabled}
+        onChange={onChange}
+      />
+    </div>
   );
 }
 
@@ -120,7 +121,7 @@ export function App() {
   if (!ready) {
     return (
       <PopupShell>
-        <p className="text-sm text-muted-foreground">{i18n.t('popupLoading')}</p>
+        <p className="text-sm text-muted-foreground">{t('popupLoading')}</p>
       </PopupShell>
     );
   }
@@ -128,7 +129,7 @@ export function App() {
   if (!view || !view.supported) {
     return (
       <PopupShell>
-        <p className="text-sm text-muted-foreground">{i18n.t('popupUnavailable')}</p>
+        <p className="text-sm text-muted-foreground">{t('popupUnavailable')}</p>
         <SpeedControls
           displaySpeed={1}
           disabled
@@ -222,7 +223,7 @@ export function App() {
     const result = await disableExactOriginAccess(view.url);
     if (!result.disabled) {
       const stillGranted = await containsExactOriginAccess(view.url);
-      setNotice(i18n.t('broaderAccessNotice'));
+      setNotice(t('broaderAccessNotice'));
       setView({ ...view, siteAccess: stillGranted });
       return;
     }
@@ -258,7 +259,7 @@ export function App() {
           void sendSpeed(speed);
         }}
       />
-      <p className="text-xs text-muted-foreground">{i18n.t('changesApplyToThisSite')}</p>
+      <p className="text-xs text-muted-foreground">{t('changesApplyToThisSite')}</p>
     </PopupShell>
   );
 }
