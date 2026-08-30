@@ -44,7 +44,7 @@ describe('RESET_SITE_SPEED', () => {
     expect(tabStore.data['tab:4']).toEqual({ targetSpeed: 1.25 });
   });
 
-  it('restores the previous tab target and does not persist when apply fails', async () => {
+  it('restores the previous tab target and does not persist when ensure fails', async () => {
     const tabStore = memoryTabStore();
     await tabStore.set({ 'tab:4': { targetSpeed: 1.5 } });
     const persistInherit = vi.fn();
@@ -58,6 +58,24 @@ describe('RESET_SITE_SPEED', () => {
       }),
     });
     expect(result).toEqual({ ok: false, error: 'top-frame injection failed' });
+    expect(tabStore.data['tab:4']).toEqual({ targetSpeed: 1.5 });
+    expect(persistInherit).not.toHaveBeenCalled();
+  });
+
+  it('restores the previous tab target when apply throws', async () => {
+    const tabStore = memoryTabStore();
+    await tabStore.set({ 'tab:4': { targetSpeed: 1.5 } });
+    const persistInherit = vi.fn();
+    const result = await resetSiteSpeed(4, 'https://www.youtube.com/watch', {
+      tabStore,
+      resolveSpeed: async () => 1.25,
+      persistInherit,
+      apply: async () => {
+        throw new Error('send failed');
+      },
+      ensure: vi.fn(),
+    });
+    expect(result).toEqual({ ok: false, error: 'send failed' });
     expect(tabStore.data['tab:4']).toEqual({ targetSpeed: 1.5 });
     expect(persistInherit).not.toHaveBeenCalled();
   });

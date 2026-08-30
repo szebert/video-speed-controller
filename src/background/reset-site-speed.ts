@@ -20,6 +20,18 @@ export type ResetSiteSpeedDeps = {
   storage?: SiteSettingsDeps;
 };
 
+async function restoreTabTarget(
+  tabId: number,
+  previous: Awaited<ReturnType<typeof getTabState>>,
+  tabStore?: TabStateStore,
+): Promise<void> {
+  if (previous) {
+    await setTabState(tabId, previous, tabStore);
+    return;
+  }
+  await clearTabState(tabId, tabStore);
+}
+
 export async function resetSiteSpeed(
   tabId: number,
   url: string,
@@ -43,22 +55,17 @@ export async function resetSiteSpeed(
   await setTabState(tabId, { targetSpeed }, tabStore);
 
   const ensure = deps.ensure ?? ensureCurrentTabEngine;
+  const apply = deps.apply ?? applyTabTarget;
   try {
     await ensure(tabId, deps.scripting);
+    await apply(tabId, targetSpeed);
   } catch (error) {
-    if (previous) {
-      await setTabState(tabId, previous, tabStore);
-    } else {
-      await clearTabState(tabId, tabStore);
-    }
+    await restoreTabTarget(tabId, previous, tabStore);
     return {
       ok: false,
       error: error instanceof Error ? error.message : 'Top-frame injection failed',
     };
   }
-
-  const apply = deps.apply ?? applyTabTarget;
-  await apply(tabId, targetSpeed);
 
   try {
     const persistInherit =

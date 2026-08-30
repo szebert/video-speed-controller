@@ -32,8 +32,10 @@ export async function enableSite(
   }
 
   const ensure = deps.ensure ?? ensureCurrentTabEngine;
+  const apply = deps.apply ?? applyTabTarget;
   try {
     await ensure(tabId, deps.scripting);
+    await apply(tabId, targetSpeed);
   } catch (error) {
     if (created) {
       await clearTabState(tabId, tabStore);
@@ -44,7 +46,5 @@ export async function enableSite(
     };
   }
 
-  const apply = deps.apply ?? applyTabTarget;
-  await apply(tabId, targetSpeed);
   return { ok: true, targetSpeed };
 }

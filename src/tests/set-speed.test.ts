@@ -61,6 +61,24 @@ describe('setSpeed', () => {
     expect(persist).not.toHaveBeenCalled();
   });
 
+  it('restores the previous tab target when apply throws', async () => {
+    const tabStore = memoryTabStore();
+    await tabStore.set({ 'tab:7': { targetSpeed: 2 } });
+    const persist = vi.fn();
+    const result = await setSpeed(7, 'https://example.com/watch', 2.25, {
+      tabStore,
+      persist,
+      apply: async () => {
+        throw new Error('send failed');
+      },
+      ensure: vi.fn(),
+    });
+
+    expect(result).toEqual({ ok: false, error: 'send failed' });
+    expect(tabStore.data['tab:7']).toEqual({ targetSpeed: 2 });
+    expect(persist).not.toHaveBeenCalled();
+  });
+
   it('applies tabTarget even when persist throws', async () => {
     const tabStore = memoryTabStore();
     const apply = vi.fn();

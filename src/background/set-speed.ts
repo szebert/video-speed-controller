@@ -21,6 +21,18 @@ export type SetSpeedDeps = {
   policy?: SpeedPolicy;
 };
 
+async function restoreTabTarget(
+  tabId: number,
+  previous: Awaited<ReturnType<typeof getTabState>>,
+  tabStore?: TabStateStore,
+): Promise<void> {
+  if (previous) {
+    await setTabState(tabId, previous, tabStore);
+    return;
+  }
+  await clearTabState(tabId, tabStore);
+}
+
 export async function setSpeed(
   tabId: number,
   url: string,
@@ -38,22 +50,17 @@ export async function setSpeed(
   await setTabState(tabId, { targetSpeed: canonical }, tabStore);
 
   const ensure = deps.ensure ?? ensureCurrentTabEngine;
+  const apply = deps.apply ?? applyTabTarget;
   try {
     await ensure(tabId, deps.scripting);
+    await apply(tabId, canonical);
   } catch (error) {
-    if (previous) {
-      await setTabState(tabId, previous, tabStore);
-    } else {
-      await clearTabState(tabId, tabStore);
-    }
+    await restoreTabTarget(tabId, previous, tabStore);
     return {
       ok: false,
       error: error instanceof Error ? error.message : 'Top-frame injection failed',
     };
   }
-
-  const apply = deps.apply ?? applyTabTarget;
-  await apply(tabId, canonical);
 
   try {
     const persist = deps.persist ?? persistSiteSpeed;

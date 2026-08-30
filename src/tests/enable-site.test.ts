@@ -40,6 +40,20 @@ describe('ENABLE_SITE', () => {
     expect(persist).not.toHaveBeenCalled();
   });
 
+  it('rolls back a provisional tabTarget if apply throws', async () => {
+    const tabStore = memoryTabStore();
+    const result = await enableSite(2, 'https://www.youtube.com/watch', {
+      tabStore,
+      readSpeed: vi.fn(async () => 3.25),
+      apply: async () => {
+        throw new Error('send failed');
+      },
+      ensure: vi.fn(),
+    });
+    expect(result).toEqual({ ok: false, error: 'send failed' });
+    expect(tabStore.data['tab:2']).toBeUndefined();
+  });
+
   it('rolls back a provisional tabTarget if required injection fails', async () => {
     const tabStore = memoryTabStore();
     const result = await enableSite(2, 'https://www.youtube.com/watch', {
