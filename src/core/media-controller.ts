@@ -2,36 +2,52 @@
 
 import { decideRateChange, ratesAlmostEqual } from './arbitration';
 
+export type OwnershipChangeHandler = (owned: boolean) => void;
+
 export class MediaController {
   targetSpeed: number | null = null;
   lastWrittenRate?: number;
   retryCount = 0;
   surrendered = false;
 
+  private restoreRate: number | null = null;
   private readonly abort = new AbortController();
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(readonly video: HTMLVideoElement) {
+  constructor(
+    readonly video: HTMLVideoElement,
+    private readonly onOwnershipChange?: OwnershipChangeHandler,
+  ) {
     this.video.addEventListener('ratechange', this.onRateChange, {
       signal: this.abort.signal,
     });
   }
 
   setTarget(speed: number): void {
+    const takingOwnership = this.targetSpeed == null || this.surrendered;
+    if (takingOwnership) {
+      this.restoreRate = this.video.playbackRate;
+    }
     this.targetSpeed = speed;
     this.retryCount = 0;
     this.surrendered = false;
     this.clearRetry();
+    if (takingOwnership) {
+      this.onOwnershipChange?.(true);
+    }
     this.writeRate(speed);
   }
 
   destroy(): void {
     this.clearRetry();
-    const restoreDefault = this.targetSpeed != null && !this.surrendered;
+    const restoreBaseline =
+      this.targetSpeed != null && !this.surrendered && this.restoreRate != null;
+    const baseline = this.restoreRate;
     this.targetSpeed = null;
+    this.restoreRate = null;
     this.abort.abort();
-    if (restoreDefault) {
-      this.writeRate(1);
+    if (restoreBaseline && baseline != null) {
+      this.writeRate(baseline);
     }
   }
 
@@ -59,6 +75,7 @@ export class MediaController {
     if (decision.kind === 'adopt') {
       this.surrendered = true;
       this.clearRetry();
+      this.onOwnershipChange?.(false);
     }
   };
 
