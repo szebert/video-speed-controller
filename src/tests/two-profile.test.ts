@@ -2,31 +2,22 @@
 
 import { describe, expect, it } from 'vitest';
 import { displaySpeed } from '../core/speed';
-import { persistSiteSpeed, readSiteSpeed, type SiteSettingsStore } from '../storage/site-settings';
-
-function memorySync(
-  initial: Record<string, unknown> = {},
-): SiteSettingsStore & { data: Record<string, unknown> } {
-  const data = { ...initial };
-  return {
-    data,
-    async get(keys) {
-      if (typeof keys === 'string') {
-        return { [keys]: data[keys] };
-      }
-      return { ...data };
-    },
-    async set(items) {
-      Object.assign(data, items);
-    },
-  };
-}
+import { persistSiteSpeed, readSiteSpeed } from '../storage/site-settings';
+import { memoryDurable } from './memory-store';
 
 describe('two-profile display and storage', () => {
   it('shows stored siteSpeed with the toggle off when the profile has no permission', async () => {
-    const profileB = memorySync({
-      'site:www.youtube.com': { schemaVersion: 1, speed: 3.25 },
-    });
+    const profileB = {
+      sync: memoryDurable({
+        'site:www.youtube.com': {
+          schemaVersion: 1,
+          lastUsedAt: 1,
+          overrides: { speed: { kind: 'value', value: 3.25, updatedAt: 1 } },
+        },
+      }),
+      local: memoryDurable(),
+      now: () => 1,
+    };
     await expect(readSiteSpeed('https://www.youtube.com/watch', profileB)).resolves.toBe(3.25);
     expect(
       displaySpeed({
@@ -43,11 +34,29 @@ describe('two-profile display and storage', () => {
   });
 
   it('writes one site record without rewriting another profile copy', async () => {
-    const profileA = memorySync();
+    const profileA = {
+      sync: memoryDurable(),
+      local: memoryDurable(),
+      now: () => 10,
+    };
     await persistSiteSpeed('https://www.youtube.com/watch', 3.25, profileA);
-    const profileB = memorySync({ ...profileA.data });
-    expect(profileB.data['site:www.youtube.com']).toEqual({ schemaVersion: 1, speed: 3.25 });
-    await persistSiteSpeed('https://www.youtube.com/watch', 3, profileA);
-    expect(profileB.data['site:www.youtube.com']).toEqual({ schemaVersion: 1, speed: 3.25 });
+    const profileB = {
+      sync: memoryDurable({ ...profileA.sync.data }),
+      local: memoryDurable({ ...profileA.local.data }),
+      now: () => 10,
+    };
+    expect(profileB.sync.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'value', value: 3.25, updatedAt: 10 } },
+    });
+    await persistSiteSpeed('https://www.youtube.com/watch', 3, {
+      ...profileA,
+      now: () => 20,
+    });
+    expect(profileB.sync.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'value', value: 3.25, updatedAt: 10 } },
+    });
+    expect(profileA.sync.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'value', value: 3, updatedAt: 20 } },
+    });
   });
 });

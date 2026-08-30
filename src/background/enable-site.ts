@@ -23,7 +23,8 @@ export async function enableSite(
   const tabStore = deps.tabStore;
   const existing = await getTabState(tabId, tabStore);
   const created = !existing;
-  const readSpeed = deps.readSpeed ?? readSiteSpeed;
+  const readSpeed =
+    deps.readSpeed ?? ((targetUrl: string) => readSiteSpeed(targetUrl, { touchUsage: true }));
   const targetSpeed = existing?.targetSpeed ?? resolveEffectiveSpeed(await readSpeed(url));
 
   if (created) {

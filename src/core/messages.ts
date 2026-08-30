@@ -21,6 +21,12 @@ export type SetSpeedRequest = {
   speed: number;
 };
 
+export type ResetSiteSpeedRequest = {
+  type: 'RESET_SITE_SPEED';
+  tabId: number;
+  url: string;
+};
+
 export type FrameReadyRequest = {
   type: 'FRAME_READY';
 };
@@ -43,6 +49,7 @@ export type ExtensionRequest =
   | GetPopupStateRequest
   | EnableSiteRequest
   | SetSpeedRequest
+  | ResetSiteSpeedRequest
   | FrameReadyRequest
   | ReconcileAccessRequest
   | TopFrameDestroyedRequest

@@ -4,8 +4,10 @@ import { onPermissionsChanged } from '../background/permissions-lifecycle';
 import { enableSite } from '../background/enable-site';
 import { handleFrameReady } from '../background/frame-ready';
 import { getPopupState } from '../background/popup-state';
+import { resetSiteSpeed } from '../background/reset-site-speed';
 import { setSpeed } from '../background/set-speed';
 import { isExtensionRequest } from '../core/messages';
+import { restrictStorageAccess } from '../storage/restrict-access';
 import { clearTabState } from '../storage/tab-state';
 
 export default defineBackground(() => {
@@ -49,6 +51,10 @@ export default defineBackground(() => {
       void setSpeed(message.tabId, message.url, message.speed).then(sendResponse);
       return true;
     }
+    if (message.type === 'RESET_SITE_SPEED') {
+      void resetSiteSpeed(message.tabId, message.url).then(sendResponse);
+      return true;
+    }
     if (message.type === 'FRAME_READY') {
       void handleFrameReady(sender).then(sendResponse);
       return true;
@@ -62,5 +68,9 @@ export default defineBackground(() => {
       return false;
     }
     return false;
+  });
+
+  void restrictStorageAccess().catch(() => {
+    // Storage hardening must not crash or disable the worker.
   });
 });

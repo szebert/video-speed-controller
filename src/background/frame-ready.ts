@@ -24,7 +24,8 @@ export async function handleFrameReady(
     }
     const url = sender.url ?? sender.tab?.url;
     const siteKey = url ? getSiteKey(url) : { supported: false as const };
-    const siteSpeed = siteKey.supported && url ? await readSiteSpeed(url) : null;
+    const siteSpeed =
+      siteKey.supported && url ? await readSiteSpeed(url, { touchUsage: true }) : null;
     const targetSpeed = resolveEffectiveSpeed(siteSpeed);
     await setTabState(tabId, { targetSpeed });
     await applyTabTarget(tabId, targetSpeed);
