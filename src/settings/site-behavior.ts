@@ -119,11 +119,16 @@ export function isFiniteTimestamp(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function hasExactKeys(value: object, keys: readonly string[]): boolean {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && keys.every((key) => key in value);
+}
+
 export function isOverride<T>(
   value: unknown,
   isValue: (candidate: unknown) => candidate is T,
 ): value is Override<T> {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false;
   }
   const record = value as { kind?: unknown; value?: unknown; updatedAt?: unknown };
@@ -131,9 +136,13 @@ export function isOverride<T>(
     return false;
   }
   if (record.kind === 'inherit') {
-    return true;
+    return hasExactKeys(record, ['kind', 'updatedAt']);
   }
-  return record.kind === 'value' && isValue(record.value);
+  return (
+    record.kind === 'value' &&
+    hasExactKeys(record, ['kind', 'value', 'updatedAt']) &&
+    isValue(record.value)
+  );
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -152,11 +161,22 @@ export function hasHotkeyEntries(overrides: BehaviorOverrides): boolean {
   return Object.keys(hotkeys).length > 0;
 }
 
+const BEHAVIOR_OVERRIDE_KEYS = new Set([
+  'speed',
+  'overlayPosition',
+  'overlayAutoHide',
+  'overlayAutoHideDelayMs',
+  'hotkeys',
+]);
+
 export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
   const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).some((key) => !BEHAVIOR_OVERRIDE_KEYS.has(key))) {
+    return null;
+  }
   const overrides: BehaviorOverrides = {};
 
   if ('speed' in raw) {
@@ -198,40 +218,39 @@ export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null
 }
 
 export function parseSiteSettings(value: unknown): SiteSettingsV1 | null {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
   const record = value as {
     schemaVersion?: unknown;
     overrides?: unknown;
-    speed?: unknown;
     lastUsedAt?: unknown;
   };
-  if (record.schemaVersion !== 1) {
+  if (!hasExactKeys(record, ['schemaVersion', 'overrides', 'lastUsedAt'])) {
     return null;
   }
-  if ('speed' in record && !('overrides' in record)) {
+  if (record.schemaVersion !== 1) {
     return null;
   }
   const overrides = parseBehaviorOverrides(record.overrides);
   if (!overrides || !isFiniteTimestamp(record.lastUsedAt)) {
     return null;
   }
-  if (hasHotkeyEntries(overrides)) {
+  if (hasHotkeyEntries(overrides) || !hasSemanticOverrides(overrides)) {
     return null;
   }
   return { schemaVersion: 1, overrides, lastUsedAt: record.lastUsedAt };
 }
 
 export function parseGlobalBehaviorSettings(value: unknown): GlobalBehaviorSettingsV1 | null {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
-  const record = value as { schemaVersion?: unknown; overrides?: unknown; speed?: unknown };
+  const record = value as { schemaVersion?: unknown; overrides?: unknown };
+  if (!hasExactKeys(record, ['schemaVersion', 'overrides'])) {
+    return null;
+  }
   if (record.schemaVersion !== 1) {
-    return null;
-  }
-  if ('speed' in record && !('overrides' in record)) {
     return null;
   }
   const overrides = parseBehaviorOverrides(record.overrides);
@@ -472,7 +491,10 @@ export function behaviorOverridesEqual(left: BehaviorOverrides, right: BehaviorO
     fieldsEqual(left.speed, right.speed) &&
     fieldsEqual(left.overlayPosition, right.overlayPosition) &&
     fieldsEqual(left.overlayAutoHide, right.overlayAutoHide) &&
-    fieldsEqual(left.overlayAutoHideDelayMs, right.overlayAutoHideDelayMs)
+    fieldsEqual(left.overlayAutoHideDelayMs, right.overlayAutoHideDelayMs) &&
+    SITE_HOTKEY_ACTIONS.every((action) =>
+      fieldsEqual(left.hotkeys?.[action], right.hotkeys?.[action]),
+    )
   );
 }
 

@@ -6,6 +6,8 @@ import {
   mergeOverrideField,
   overlayPositionFromGrid,
   overlayPositionToGrid,
+  parseBehaviorOverrides,
+  parseGlobalBehaviorSettings,
   parseSiteSettings,
   resolveSiteBehavior,
   toEffectiveBehavior,
@@ -189,5 +191,46 @@ describe('overlay position grid', () => {
     expect(isOverlayPosition(9)).toBe(false);
     expect(isOverlayPosition(1.5)).toBe(false);
     expect(isOverlayPosition('top-center')).toBe(false);
+  });
+});
+
+describe('strict V1 parsers', () => {
+  it('rejects unknown keys leftover inherit values and empty site records', () => {
+    expect(
+      parseSiteSettings({
+        schemaVersion: 1,
+        lastUsedAt: 1,
+        overrides: { speed: { kind: 'value', value: 1.5, updatedAt: 1 } },
+        extra: true,
+      }),
+    ).toBeNull();
+    expect(
+      parseBehaviorOverrides({
+        speed: { kind: 'value', value: 1.5, updatedAt: 1 },
+        overlayPositon: { kind: 'inherit', updatedAt: 1 },
+      }),
+    ).toBeNull();
+    expect(
+      parseBehaviorOverrides({ speed: { kind: 'inherit', updatedAt: 1, value: 1.5 } }),
+    ).toBeNull();
+    expect(
+      parseSiteSettings({
+        schemaVersion: 1,
+        lastUsedAt: 1,
+        overrides: { overlayPosition: { kind: 'value', value: 'top-center', updatedAt: 1 } },
+      }),
+    ).toBeNull();
+    expect(parseSiteSettings({ schemaVersion: 1, lastUsedAt: 1, overrides: {} })).toBeNull();
+    expect(
+      parseSiteSettings({
+        schemaVersion: 1,
+        lastUsedAt: 1,
+        overrides: { hotkeys: {} },
+      }),
+    ).toBeNull();
+    expect(parseGlobalBehaviorSettings({ schemaVersion: 1, overrides: {} })).toEqual({
+      schemaVersion: 1,
+      overrides: {},
+    });
   });
 });
