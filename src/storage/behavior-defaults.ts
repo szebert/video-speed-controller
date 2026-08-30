@@ -10,6 +10,7 @@ import {
   type GlobalBehaviorSettingsV1,
 } from '../settings/site-behavior';
 import { defaultLocalStore, defaultSyncStore, type DurableSettingsStore } from './durable-store';
+import { GLOBAL_DEFAULTS_LOCK, enqueueStorageMutation } from './storage-mutation-queue';
 
 export type StorageClock = () => number;
 
@@ -45,11 +46,13 @@ async function readParsed(store: DurableSettingsStore): Promise<GlobalBehaviorSe
 export async function readGlobalBehaviorOverrides(
   deps: BehaviorDefaultsDeps = {},
 ): Promise<BehaviorOverrides> {
-  const { sync, local, now } = stores(deps);
-  const [syncRecord, localRecord] = await Promise.all([readParsed(sync), readParsed(local)]);
-  const merged = mergeBehaviorOverrides(syncRecord?.overrides ?? {}, localRecord?.overrides ?? {});
-  await maybeRepairGlobal(sync, local, syncRecord, localRecord, merged, now());
-  return merged;
+  return enqueueStorageMutation(GLOBAL_DEFAULTS_LOCK, async () => {
+    const { sync, local, now } = stores(deps);
+    const [syncRecord, localRecord] = await Promise.all([readParsed(sync), readParsed(local)]);
+    const merged = mergeBehaviorOverrides(syncRecord?.overrides ?? {}, localRecord?.overrides ?? {});
+    await maybeRepairGlobal(sync, local, syncRecord, localRecord, merged, now());
+    return merged;
+  });
 }
 
 async function maybeRepairGlobal(
@@ -86,21 +89,23 @@ export async function persistGlobalBehaviorOverrides(
   mutate: (current: BehaviorOverrides, now: number) => BehaviorOverrides,
   deps: BehaviorDefaultsDeps = {},
 ): Promise<void> {
-  const { sync, local, now } = stores(deps);
-  const at = now();
-  const [syncRecord, localRecord] = await Promise.all([readParsed(sync), readParsed(local)]);
-  const merged = mergeBehaviorOverrides(syncRecord?.overrides ?? {}, localRecord?.overrides ?? {});
-  const next: GlobalBehaviorSettingsV1 = {
-    schemaVersion: 1,
-    overrides: mutate(merged, at),
-  };
-  const writes = [
-    local.set({ [GLOBAL_BEHAVIOR_KEY]: next }).catch((error: unknown) => error),
-    sync.set({ [GLOBAL_BEHAVIOR_KEY]: next }).catch((error: unknown) => error),
-  ];
-  const results = await Promise.all(writes);
-  const failure = results.find((result) => result instanceof Error);
-  if (failure instanceof Error) {
-    throw failure;
-  }
+  return enqueueStorageMutation(GLOBAL_DEFAULTS_LOCK, async () => {
+    const { sync, local, now } = stores(deps);
+    const at = now();
+    const [syncRecord, localRecord] = await Promise.all([readParsed(sync), readParsed(local)]);
+    const merged = mergeBehaviorOverrides(syncRecord?.overrides ?? {}, localRecord?.overrides ?? {});
+    const next: GlobalBehaviorSettingsV1 = {
+      schemaVersion: 1,
+      overrides: mutate(merged, at),
+    };
+    const writes = [
+      local.set({ [GLOBAL_BEHAVIOR_KEY]: next }).catch((error: unknown) => error),
+      sync.set({ [GLOBAL_BEHAVIOR_KEY]: next }).catch((error: unknown) => error),
+    ];
+    const results = await Promise.all(writes);
+    const failure = results.find((result) => result instanceof Error);
+    if (failure instanceof Error) {
+      throw failure;
+    }
+  });
 }

@@ -43,6 +43,7 @@ import {
   type DurableSettingsStore,
 } from './durable-store';
 import { getSiteKey, getSiteStorageKey } from './site-key';
+import { SITE_SETTINGS_LOCK, enqueueStorageMutation } from './storage-mutation-queue';
 
 export type { DurableSettingsStore } from './durable-store';
 
@@ -198,7 +199,9 @@ export async function reconcileSyncHotSet(
   now: number,
   options?: { protectedKey?: string },
 ): Promise<void> {
-  return reconcileSyncHotSetUnlocked(sync, now, options);
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, () =>
+    reconcileSyncHotSetUnlocked(sync, now, options),
+  );
 }
 
 async function publishSyncSite(
@@ -360,21 +363,23 @@ export async function resolveSiteBehaviorForUrl(
   url: string,
   deps: SiteSettingsDeps = {},
 ): Promise<ReturnType<typeof resolveSiteBehavior> | null> {
-  const loaded = await loadMergedSite(url, deps);
-  if (!loaded) {
-    return null;
-  }
-  await maybeRepairAndTouchSite(
-    loaded.sync,
-    loaded.local,
-    loaded.storageKey,
-    loaded.syncRecord,
-    loaded.localRecord,
-    loaded.mergedOverrides,
-    loaded.now,
-    Boolean(deps.touchUsage),
-  );
-  return resolveSiteBehavior(loaded.globalOverrides, loaded.mergedOverrides);
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
+    const loaded = await loadMergedSite(url, deps);
+    if (!loaded) {
+      return null;
+    }
+    await maybeRepairAndTouchSite(
+      loaded.sync,
+      loaded.local,
+      loaded.storageKey,
+      loaded.syncRecord,
+      loaded.localRecord,
+      loaded.mergedOverrides,
+      loaded.now,
+      Boolean(deps.touchUsage),
+    );
+    return resolveSiteBehavior(loaded.globalOverrides, loaded.mergedOverrides);
+  });
 }
 
 export async function readSiteSpeed(
@@ -389,12 +394,14 @@ export async function resolveSpeedAfterSiteInherit(
   url: string,
   deps: SiteSettingsDeps = {},
 ): Promise<number> {
-  const loaded = await loadMergedSite(url, deps);
-  if (!loaded) {
-    throw new Error('Cannot persist siteSpeed for an unsupported page');
-  }
-  const prospective = withSpeedInherit(loaded.mergedOverrides, loaded.now);
-  return toEffectiveBehavior(resolveSiteBehavior(loaded.globalOverrides, prospective)).speed;
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
+    const loaded = await loadMergedSite(url, deps);
+    if (!loaded) {
+      throw new Error('Cannot persist siteSpeed for an unsupported page');
+    }
+    const prospective = withSpeedInherit(loaded.mergedOverrides, loaded.now);
+    return toEffectiveBehavior(resolveSiteBehavior(loaded.globalOverrides, prospective)).speed;
+  });
 }
 
 async function persistMutatedSite(
@@ -402,34 +409,36 @@ async function persistMutatedSite(
   mutate: (current: BehaviorOverrides, now: number) => BehaviorOverrides,
   deps: SiteSettingsDeps = {},
 ): Promise<void> {
-  const loaded = await loadMergedSite(url, deps);
-  if (!loaded) {
-    throw new Error('Cannot persist siteSpeed for an unsupported page');
-  }
-  const nextOverrides = mutate(loaded.mergedOverrides, loaded.now);
-  const record: SiteSettingsV1 = {
-    schemaVersion: 1,
-    overrides: nextOverrides,
-    lastUsedAt: loaded.now,
-  };
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
+    const loaded = await loadMergedSite(url, deps);
+    if (!loaded) {
+      throw new Error('Cannot persist siteSpeed for an unsupported page');
+    }
+    const nextOverrides = mutate(loaded.mergedOverrides, loaded.now);
+    const record: SiteSettingsV1 = {
+      schemaVersion: 1,
+      overrides: nextOverrides,
+      lastUsedAt: loaded.now,
+    };
 
-  const [localResult, syncResult] = await Promise.all([
-    loaded.local.set({ [loaded.storageKey]: record }).then(
-      () => undefined,
-      (error: unknown) => error,
-    ),
-    publishSyncSite(loaded.sync, loaded.storageKey, record, loaded.now).then(
-      () => undefined,
-      (error: unknown) => error,
-    ),
-  ]);
-  const failure = localResult ?? syncResult;
-  if (failure instanceof Error) {
-    throw failure;
-  }
-  if (failure) {
-    throw new Error('Failed to persist siteSpeed');
-  }
+    const [localResult, syncResult] = await Promise.all([
+      loaded.local.set({ [loaded.storageKey]: record }).then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+      publishSyncSite(loaded.sync, loaded.storageKey, record, loaded.now).then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+    ]);
+    const failure = localResult ?? syncResult;
+    if (failure instanceof Error) {
+      throw failure;
+    }
+    if (failure) {
+      throw new Error('Failed to persist siteSpeed');
+    }
+  });
 }
 
 export async function persistSiteSpeed(

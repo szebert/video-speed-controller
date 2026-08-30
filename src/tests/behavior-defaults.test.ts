@@ -7,11 +7,13 @@ import {
   resetBehaviorDefaultsRepairBackoff,
 } from '../storage/behavior-defaults';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
+import { resetStorageMutationQueue } from '../storage/storage-mutation-queue';
 import { memoryDurable } from './memory-store';
 
 describe('global behavior defaults', () => {
   beforeEach(() => {
     resetBehaviorDefaultsRepairBackoff();
+    resetStorageMutationQueue();
   });
 
   it('merges independent fields and never expires inherit tombstones', async () => {

@@ -18,6 +18,11 @@ import {
   resolveSiteBehaviorForUrl,
   resolveSpeedAfterSiteInherit,
 } from '../storage/site-settings';
+import {
+  SITE_SETTINGS_LOCK,
+  hasStorageMutation,
+  resetStorageMutationQueue,
+} from '../storage/storage-mutation-queue';
 import { memoryDurable } from './memory-store';
 
 function pair(now = 1_000) {
@@ -31,6 +36,7 @@ function pair(now = 1_000) {
 describe('site settings storage', () => {
   beforeEach(() => {
     resetSiteRepairBackoff();
+    resetStorageMutationQueue();
   });
 
   it('treats old development speed-only records as absent', async () => {
@@ -610,6 +616,45 @@ describe('site settings storage', () => {
     await reconcileSyncHotSet(store, now);
     expect(writes).toBe(0);
     expect(sync.data['site:www.youtube.com']).toEqual(record);
+  });
+
+  it('serializes overlapping persist writes and drops the settled lock', async () => {
+    const local = memoryDurable();
+    const sync = memoryDurable();
+    let releaseFirst!: () => void;
+    let firstSetStarted = false;
+    const gated = {
+      ...local,
+      async set(items: Record<string, unknown>) {
+        if (!firstSetStarted) {
+          firstSetStarted = true;
+          await new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+          });
+        }
+        await local.set(items);
+      },
+    };
+    const first = persistSiteSpeed('https://www.youtube.com/watch', 1.25, {
+      sync,
+      local: gated,
+      now: () => 10,
+    });
+    await vi.waitUntil(() => firstSetStarted);
+    const second = persistSiteSpeed('https://www.youtube.com/watch', 1.75, {
+      sync,
+      local: gated,
+      now: () => 20,
+    });
+    expect(local.data['site:www.youtube.com']).toBeUndefined();
+    releaseFirst();
+    await first;
+    await second;
+    expect(local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { value: 1.75, updatedAt: 20 } },
+    });
+    await Promise.resolve();
+    expect(hasStorageMutation(SITE_SETTINGS_LOCK)).toBe(false);
   });
 
   it('allows a new repair one minute after a successful one', async () => {

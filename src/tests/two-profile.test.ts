@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { displaySpeed } from '../core/speed';
 import { persistSiteSpeed, readSiteSpeed } from '../storage/site-settings';
+import { resetStorageMutationQueue } from '../storage/storage-mutation-queue';
 import { memoryDurable } from './memory-store';
 
 describe('two-profile display and storage', () => {
+  beforeEach(() => {
+    resetStorageMutationQueue();
+  });
+
   it('shows stored siteSpeed with the toggle off when the profile has no permission', async () => {
     const profileB = {
       sync: memoryDurable({
