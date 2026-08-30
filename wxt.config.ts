@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'wxt';
 
 const e2eBuild = process.env.OSVSC_E2E === '1';
@@ -7,17 +8,20 @@ const e2eBuild = process.env.OSVSC_E2E === '1';
 export default defineConfig({
   srcDir: 'src',
   publicDir: 'src/public',
-  modules: ['@wxt-dev/module-react'],
+  modules: ['@wxt-dev/module-react', '@wxt-dev/i18n/module'],
   imports: {
     eslintrc: {
       enabled: 9,
     },
   },
+  vite: () => ({
+    plugins: [tailwindcss()],
+  }),
   manifest: {
-    name: 'Open Source Video Speed Controller',
-    short_name: 'OS VSC',
-    description:
-      'Control HTML5 video playback speed from the Chrome toolbar. Open source. No accounts, analytics, or servers.',
+    default_locale: 'en',
+    name: '__MSG_extName__',
+    short_name: '__MSG_extShortName__',
+    description: '__MSG_extDescription__',
     minimum_chrome_version: '119',
     permissions: ['storage', 'activeTab', 'scripting'],
     optional_host_permissions: ['http://*/*', 'https://*/*'],
@@ -29,7 +33,7 @@ export default defineConfig({
       128: 'icons/icon-128.png',
     },
     action: {
-      default_title: 'OS Video Speed Controller',
+      default_title: '__MSG_actionTitle__',
       default_icon: {
         16: 'icons/icon-16.png',
         32: 'icons/icon-32.png',

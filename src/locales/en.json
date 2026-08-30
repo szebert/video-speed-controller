@@ -1,0 +1,21 @@
+{
+  "extName": "Open Source Video Speed Controller",
+  "extShortName": "OS VSC",
+  "extDescription": "Control HTML5 video playback speed from the Chrome toolbar. Open source. No accounts, analytics, or servers.",
+  "actionTitle": "OS Video Speed Controller",
+  "popupTitle": "OS Video Speed Controller",
+  "popupLoading": "Loading…",
+  "popupUnavailable": "OS VSC isn’t available on this page",
+  "broaderAccessNotice": "This site is covered by broader Chrome site access. Change OS VSC’s Site access in Chrome’s extension settings.",
+  "disabled": "Disabled",
+  "slower": "Slower",
+  "reset": "Reset",
+  "faster": "Faster",
+  "siteSpeed": "Site speed",
+  "changesApplyToThisSite": "Changes apply to this site",
+  "enabledOnThisSite": "Enabled on this site",
+  "changeTheme": "Change theme",
+  "themeDark": "Dark",
+  "themeLight": "Light",
+  "themeSystem": "System"
+}
