@@ -1,8 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { expect, pointPopupAtSite, test } from './extension';
+import type { Page } from '@playwright/test';
+import { expect, fixtureOrigin, openPopup, pointPopupAtSite, test } from './extension';
 
 test.describe.configure({ mode: 'serial' });
+
+async function overlayBadgeTexts(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('osvsc-overlay')].map(
+      (host) => host.shadowRoot?.querySelector('.badge')?.textContent ?? '',
+    ),
+  );
+}
 
 test('Enable is available on the fixture site and Faster applies to every video', async ({
   site,
@@ -20,6 +29,7 @@ test('Enable is available on the fixture site and Faster applies to every video'
 
   await popup.getByRole('button', { name: 'Faster' }).click();
   await expect(popup.getByText('1.25×')).toBeVisible();
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.25×', '1.25×', '1.25×']);
 
   await expect
     .poll(async () =>
@@ -39,6 +49,7 @@ test('Enable is available on the fixture site and Faster applies to every video'
 
   await popup.getByRole('button', { name: 'Reset' }).click();
   await expect(popup.getByText('1.00×')).toBeVisible();
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.00×', '1.00×', '1.00×']);
   await expect
     .poll(async () =>
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
@@ -54,6 +65,58 @@ test('Enable is available on the fixture site and Faster applies to every video'
       site.locator('#v4').evaluate((video) => (video as HTMLVideoElement).playbackRate),
     )
     .toBe(1.25);
+  await expect
+    .poll(async () => overlayBadgeTexts(site))
+    .toEqual(['1.25×', '1.25×', '1.25×', '1.25×']);
+});
+
+test('reconcile teardown restores the captured baseline and removes overlays', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  const site = await context.newPage();
+  await site.goto(`${fixtureOrigin}/restore-baseline.html`);
+  const popup = await openPopup(context, extensionId, site, serviceWorker);
+  const tabId = await serviceWorker.evaluate(async (url) => {
+    const tab = (await chrome.tabs.query({})).find((candidate) => candidate.url === url);
+    if (tab?.id == null) {
+      throw new Error('Could not resolve the restore-baseline tab');
+    }
+    return tab.id;
+  }, site.url());
+
+  const response = await popup.evaluate(
+    async ({ tabId: id, url }) =>
+      chrome.runtime.sendMessage({ type: 'SET_SPEED', tabId: id, url, speed: 3 }),
+    { tabId, url: site.url() },
+  );
+  expect(response).toEqual({ ok: true, targetSpeed: 3 });
+
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(3);
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['3.00×']);
+
+  await serviceWorker.evaluate(async (id) => {
+    try {
+      await chrome.tabs.sendMessage(id, {
+        type: 'RECONCILE_ACCESS',
+        allowedHostPatterns: [],
+      });
+    } catch {
+      // Content acknowledges by tearing down rather than sending a response.
+    }
+  }, tabId);
+
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1.25);
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual([]);
 });
 
 test('slider keyboard changes site speed', async ({ site, openExtensionPopup }) => {

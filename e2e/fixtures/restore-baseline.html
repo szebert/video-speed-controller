@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OS VSC restore-baseline fixture</title>
+    <style>
+      video {
+        display: block;
+        width: 320px;
+        height: 180px;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="v1" controls muted></video>
+    <script>
+      const video = document.querySelector('#v1');
+      video.defaultPlaybackRate = 1.25;
+      video.playbackRate = 1.25;
+    </script>
+  </body>
+</html>

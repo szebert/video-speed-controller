@@ -26,6 +26,20 @@ test('feed fixture reparents the same video node', async ({ page }) => {
   expect(idBefore).toBeTruthy();
 });
 
+test('restore-baseline fixture starts at 1.25×', async ({ page }) => {
+  await page.goto('/restore-baseline.html');
+  await expect
+    .poll(async () =>
+      page.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1.25);
+  await expect
+    .poll(async () =>
+      page.locator('#v1').evaluate((video) => (video as HTMLVideoElement).defaultPlaybackRate),
+    )
+    .toBe(1.25);
+});
+
 test('iframe fixture has a top video, same-origin iframe, and ungranted embed', async ({
   page,
 }) => {
