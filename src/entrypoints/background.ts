@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { onPermissionsChanged } from '../background/permissions-lifecycle';
+import { schedulePermissionsReconcile } from '../background/permissions-lifecycle';
 import { enableSite } from '../background/enable-site';
 import { handleFrameReady } from '../background/frame-ready';
 import { getPopupState } from '../background/popup-state';
@@ -24,17 +24,17 @@ function respondWithError(
 
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
-    void onPermissionsChanged();
+    schedulePermissionsReconcile('onInstalled');
   });
   chrome.runtime.onStartup.addListener(() => {
-    void onPermissionsChanged();
+    schedulePermissionsReconcile('onStartup');
   });
 
   chrome.permissions.onAdded.addListener(() => {
-    void onPermissionsChanged();
+    schedulePermissionsReconcile('onAdded');
   });
   chrome.permissions.onRemoved.addListener(() => {
-    void onPermissionsChanged();
+    schedulePermissionsReconcile('onRemoved');
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
