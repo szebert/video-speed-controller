@@ -34,3 +34,7 @@ export function defaultLocalStore(): DurableSettingsStore {
 export function estimateRecordBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value ?? null)).length;
 }
+
+export function estimateStorageEntryBytes(key: string, value: unknown): number {
+  return new TextEncoder().encode(key).length + estimateRecordBytes(value);
+}

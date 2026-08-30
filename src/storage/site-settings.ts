@@ -8,6 +8,12 @@
  * bounded hot set. This is an accepted consequence of best-effort reset
  * propagation without an unbounded deletion ledger. During
  * SITE_INHERIT_SYNC_RETENTION_MS the inherit tombstone prevents resurrection.
+ *
+ * Site inherit retention is a minimum protection window, not an exact TTL.
+ * Expired tombstones may remain in Sync while the hot set is under the soft
+ * target. They are stripped from subsequent publication of that record and
+ * pruned when capacity pressure exists. Expired Local tombstones remain
+ * durable Local state and must never be promoted back into absent Sync.
  */
 
 import {
@@ -33,7 +39,7 @@ import { readGlobalBehaviorOverrides } from './behavior-defaults';
 import {
   defaultLocalStore,
   defaultSyncStore,
-  estimateRecordBytes,
+  estimateStorageEntryBytes,
   type DurableSettingsStore,
 } from './durable-store';
 import { getSiteKey, getSiteStorageKey } from './site-key';
@@ -52,7 +58,7 @@ export type SiteSettingsDeps = {
   touchUsage?: boolean;
 };
 
-const siteRepairAttemptedAt = new Map<string, number>();
+const siteRepairFailedAt = new Map<string, number>();
 
 function stores(deps: SiteSettingsDeps): {
   sync: DurableSettingsStore;
@@ -68,10 +74,10 @@ function stores(deps: SiteSettingsDeps): {
 
 export function resetSiteRepairBackoff(storageKey?: string): void {
   if (storageKey) {
-    siteRepairAttemptedAt.delete(storageKey);
+    siteRepairFailedAt.delete(storageKey);
     return;
   }
-  siteRepairAttemptedAt.clear();
+  siteRepairFailedAt.clear();
 }
 
 export function isCapacityError(error: unknown): boolean {
@@ -92,34 +98,35 @@ async function readParsedSite(
   return parseSiteSettings(result[storageKey]);
 }
 
-async function writeSyncSite(
-  sync: DurableSettingsStore,
-  storageKey: string,
-  record: SiteSettingsV1,
-  now: number,
-): Promise<void> {
-  const eligible = toSyncEligibleSiteRecord(record, now);
-  if (!eligible) {
-    await sync.remove(storageKey);
-    return;
+type RawSiteEntry = {
+  key: string;
+  raw: unknown;
+  record: SiteSettingsV1 | null;
+};
+
+async function listRawSiteEntries(sync: DurableSettingsStore): Promise<RawSiteEntry[]> {
+  const all = await sync.get(null);
+  const entries: RawSiteEntry[] = [];
+  for (const [key, value] of Object.entries(all)) {
+    if (!key.startsWith('site:')) {
+      continue;
+    }
+    entries.push({ key, raw: value, record: parseSiteSettings(value) });
   }
-  await sync.set({ [storageKey]: eligible });
+  return entries;
 }
 
-async function writeSyncSiteWithCapacityRetry(
+async function measureSiteBytes(
   sync: DurableSettingsStore,
-  storageKey: string,
-  record: SiteSettingsV1,
-  now: number,
-): Promise<void> {
+  entries: RawSiteEntry[],
+): Promise<number> {
+  if (entries.length === 0) {
+    return 0;
+  }
   try {
-    await writeSyncSite(sync, storageKey, record, now);
-  } catch (error) {
-    if (!isCapacityError(error) || isWriteRateError(error)) {
-      throw error;
-    }
-    await reconcileSyncHotSet(sync, now);
-    await writeSyncSite(sync, storageKey, record, now);
+    return await sync.getBytesInUse(entries.map((entry) => entry.key));
+  } catch {
+    return entries.reduce((sum, entry) => sum + estimateStorageEntryBytes(entry.key, entry.raw), 0);
   }
 }
 
@@ -127,80 +134,110 @@ function isOverTarget(itemCount: number, bytes: number): boolean {
   return itemCount > SYNC_TARGET_MAX_SITE_ITEMS || bytes > SYNC_TARGET_MAX_BYTES;
 }
 
-export async function reconcileSyncHotSet(sync: DurableSettingsStore, now: number): Promise<void> {
-  const all = await sync.get(null);
-  const sites: { key: string; record: SiteSettingsV1 }[] = [];
-  for (const [key, value] of Object.entries(all)) {
-    if (!key.startsWith('site:')) {
+async function reconcileSyncHotSetUnlocked(
+  sync: DurableSettingsStore,
+  now: number,
+  options?: { protectedKey?: string },
+): Promise<void> {
+  let entries = await listRawSiteEntries(sync);
+  if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.record) {
+      await sync.remove(entry.key);
+    }
+  }
+  entries = await listRawSiteEntries(sync);
+  if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.record) {
       continue;
     }
-    const parsed = parseSiteSettings(value);
-    if (parsed) {
-      sites.push({ key, record: parsed });
-    }
-  }
-
-  const siteBytes = async (entries: { key: string; record: SiteSettingsV1 }[]): Promise<number> => {
-    if (entries.length === 0) {
-      return 0;
-    }
-    try {
-      return await sync.getBytesInUse(entries.map((entry) => entry.key));
-    } catch {
-      return entries.reduce((sum, entry) => sum + estimateRecordBytes(entry.record), 0);
-    }
-  };
-
-  const over = async (entries: { key: string; record: SiteSettingsV1 }[]): Promise<boolean> =>
-    isOverTarget(entries.length, await siteBytes(entries));
-
-  const withoutRetained = sites
-    .filter((entry) => !hasSyncRetainedInherit(entry.record.overrides, now))
-    .sort((left, right) => left.record.lastUsedAt - right.record.lastUsedAt);
-
-  for (const candidate of withoutRetained) {
-    if (!(await over(sites))) {
-      break;
-    }
-    await sync.remove(candidate.key);
-    const index = sites.findIndex((entry) => entry.key === candidate.key);
-    if (index >= 0) {
-      sites.splice(index, 1);
-    }
-  }
-
-  for (const entry of [...sites]) {
     const projected = toSyncEligibleSiteRecord(entry.record, now);
     if (!projected) {
       await sync.remove(entry.key);
-      const index = sites.findIndex((item) => item.key === entry.key);
-      if (index >= 0) {
-        sites.splice(index, 1);
-      }
       continue;
     }
     if (!behaviorOverridesEqual(projected.overrides, entry.record.overrides)) {
       await sync.set({ [entry.key]: projected });
-      entry.record = projected;
     }
   }
+  entries = await listRawSiteEntries(sync);
+  if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
+    return;
+  }
 
-  const remaining = [...sites].sort(
-    (left, right) => left.record.lastUsedAt - right.record.lastUsedAt,
-  );
-  for (const candidate of remaining) {
-    if (!(await over(sites))) {
+  const evictable = entries
+    .filter((entry) => {
+      if (options?.protectedKey && entry.key === options.protectedKey) {
+        return false;
+      }
+      if (!entry.record) {
+        return true;
+      }
+      return !hasSyncRetainedInherit(entry.record.overrides, now);
+    })
+    .sort((left, right) => (left.record?.lastUsedAt ?? 0) - (right.record?.lastUsedAt ?? 0));
+
+  for (const candidate of evictable) {
+    if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
       break;
     }
     await sync.remove(candidate.key);
-    const index = sites.findIndex((entry) => entry.key === candidate.key);
-    if (index >= 0) {
-      sites.splice(index, 1);
+    entries = entries.filter((entry) => entry.key !== candidate.key);
+  }
+}
+
+export async function reconcileSyncHotSet(
+  sync: DurableSettingsStore,
+  now: number,
+  options?: { protectedKey?: string },
+): Promise<void> {
+  return reconcileSyncHotSetUnlocked(sync, now, options);
+}
+
+async function publishSyncSite(
+  sync: DurableSettingsStore,
+  storageKey: string,
+  record: SiteSettingsV1,
+  now: number,
+): Promise<void> {
+  const eligible = toSyncEligibleSiteRecord(record, now);
+  const write = async (): Promise<'set' | 'removed'> => {
+    if (!eligible) {
+      await sync.remove(storageKey);
+      return 'removed';
+    }
+    await sync.set({ [storageKey]: eligible });
+    return 'set';
+  };
+
+  let result: 'set' | 'removed';
+  try {
+    result = await write();
+  } catch (error) {
+    if (!isCapacityError(error) || isWriteRateError(error)) {
+      throw error;
+    }
+    await reconcileSyncHotSetUnlocked(sync, now);
+    result = await write();
+  }
+
+  if (result === 'set') {
+    try {
+      await reconcileSyncHotSetUnlocked(sync, now, { protectedKey: storageKey });
+    } catch {
+      // Post-publication maintenance must not fail a successful Sync write.
     }
   }
 }
 
-async function maybeRepairSite(
+async function maybeRepairAndTouchSite(
   sync: DurableSettingsStore,
   local: DurableSettingsStore,
   storageKey: string,
@@ -208,24 +245,28 @@ async function maybeRepairSite(
   localRecord: SiteSettingsV1 | null,
   mergedOverrides: BehaviorOverrides,
   now: number,
+  touchUsage: boolean,
 ): Promise<void> {
-  const localLastUsedAt = localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now;
-  const canonical: SiteSettingsV1 = {
-    schemaVersion: 1,
-    overrides: mergedOverrides,
-    lastUsedAt: localLastUsedAt,
-  };
-
-  if (!localRecord && !hasSemanticOverrides(mergedOverrides)) {
+  if (!localRecord && !syncRecord && !hasSemanticOverrides(mergedOverrides)) {
     return;
   }
 
-  if (!localRecord || !behaviorOverridesEqual(localRecord.overrides, mergedOverrides)) {
+  const localLastUsedAt = touchUsage
+    ? now
+    : (localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now);
+  const shouldWriteLocal =
+    Boolean(localRecord || hasSemanticOverrides(mergedOverrides) || (touchUsage && syncRecord)) &&
+    (!localRecord ||
+      !behaviorOverridesEqual(localRecord.overrides, mergedOverrides) ||
+      (touchUsage && now - localRecord.lastUsedAt >= LOCAL_LRU_THROTTLE_MS));
+
+  if (shouldWriteLocal) {
     try {
       await local.set({
         [storageKey]: {
-          ...canonical,
-          lastUsedAt: localRecord?.lastUsedAt ?? canonical.lastUsedAt,
+          schemaVersion: 1,
+          overrides: mergedOverrides,
+          lastUsedAt: localLastUsedAt,
         },
       });
     } catch {
@@ -233,64 +274,39 @@ async function maybeRepairSite(
     }
   }
 
+  const canonical: SiteSettingsV1 = {
+    schemaVersion: 1,
+    overrides: mergedOverrides,
+    lastUsedAt: touchUsage ? now : (localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now),
+  };
   const syncEligible = toSyncEligibleSiteRecord(canonical, now);
   const syncComparable = syncRecord ? toSyncEligibleSiteRecord(syncRecord, now) : null;
   const syncNeedsRepair =
     Boolean(syncEligible) &&
     (!syncComparable || !behaviorOverridesEqual(syncComparable.overrides, syncEligible!.overrides));
+  const syncNeedsTouch =
+    touchUsage && syncRecord != null && now - syncRecord.lastUsedAt >= SYNC_LRU_STALE_MS;
 
-  if (!syncNeedsRepair) {
-    return;
-  }
-
-  const last = siteRepairAttemptedAt.get(storageKey);
-  if (last != null && now - last < REPAIR_BACKOFF_MS) {
-    return;
-  }
-  siteRepairAttemptedAt.set(storageKey, now);
-  try {
-    await writeSyncSiteWithCapacityRetry(sync, storageKey, canonical, now);
-  } catch {
-    // Sync repair failure is ignored on read.
-  }
-}
-
-async function touchExistingSite(
-  sync: DurableSettingsStore,
-  local: DurableSettingsStore,
-  storageKey: string,
-  syncRecord: SiteSettingsV1 | null,
-  localRecord: SiteSettingsV1 | null,
-  mergedOverrides: BehaviorOverrides,
-  now: number,
-): Promise<void> {
-  if (!syncRecord && !localRecord) {
-    return;
-  }
-  if (!hasSemanticOverrides(mergedOverrides) && !syncRecord && !localRecord) {
-    return;
-  }
-
-  if (localRecord && now - localRecord.lastUsedAt >= LOCAL_LRU_THROTTLE_MS) {
-    try {
-      await local.set({
-        [storageKey]: {
-          schemaVersion: 1,
-          overrides: localRecord.overrides,
-          lastUsedAt: now,
-        },
-      });
-    } catch {
-      // LRU must not fail the read.
+  if (syncNeedsRepair) {
+    const lastFail = siteRepairFailedAt.get(storageKey);
+    if (lastFail != null && now - lastFail < REPAIR_BACKOFF_MS) {
+      return;
     }
+    try {
+      await publishSyncSite(sync, storageKey, canonical, now);
+      siteRepairFailedAt.delete(storageKey);
+    } catch {
+      siteRepairFailedAt.set(storageKey, now);
+    }
+    return;
   }
 
-  if (syncRecord && now - syncRecord.lastUsedAt >= SYNC_LRU_STALE_MS) {
+  if (syncNeedsTouch) {
     try {
-      await writeSyncSite(
+      await publishSyncSite(
         sync,
         storageKey,
-        { schemaVersion: 1, overrides: syncRecord.overrides, lastUsedAt: now },
+        { schemaVersion: 1, overrides: mergedOverrides, lastUsedAt: now },
         now,
       );
     } catch {
@@ -348,7 +364,7 @@ export async function resolveSiteBehaviorForUrl(
   if (!loaded) {
     return null;
   }
-  await maybeRepairSite(
+  await maybeRepairAndTouchSite(
     loaded.sync,
     loaded.local,
     loaded.storageKey,
@@ -356,18 +372,8 @@ export async function resolveSiteBehaviorForUrl(
     loaded.localRecord,
     loaded.mergedOverrides,
     loaded.now,
+    Boolean(deps.touchUsage),
   );
-  if (deps.touchUsage) {
-    await touchExistingSite(
-      loaded.sync,
-      loaded.local,
-      loaded.storageKey,
-      loaded.syncRecord,
-      loaded.localRecord,
-      loaded.mergedOverrides,
-      loaded.now,
-    );
-  }
   return resolveSiteBehavior(loaded.globalOverrides, loaded.mergedOverrides);
 }
 
@@ -412,7 +418,7 @@ async function persistMutatedSite(
       () => undefined,
       (error: unknown) => error,
     ),
-    writeSyncSiteWithCapacityRetry(loaded.sync, loaded.storageKey, record, loaded.now).then(
+    publishSyncSite(loaded.sync, loaded.storageKey, record, loaded.now).then(
       () => undefined,
       (error: unknown) => error,
     ),
