@@ -62,4 +62,19 @@ describe('global behavior defaults', () => {
       },
     });
   });
+
+  it('treats a non-Error rejection as a persistence failure', async () => {
+    await expect(
+      persistGlobalBehaviorOverrides((current) => current, {
+        sync: {
+          ...memoryDurable(),
+          async set() {
+            return Promise.reject('quota');
+          },
+        },
+        local: memoryDurable(),
+        now: () => 1,
+      }),
+    ).rejects.toThrow(/Failed to persist global behavior/);
+  });
 });
