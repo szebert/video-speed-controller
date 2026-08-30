@@ -11,6 +11,17 @@ import { isExtensionRequest } from '../core/messages';
 import { restrictStorageAccess } from '../storage/restrict-access';
 import { clearTabState } from '../storage/tab-state';
 
+function respondWithError(
+  sendResponse: (response?: unknown) => void,
+  label: string,
+  fallback: unknown,
+): (error: unknown) => void {
+  return (error: unknown) => {
+    console.warn(`${label} failed`, error);
+    sendResponse(fallback);
+  };
+}
+
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
     void onPermissionsChanged();
@@ -28,11 +39,15 @@ export default defineBackground(() => {
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status === 'loading') {
-      void clearTabState(tabId);
+      void enqueueTabMutation(tabId, () => clearTabState(tabId)).catch((error) => {
+        console.warn('Failed to clear tab state', error);
+      });
     }
   });
   chrome.tabs.onRemoved.addListener((tabId) => {
-    void clearTabState(tabId);
+    void enqueueTabMutation(tabId, () => clearTabState(tabId)).catch((error) => {
+      console.warn('Failed to clear tab state', error);
+    });
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -41,33 +56,62 @@ export default defineBackground(() => {
     }
 
     if (message.type === 'GET_POPUP_STATE') {
-      void getPopupState(message.tabId, message.url).then(sendResponse);
+      void getPopupState(message.tabId, message.url).then(
+        sendResponse,
+        respondWithError(sendResponse, 'GET_POPUP_STATE', undefined),
+      );
       return true;
     }
     if (message.type === 'ENABLE_SITE') {
-      void enableSite(message.tabId, message.url).then(sendResponse);
+      void enqueueTabMutation(message.tabId, () => enableSite(message.tabId, message.url)).then(
+        sendResponse,
+        respondWithError(sendResponse, 'ENABLE_SITE', {
+          ok: false,
+          error: 'Unexpected enable failure',
+        }),
+      );
       return true;
     }
     if (message.type === 'SET_SPEED') {
       void enqueueTabMutation(message.tabId, () =>
         setSpeed(message.tabId, message.url, message.speed),
-      ).then(sendResponse);
+      ).then(
+        sendResponse,
+        respondWithError(sendResponse, 'SET_SPEED', {
+          ok: false,
+          error: 'Unexpected set-speed failure',
+        }),
+      );
       return true;
     }
     if (message.type === 'RESET_SITE_SPEED') {
       void enqueueTabMutation(message.tabId, () => resetSiteSpeed(message.tabId, message.url)).then(
         sendResponse,
+        respondWithError(sendResponse, 'RESET_SITE_SPEED', {
+          ok: false,
+          error: 'Unexpected reset failure',
+        }),
       );
       return true;
     }
     if (message.type === 'FRAME_READY') {
-      void handleFrameReady(sender).then(sendResponse);
+      const tabId = sender.tab?.id;
+      if (tabId == null) {
+        sendResponse({ action: 'dormant' });
+        return false;
+      }
+      void enqueueTabMutation(tabId, () => handleFrameReady(sender)).then(
+        sendResponse,
+        respondWithError(sendResponse, 'FRAME_READY', { action: 'dormant' }),
+      );
       return true;
     }
     if (message.type === 'TOP_FRAME_DESTROYED') {
       const tabId = sender.tab?.id;
       if (tabId != null && sender.frameId === 0) {
-        void clearTabState(tabId);
+        void enqueueTabMutation(tabId, () => clearTabState(tabId)).catch((error) => {
+          console.warn('Failed to clear tab state', error);
+        });
       }
       sendResponse({ ok: true });
       return false;

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
-import { enqueueTabMutation, resetTabMutationQueue } from '../background/tab-mutation-queue';
+import {
+  enqueueTabMutation,
+  hasTabMutation,
+  resetTabMutationQueue,
+} from '../background/tab-mutation-queue';
 
 describe('enqueueTabMutation', () => {
   it('runs later mutations for the same tab only after the earlier one settles', async () => {
@@ -34,5 +38,12 @@ describe('enqueueTabMutation', () => {
     await expect(other).resolves.toBe('other');
     release('done');
     await expect(blocked).resolves.toBe('done');
+  });
+
+  it('drops a completed tab entry from the queue', async () => {
+    resetTabMutationQueue();
+    await enqueueTabMutation(8, async () => 'done');
+    await Promise.resolve();
+    expect(hasTabMutation(8)).toBe(false);
   });
 });

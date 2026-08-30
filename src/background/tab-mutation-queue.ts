@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-const tabMutations = new Map<number, Promise<unknown>>();
+import { createKeyedMutationQueue } from '../storage/keyed-mutation-queue';
+
+const tabMutations = createKeyedMutationQueue<number>();
 
 export function enqueueTabMutation<T>(tabId: number, task: () => Promise<T>): Promise<T> {
-  const previous = tabMutations.get(tabId) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(task);
-  tabMutations.set(
-    tabId,
-    next.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  return next;
+  return tabMutations.enqueue(tabId, task);
 }
 
 export function resetTabMutationQueue(): void {
-  tabMutations.clear();
+  tabMutations.reset();
+}
+
+export function hasTabMutation(tabId: number): boolean {
+  return tabMutations.has(tabId);
 }

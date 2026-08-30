@@ -63,7 +63,7 @@ export type PopupStateResponse = {
   siteAccess: boolean;
 };
 
-export type FrameReadyResponse = { action: 'apply'; targetSpeed: number } | { action: 'dormant' };
+export type FrameReadyResponse = { action: 'applied' } | { action: 'dormant' };
 
 export type SetSpeedResponse =
   { ok: true; targetSpeed: number; persistError?: string } | { ok: false; error: string };

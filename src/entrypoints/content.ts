@@ -7,7 +7,7 @@ import {
   type HostPattern,
 } from '../access/site-access';
 import { destroyEngine, startEngine } from '../core/video-speed-engine';
-import { isExtensionRequest, type FrameReadyResponse } from '../core/messages';
+import { isExtensionRequest } from '../core/messages';
 
 function isTopFrame(): boolean {
   try {
@@ -48,16 +48,6 @@ export default defineContentScript({
   main(ctx) {
     const engine = startEngine();
 
-    chrome.runtime.sendMessage(
-      { type: 'FRAME_READY' },
-      (response: FrameReadyResponse | undefined) => {
-        void chrome.runtime.lastError;
-        if (response?.action === 'apply') {
-          engine.setTarget(response.targetSpeed);
-        }
-      },
-    );
-
     if (!engine.listening) {
       engine.listening = true;
       const onMessage = (
@@ -86,5 +76,9 @@ export default defineContentScript({
         destroyEngine();
       });
     }
+
+    chrome.runtime.sendMessage({ type: 'FRAME_READY' }, () => {
+      void chrome.runtime.lastError;
+    });
   },
 });
