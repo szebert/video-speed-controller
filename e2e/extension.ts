@@ -81,7 +81,7 @@ export async function openPopup(
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   await popup.getByRole('heading', { name: 'OS Video Speed Controller' }).waitFor();
-  await popup.getByRole('checkbox', { name: 'Enabled on this site' }).waitFor({ timeout: 10_000 });
+  await popup.getByRole('switch', { name: 'Enabled on this site' }).waitFor({ timeout: 10_000 });
   return popup;
 }
 

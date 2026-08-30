@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import {
-  DEFAULT_SPEED_POLICY,
-  formatSpeed,
-  snapSliderSpeed,
-  type SpeedPolicy,
-} from '../core/speed';
+import { i18n } from '#i18n';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ButtonGroup } from '@/components/ui/button-group';
+import { Slider } from '@/components/ui/slider';
+import { DEFAULT_SPEED_POLICY, formatSpeed, snapSliderSpeed, type SpeedPolicy } from '@/core/speed';
 
 type SpeedControlsProps = {
   displaySpeed: number;
@@ -17,6 +17,10 @@ type SpeedControlsProps = {
   onPreviewSlider?: (speed: number) => void;
   onCommitSlider: (speed: number) => void;
 };
+
+function snappedValue(value: number | number[], policy: SpeedPolicy): number {
+  return snapSliderSpeed(Array.isArray(value) ? (value[0] ?? policy.min) : value, policy);
+}
 
 export function SpeedControls({
   displaySpeed,
@@ -30,54 +34,53 @@ export function SpeedControls({
 }: SpeedControlsProps) {
   const readout = formatSpeed(displaySpeed);
   return (
-    <div className={disabled ? 'speed-controls is-disabled' : 'speed-controls'}>
-      <div className="speed-readout-wrap">
-        <div className="speed-readout" aria-live="polite">
-          {readout}
-        </div>
-        {showOffBadge ? <span className="speed-badge">Disabled</span> : null}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-medium">{i18n.t('siteSpeed')}</h2>
+        {showOffBadge ? <Badge variant="secondary">{i18n.t('disabled')}</Badge> : null}
       </div>
-      <div className="speed-buttons">
-        <button type="button" disabled={disabled} onClick={() => onAdjust(-1)} aria-label="Slower">
+      <div className="text-center text-3xl font-semibold tabular-nums" aria-live="polite">
+        {readout}
+      </div>
+      <ButtonGroup className="w-full [&>[data-slot=button]]:flex-1">
+        <Button
+          variant="outline"
+          isDisabled={disabled}
+          onPress={() => onAdjust(-1)}
+          aria-label={i18n.t('slower')}
+        >
           −
-        </button>
-        <button type="button" disabled={disabled} onClick={onReset}>
-          Reset
-        </button>
-        <button type="button" disabled={disabled} onClick={() => onAdjust(1)} aria-label="Faster">
+        </Button>
+        <Button variant="outline" isDisabled={disabled} onPress={onReset}>
+          {i18n.t('reset')}
+        </Button>
+        <Button
+          variant="outline"
+          isDisabled={disabled}
+          onPress={() => onAdjust(1)}
+          aria-label={i18n.t('faster')}
+        >
           +
-        </button>
-      </div>
-      <label className="speed-slider">
-        <span className="slider-min">{formatSpeed(policy.min)}</span>
-        <input
-          type="range"
-          min={policy.min}
-          max={policy.max}
+        </Button>
+      </ButtonGroup>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>{formatSpeed(policy.min)}</span>
+        <Slider
+          aria-label={i18n.t('siteSpeed')}
+          isDisabled={disabled}
+          minValue={policy.min}
+          maxValue={policy.max}
           step={policy.sliderStep}
           value={snapSliderSpeed(displaySpeed, policy)}
-          disabled={disabled}
-          onInput={(event) => {
-            const next = snapSliderSpeed(Number(event.currentTarget.value), policy);
-            event.currentTarget.value = String(next);
-            onPreviewSlider?.(next);
+          onChange={(value) => {
+            onPreviewSlider?.(snappedValue(value, policy));
           }}
-          onPointerUp={(event) => {
-            onCommitSlider(snapSliderSpeed(Number(event.currentTarget.value), policy));
-          }}
-          onKeyUp={(event) => {
-            if (
-              event.key === 'ArrowLeft' ||
-              event.key === 'ArrowRight' ||
-              event.key === 'Home' ||
-              event.key === 'End'
-            ) {
-              onCommitSlider(snapSliderSpeed(Number(event.currentTarget.value), policy));
-            }
+          onChangeEnd={(value) => {
+            onCommitSlider(snappedValue(value, policy));
           }}
         />
-        <span className="slider-max">{formatSpeed(policy.max)}</span>
-      </label>
+        <span>{formatSpeed(policy.max)}</span>
+      </div>
     </div>
   );
 }

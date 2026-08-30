@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { useEffect, useState } from 'react';
+import { i18n } from '#i18n';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   E2E_POPUP_TARGET_TAB_ID_KEY,
   E2E_POPUP_TARGET_URL_KEY,
@@ -11,8 +12,9 @@ import {
   disableExactOriginAccess,
   requestExactOriginAccess,
 } from '../../access/site-access';
-import { SpeedControls } from '../../components/SpeedControls';
-import './App.css';
+import { ModeToggle } from '@/components/mode-toggle';
+import { SpeedControls } from '@/components/SpeedControls';
+import { Switch } from '@/components/ui/switch';
 import type { EnableSiteResponse, PopupStateResponse, SetSpeedResponse } from '../../core/messages';
 import {
   adjustSpeed,
@@ -25,10 +27,6 @@ type PopupView = PopupStateResponse & {
   tabId: number;
   url: string;
 };
-
-const UNAVAILABLE = 'OS VSC isn’t available on this page';
-const BROADER_GRANT =
-  'This site is covered by broader Chrome site access. Change OS VSC’s Site access in Chrome’s extension settings.';
 
 async function loadPopup(): Promise<PopupView | null> {
   const current = await chrome.tabs.getCurrent();
@@ -68,6 +66,40 @@ async function loadPopup(): Promise<PopupView | null> {
   return { ...state, tabId: tab.id, url: tab.url };
 }
 
+function PopupShell({ children, notice }: { children: ReactNode; notice?: string | null }) {
+  return (
+    <div className="flex min-w-xs w-xs flex-col">
+      <header className="flex items-center justify-between gap-3 px-4 pt-4">
+        <h1 className="text-sm font-semibold">{i18n.t('popupTitle')}</h1>
+        <ModeToggle />
+      </header>
+      <main className="flex flex-col gap-4 p-4">{children}</main>
+      {notice ? <p className="px-4 pb-4 text-sm text-destructive">{notice}</p> : null}
+    </div>
+  );
+}
+
+function EnableSwitch({
+  isSelected,
+  isDisabled,
+  onChange,
+}: {
+  isSelected?: boolean;
+  isDisabled?: boolean;
+  onChange?: (enabled: boolean) => void;
+}) {
+  return (
+    <Switch
+      isSelected={isSelected}
+      isDisabled={isDisabled}
+      onChange={onChange}
+      className="flex w-full flex-row-reverse items-center justify-between gap-3 after:hidden"
+    >
+      {i18n.t('enabledOnThisSite')}
+    </Switch>
+  );
+}
+
 export function App() {
   const [view, setView] = useState<PopupView | null>(null);
   const [ready, setReady] = useState(false);
@@ -87,18 +119,16 @@ export function App() {
 
   if (!ready) {
     return (
-      <main className="popup">
-        <h1>OS Video Speed Controller</h1>
-        <p className="muted">Loading…</p>
-      </main>
+      <PopupShell>
+        <p className="text-sm text-muted-foreground">{i18n.t('popupLoading')}</p>
+      </PopupShell>
     );
   }
 
   if (!view || !view.supported) {
     return (
-      <main className="popup">
-        <h1>OS Video Speed Controller</h1>
-        <p className="unavailable">{UNAVAILABLE}</p>
+      <PopupShell>
+        <p className="text-sm text-muted-foreground">{i18n.t('popupUnavailable')}</p>
         <SpeedControls
           displaySpeed={1}
           disabled
@@ -106,11 +136,8 @@ export function App() {
           onReset={() => undefined}
           onCommitSlider={() => undefined}
         />
-        <label className="enable-row">
-          <span>Enabled on this site</span>
-          <input type="checkbox" disabled />
-        </label>
-      </main>
+        <EnableSwitch isDisabled />
+      </PopupShell>
     );
   }
 
@@ -156,6 +183,24 @@ export function App() {
     await refresh();
   };
 
+  const sendReset = async (): Promise<void> => {
+    if (!(await ensureAccess())) {
+      return;
+    }
+    const response = (await chrome.runtime.sendMessage({
+      type: 'RESET_SITE_SPEED',
+      tabId: view.tabId,
+      url: view.url,
+    })) as SetSpeedResponse;
+    if (!response.ok) {
+      setNotice(response.error);
+      await refresh();
+      return;
+    }
+    setNotice(response.persistError ?? null);
+    await refresh();
+  };
+
   const onToggle = async (enabled: boolean, grant?: Promise<boolean>): Promise<void> => {
     setNotice(null);
     if (enabled) {
@@ -177,7 +222,7 @@ export function App() {
     const result = await disableExactOriginAccess(view.url);
     if (!result.disabled) {
       const stillGranted = await containsExactOriginAccess(view.url);
-      setNotice(BROADER_GRANT);
+      setNotice(i18n.t('broaderAccessNotice'));
       setView({ ...view, siteAccess: stillGranted });
       return;
     }
@@ -185,8 +230,18 @@ export function App() {
   };
 
   return (
-    <main className="popup">
-      <h1>OS Video Speed Controller</h1>
+    <PopupShell notice={notice}>
+      {view.hostname ? (
+        <p className="truncate text-sm text-muted-foreground">{view.hostname}</p>
+      ) : null}
+      <EnableSwitch
+        isSelected={view.siteAccess}
+        onChange={(enabled) => {
+          const grant =
+            enabled && !view.siteAccess ? requestExactOriginAccess(view.url) : undefined;
+          void onToggle(enabled, grant);
+        }}
+      />
       <SpeedControls
         displaySpeed={shown}
         disabled={!view.siteAccess}
@@ -195,7 +250,7 @@ export function App() {
           void sendSpeed(adjustSpeed(currentForAdjust, direction, DEFAULT_SPEED_POLICY));
         }}
         onReset={() => {
-          void sendSpeed(1);
+          void sendReset();
         }}
         onPreviewSlider={setSliderPreview}
         onCommitSlider={(speed) => {
@@ -203,20 +258,7 @@ export function App() {
           void sendSpeed(speed);
         }}
       />
-      <label className="enable-row">
-        <span>Enabled on this site</span>
-        <input
-          type="checkbox"
-          checked={view.siteAccess}
-          onChange={(event) => {
-            const enabled = event.currentTarget.checked;
-            const grant =
-              enabled && !view.siteAccess ? requestExactOriginAccess(view.url) : undefined;
-            void onToggle(enabled, grant);
-          }}
-        />
-      </label>
-      {notice ? <p className="notice">{notice}</p> : null}
-    </main>
+      <p className="text-xs text-muted-foreground">{i18n.t('changesApplyToThisSite')}</p>
+    </PopupShell>
   );
 }
