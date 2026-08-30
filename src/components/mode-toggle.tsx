@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { i18n } from '#i18n';
-import { MoonIcon, SunIcon } from 'lucide-react';
+import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react';
+import { t } from '@/i18n/t';
 import type { Selection } from 'react-aria-components';
 import { useTheme } from '@/components/theme-provider';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { ThemePreference } from '@/settings/theme';
 
-const THEME_KEYS = ['dark', 'light', 'system'] as const;
-
-function isThemePreference(value: unknown): value is ThemePreference {
-  return value === 'dark' || value === 'light' || value === 'system';
-}
+const THEMES = [
+  { key: 'dark', Icon: MoonIcon },
+  { key: 'light', Icon: SunIcon },
+  { key: 'system', Icon: MonitorIcon },
+] as const;
 
 export function ModeToggle() {
   const { theme, setTheme } = useTheme();
@@ -27,22 +27,24 @@ export function ModeToggle() {
     }
   };
 
+  const CurrentIcon = THEMES.find((item) => item.key === theme)?.Icon ?? MoonIcon;
+
   return (
     <DropdownMenuTrigger>
-      <Button variant="ghost" size="icon" aria-label={i18n.t('changeTheme')}>
-        <SunIcon data-icon="inline-start" className="dark:hidden" />
-        <MoonIcon data-icon="inline-start" className="hidden dark:block" />
+      <Button variant="ghost" size="icon" aria-label={t('changeTheme')}>
+        <CurrentIcon data-icon="inline-start" />
       </Button>
       <DropdownMenu
-        aria-label={i18n.t('changeTheme')}
+        aria-label={t('changeTheme')}
         className="min-w-36"
         placement="bottom end"
         selectionMode="single"
         selectedKeys={new Set([theme])}
         onSelectionChange={onSelectionChange}
       >
-        {THEME_KEYS.map((key) => (
+        {THEMES.map(({ key, Icon }) => (
           <DropdownMenuItem key={key} id={key} textValue={themeLabel(key)}>
+            <Icon />
             {themeLabel(key)}
           </DropdownMenuItem>
         ))}
@@ -51,12 +53,16 @@ export function ModeToggle() {
   );
 }
 
+function isThemePreference(value: unknown): value is ThemePreference {
+  return value === 'dark' || value === 'light' || value === 'system';
+}
+
 function themeLabel(key: ThemePreference): string {
   if (key === 'dark') {
-    return i18n.t('themeDark');
+    return t('themeDark');
   }
   if (key === 'light') {
-    return i18n.t('themeLight');
+    return t('themeLight');
   }
-  return i18n.t('themeSystem');
+  return t('themeSystem');
 }
