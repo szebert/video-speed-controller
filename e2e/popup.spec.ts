@@ -37,6 +37,17 @@ test('Enable is available on the fixture site and Faster applies to every video'
     )
     .toBe(1.25);
 
+  await popup.getByRole('button', { name: 'Reset' }).click();
+  await expect(popup.getByText('1.00×')).toBeVisible();
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1);
+
+  await popup.getByRole('button', { name: 'Faster' }).click();
+  await expect(popup.getByText('1.25×')).toBeVisible();
+
   await site.getByRole('button', { name: 'Add fourth' }).click();
   await expect
     .poll(async () =>
@@ -57,15 +68,45 @@ test('slider keyboard changes site speed', async ({ site, openExtensionPopup }) 
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
     )
     .toBe(1.05);
+
+  await popup.getByRole('button', { name: 'Reset' }).click();
+  await expect(popup.getByText('1.00×')).toBeVisible();
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1);
 });
 
-test('theme toggle switches the popup color scheme', async ({ openExtensionPopup }) => {
+test('Reset wins when clicked immediately after Faster', async ({ site, openExtensionPopup }) => {
+  const popup = await openExtensionPopup();
+  await popup.getByRole('button', { name: 'Faster' }).click();
+  await popup.getByRole('button', { name: 'Reset' }).click();
+  await expect(popup.getByText('1.00×')).toBeVisible();
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1);
+});
+
+test('theme toggle switches the popup color scheme', async ({ site, openExtensionPopup }) => {
   const popup = await openExtensionPopup();
   await expect(popup.locator('html')).toHaveClass(/dark/);
   await popup.getByRole('button', { name: 'Change theme' }).click();
   await popup.getByRole('menuitemradio', { name: 'Light' }).click();
   await expect(popup.locator('html')).toHaveClass(/light/);
   await expect(popup.locator('html')).not.toHaveClass(/dark/);
+
+  await popup.getByRole('button', { name: 'Faster' }).click();
+  await expect(popup.getByText('1.25×')).toBeVisible();
+  await popup.getByRole('button', { name: 'Reset' }).click();
+  await expect(popup.getByText('1.00×')).toBeVisible();
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1);
 });
 
 test('unsupported pages keep Enable disabled', async ({ context, extensionId, serviceWorker }) => {
