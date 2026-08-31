@@ -62,6 +62,24 @@ describe('ENABLE_SITE', () => {
     expect(tabStore.data['tab:2']).toEqual(existing);
   });
 
+  it('does not create tab state when a behavior read fails', async () => {
+    const tabStore = memoryTabStore();
+    const apply = vi.fn();
+    const ensure = vi.fn();
+    const result = await enableSite(2, 'https://www.youtube.com/watch', {
+      tabStore,
+      readBehavior: vi.fn(async () => {
+        throw new Error('offline');
+      }),
+      apply,
+      ensure,
+    });
+    expect(result).toEqual({ ok: false, error: 'offline' });
+    expect(tabStore.data['tab:2']).toBeUndefined();
+    expect(ensure).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
   it('rolls back a provisional tabTarget if apply throws', async () => {
     const tabStore = memoryTabStore();
     const result = await enableSite(2, 'https://www.youtube.com/watch', {

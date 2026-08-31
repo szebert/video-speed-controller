@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { builtInAppliedTabBehavior, type AppliedTabBehavior } from '../core/applied-tab-behavior';
+import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type { EnableSiteResponse } from '../core/messages';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { readAppliedTabBehavior, type AppliedBehaviorReader } from './applied-behavior';
@@ -30,8 +30,11 @@ export async function enableSite(
   } else {
     try {
       behavior = await readBehavior(url);
-    } catch {
-      behavior = builtInAppliedTabBehavior();
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to resolve site behavior',
+      };
     }
     await setTabState(tabId, behavior, tabStore);
   }

@@ -41,11 +41,7 @@ export async function handleFrameReady(
   const readBehavior = deps.readBehavior ?? readAppliedTabBehavior;
   let behavior: AppliedTabBehavior;
   if (siteKey.supported && url) {
-    try {
-      behavior = await readBehavior(url);
-    } catch {
-      behavior = builtInAppliedTabBehavior();
-    }
+    behavior = await readBehavior(url);
   } else {
     behavior = builtInAppliedTabBehavior();
   }

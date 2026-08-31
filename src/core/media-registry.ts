@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import type { OverlayActions } from '../overlay/types';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 import { MediaController } from './media-controller';
 import { OVERLAY_HOST_TAG, VideoOverlay } from './video-overlay';
@@ -51,7 +52,10 @@ export class MediaRegistry {
   private layoutRaf: number | null = null;
   private readonly view: Window | null;
 
-  constructor(private readonly document: Document) {
+  constructor(
+    private readonly document: Document,
+    private readonly actions?: OverlayActions,
+  ) {
     this.view = document.defaultView;
   }
 
@@ -108,13 +112,9 @@ export class MediaRegistry {
   private ensureEntry(video: HTMLVideoElement): RegistryEntry {
     const existing = this.entries.get(video);
     if (existing) {
-      if (this.currentBehavior) {
-        existing.overlay.setBehavior(this.currentBehavior);
-        existing.controller.setTarget(this.currentBehavior.targetSpeed);
-      }
       return existing;
     }
-    const overlay = new VideoOverlay(video, this.requestLayout);
+    const overlay = new VideoOverlay(video, this.requestLayout, this.actions);
     const controller = new MediaController(video, (owned) => {
       overlay.setControlled(owned);
     });

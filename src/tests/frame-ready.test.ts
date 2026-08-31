@@ -76,6 +76,29 @@ describe('FRAME_READY', () => {
     ).resolves.toEqual({ action: 'dormant' });
   });
 
+  it('does not cache built-ins when a supported-site behavior read fails', async () => {
+    const tabStore = memoryTabStore();
+    const apply = vi.fn();
+    await expect(
+      handleFrameReady(
+        {
+          tab: { id: 3, url: 'https://www.youtube.com/watch' } as chrome.tabs.Tab,
+          frameId: 0,
+          url: 'https://www.youtube.com/watch',
+        },
+        {
+          tabStore,
+          apply,
+          readBehavior: async () => {
+            throw new Error('offline');
+          },
+        },
+      ),
+    ).rejects.toThrow(/offline/);
+    expect(apply).not.toHaveBeenCalled();
+    expect(tabStore.data['tab:3']).toBeUndefined();
+  });
+
   it('clears a provisional tab target when top-frame apply throws', async () => {
     const tabStore = memoryTabStore();
     await expect(
