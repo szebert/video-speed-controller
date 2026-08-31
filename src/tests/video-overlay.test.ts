@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { shadowDOM } from 'react-stately/private/flags/flags';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import {
@@ -209,7 +210,7 @@ describe('VideoOverlay', () => {
     overlay.destroy();
     expect(document.querySelector(OVERLAY_HOST_TAG)).toBeNull();
     expect(overlay.host.isConnected).toBe(false);
-    expect(overlay.host.shadowRoot?.querySelector('[aria-live]')).toBeNull();
+    expect(overlay.host.shadowRoot?.querySelector('.speed')).toBeNull();
     vi.advanceTimersByTime(1_000);
   });
 
@@ -249,6 +250,10 @@ describe('VideoOverlay', () => {
     video.dispatchEvent(new Event('focus'));
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
+  });
+
+  it('enables React Aria shadow DOM event targeting', () => {
+    expect(shadowDOM()).toBe(true);
   });
 
   it('restarts auto-hide when plus or minus is pressed', () => {
@@ -405,6 +410,27 @@ describe('VideoOverlay', () => {
       ?.querySelector('.controls')
       ?.dispatchEvent(new PointerEvent('pointerenter'));
     overlay.setControlled(false);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+  });
+
+  it('starts a fresh auto-hide timer on retake after surrender while hovered', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    overlay.host.shadowRoot
+      ?.querySelector('.controls')
+      ?.dispatchEvent(new PointerEvent('pointerenter'));
+    overlay.setControlled(false);
+    overlay.layout();
+    document.body.dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 0 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('visible');
+    vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
   });

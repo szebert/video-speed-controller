@@ -8,7 +8,7 @@ test.describe.configure({ mode: 'serial' });
 async function overlayBadgeTexts(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     [...document.querySelectorAll('osvsc-overlay')].map(
-      (host) => host.shadowRoot?.querySelector('[aria-live]')?.textContent ?? '',
+      (host) => host.shadowRoot?.querySelector('.speed')?.textContent ?? '',
     ),
   );
 }
@@ -40,10 +40,6 @@ async function clickOverlayControl(page: Page, label: 'Faster' | 'Slower'): Prom
 
 async function clickOverlayFaster(page: Page): Promise<void> {
   await clickOverlayControl(page, 'Faster');
-}
-
-async function clickOverlaySlower(page: Page): Promise<void> {
-  await clickOverlayControl(page, 'Slower');
 }
 
 test('Enable is available on the fixture site and Faster applies to every video', async ({
@@ -158,13 +154,20 @@ async function applyOverlayEngine(popup: Page, site: Page): Promise<void> {
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.00×', '1.00×', '1.00×']);
 }
 
+async function clickVisibleOverlayControl(page: Page, label: 'Faster' | 'Slower'): Promise<void> {
+  await page.locator('#v1').hover();
+  const control = page.locator('osvsc-overlay').first().getByRole('button', { name: label });
+  await expect(control).toBeVisible();
+  await control.click();
+}
+
 test('overlay plus and minus update every video and the popup', async ({
   site,
   openExtensionPopup,
 }) => {
   const popup = await openExtensionPopup();
   await applyOverlayEngine(popup, site);
-  await clickOverlayFaster(site);
+  await clickVisibleOverlayControl(site, 'Faster');
   await expect
     .poll(async () =>
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
@@ -173,7 +176,7 @@ test('overlay plus and minus update every video and the popup', async ({
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.25×', '1.25×', '1.25×']);
   await popup.reload();
   await expect(popup.getByText('1.25×')).toBeVisible();
-  await clickOverlaySlower(site);
+  await clickVisibleOverlayControl(site, 'Slower');
   await expect
     .poll(async () =>
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),

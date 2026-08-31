@@ -73,6 +73,5 @@
   background: var(--muted);
   color: var(--muted-foreground);
   white-space: nowrap;
-  tabular-nums: true;
   font-variant-numeric: tabular-nums;
 }

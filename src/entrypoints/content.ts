@@ -48,7 +48,9 @@ function reconcileAccess(allowedHostPatterns: HostPattern[]): void {
   }
   const destroyed = destroyEngine();
   if (destroyed && isTopFrame()) {
-    void chrome.runtime.sendMessage({ type: 'TOP_FRAME_DESTROYED' });
+    void chrome.runtime.sendMessage({ type: 'TOP_FRAME_DESTROYED' }).catch((error) => {
+      console.warn('TOP_FRAME_DESTROYED failed', error);
+    });
   }
 }
 

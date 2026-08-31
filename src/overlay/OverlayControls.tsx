@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { Button } from 'react-aria-components';
 import { canAdjustSpeed, DEFAULT_SPEED_POLICY, formatSpeed } from '../core/speed';
 import { t } from '../i18n/t';
+import './enable-shadow-dom';
 import type { OverlayControlsProps } from './types';
 
 export function OverlayControls({
@@ -62,9 +63,7 @@ export function OverlayControls({
       >
         −
       </Button>
-      <div className="speed" aria-live="polite">
-        {formatSpeed(behavior.targetSpeed)}
-      </div>
+      <div className="speed">{formatSpeed(behavior.targetSpeed)}</div>
       <Button
         className="control"
         aria-label={t('faster')}

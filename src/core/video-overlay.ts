@@ -14,14 +14,6 @@ export const OVERLAY_INSET_PX = 8;
 export const OVERLAY_MIN_SIZE_PX = 2;
 export const OVERLAY_Z_INDEX = '2147483647';
 
-function isDisabledControl(node: Element): boolean {
-  return (
-    (node instanceof HTMLButtonElement && node.disabled) ||
-    node.getAttribute('aria-disabled') === 'true' ||
-    node.hasAttribute('data-disabled')
-  );
-}
-
 export class VideoOverlay {
   readonly host: HTMLElement;
   private readonly mount: HTMLElement;
@@ -74,11 +66,10 @@ export class VideoOverlay {
     const view = document.defaultView;
     view?.addEventListener('pointermove', this.onWindowPointerMove, { capture: true, signal });
     view?.addEventListener('pointerdown', this.onWindowPointerDown, { capture: true, signal });
-    view?.addEventListener('click', this.onWindowClick, { capture: true, signal });
   }
 
   get speedReadout(): HTMLElement | null {
-    return this.host.shadowRoot?.querySelector('[aria-live]') ?? null;
+    return this.host.shadowRoot?.querySelector('.speed') ?? null;
   }
 
   setBehavior(behavior: AppliedTabBehavior): void {
@@ -95,6 +86,8 @@ export class VideoOverlay {
     if (!owned) {
       this.clearHideTimer();
       this.autoHideExpired = false;
+      this.controlsPointer = false;
+      this.focusWithin = false;
       this.requestLayout();
       return;
     }
@@ -195,47 +188,11 @@ export class VideoOverlay {
   };
 
   private readonly onWindowPointerDown = (event: Event): void => {
-    if (!(event instanceof PointerEvent)) {
+    if (!(event instanceof PointerEvent) || !this.isPointOverVideo(event.clientX, event.clientY)) {
       return;
     }
-    if (this.controlDirectionFromEvent(event) != null) {
-      return;
-    }
-    if (this.isPointOverVideo(event.clientX, event.clientY)) {
-      this.onVideoActivity();
-    }
+    this.onVideoActivity();
   };
-
-  private readonly onWindowClick = (event: Event): void => {
-    const direction = this.controlDirectionFromEvent(event);
-    if (direction == null) {
-      return;
-    }
-    event.stopImmediatePropagation();
-    this.restartAutoHide();
-    this.actions.adjustSpeed(direction);
-    this.requestLayout();
-  };
-
-  private controlDirectionFromEvent(event: Event): -1 | 1 | null {
-    if (!this.isVisible()) {
-      return null;
-    }
-    const root = this.host.shadowRoot;
-    if (!root) {
-      return null;
-    }
-    const path = event.composedPath();
-    const slower = root.querySelector('[aria-label="Slower"]');
-    const faster = root.querySelector('[aria-label="Faster"]');
-    if (slower && path.includes(slower) && !isDisabledControl(slower)) {
-      return -1;
-    }
-    if (faster && path.includes(faster) && !isDisabledControl(faster)) {
-      return 1;
-    }
-    return null;
-  }
 
   private isPointOverVideo(clientX: number, clientY: number): boolean {
     const rect = this.video.getBoundingClientRect();
