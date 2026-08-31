@@ -5,6 +5,7 @@ import { enableSite } from '../background/enable-site';
 import { handleFrameReady } from '../background/frame-ready';
 import { getPopupState } from '../background/popup-state';
 import { resetSiteSpeed } from '../background/reset-site-speed';
+import { adjustTabSpeed } from '../background/adjust-tab-speed';
 import { setSpeed } from '../background/set-speed';
 import { enqueueTabMutation } from '../background/tab-mutation-queue';
 import { isExtensionRequest } from '../core/messages';
@@ -80,6 +81,21 @@ export default defineBackground(() => {
         respondWithError(sendResponse, 'SET_SPEED', {
           ok: false,
           error: 'Unexpected set-speed failure',
+        }),
+      );
+      return true;
+    }
+    if (message.type === 'ADJUST_SPEED') {
+      const tabId = sender.tab?.id;
+      if (tabId == null) {
+        sendResponse({ ok: false, error: 'Missing tab' });
+        return false;
+      }
+      void enqueueTabMutation(tabId, () => adjustTabSpeed(sender, message.direction)).then(
+        sendResponse,
+        respondWithError(sendResponse, 'ADJUST_SPEED', {
+          ok: false,
+          error: 'Unexpected adjust-speed failure',
         }),
       );
       return true;

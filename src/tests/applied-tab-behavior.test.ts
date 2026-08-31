@@ -7,6 +7,7 @@ import {
   isAppliedTabBehavior,
   overlayFieldsFrom,
 } from '../core/applied-tab-behavior';
+import { BUILT_IN_SITE_BEHAVIOR } from '../settings/site-behavior';
 import { getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -32,6 +33,11 @@ function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
 }
 
 describe('applied tab behavior', () => {
+  it('uses a 2s built-in auto-hide default', () => {
+    expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHide).toBe(true);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
+  });
+
   it('rejects incomplete or invalid runtime records', () => {
     expect(isAppliedTabBehavior(tabBehavior(1.25))).toBe(true);
     expect(isAppliedTabBehavior({ targetSpeed: 1.25 })).toBe(false);

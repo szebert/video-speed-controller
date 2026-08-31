@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  canAdjustSpeed,
   DEFAULT_SPEED_POLICY,
   displaySpeed,
   isPolicyLimited,
@@ -35,5 +36,14 @@ describe('speed policy', () => {
 
   it('resolves from siteSpeed when access exists but tabTarget does not', () => {
     expect(displaySpeed({ siteAccess: true, siteSpeed: 5, tabTarget: null })).toBe(4);
+  });
+
+  it('disables adjust at the policy min and max', () => {
+    expect(canAdjustSpeed(0.25, -1)).toBe(false);
+    expect(canAdjustSpeed(0.25, 1)).toBe(true);
+    expect(canAdjustSpeed(4, 1)).toBe(false);
+    expect(canAdjustSpeed(4, -1)).toBe(true);
+    expect(canAdjustSpeed(2, 1, { ...DEFAULT_SPEED_POLICY, max: 2 })).toBe(false);
+    expect(canAdjustSpeed(1, 1)).toBe(true);
   });
 });

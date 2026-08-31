@@ -8,6 +8,20 @@ import {
 } from '../access/site-access';
 import { destroyEngine, startEngine } from '../core/video-speed-engine';
 import { isExtensionRequest } from '../core/messages';
+import type { OverlayActions } from '../overlay/types';
+
+const overlayActions: OverlayActions = {
+  adjustSpeed(direction) {
+    void chrome.runtime
+      .sendMessage({
+        type: 'ADJUST_SPEED',
+        direction,
+      })
+      .catch((error) => {
+        console.warn('ADJUST_SPEED failed', error);
+      });
+  },
+};
 
 function isTopFrame(): boolean {
   try {
@@ -46,7 +60,7 @@ export default defineContentScript({
   matchAboutBlank: true,
   runAt: 'document_idle',
   main(ctx) {
-    const engine = startEngine();
+    const engine = startEngine(overlayActions);
 
     if (!engine.listening) {
       engine.listening = true;

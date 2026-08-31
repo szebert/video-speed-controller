@@ -46,6 +46,11 @@ export type ApplyTabBehaviorRequest = {
   behavior: AppliedTabBehavior;
 };
 
+export type AdjustSpeedRequest = {
+  type: 'ADJUST_SPEED';
+  direction: -1 | 1;
+};
+
 export type ExtensionRequest =
   | GetPopupStateRequest
   | EnableSiteRequest
@@ -54,7 +59,8 @@ export type ExtensionRequest =
   | FrameReadyRequest
   | ReconcileAccessRequest
   | TopFrameDestroyedRequest
-  | ApplyTabBehaviorRequest;
+  | ApplyTabBehaviorRequest
+  | AdjustSpeedRequest;
 
 export type PopupStateResponse = {
   supported: boolean;
@@ -99,6 +105,11 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
       return true;
     case 'APPLY_TAB_BEHAVIOR':
       return isAppliedTabBehavior((value as { behavior?: unknown }).behavior);
+    case 'ADJUST_SPEED':
+      return (
+        (value as { direction?: unknown }).direction === -1 ||
+        (value as { direction?: unknown }).direction === 1
+      );
     case 'RECONCILE_ACCESS':
       return (
         Array.isArray((value as { allowedHostPatterns?: unknown }).allowedHostPatterns) &&

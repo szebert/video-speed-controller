@@ -102,7 +102,7 @@ export type ResolvedSiteBehavior = {
 export const BUILT_IN_SITE_BEHAVIOR: SiteBehavior = {
   speed: 1,
   overlayPosition: OVERLAY_POSITION.TOP_CENTER,
-  overlayAutoHide: false,
+  overlayAutoHide: true,
   overlayAutoHideDelayMs: 2000,
   hotkeys: {},
 };

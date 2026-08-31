@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { enableSite } from '../background/enable-site';
 import { handleFrameReady } from '../background/frame-ready';
+import { adjustTabSpeed } from '../background/adjust-tab-speed';
 import { setSpeed } from '../background/set-speed';
 import { enqueueTabMutation, resetTabMutationQueue } from '../background/tab-mutation-queue';
 import { clearTabState, type TabStateStore } from '../storage/tab-state';
@@ -133,5 +134,44 @@ describe('tab-target queue races', () => {
     await set;
     await clear;
     expect(tabStore.data['tab:2']).toBeUndefined();
+  });
+
+  it('serializes rapid ADJUST_SPEED +1 clicks from 1.00 to 1.50', async () => {
+    const tabStore = memoryTabStore();
+    await tabStore.set({ 'tab:8': tabBehavior(1) });
+    let releaseFirst!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const applied: number[] = [];
+    const sender = {
+      tab: { id: 8, url: 'https://www.youtube.com/watch' } as chrome.tabs.Tab,
+    };
+    const first = enqueueTabMutation(8, () =>
+      adjustTabSpeed(sender, 1, {
+        tabStore,
+        persist: async () => undefined,
+        apply: async (_tabId, behavior) => {
+          await hold;
+          applied.push(behavior.targetSpeed);
+        },
+        ensure: async () => undefined,
+      }),
+    );
+    const second = enqueueTabMutation(8, () =>
+      adjustTabSpeed(sender, 1, {
+        tabStore,
+        persist: async () => undefined,
+        apply: async (_tabId, behavior) => {
+          applied.push(behavior.targetSpeed);
+        },
+        ensure: async () => undefined,
+      }),
+    );
+    releaseFirst();
+    await first;
+    await second;
+    expect(applied).toEqual([1.25, 1.5]);
+    expect(tabStore.data['tab:8']).toEqual(tabBehavior(1.5));
   });
 });

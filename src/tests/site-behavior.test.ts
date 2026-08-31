@@ -26,7 +26,8 @@ describe('site behavior resolution', () => {
       value: OVERLAY_POSITION.TOP_CENTER,
       source: 'built-in',
     });
-    expect(resolved.overlayAutoHide).toEqual({ value: false, source: 'built-in' });
+    expect(resolved.overlayAutoHide).toEqual({ value: true, source: 'built-in' });
+    expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
   });
 

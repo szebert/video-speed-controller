@@ -14,5 +14,6 @@ export default defineConfig({
     include: ['src/tests/**/*.test.ts'],
     globals: false,
     setupFiles: ['./src/tests/resize-observer-stub.ts'],
+    css: true,
   },
 });

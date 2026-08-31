@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import type { OverlayActions } from '../overlay/types';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 import { MediaRegistry } from './media-registry';
 
@@ -15,8 +16,8 @@ declare global {
   var __OSVSC_ENGINE__: VideoSpeedEngine | undefined;
 }
 
-function createEngine(): VideoSpeedEngine {
-  const registry = new MediaRegistry(document);
+function createEngine(actions?: OverlayActions): VideoSpeedEngine {
+  const registry = new MediaRegistry(document, actions);
   const engine: VideoSpeedEngine = {
     active: true,
     listening: false,
@@ -42,11 +43,11 @@ function createEngine(): VideoSpeedEngine {
   return engine;
 }
 
-export function startEngine(): VideoSpeedEngine {
+export function startEngine(actions?: OverlayActions): VideoSpeedEngine {
   if (globalThis.__OSVSC_ENGINE__?.active) {
     return globalThis.__OSVSC_ENGINE__;
   }
-  const engine = createEngine();
+  const engine = createEngine(actions);
   globalThis.__OSVSC_ENGINE__ = engine;
   return engine;
 }

@@ -43,6 +43,14 @@ export function adjustSpeed(
   return canonicalizeSpeed(clampSpeed(current + direction * policy.tick, policy));
 }
 
+export function canAdjustSpeed(
+  current: number,
+  direction: 1 | -1,
+  policy: SpeedPolicy = DEFAULT_SPEED_POLICY,
+): boolean {
+  return adjustSpeed(current, direction, policy) !== canonicalizeSpeed(current);
+}
+
 export function isPolicyLimited(
   siteSpeed: number | null | undefined,
   policy: SpeedPolicy = DEFAULT_SPEED_POLICY,

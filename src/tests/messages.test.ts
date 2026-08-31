@@ -62,6 +62,12 @@ describe('isExtensionRequest', () => {
       isExtensionRequest({ type: 'RECONCILE_ACCESS', allowedHostPatterns: ['https://*/*'] }),
     ).toBe(true);
     expect(isExtensionRequest({ type: 'RECONCILE_ACCESS', allowedHostPatterns: [1] })).toBe(false);
+    expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: -1 })).toBe(true);
+    expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: 1 })).toBe(true);
+    expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: 0 })).toBe(false);
+    expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: 2 })).toBe(false);
+    expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: '1' })).toBe(false);
+    expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: null })).toBe(false);
     expect(isExtensionRequest({ type: 'UNKNOWN' })).toBe(false);
   });
 });

@@ -8,9 +8,42 @@ test.describe.configure({ mode: 'serial' });
 async function overlayBadgeTexts(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     [...document.querySelectorAll('osvsc-overlay')].map(
-      (host) => host.shadowRoot?.querySelector('.badge')?.textContent ?? '',
+      (host) => host.shadowRoot?.querySelector('[aria-live]')?.textContent ?? '',
     ),
   );
+}
+
+async function clickOverlayControl(page: Page, label: 'Faster' | 'Slower'): Promise<void> {
+  await expect
+    .poll(async () =>
+      page.evaluate((name) => {
+        for (const host of document.querySelectorAll('osvsc-overlay')) {
+          if (host.shadowRoot?.querySelector(`[aria-label="${name}"]`) instanceof HTMLElement) {
+            return true;
+          }
+        }
+        return false;
+      }, label),
+    )
+    .toBe(true);
+  await page.evaluate((name) => {
+    for (const host of document.querySelectorAll('osvsc-overlay')) {
+      const button = host.shadowRoot?.querySelector(`[aria-label="${name}"]`);
+      if (button instanceof HTMLElement) {
+        button.click();
+        return;
+      }
+    }
+    throw new Error(`Missing ${name} overlay control`);
+  }, label);
+}
+
+async function clickOverlayFaster(page: Page): Promise<void> {
+  await clickOverlayControl(page, 'Faster');
+}
+
+async function clickOverlaySlower(page: Page): Promise<void> {
+  await clickOverlayControl(page, 'Slower');
 }
 
 test('Enable is available on the fixture site and Faster applies to every video', async ({
@@ -117,6 +150,106 @@ test('reconcile teardown restores the captured baseline and removes overlays', a
     )
     .toBe(1.25);
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual([]);
+});
+
+async function applyOverlayEngine(popup: Page, site: Page): Promise<void> {
+  await popup.getByRole('button', { name: 'Faster' }).click();
+  await popup.getByRole('button', { name: 'Reset' }).click();
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.00×', '1.00×', '1.00×']);
+}
+
+test('overlay plus and minus update every video and the popup', async ({
+  site,
+  openExtensionPopup,
+}) => {
+  const popup = await openExtensionPopup();
+  await applyOverlayEngine(popup, site);
+  await clickOverlayFaster(site);
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1.25);
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.25×', '1.25×', '1.25×']);
+  await popup.reload();
+  await expect(popup.getByText('1.25×')).toBeVisible();
+  await clickOverlaySlower(site);
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1);
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.00×', '1.00×', '1.00×']);
+  await popup.reload();
+  await expect(popup.getByText('1.00×')).toBeVisible();
+});
+
+test('rapid overlay plus clicks accumulate', async ({ site, openExtensionPopup }) => {
+  const popup = await openExtensionPopup();
+  await applyOverlayEngine(popup, site);
+  await expect
+    .poll(async () =>
+      site.evaluate(() =>
+        [...document.querySelectorAll('osvsc-overlay')].some(
+          (host) => host.shadowRoot?.querySelector('[aria-label="Faster"]') instanceof HTMLElement,
+        ),
+      ),
+    )
+    .toBe(true);
+  await site.evaluate(() => {
+    for (const host of document.querySelectorAll('osvsc-overlay')) {
+      const button = host.shadowRoot?.querySelector('[aria-label="Faster"]');
+      if (button instanceof HTMLElement) {
+        button.click();
+        button.click();
+        return;
+      }
+    }
+    throw new Error('Missing Faster overlay control');
+  });
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1.5);
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.50×', '1.50×', '1.50×']);
+});
+
+test('overlay auto-hides and returns when the pointer moves over a video', async ({
+  site,
+  openExtensionPopup,
+}) => {
+  const popup = await openExtensionPopup();
+  await applyOverlayEngine(popup, site);
+  await clickOverlayFaster(site);
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.25×', '1.25×', '1.25×']);
+  await expect
+    .poll(async () =>
+      site
+        .locator('osvsc-overlay')
+        .first()
+        .evaluate((host) => (host as HTMLElement).style.visibility),
+    )
+    .toBe('visible');
+  await expect
+    .poll(
+      async () =>
+        site
+          .locator('osvsc-overlay')
+          .first()
+          .evaluate((host) => (host as HTMLElement).style.visibility),
+      { timeout: 5_000 },
+    )
+    .toBe('hidden');
+  await site.locator('#v1').hover();
+  await expect
+    .poll(async () =>
+      site
+        .locator('osvsc-overlay')
+        .first()
+        .evaluate((host) => (host as HTMLElement).style.visibility),
+    )
+    .toBe('visible');
 });
 
 test('slider keyboard changes site speed', async ({ site, openExtensionPopup }) => {

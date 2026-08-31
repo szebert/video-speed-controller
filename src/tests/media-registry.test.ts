@@ -58,7 +58,7 @@ describe('media registry', () => {
     document.body.append(d);
     registry.ensureController(d);
     expect(d.playbackRate).toBe(2);
-    expect(registry.getOverlay(d)?.badge.textContent).toBe('2.00×');
+    expect(registry.getOverlay(d)?.speedReadout?.textContent).toBe('2.00×');
     registry.destroy();
     expect(a.playbackRate).toBe(1);
     expect(b.playbackRate).toBe(1);
@@ -79,7 +79,7 @@ describe('media registry', () => {
     registry['discover'](document);
     registry.setBehavior(tabBehavior(1.25));
     expect(registry.size).toBe(1);
-    expect(registry.getOverlay(node)?.badge.textContent).toBe('1.25×');
+    expect(registry.getOverlay(node)?.speedReadout?.textContent).toBe('1.25×');
   });
 
   it('hides the overlay immediately on surrender and shows it again on retake', () => {
@@ -91,7 +91,7 @@ describe('media registry', () => {
     document.body.append(node);
     const controller = registry.ensureController(node);
     const overlay = registry.getOverlay(node);
-    registry.setBehavior(tabBehavior(3));
+    registry.setBehavior(tabBehavior(3, { overlayAutoHide: false }));
     overlay?.layout();
     expect(overlay?.host.style.visibility).toBe('visible');
 
@@ -110,6 +110,36 @@ describe('media registry', () => {
     overlay?.layout();
     expect(overlay?.host.style.visibility).toBe('visible');
     expect(node.playbackRate).toBe(2);
+  });
+
+  it('does not retake a surrendered video on rediscovery', () => {
+    vi.useFakeTimers();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    const controller = registry.ensureController(node);
+    const overlay = registry.getOverlay(node);
+    registry.setBehavior(tabBehavior(3, { overlayAutoHide: false }));
+    overlay?.layout();
+
+    node.playbackRate = 1.5;
+    node.dispatchEvent(new Event('ratechange'));
+    for (let index = 0; index < 4; index += 1) {
+      vi.runOnlyPendingTimers();
+      node.playbackRate = 1.5;
+      node.dispatchEvent(new Event('ratechange'));
+    }
+    expect(controller.surrendered).toBe(true);
+    overlay?.layout();
+    expect(overlay?.host.style.visibility).toBe('hidden');
+
+    expect(registry.ensureController(node)).toBe(controller);
+    expect(controller.surrendered).toBe(true);
+    expect(node.playbackRate).toBe(1.5);
+    overlay?.layout();
+    expect(overlay?.host.style.visibility).toBe('hidden');
   });
 
   it('coalesces layout onto one animation frame', () => {
