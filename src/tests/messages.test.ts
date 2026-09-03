@@ -69,5 +69,74 @@ describe('isExtensionRequest', () => {
     expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: '1' })).toBe(false);
     expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: null })).toBe(false);
     expect(isExtensionRequest({ type: 'UNKNOWN' })).toBe(false);
+    expect(isExtensionRequest({ type: 'GET_BEHAVIOR_SETTINGS' })).toBe(true);
+    expect(isExtensionRequest({ type: 'GET_BEHAVIOR_SETTINGS', hostname: 'example.com' })).toBe(
+      true,
+    );
+    expect(
+      isExtensionRequest({
+        type: 'GET_BEHAVIOR_SETTINGS',
+        hostname: 'example.com',
+        extra: true,
+      }),
+    ).toBe(false);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'speed', value: 1.5 },
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global', hostname: 'example.com' },
+        change: { kind: 'value', field: 'speed', value: 1.5 },
+      }),
+    ).toBe(false);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'speed', value: 1.5 },
+        extra: true,
+      }),
+    ).toBe(false);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'site', hostname: 'example.com' },
+        change: { kind: 'inherit', field: 'overlayPosition', value: 8 },
+      }),
+    ).toBe(false);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'overlayVisible', value: false },
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'speedTick', value: 0.05 },
+      }),
+    ).toBe(true);
+    expect(isExtensionRequest({ type: 'DELETE_SITE_SETTINGS', hostname: 'example.com' })).toBe(
+      true,
+    );
+    expect(
+      isExtensionRequest({
+        type: 'DELETE_SITE_SETTINGS',
+        hostname: 'example.com',
+        extra: true,
+      }),
+    ).toBe(false);
+    expect(isExtensionRequest({ type: 'RESET_GLOBAL_BEHAVIOR' })).toBe(true);
+    expect(
+      isExtensionRequest({ type: 'RESET_ALL_BEHAVIOR', snapshotHostname: 'example.com' }),
+    ).toBe(true);
+    expect(isExtensionRequest({ type: 'RESET_ALL_BEHAVIOR', snapshotHostname: 1 })).toBe(false);
   });
 });

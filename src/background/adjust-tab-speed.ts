@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { adjustSpeed, DEFAULT_SPEED_POLICY, type SpeedPolicy } from '../core/speed';
+import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
 import type { SetSpeedResponse } from '../core/messages';
 import { getSiteKey } from '../storage/site-key';
 import { getTabState, type TabStateStore } from '../storage/tab-state';
@@ -52,12 +53,16 @@ export async function adjustTabSpeed(
 
   const existing = await getTabState(tabId, deps.tabStore);
   let current: number;
+  let resolvedPolicy = deps.policy;
   if (existing) {
     current = existing.targetSpeed;
+    resolvedPolicy ??= speedPolicyFromApplied(existing);
   } else {
     try {
       const readBehavior = deps.readBehavior ?? readAppliedTabBehavior;
-      current = (await readBehavior(url)).targetSpeed;
+      const behavior = await readBehavior(url);
+      current = behavior.targetSpeed;
+      resolvedPolicy ??= speedPolicyFromApplied(behavior);
     } catch (error) {
       return {
         ok: false,
@@ -66,6 +71,10 @@ export async function adjustTabSpeed(
     }
   }
 
-  const policy = deps.policy ?? DEFAULT_SPEED_POLICY;
-  return setSpeed(tabId, url, adjustSpeed(current, direction, policy), deps);
+  return setSpeed(
+    tabId,
+    url,
+    adjustSpeed(current, direction, resolvedPolicy ?? DEFAULT_SPEED_POLICY),
+    deps,
+  );
 }

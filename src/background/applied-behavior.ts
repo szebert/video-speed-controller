@@ -9,10 +9,7 @@ import {
 import { toEffectiveBehavior } from '../settings/site-behavior';
 import { resolveSiteBehaviorForUrl, type SiteSettingsDeps } from '../storage/site-settings';
 
-export type OverlaySeed = Pick<
-  AppliedTabBehavior,
-  'overlayPosition' | 'overlayAutoHide' | 'overlayAutoHideDelayMs'
->;
+export type OverlaySeed = Omit<AppliedTabBehavior, 'targetSpeed'>;
 
 export type AppliedBehaviorReader = (url: string) => Promise<AppliedTabBehavior>;
 

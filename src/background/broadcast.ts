@@ -41,6 +41,7 @@ export async function applyTabBehavior(
   tabId: number,
   behavior: AppliedTabBehavior,
   tabs: TabMessenger = chrome.tabs,
+  options: { ignoreNoReceiver?: boolean } = {},
 ): Promise<void> {
   try {
     await tabs.sendMessage(tabId, {
@@ -48,9 +49,10 @@ export async function applyTabBehavior(
       behavior,
     } satisfies ApplyTabBehaviorRequest);
   } catch (error) {
-    if (!isNoReceiverError(error)) {
-      throw error;
+    if (options.ignoreNoReceiver !== false && isNoReceiverError(error)) {
+      return;
     }
+    throw error;
   }
 }
 

@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import {
-  canonicalizeSpeed,
-  clampSpeed,
-  DEFAULT_SPEED_POLICY,
-  type SpeedPolicy,
-} from '../core/speed';
-import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
+import { canonicalizeSpeed, clampSpeed, type SpeedPolicy } from '../core/speed';
+import { speedPolicyFromApplied, type AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type { SetSpeedResponse } from '../core/messages';
 import { persistSiteSpeed } from '../storage/site-settings';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
@@ -46,11 +41,11 @@ export async function setSpeed(
     return { ok: false, error: 'Speed must be a finite number' };
   }
 
-  const policy = deps.policy ?? DEFAULT_SPEED_POLICY;
-  const canonical = canonicalizeSpeed(clampSpeed(proposed, policy));
   const tabStore = deps.tabStore;
   const previous = await getTabState(tabId, tabStore);
   const overlay = previous ?? (await (deps.readOverlay ?? readOverlaySeed)(url));
+  const policy = deps.policy ?? speedPolicyFromApplied(overlay);
+  const canonical = canonicalizeSpeed(clampSpeed(proposed, policy));
   const next: AppliedTabBehavior = { ...overlay, targetSpeed: canonical };
   await setTabState(tabId, next, tabStore);
 

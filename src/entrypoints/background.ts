@@ -7,6 +7,13 @@ import { getPopupState } from '../background/popup-state';
 import { resetSiteSpeed } from '../background/reset-site-speed';
 import { adjustTabSpeed } from '../background/adjust-tab-speed';
 import { setSpeed } from '../background/set-speed';
+import {
+  deleteSiteBehaviorSettings,
+  getBehaviorSettings,
+  resetAllBehaviorSettings,
+  resetGlobalBehaviorSettings,
+  setBehaviorSetting,
+} from '../background/behavior-settings';
 import { enqueueTabMutation } from '../background/tab-mutation-queue';
 import { isExtensionRequest } from '../core/messages';
 import { restrictStorageAccess } from '../storage/restrict-access';
@@ -119,6 +126,56 @@ export default defineBackground(() => {
       void enqueueTabMutation(tabId, () => handleFrameReady(sender)).then(
         sendResponse,
         respondWithError(sendResponse, 'FRAME_READY', { action: 'dormant' }),
+      );
+      return true;
+    }
+    if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+      void getBehaviorSettings(message, sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'GET_BEHAVIOR_SETTINGS', {
+          ok: false,
+          error: 'Unexpected settings read failure',
+        }),
+      );
+      return true;
+    }
+    if (message.type === 'SET_BEHAVIOR_SETTING') {
+      void setBehaviorSetting(message, sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'SET_BEHAVIOR_SETTING', {
+          ok: false,
+          error: 'Unexpected settings write failure',
+        }),
+      );
+      return true;
+    }
+    if (message.type === 'DELETE_SITE_SETTINGS') {
+      void deleteSiteBehaviorSettings(message, sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'DELETE_SITE_SETTINGS', {
+          ok: false,
+          error: 'Unexpected site delete failure',
+        }),
+      );
+      return true;
+    }
+    if (message.type === 'RESET_GLOBAL_BEHAVIOR') {
+      void resetGlobalBehaviorSettings(message, sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'RESET_GLOBAL_BEHAVIOR', {
+          ok: false,
+          error: 'Unexpected reset failure',
+        }),
+      );
+      return true;
+    }
+    if (message.type === 'RESET_ALL_BEHAVIOR') {
+      void resetAllBehaviorSettings(message, sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'RESET_ALL_BEHAVIOR', {
+          ok: false,
+          error: 'Unexpected reset failure',
+        }),
       );
       return true;
     }
