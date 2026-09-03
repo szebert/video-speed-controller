@@ -22,11 +22,16 @@ export const fixtureOrigin = 'http://127.0.0.1:4173';
 
 export function ensureExtensionBuild(): void {
   const manifestPath = resolve(extensionPath, 'manifest.json');
-  if (existsSync(manifestPath)) {
+  if (existsSync(manifestPath) && existsSync(resolve(extensionPath, 'options.html'))) {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
       host_permissions?: string[];
+      options_ui?: { page?: string; open_in_tab?: boolean };
     };
-    if (manifest.host_permissions?.includes('http://127.0.0.1:4173/*')) {
+    if (
+      manifest.host_permissions?.includes('http://127.0.0.1:4173/*') &&
+      manifest.options_ui?.page === 'options.html' &&
+      manifest.options_ui.open_in_tab === true
+    ) {
       return;
     }
   }
@@ -69,6 +74,29 @@ export async function pointPopupAtSite(serviceWorker: Worker, site: Page): Promi
   if (tabId == null) {
     throw new Error('Could not store an e2e popup target tab');
   }
+}
+
+export async function openOptions(
+  context: BrowserContext,
+  extensionId: string,
+  hostname?: string,
+): Promise<Page> {
+  const options = await context.newPage();
+  const query = hostname ? `?site=${encodeURIComponent(hostname)}` : '';
+  await options.goto(`chrome-extension://${extensionId}/options.html${query}`);
+  await options.getByRole('button', { name: 'Global defaults', exact: true }).waitFor();
+  return options;
+}
+
+export async function clickOptionsSwitch(page: Page, name: string): Promise<void> {
+  await page
+    .locator('[data-slot="switch"]')
+    .filter({ has: page.getByRole('switch', { name }) })
+    .click();
+}
+
+export async function confirmAlertDialog(page: Page, action: string): Promise<void> {
+  await page.getByRole('alertdialog').getByRole('button', { name: action, exact: true }).click();
 }
 
 export async function openPopup(

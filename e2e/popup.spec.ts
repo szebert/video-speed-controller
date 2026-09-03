@@ -261,12 +261,12 @@ test('slider keyboard changes site speed', async ({ site, openExtensionPopup }) 
   await expect(slider).toBeEnabled();
   await slider.focus();
   await slider.press('ArrowRight');
-  await expect(popup.getByText('1.05×')).toBeVisible();
+  await expect(popup.getByText('1.01×')).toBeVisible();
   await expect
     .poll(async () =>
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
     )
-    .toBe(1.05);
+    .toBe(1.01);
 
   await popup.getByRole('button', { name: 'Reset' }).click();
   await expect(popup.getByText('1.00×')).toBeVisible();
@@ -287,6 +287,18 @@ test('Reset wins when clicked immediately after Faster', async ({ site, openExte
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
     )
     .toBe(1);
+});
+
+test('Settings opens the current site options page', async ({
+  context,
+  openExtensionPopup,
+}) => {
+  const popup = await openExtensionPopup();
+  const optionsOpened = context.waitForEvent('page');
+  await popup.getByRole('button', { name: 'Open settings' }).click();
+  const options = await optionsOpened;
+  await expect(options).toHaveURL(/\/options\.html\?site=127\.0\.0\.1$/);
+  await expect(options.getByRole('heading', { name: '127.0.0.1' })).toBeVisible();
 });
 
 test('theme toggle switches the popup color scheme', async ({ site, openExtensionPopup }) => {
