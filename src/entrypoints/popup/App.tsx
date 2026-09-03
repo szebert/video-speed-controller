@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { SettingsIcon } from 'lucide-react';
 import { t } from '@/i18n/t';
 import {
   E2E_POPUP_TARGET_TAB_ID_KEY,
@@ -14,14 +15,16 @@ import {
 } from '../../access/site-access';
 import { ModeToggle } from '@/components/mode-toggle';
 import { SpeedControls } from '@/components/SpeedControls';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import type { EnableSiteResponse, PopupStateResponse, SetSpeedResponse } from '../../core/messages';
 import {
   adjustSpeed,
-  DEFAULT_SPEED_POLICY,
   displaySpeed,
   resolveEffectiveSpeed,
+  speedPolicyFrom,
 } from '../../core/speed';
+import { openExtensionOptionsPage } from '../../settings/options-page';
 
 type PopupView = PopupStateResponse & {
   tabId: number;
@@ -66,12 +69,32 @@ async function loadPopup(): Promise<PopupView | null> {
   return { ...state, tabId: tab.id, url: tab.url };
 }
 
-function PopupShell({ children, notice }: { children: ReactNode; notice?: string | null }) {
+function PopupShell({
+  children,
+  notice,
+  hostname,
+}: {
+  children: ReactNode;
+  notice?: string | null;
+  hostname?: string | null;
+}) {
   return (
     <div className="flex min-w-xs w-xs flex-col">
       <header className="flex items-center justify-between gap-3 px-4 pt-4">
         <h1 className="text-sm font-semibold">{t('popupTitle')}</h1>
-        <ModeToggle />
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('openSettings')}
+            onPress={() => {
+              openExtensionOptionsPage(hostname);
+            }}
+          >
+            <SettingsIcon data-icon="inline-start" />
+          </Button>
+          <ModeToggle />
+        </div>
       </header>
       <main className="flex flex-col gap-4 p-4">{children}</main>
       {notice ? <p className="px-4 pb-4 text-sm text-destructive">{notice}</p> : null}
@@ -128,7 +151,7 @@ export function App() {
 
   if (!view || !view.supported) {
     return (
-      <PopupShell>
+      <PopupShell hostname={view?.hostname}>
         <p className="text-sm text-muted-foreground">{t('popupUnavailable')}</p>
         <SpeedControls
           displaySpeed={1}
@@ -142,7 +165,12 @@ export function App() {
     );
   }
 
-  const shown = sliderPreview ?? displaySpeed(view);
+  const policy = speedPolicyFrom({
+    min: view.speedMin,
+    max: view.speedMax,
+    tick: view.speedTick,
+  });
+  const shown = sliderPreview ?? displaySpeed({ ...view, policy });
 
   const refresh = async (): Promise<void> => {
     setSliderPreview(null);
@@ -162,8 +190,8 @@ export function App() {
   };
 
   const currentForAdjust = view.siteAccess
-    ? (view.tabTarget ?? resolveEffectiveSpeed(view.siteSpeed))
-    : resolveEffectiveSpeed(view.siteSpeed);
+    ? (view.tabTarget ?? resolveEffectiveSpeed(view.siteSpeed, policy))
+    : resolveEffectiveSpeed(view.siteSpeed, policy);
 
   const sendSpeed = async (speed: number): Promise<void> => {
     if (!(await ensureAccess())) {
@@ -231,7 +259,7 @@ export function App() {
   };
 
   return (
-    <PopupShell notice={notice}>
+    <PopupShell notice={notice} hostname={view.hostname}>
       {view.hostname ? (
         <p className="truncate text-sm text-muted-foreground">{view.hostname}</p>
       ) : null}
@@ -247,8 +275,9 @@ export function App() {
         displaySpeed={shown}
         disabled={!view.siteAccess}
         showOffBadge={!view.siteAccess}
+        policy={policy}
         onAdjust={(direction) => {
-          void sendSpeed(adjustSpeed(currentForAdjust, direction, DEFAULT_SPEED_POLICY));
+          void sendSpeed(adjustSpeed(currentForAdjust, direction, policy));
         }}
         onReset={() => {
           void sendReset();

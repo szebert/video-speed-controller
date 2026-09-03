@@ -83,8 +83,14 @@ if (existsSync(join(root, '.output', 'chrome-mv3', 'manifest.json'))) {
   if (manifest.content_scripts?.length) {
     fail('manifest must not include static content_scripts');
   }
-  if (manifest.options_ui || manifest.options_page) {
-    fail('manifest must not include an options page');
+  if (manifest.options_page) {
+    fail('manifest must not include legacy options_page');
+  }
+  if (manifest.options_ui?.page !== 'options.html' || manifest.options_ui?.open_in_tab !== true) {
+    fail('options_ui must open options.html in a tab');
+  }
+  if (!existsSync(join(root, '.output', 'chrome-mv3', 'options.html'))) {
+    fail('missing .output/chrome-mv3/options.html');
   }
   if (manifest.commands) {
     fail('manifest must not include commands');
