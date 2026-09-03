@@ -4,21 +4,43 @@ export type SpeedPolicy = {
   tick: number;
   min: number;
   max: number;
-  sliderStep: number;
 };
+
+/** Chromium `HTMLMediaElement.kMinPlaybackRate`. Values below this throw. */
+export const SPEED_MIN_SETTING_MIN = 0.0625;
+export const SPEED_MIN_SETTING_MAX = 1;
+export const SPEED_MAX_SETTING_MIN = 2;
+/** Chromium `HTMLMediaElement.kMaxPlaybackRate`. Values above this throw. */
+export const SPEED_MAX_SETTING_MAX = 16;
+/** Faster/Slower increment. Independent of the playbackRate floor. */
+export const SPEED_TICK_SETTING_MIN = 0.01;
+export const SPEED_TICK_SETTING_MAX = 1;
+const SPEED_CANONICAL_SCALE = 10_000;
+export const SPEED_SLIDER_STEP = 0.01;
 
 export const DEFAULT_SPEED_POLICY: SpeedPolicy = {
   tick: 0.25,
   min: 0.25,
   max: 4,
-  sliderStep: 0.05,
 };
+
+export function speedPolicyFrom(range: Pick<SpeedPolicy, 'min' | 'max' | 'tick'>): SpeedPolicy {
+  return {
+    tick: canonicalizeSpeed(range.tick),
+    min: canonicalizeSpeed(range.min),
+    max: canonicalizeSpeed(range.max),
+  };
+}
+
+export function clampPolicyNumber(value: number, min: number, max: number): number {
+  return canonicalizeSpeed(Math.min(max, Math.max(min, value)));
+}
 
 export function canonicalizeSpeed(speed: number): number {
   if (!Number.isFinite(speed)) {
     throw new Error('Speed must be a finite number');
   }
-  return Math.round(speed * 100) / 100;
+  return Math.round(speed * SPEED_CANONICAL_SCALE) / SPEED_CANONICAL_SCALE;
 }
 
 export function clampSpeed(speed: number, policy: SpeedPolicy = DEFAULT_SPEED_POLICY): number {
@@ -78,10 +100,46 @@ export function displaySpeed(input: {
 }
 
 export function formatSpeed(speed: number): string {
-  return `${canonicalizeSpeed(speed).toFixed(2)}×`;
+  const value = canonicalizeSpeed(speed);
+  const [whole, fraction = ''] = value.toFixed(4).replace(/0+$/, '').split('.');
+  return `${whole}.${fraction.padEnd(2, '0')}×`;
+}
+
+export function sliderBounds(policy: SpeedPolicy = DEFAULT_SPEED_POLICY): {
+  minValue: number;
+  maxValue: number;
+} {
+  const min = canonicalizeSpeed(policy.min);
+  const max = canonicalizeSpeed(policy.max);
+  if (max <= min) {
+    return { minValue: min, maxValue: max };
+  }
+  const steps = Math.max(1, Math.ceil(canonicalizeSpeed((max - min) / SPEED_SLIDER_STEP)));
+  return {
+    minValue: canonicalizeSpeed(max - steps * SPEED_SLIDER_STEP),
+    maxValue: max,
+  };
 }
 
 export function snapSliderSpeed(speed: number, policy: SpeedPolicy = DEFAULT_SPEED_POLICY): number {
-  const stepped = Math.round(speed / policy.sliderStep) * policy.sliderStep;
-  return canonicalizeSpeed(clampSpeed(stepped, policy));
+  const min = canonicalizeSpeed(policy.min);
+  const max = canonicalizeSpeed(policy.max);
+  const clamped = canonicalizeSpeed(Math.min(max, Math.max(min, speed)));
+  if (clamped <= min || clamped >= max) {
+    return clamped;
+  }
+  const aligned = canonicalizeSpeed(Math.round(clamped / SPEED_SLIDER_STEP) * SPEED_SLIDER_STEP);
+  return canonicalizeSpeed(Math.min(max, Math.max(min, aligned)));
+}
+
+export function sliderValue(speed: number, policy: SpeedPolicy = DEFAULT_SPEED_POLICY): number {
+  const { minValue, maxValue } = sliderBounds(policy);
+  const snapped = snapSliderSpeed(speed, policy);
+  if (snapped <= canonicalizeSpeed(policy.min)) {
+    return minValue;
+  }
+  if (snapped >= canonicalizeSpeed(policy.max)) {
+    return maxValue;
+  }
+  return snapped;
 }

@@ -6,8 +6,13 @@ import {
   builtInAppliedTabBehavior,
   isAppliedTabBehavior,
   overlayFieldsFrom,
+  toAppliedTabBehavior,
 } from '../core/applied-tab-behavior';
-import { BUILT_IN_SITE_BEHAVIOR } from '../settings/site-behavior';
+import {
+  BUILT_IN_SITE_BEHAVIOR,
+  OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
+  OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
+} from '../settings/site-behavior';
 import { getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -34,8 +39,23 @@ function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
 
 describe('applied tab behavior', () => {
   it('uses a 2s built-in auto-hide default', () => {
+    expect(BUILT_IN_SITE_BEHAVIOR.speedMin).toBe(0.25);
+    expect(BUILT_IN_SITE_BEHAVIOR.speedMax).toBe(4);
+    expect(BUILT_IN_SITE_BEHAVIOR.speedTick).toBe(0.25);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlayVisible).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHide).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
+  });
+
+  it('clamps applied auto-hide delay to 100ms–5min', () => {
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayAutoHideDelayMs: 0 })
+        .overlayAutoHideDelayMs,
+    ).toBe(OVERLAY_AUTO_HIDE_DELAY_MS_MIN);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayAutoHideDelayMs: 999_999 })
+        .overlayAutoHideDelayMs,
+    ).toBe(OVERLAY_AUTO_HIDE_DELAY_MS_MAX);
   });
 
   it('rejects incomplete or invalid runtime records', () => {

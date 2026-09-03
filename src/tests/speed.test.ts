@@ -2,14 +2,65 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  adjustSpeed,
   canAdjustSpeed,
+  canonicalizeSpeed,
   DEFAULT_SPEED_POLICY,
   displaySpeed,
+  formatSpeed,
   isPolicyLimited,
   resolveEffectiveSpeed,
+  sliderBounds,
+  sliderValue,
+  snapSliderSpeed,
+  SPEED_MIN_SETTING_MIN,
+  SPEED_SLIDER_STEP,
 } from '../core/speed';
 
 describe('speed policy', () => {
+  it('keeps Chromium playbackRate min after 4-decimal rounding', () => {
+    expect(canonicalizeSpeed(SPEED_MIN_SETTING_MIN)).toBe(SPEED_MIN_SETTING_MIN);
+    expect(canonicalizeSpeed(0.06254)).toBe(SPEED_MIN_SETTING_MIN);
+  });
+
+  it('formats hundredths as two decimals and keeps extra places when needed', () => {
+    expect(formatSpeed(1)).toBe('1.00×');
+    expect(formatSpeed(1.25)).toBe('1.25×');
+    expect(formatSpeed(SPEED_MIN_SETTING_MIN)).toBe('0.0625×');
+  });
+
+  it('snaps the slider to 0.01 and keeps the ends', () => {
+    expect(snapSliderSpeed(1)).toBe(1);
+    expect(snapSliderSpeed(4)).toBe(4);
+    expect(snapSliderSpeed(1.204)).toBe(1.2);
+    expect(snapSliderSpeed(3.9)).toBe(3.9);
+    const fromFloor = { min: SPEED_MIN_SETTING_MIN, max: 4, tick: 0.25 };
+    expect(snapSliderSpeed(1.0625, fromFloor)).toBe(1.06);
+    expect(snapSliderSpeed(0.1, fromFloor)).toBe(0.1);
+    expect(snapSliderSpeed(0.05, fromFloor)).toBe(SPEED_MIN_SETTING_MIN);
+    expect(snapSliderSpeed(4, fromFloor)).toBe(4);
+    expect(snapSliderSpeed(SPEED_MIN_SETTING_MIN, fromFloor)).toBe(SPEED_MIN_SETTING_MIN);
+  });
+
+  it('aligns the slider origin so max is a legal 0.01 step', () => {
+    expect(sliderBounds()).toEqual({ minValue: 0.25, maxValue: 4 });
+    const fromFloor = { min: SPEED_MIN_SETTING_MIN, max: 4, tick: 0.25 };
+    const bounds = sliderBounds(fromFloor);
+    expect(bounds).toEqual({ minValue: 0.06, maxValue: 4 });
+    expect(canonicalizeSpeed((bounds.maxValue - bounds.minValue) / SPEED_SLIDER_STEP) % 1).toBe(0);
+    expect(sliderValue(SPEED_MIN_SETTING_MIN, fromFloor)).toBe(0.06);
+    expect(sliderValue(4, fromFloor)).toBe(4);
+    expect(sliderValue(1, fromFloor)).toBe(1);
+  });
+
+  it('steps from the playbackRate min by the configured tick', () => {
+    const policy = { ...DEFAULT_SPEED_POLICY, min: SPEED_MIN_SETTING_MIN, tick: 0.01 };
+    expect(adjustSpeed(SPEED_MIN_SETTING_MIN, 1, policy)).toBe(
+      canonicalizeSpeed(SPEED_MIN_SETTING_MIN + 0.01),
+    );
+    expect(canAdjustSpeed(SPEED_MIN_SETTING_MIN, -1, policy)).toBe(false);
+  });
+
   it('keeps stored siteSpeed 5 when max is 4 and only resolves effective 4', () => {
     const stored = 5;
     expect(resolveEffectiveSpeed(stored, DEFAULT_SPEED_POLICY)).toBe(4);

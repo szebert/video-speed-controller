@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  persistGlobalBehaviorChange,
   persistGlobalBehaviorOverrides,
   readGlobalBehaviorOverrides,
   resetBehaviorDefaultsRepairBackoff,
@@ -53,6 +54,25 @@ describe('global behavior defaults', () => {
     );
     await persistGlobalBehaviorOverrides(
       (current, now) => ({ ...current, speed: { kind: 'value', value: 1.5, updatedAt: now } }),
+      { sync, local, now: () => 11 },
+    );
+    expect(sync.data['defaults:site-behavior']).toMatchObject({
+      overrides: {
+        overlayPosition: { kind: 'value', value: OVERLAY_POSITION.BOTTOM_LEFT, updatedAt: 9 },
+        speed: { kind: 'value', value: 1.5, updatedAt: 11 },
+      },
+    });
+  });
+
+  it('persists one field without rewriting unrelated timestamps', async () => {
+    const sync = memoryDurable();
+    const local = memoryDurable();
+    await persistGlobalBehaviorChange(
+      { kind: 'value', field: 'overlayPosition', value: OVERLAY_POSITION.BOTTOM_LEFT },
+      { sync, local, now: () => 9 },
+    );
+    await persistGlobalBehaviorChange(
+      { kind: 'value', field: 'speed', value: 1.5 },
       { sync, local, now: () => 11 },
     );
     expect(sync.data['defaults:site-behavior']).toMatchObject({

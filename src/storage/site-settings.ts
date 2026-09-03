@@ -31,10 +31,13 @@ import {
   hasSemanticOverrides,
   hasSyncRetainedInherit,
   withSpeedInherit,
-  withSpeedValue,
+  applyBehaviorSettingChange,
+  hasValueOverrides,
+  type BehaviorSettingChange,
   type BehaviorOverrides,
   type SiteSettingsV1,
 } from '../settings/site-behavior';
+import { normalizeSiteHostname } from '../settings/site-hostname';
 import { readGlobalBehaviorOverrides } from './behavior-defaults';
 import {
   defaultLocalStore,
@@ -42,7 +45,7 @@ import {
   estimateStorageEntryBytes,
   type DurableSettingsStore,
 } from './durable-store';
-import { getSiteKey, getSiteStorageKey } from './site-key';
+import { getSiteKey, getSiteStorageKey, hostnameFromSiteStorageKey } from './site-key';
 import { SITE_SETTINGS_LOCK, enqueueStorageMutation } from './storage-mutation-queue';
 
 export type { DurableSettingsStore } from './durable-store';
@@ -441,6 +444,18 @@ async function persistMutatedSite(
   });
 }
 
+export async function persistSiteBehaviorChange(
+  url: string,
+  change: BehaviorSettingChange,
+  deps: SiteSettingsDeps = {},
+): Promise<void> {
+  await persistMutatedSite(
+    url,
+    (current, now) => applyBehaviorSettingChange(current, change, now),
+    deps,
+  );
+}
+
 export async function persistSiteSpeed(
   url: string,
   speed: number,
@@ -449,12 +464,98 @@ export async function persistSiteSpeed(
   if (!Number.isFinite(speed)) {
     throw new Error('Speed must be a finite number');
   }
-  await persistMutatedSite(url, (current, now) => withSpeedValue(current, speed, now), deps);
+  await persistSiteBehaviorChange(url, { kind: 'value', field: 'speed', value: speed }, deps);
 }
 
 export async function persistSiteSpeedInherit(
   url: string,
   deps: SiteSettingsDeps = {},
 ): Promise<void> {
-  await persistMutatedSite(url, (current, now) => withSpeedInherit(current, now), deps);
+  await persistSiteBehaviorChange(url, { kind: 'inherit', field: 'speed' }, deps);
+}
+
+export async function listCustomSiteHostnames(deps: SiteSettingsDeps = {}): Promise<string[]> {
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
+    const { sync, local } = stores(deps);
+    const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
+    const hostnames = new Set<string>();
+    for (const source of [syncAll, localAll]) {
+      for (const [key, value] of Object.entries(source)) {
+        const hostname = hostnameFromSiteStorageKey(key);
+        if (!hostname || !normalizeSiteHostname(hostname)) {
+          continue;
+        }
+        const record = parseSiteSettings(value);
+        if (record && hasValueOverrides(record.overrides)) {
+          hostnames.add(hostname);
+        }
+      }
+    }
+    return [...hostnames].sort((left, right) => left.localeCompare(right));
+  });
+}
+
+export async function deleteSiteSettings(
+  hostname: string,
+  deps: SiteSettingsDeps = {},
+): Promise<void> {
+  const normalized = normalizeSiteHostname(hostname);
+  if (!normalized) {
+    throw new Error('Cannot delete settings for an unsupported hostname');
+  }
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
+    const { sync, local } = stores(deps);
+    const storageKey = getSiteStorageKey({ supported: true, hostname: normalized });
+    const [localResult, syncResult] = await Promise.all([
+      local.remove(storageKey).then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+      sync.remove(storageKey).then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+    ]);
+    const failure = localResult ?? syncResult;
+    if (failure instanceof Error) {
+      throw failure;
+    }
+    if (failure) {
+      throw new Error('Failed to delete site settings');
+    }
+  });
+}
+
+export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promise<void> {
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
+    const { sync, local } = stores(deps);
+    const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
+    const keys = [
+      ...new Set(
+        [...Object.keys(syncAll), ...Object.keys(localAll)].filter((key) =>
+          key.startsWith('site:'),
+        ),
+      ),
+    ];
+    if (keys.length === 0) {
+      return;
+    }
+    const [localResult, syncResult] = await Promise.all([
+      local.remove(keys).then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+      sync.remove(keys).then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+    ]);
+    const failure = localResult ?? syncResult;
+    if (failure instanceof Error) {
+      throw failure;
+    }
+    if (failure) {
+      throw new Error('Failed to delete site settings');
+    }
+  });
 }

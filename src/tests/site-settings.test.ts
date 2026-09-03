@@ -8,8 +8,13 @@ import {
   REPAIR_BACKOFF_MS,
   SYNC_TARGET_MAX_BYTES,
   SYNC_TARGET_MAX_SITE_ITEMS,
+  OVERLAY_POSITION,
 } from '../settings/site-behavior';
 import {
+  deleteAllSiteSettings,
+  deleteSiteSettings,
+  listCustomSiteHostnames,
+  persistSiteBehaviorChange,
   persistSiteSpeed,
   persistSiteSpeedInherit,
   readSiteSpeed,
@@ -62,6 +67,22 @@ describe('site settings storage', () => {
     await persistSiteSpeedInherit('https://www.youtube.com/watch', { ...deps, now: () => 80 });
     expect(deps.local.data['site:www.youtube.com']).toMatchObject({
       overrides: { speed: { kind: 'inherit', updatedAt: 80 } },
+    });
+  });
+
+  it('persists overlay fields through the generic site change helper', async () => {
+    const deps = pair(50);
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    await persistSiteBehaviorChange(
+      'https://www.youtube.com/watch',
+      { kind: 'value', field: 'overlayPosition', value: OVERLAY_POSITION.BOTTOM_RIGHT },
+      { ...deps, now: () => 80 },
+    );
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: {
+        speed: { kind: 'value', value: 1.25, updatedAt: 50 },
+        overlayPosition: { kind: 'value', value: OVERLAY_POSITION.BOTTOM_RIGHT, updatedAt: 80 },
+      },
     });
   });
 
@@ -760,5 +781,41 @@ describe('site settings storage', () => {
       lastUsedAt: now,
       overrides: { speed: { kind: 'value', value: 1.75, updatedAt: 40 } },
     });
+  });
+
+  it('lists hostnames with live value overrides and omits inherit-only sites', async () => {
+    const deps = pair();
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    await persistSiteSpeedInherit('https://vimeo.com/1', deps);
+    await persistSiteBehaviorChange(
+      'https://example.com/',
+      { kind: 'value', field: 'overlayVisible', value: false },
+      deps,
+    );
+    await expect(listCustomSiteHostnames(deps)).resolves.toEqual([
+      'example.com',
+      'www.youtube.com',
+    ]);
+  });
+
+  it('deletes one site from Local and Sync', async () => {
+    const deps = pair();
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
+    await deleteSiteSettings('www.youtube.com', deps);
+    expect(deps.local.data['site:www.youtube.com']).toBeUndefined();
+    expect(deps.sync.data['site:www.youtube.com']).toBeUndefined();
+    expect(deps.local.data['site:vimeo.com']).toBeDefined();
+    await expect(listCustomSiteHostnames(deps)).resolves.toEqual(['vimeo.com']);
+  });
+
+  it('deletes every site record from Local and Sync', async () => {
+    const deps = pair();
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
+    await deleteAllSiteSettings(deps);
+    expect(Object.keys(deps.local.data).filter((key) => key.startsWith('site:'))).toEqual([]);
+    expect(Object.keys(deps.sync.data).filter((key) => key.startsWith('site:'))).toEqual([]);
+    await expect(listCustomSiteHostnames(deps)).resolves.toEqual([]);
   });
 });

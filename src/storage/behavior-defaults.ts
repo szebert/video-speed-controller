@@ -3,10 +3,12 @@
 import {
   GLOBAL_BEHAVIOR_KEY,
   REPAIR_BACKOFF_MS,
+  applyBehaviorSettingChange,
   behaviorOverridesEqual,
   mergeBehaviorOverrides,
   parseGlobalBehaviorSettings,
   type BehaviorOverrides,
+  type BehaviorSettingChange,
   type GlobalBehaviorSettingsV1,
 } from '../settings/site-behavior';
 import { defaultLocalStore, defaultSyncStore, type DurableSettingsStore } from './durable-store';
@@ -117,4 +119,18 @@ export async function persistGlobalBehaviorOverrides(
       throw new Error('Failed to persist global behavior');
     }
   });
+}
+
+export async function persistGlobalBehaviorChange(
+  change: BehaviorSettingChange,
+  deps: BehaviorDefaultsDeps = {},
+): Promise<void> {
+  await persistGlobalBehaviorOverrides(
+    (current, now) => applyBehaviorSettingChange(current, change, now),
+    deps,
+  );
+}
+
+export async function resetGlobalBehaviorOverrides(deps: BehaviorDefaultsDeps = {}): Promise<void> {
+  await persistGlobalBehaviorOverrides(() => ({}), deps);
 }

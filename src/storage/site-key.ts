@@ -33,3 +33,10 @@ export function getSiteKey(url: string | undefined | null): SiteKeyResult {
 export function getSiteStorageKey(siteKey: SiteKey): `site:${string}` {
   return `site:${siteKey.hostname}`;
 }
+
+export function hostnameFromSiteStorageKey(key: string): string | null {
+  if (!key.startsWith('site:') || key.length <= 5) {
+    return null;
+  }
+  return key.slice('site:'.length);
+}

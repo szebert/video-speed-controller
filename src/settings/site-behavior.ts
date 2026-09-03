@@ -1,6 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { DEFAULT_SPEED_POLICY, resolveEffectiveSpeed, type SpeedPolicy } from '../core/speed';
+import {
+  DEFAULT_SPEED_POLICY,
+  SPEED_MAX_SETTING_MAX,
+  SPEED_MAX_SETTING_MIN,
+  SPEED_MIN_SETTING_MAX,
+  SPEED_MIN_SETTING_MIN,
+  SPEED_TICK_SETTING_MAX,
+  SPEED_TICK_SETTING_MIN,
+  canonicalizeSpeed,
+  clampPolicyNumber,
+  clampSpeed,
+  resolveEffectiveSpeed,
+  speedPolicyFrom,
+  type SpeedPolicy,
+} from '../core/speed';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const SITE_INHERIT_SYNC_RETENTION_MS = 30 * DAY_MS;
@@ -12,6 +26,18 @@ export const SYNC_TARGET_MAX_BYTES = 80 * 1024;
 
 export const GLOBAL_BEHAVIOR_KEY = 'defaults:site-behavior';
 export const THEME_KEY = 'pref:theme';
+
+/** Shortest overlay auto-hide delay the product accepts (0.1s). */
+export const OVERLAY_AUTO_HIDE_DELAY_MS_MIN = 100;
+/** Longest overlay auto-hide delay the product accepts (5 min). */
+export const OVERLAY_AUTO_HIDE_DELAY_MS_MAX = 5 * 60 * 1000;
+
+export function canonicalizeOverlayAutoHideDelayMs(value: number): number {
+  return Math.min(
+    OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
+    Math.max(OVERLAY_AUTO_HIDE_DELAY_MS_MIN, Math.round(value)),
+  );
+}
 
 export const OVERLAY_POSITION = {
   TOP_LEFT: 0,
@@ -63,6 +89,10 @@ export type ResolvedSetting<T> = {
 
 export type SiteBehavior = {
   speed: number;
+  speedMin: number;
+  speedMax: number;
+  speedTick: number;
+  overlayVisible: boolean;
   overlayPosition: OverlayPosition;
   overlayAutoHide: boolean;
   overlayAutoHideDelayMs: number;
@@ -74,6 +104,10 @@ export type Override<T> =
 
 export type BehaviorOverrides = {
   speed?: Override<number>;
+  speedMin?: Override<number>;
+  speedMax?: Override<number>;
+  speedTick?: Override<number>;
+  overlayVisible?: Override<boolean>;
   overlayPosition?: Override<OverlayPosition>;
   overlayAutoHide?: Override<boolean>;
   overlayAutoHideDelayMs?: Override<number>;
@@ -93,6 +127,10 @@ export type GlobalBehaviorSettingsV1 = {
 
 export type ResolvedSiteBehavior = {
   speed: ResolvedSetting<number>;
+  speedMin: ResolvedSetting<number>;
+  speedMax: ResolvedSetting<number>;
+  speedTick: ResolvedSetting<number>;
+  overlayVisible: ResolvedSetting<boolean>;
   overlayPosition: ResolvedSetting<OverlayPosition>;
   overlayAutoHide: ResolvedSetting<boolean>;
   overlayAutoHideDelayMs: ResolvedSetting<number>;
@@ -101,6 +139,10 @@ export type ResolvedSiteBehavior = {
 
 export const BUILT_IN_SITE_BEHAVIOR: SiteBehavior = {
   speed: 1,
+  speedMin: DEFAULT_SPEED_POLICY.min,
+  speedMax: DEFAULT_SPEED_POLICY.max,
+  speedTick: DEFAULT_SPEED_POLICY.tick,
+  overlayVisible: true,
   overlayPosition: OVERLAY_POSITION.TOP_CENTER,
   overlayAutoHide: true,
   overlayAutoHideDelayMs: 2000,
@@ -119,7 +161,7 @@ export function isFiniteTimestamp(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-function hasExactKeys(value: object, keys: readonly string[]): boolean {
+export function hasExactKeys(value: object, keys: readonly string[]): boolean {
   const actual = Object.keys(value);
   return actual.length === keys.length && keys.every((key) => key in value);
 }
@@ -149,6 +191,10 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+export function isNonNegativeIntegerMs(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
 function isBoolean(value: unknown): value is boolean {
   return typeof value === 'boolean';
 }
@@ -163,6 +209,10 @@ export function hasHotkeyEntries(overrides: BehaviorOverrides): boolean {
 
 const BEHAVIOR_OVERRIDE_KEYS = new Set([
   'speed',
+  'speedMin',
+  'speedMax',
+  'speedTick',
+  'overlayVisible',
   'overlayPosition',
   'overlayAutoHide',
   'overlayAutoHideDelayMs',
@@ -185,6 +235,30 @@ export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null
     }
     overrides.speed = raw.speed;
   }
+  if ('speedMin' in raw) {
+    if (!isOverride(raw.speedMin, isFiniteNumber)) {
+      return null;
+    }
+    overrides.speedMin = raw.speedMin;
+  }
+  if ('speedMax' in raw) {
+    if (!isOverride(raw.speedMax, isFiniteNumber)) {
+      return null;
+    }
+    overrides.speedMax = raw.speedMax;
+  }
+  if ('speedTick' in raw) {
+    if (!isOverride(raw.speedTick, isFiniteNumber)) {
+      return null;
+    }
+    overrides.speedTick = raw.speedTick;
+  }
+  if ('overlayVisible' in raw) {
+    if (!isOverride(raw.overlayVisible, isBoolean)) {
+      return null;
+    }
+    overrides.overlayVisible = raw.overlayVisible;
+  }
   if ('overlayPosition' in raw) {
     if (!isOverride(raw.overlayPosition, isOverlayPosition)) {
       return null;
@@ -198,7 +272,7 @@ export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null
     overrides.overlayAutoHide = raw.overlayAutoHide;
   }
   if ('overlayAutoHideDelayMs' in raw) {
-    if (!isOverride(raw.overlayAutoHideDelayMs, isFiniteNumber)) {
+    if (!isOverride(raw.overlayAutoHideDelayMs, isNonNegativeIntegerMs)) {
       return null;
     }
     overrides.overlayAutoHideDelayMs = raw.overlayAutoHideDelayMs;
@@ -268,6 +342,18 @@ export function listOverrides(overrides: BehaviorOverrides): Override<unknown>[]
   if (overrides.speed) {
     listed.push(overrides.speed);
   }
+  if (overrides.speedMin) {
+    listed.push(overrides.speedMin);
+  }
+  if (overrides.speedMax) {
+    listed.push(overrides.speedMax);
+  }
+  if (overrides.speedTick) {
+    listed.push(overrides.speedTick);
+  }
+  if (overrides.overlayVisible) {
+    listed.push(overrides.overlayVisible);
+  }
   if (overrides.overlayPosition) {
     listed.push(overrides.overlayPosition);
   }
@@ -309,6 +395,21 @@ export function toSyncEligibleSiteRecord(
   const overrides: BehaviorOverrides = {};
   if (record.overrides.speed && !isExpiredSiteInherit(record.overrides.speed, now)) {
     overrides.speed = record.overrides.speed;
+  }
+  if (record.overrides.speedMin && !isExpiredSiteInherit(record.overrides.speedMin, now)) {
+    overrides.speedMin = record.overrides.speedMin;
+  }
+  if (record.overrides.speedMax && !isExpiredSiteInherit(record.overrides.speedMax, now)) {
+    overrides.speedMax = record.overrides.speedMax;
+  }
+  if (record.overrides.speedTick && !isExpiredSiteInherit(record.overrides.speedTick, now)) {
+    overrides.speedTick = record.overrides.speedTick;
+  }
+  if (
+    record.overrides.overlayVisible &&
+    !isExpiredSiteInherit(record.overrides.overlayVisible, now)
+  ) {
+    overrides.overlayVisible = record.overrides.overlayVisible;
   }
   if (
     record.overrides.overlayPosition &&
@@ -381,6 +482,25 @@ export function mergeBehaviorOverrides(
   if (speed) {
     merged.speed = speed;
   }
+  const speedMin = mergeOverrideField(syncOverrides.speedMin, localOverrides.speedMin);
+  if (speedMin) {
+    merged.speedMin = speedMin;
+  }
+  const speedMax = mergeOverrideField(syncOverrides.speedMax, localOverrides.speedMax);
+  if (speedMax) {
+    merged.speedMax = speedMax;
+  }
+  const speedTick = mergeOverrideField(syncOverrides.speedTick, localOverrides.speedTick);
+  if (speedTick) {
+    merged.speedTick = speedTick;
+  }
+  const overlayVisible = mergeOverrideField(
+    syncOverrides.overlayVisible,
+    localOverrides.overlayVisible,
+  );
+  if (overlayVisible) {
+    merged.overlayVisible = overlayVisible;
+  }
   const overlayPosition = mergeOverrideField(
     syncOverrides.overlayPosition,
     localOverrides.overlayPosition,
@@ -435,21 +555,58 @@ export function resolveOverride<T>(
   return { value: builtIn, source: 'built-in' };
 }
 
+function clampResolvedOverlayAutoHideDelay(
+  setting: ResolvedSetting<number>,
+): ResolvedSetting<number> {
+  const value = canonicalizeOverlayAutoHideDelayMs(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
 export function resolveSiteBehavior(
   globalOverrides: BehaviorOverrides = {},
   siteOverrides: BehaviorOverrides = {},
-  policy: SpeedPolicy = DEFAULT_SPEED_POLICY,
+  policy?: SpeedPolicy,
 ): ResolvedSiteBehavior {
   const speedSource = resolveOverride(
     BUILT_IN_SITE_BEHAVIOR.speed,
     globalOverrides.speed,
     siteOverrides.speed,
   );
+  const speedMin = resolveOverride(
+    BUILT_IN_SITE_BEHAVIOR.speedMin,
+    globalOverrides.speedMin,
+    siteOverrides.speedMin,
+  );
+  const speedMax = resolveOverride(
+    BUILT_IN_SITE_BEHAVIOR.speedMax,
+    globalOverrides.speedMax,
+    siteOverrides.speedMax,
+  );
+  const speedTick = resolveOverride(
+    BUILT_IN_SITE_BEHAVIOR.speedTick,
+    globalOverrides.speedTick,
+    siteOverrides.speedTick,
+  );
+  const effectivePolicy =
+    policy ??
+    speedPolicyFrom({
+      min: speedMin.value,
+      max: speedMax.value,
+      tick: speedTick.value,
+    });
   return {
     speed: {
-      value: resolveEffectiveSpeed(speedSource.value, policy),
+      value: resolveEffectiveSpeed(speedSource.value, effectivePolicy),
       source: speedSource.source,
     },
+    speedMin,
+    speedMax,
+    speedTick,
+    overlayVisible: resolveOverride(
+      BUILT_IN_SITE_BEHAVIOR.overlayVisible,
+      globalOverrides.overlayVisible,
+      siteOverrides.overlayVisible,
+    ),
     overlayPosition: resolveOverride(
       BUILT_IN_SITE_BEHAVIOR.overlayPosition,
       globalOverrides.overlayPosition,
@@ -460,10 +617,12 @@ export function resolveSiteBehavior(
       globalOverrides.overlayAutoHide,
       siteOverrides.overlayAutoHide,
     ),
-    overlayAutoHideDelayMs: resolveOverride(
-      BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs,
-      globalOverrides.overlayAutoHideDelayMs,
-      siteOverrides.overlayAutoHideDelayMs,
+    overlayAutoHideDelayMs: clampResolvedOverlayAutoHideDelay(
+      resolveOverride(
+        BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs,
+        globalOverrides.overlayAutoHideDelayMs,
+        siteOverrides.overlayAutoHideDelayMs,
+      ),
     ),
     hotkeys: {},
   };
@@ -479,6 +638,10 @@ export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavio
   }
   return {
     speed: resolved.speed.value,
+    speedMin: resolved.speedMin.value,
+    speedMax: resolved.speedMax.value,
+    speedTick: resolved.speedTick.value,
+    overlayVisible: resolved.overlayVisible.value,
     overlayPosition: resolved.overlayPosition.value,
     overlayAutoHide: resolved.overlayAutoHide.value,
     overlayAutoHideDelayMs: resolved.overlayAutoHideDelayMs.value,
@@ -489,6 +652,10 @@ export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavio
 export function behaviorOverridesEqual(left: BehaviorOverrides, right: BehaviorOverrides): boolean {
   return (
     fieldsEqual(left.speed, right.speed) &&
+    fieldsEqual(left.speedMin, right.speedMin) &&
+    fieldsEqual(left.speedMax, right.speedMax) &&
+    fieldsEqual(left.speedTick, right.speedTick) &&
+    fieldsEqual(left.overlayVisible, right.overlayVisible) &&
     fieldsEqual(left.overlayPosition, right.overlayPosition) &&
     fieldsEqual(left.overlayAutoHide, right.overlayAutoHide) &&
     fieldsEqual(left.overlayAutoHideDelayMs, right.overlayAutoHideDelayMs) &&
@@ -508,11 +675,98 @@ function fieldsEqual<T>(left: Override<T> | undefined, right: Override<T> | unde
   return overridesEqual(left, right);
 }
 
+export type EditableBehaviorField =
+  | 'speed'
+  | 'speedMin'
+  | 'speedMax'
+  | 'speedTick'
+  | 'overlayVisible'
+  | 'overlayPosition'
+  | 'overlayAutoHide'
+  | 'overlayAutoHideDelayMs';
+
+export const EDITABLE_BEHAVIOR_FIELDS = [
+  'speed',
+  'speedMin',
+  'speedMax',
+  'speedTick',
+  'overlayVisible',
+  'overlayPosition',
+  'overlayAutoHide',
+  'overlayAutoHideDelayMs',
+] as const satisfies readonly EditableBehaviorField[];
+
+export type EditableResolvedBehavior = Pick<ResolvedSiteBehavior, EditableBehaviorField>;
+
+export type BehaviorSettingChange =
+  | { kind: 'value'; field: 'speed'; value: number }
+  | { kind: 'value'; field: 'speedMin'; value: number }
+  | { kind: 'value'; field: 'speedMax'; value: number }
+  | { kind: 'value'; field: 'speedTick'; value: number }
+  | { kind: 'value'; field: 'overlayVisible'; value: boolean }
+  | { kind: 'value'; field: 'overlayPosition'; value: OverlayPosition }
+  | { kind: 'value'; field: 'overlayAutoHide'; value: boolean }
+  | { kind: 'value'; field: 'overlayAutoHideDelayMs'; value: number }
+  | { kind: 'inherit'; field: EditableBehaviorField };
+
+export function hasValueOverrides(overrides: BehaviorOverrides): boolean {
+  return listOverrides(overrides).some((override) => override.kind === 'value');
+}
+
+export function isEditableBehaviorField(value: unknown): value is EditableBehaviorField {
+  return (
+    typeof value === 'string' && (EDITABLE_BEHAVIOR_FIELDS as readonly string[]).includes(value)
+  );
+}
+
+export function isSpeedRetargetField(field: EditableBehaviorField): boolean {
+  return field === 'speed' || field === 'speedMin' || field === 'speedMax';
+}
+
+export function speedPolicyFromResolved(
+  behavior: Pick<ResolvedSiteBehavior, 'speedMin' | 'speedMax' | 'speedTick'>,
+): SpeedPolicy {
+  return speedPolicyFrom({
+    min: behavior.speedMin.value,
+    max: behavior.speedMax.value,
+    tick: behavior.speedTick.value,
+  });
+}
+
+export function toEditableResolvedBehavior(
+  resolved: ResolvedSiteBehavior,
+): EditableResolvedBehavior {
+  return {
+    speed: resolved.speed,
+    speedMin: resolved.speedMin,
+    speedMax: resolved.speedMax,
+    speedTick: resolved.speedTick,
+    overlayVisible: resolved.overlayVisible,
+    overlayPosition: resolved.overlayPosition,
+    overlayAutoHide: resolved.overlayAutoHide,
+    overlayAutoHideDelayMs: resolved.overlayAutoHideDelayMs,
+  };
+}
+
+export function applyBehaviorSettingChange(
+  current: BehaviorOverrides,
+  change: BehaviorSettingChange,
+  updatedAt: number,
+): BehaviorOverrides {
+  if (change.kind === 'inherit') {
+    return { ...current, [change.field]: { kind: 'inherit', updatedAt } };
+  }
+  return {
+    ...current,
+    [change.field]: { kind: 'value', value: change.value, updatedAt },
+  };
+}
+
 export function withSpeedInherit(
   overrides: BehaviorOverrides,
   updatedAt: number,
 ): BehaviorOverrides {
-  return { ...overrides, speed: { kind: 'inherit', updatedAt } };
+  return applyBehaviorSettingChange(overrides, { kind: 'inherit', field: 'speed' }, updatedAt);
 }
 
 export function withSpeedValue(
@@ -520,5 +774,80 @@ export function withSpeedValue(
   speed: number,
   updatedAt: number,
 ): BehaviorOverrides {
-  return { ...overrides, speed: { kind: 'value', value: speed, updatedAt } };
+  return applyBehaviorSettingChange(
+    overrides,
+    { kind: 'value', field: 'speed', value: speed },
+    updatedAt,
+  );
+}
+
+export function canonicalizeBehaviorSettingChange(
+  change: BehaviorSettingChange,
+): BehaviorSettingChange | null {
+  if (!isEditableBehaviorField(change.field)) {
+    return null;
+  }
+  if (change.kind === 'inherit') {
+    return { kind: 'inherit', field: change.field };
+  }
+  if (change.field === 'speed') {
+    if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+      return null;
+    }
+    return {
+      kind: 'value',
+      field: 'speed',
+      value: canonicalizeSpeed(
+        clampSpeed(change.value, {
+          ...DEFAULT_SPEED_POLICY,
+          min: SPEED_MIN_SETTING_MIN,
+          max: SPEED_MAX_SETTING_MAX,
+        }),
+      ),
+    };
+  }
+  if (change.field === 'speedMin') {
+    if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+      return null;
+    }
+    return {
+      kind: 'value',
+      field: 'speedMin',
+      value: clampPolicyNumber(change.value, SPEED_MIN_SETTING_MIN, SPEED_MIN_SETTING_MAX),
+    };
+  }
+  if (change.field === 'speedMax') {
+    if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+      return null;
+    }
+    return {
+      kind: 'value',
+      field: 'speedMax',
+      value: clampPolicyNumber(change.value, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX),
+    };
+  }
+  if (change.field === 'speedTick') {
+    if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+      return null;
+    }
+    return {
+      kind: 'value',
+      field: 'speedTick',
+      value: clampPolicyNumber(change.value, SPEED_TICK_SETTING_MIN, SPEED_TICK_SETTING_MAX),
+    };
+  }
+  if (change.field === 'overlayPosition') {
+    return isOverlayPosition(change.value) ? change : null;
+  }
+  if (change.field === 'overlayVisible' || change.field === 'overlayAutoHide') {
+    return typeof change.value === 'boolean' ? change : null;
+  }
+  if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
+    return null;
+  }
+  return {
+    kind: 'value',
+    field: 'overlayAutoHideDelayMs',
+    value: canonicalizeOverlayAutoHideDelayMs(change.value),
+  };
 }
