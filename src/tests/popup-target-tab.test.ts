@@ -17,6 +17,21 @@ describe('resolvePopupTargetTab', () => {
     ).toEqual(settings);
   });
 
+  it('keeps the options page so it stays unavailable instead of the last http(s) tab', () => {
+    const options = { id: 2, url: `chrome-extension://${extensionId}/options.html` };
+    const youtube = { id: 3, url: 'https://youtube.com/', lastAccessed: 9 };
+    expect(resolvePopupTargetTab(options, [options, youtube], extensionId)).toEqual(options);
+  });
+
+  it('keeps a site-scoped options page so it stays unavailable', () => {
+    const options = {
+      id: 2,
+      url: `chrome-extension://${extensionId}/options.html?site=www.youtube.com`,
+    };
+    const youtube = { id: 3, url: 'https://youtube.com/', lastAccessed: 9 };
+    expect(resolvePopupTargetTab(options, [options, youtube], extensionId)).toEqual(options);
+  });
+
   it('falls back from the popup tab itself to the latest http(s) tab', () => {
     const popup = { id: 1, url: `chrome-extension://${extensionId}/popup.html` };
     const older = { id: 3, url: 'http://127.0.0.1:4173/multi-video.html', lastAccessed: 1 };

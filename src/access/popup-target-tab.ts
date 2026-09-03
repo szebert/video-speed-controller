@@ -23,6 +23,22 @@ export function isOwnExtensionPage(url: string | undefined, extensionId: string)
   }
 }
 
+export function isOwnPopupPage(url: string | undefined, extensionId: string): boolean {
+  if (!url) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'chrome-extension:' &&
+      parsed.hostname === extensionId &&
+      parsed.pathname === '/popup.html'
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function isSupportedHttpTab(
   tab: PopupTab | undefined,
 ): tab is PopupTab & { id: number; url: string } {
@@ -34,7 +50,8 @@ export function isSupportedHttpTab(
  * Opening popup.html as a tab (Playwright) makes that tab the active one, and without
  * the `tabs` permission Chrome hides its URL — do not treat a URL-less "active" tab as
  * the site. `currentTabId` is `chrome.tabs.getCurrent()` (set only when the popup is a
- * real tab). chrome:// stays unavailable; we do not steal another site.
+ * real tab). chrome:// and other extension pages (options) stay unavailable; we do not
+ * steal another site.
  */
 export function resolvePopupTargetTab(
   activeTab: PopupTab | undefined,
@@ -44,7 +61,7 @@ export function resolvePopupTargetTab(
   currentTabId?: number,
 ): PopupTab | undefined {
   const openedAsTab = currentTabId != null && activeTab?.id === currentTabId;
-  const activeIsPopupPage = isOwnExtensionPage(activeTab?.url, extensionId) || openedAsTab;
+  const activeIsPopupPage = isOwnPopupPage(activeTab?.url, extensionId) || openedAsTab;
 
   if (activeTab && !activeIsPopupPage) {
     return activeTab;

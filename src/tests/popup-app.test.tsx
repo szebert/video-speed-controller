@@ -112,4 +112,30 @@ describe('Popup settings button', () => {
       url: 'chrome-extension://extid/options.html',
     });
   });
+
+  it('shows unavailable when the active tab is the options page', async () => {
+    const optionsTab = { id: 2, url: 'chrome-extension://extid/options.html' };
+    const youtubeTab = { id: 3, url: 'https://www.youtube.com/watch', lastAccessed: 9 };
+    vi.mocked(chrome.tabs.query).mockImplementation(async (queryInfo) => {
+      if (queryInfo.active) {
+        return [optionsTab];
+      }
+      return [optionsTab, youtubeTab];
+    });
+    sendMessage.mockImplementation(async (message: { url?: string }) => {
+      if (typeof message.url === 'string' && message.url.startsWith('chrome-extension:')) {
+        return popupState({ supported: false, hostname: null });
+      }
+      return popupState();
+    });
+    await renderApp();
+    expect(container.textContent).toContain('OS VSC isn’t available on this page');
+    expect(container.textContent).not.toContain('www.youtube.com');
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'GET_POPUP_STATE',
+      tabId: optionsTab.id,
+      url: optionsTab.url,
+    });
+    expect(sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ url: youtubeTab.url }));
+  });
 });
