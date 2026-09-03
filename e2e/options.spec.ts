@@ -49,10 +49,9 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   const options = await openOptions(context, extensionId);
   await expect(options).toHaveTitle('Settings');
   await expect(options.getByRole('heading', { name: 'Global defaults' })).toBeVisible();
-  await expect(options.getByRole('button', { name: 'Global defaults', exact: true })).toHaveAttribute(
-    'aria-current',
-    'page',
-  );
+  await expect(
+    options.getByRole('button', { name: 'Global defaults', exact: true }),
+  ).toHaveAttribute('aria-current', 'page');
   await expect(options.getByText('Sites use these values until you change them.')).toBeVisible();
   await expect(options.getByText('No site settings yet.')).toBeVisible();
   await expect(options.getByText('Built-in')).toHaveCount(0);
@@ -71,10 +70,7 @@ test('options.html?site=127.0.0.1 selects Site', async ({ context, extensionId }
   await expect(options.getByRole('heading', { name: '127.0.0.1' })).toBeVisible();
   await expect(
     options.getByRole('button', { name: 'Global defaults', exact: true }),
-  ).not.toHaveAttribute(
-    'aria-current',
-    'page',
-  );
+  ).not.toHaveAttribute('aria-current', 'page');
 });
 
 test('site position moves the overlay and keeps speed 1.25', async ({
@@ -192,6 +188,35 @@ test('site speed 1.5 updates videos overlay and popup, then delete restores 1.00
     )
     .toBe(1);
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.00×', '1.00×', '1.00×']);
+});
+
+async function overlayButtonLabels(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const host = document.querySelector('osvsc-overlay');
+    return [...(host?.shadowRoot?.querySelectorAll('button') ?? [])].map(
+      (button) => button.getAttribute('aria-label') ?? '',
+    );
+  });
+}
+
+test('hiding overlay chrome buttons removes them from the badge', async ({
+  context,
+  extensionId,
+  serviceWorker,
+  site,
+}) => {
+  const popup = await openPopup(context, extensionId, site, serviceWorker);
+  await enableSiteAt(popup, site, 1.25);
+  await site.locator('#v1').hover();
+  await expect
+    .poll(async () => overlayButtonLabels(site))
+    .toEqual(['Move overlay', 'Slower', 'Faster', 'Open settings']);
+
+  const options = await openOptions(context, extensionId, '127.0.0.1');
+  await clickOptionsSwitch(options, 'Show position button');
+  await clickOptionsSwitch(options, 'Show settings button');
+  await site.locator('#v1').hover();
+  await expect.poll(async () => overlayButtonLabels(site)).toEqual(['Slower', 'Faster']);
 });
 
 test('hiding the overlay keeps videos playing at the current speed', async ({

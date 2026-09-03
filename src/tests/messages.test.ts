@@ -68,6 +68,11 @@ describe('isExtensionRequest', () => {
     expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: 2 })).toBe(false);
     expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: '1' })).toBe(false);
     expect(isExtensionRequest({ type: 'ADJUST_SPEED', direction: null })).toBe(false);
+    expect(isExtensionRequest({ type: 'SET_OVERLAY_POSITION', position: 8 })).toBe(true);
+    expect(isExtensionRequest({ type: 'SET_OVERLAY_POSITION', position: 9 })).toBe(false);
+    expect(isExtensionRequest({ type: 'SET_OVERLAY_POSITION' })).toBe(false);
+    expect(isExtensionRequest({ type: 'OPEN_OPTIONS_PAGE' })).toBe(true);
+    expect(isExtensionRequest({ type: 'OPEN_OPTIONS_PAGE', extra: true })).toBe(false);
     expect(isExtensionRequest({ type: 'UNKNOWN' })).toBe(false);
     expect(isExtensionRequest({ type: 'GET_BEHAVIOR_SETTINGS' })).toBe(true);
     expect(isExtensionRequest({ type: 'GET_BEHAVIOR_SETTINGS', hostname: 'example.com' })).toBe(
@@ -114,6 +119,20 @@ describe('isExtensionRequest', () => {
         type: 'SET_BEHAVIOR_SETTING',
         scope: { kind: 'global' },
         change: { kind: 'value', field: 'overlayVisible', value: false },
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'overlayPositionButton', value: false },
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'overlaySettingsButton', value: true },
       }),
     ).toBe(true);
     expect(

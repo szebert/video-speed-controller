@@ -15,7 +15,7 @@ export type AdjustTabSpeedDeps = SetSpeedDeps & {
   readTab?: (tabId: number) => Promise<Pick<chrome.tabs.Tab, 'url'>>;
 };
 
-async function resolveSenderTabUrl(
+export async function resolveSenderTabUrl(
   sender: chrome.runtime.MessageSender,
   readTab: (tabId: number) => Promise<Pick<chrome.tabs.Tab, 'url'>>,
 ): Promise<{ tabId: number; url: string } | null> {

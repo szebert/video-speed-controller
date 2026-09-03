@@ -36,6 +36,8 @@ describe('site behavior resolution', () => {
     expect(resolved.speedMax).toEqual({ value: 4, source: 'built-in' });
     expect(resolved.speedTick).toEqual({ value: 0.25, source: 'built-in' });
     expect(resolved.overlayVisible).toEqual({ value: true, source: 'built-in' });
+    expect(resolved.overlayPositionButton).toEqual({ value: true, source: 'built-in' });
+    expect(resolved.overlaySettingsButton).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlayAutoHide).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
@@ -297,6 +299,15 @@ describe('strict V1 parsers', () => {
     ).toEqual({
       overlayAutoHideDelayMs: { kind: 'value', value: 0, updatedAt: 1 },
     });
+    expect(
+      parseBehaviorOverrides({
+        overlayPositionButton: { kind: 'value', value: false, updatedAt: 1 },
+        overlaySettingsButton: { kind: 'value', value: true, updatedAt: 2 },
+      }),
+    ).toEqual({
+      overlayPositionButton: { kind: 'value', value: false, updatedAt: 1 },
+      overlaySettingsButton: { kind: 'value', value: true, updatedAt: 2 },
+    });
   });
 });
 
@@ -393,11 +404,13 @@ describe('behavior setting changes', () => {
       field: 'speed',
       value: 9,
     });
-    expect(canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speed', value: 20 })).toEqual({
-      kind: 'value',
-      field: 'speed',
-      value: 16,
-    });
+    expect(canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speed', value: 20 })).toEqual(
+      {
+        kind: 'value',
+        field: 'speed',
+        value: 16,
+      },
+    );
     expect(
       canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMax', value: 10 }),
     ).toEqual({ kind: 'value', field: 'speedMax', value: 10 });
@@ -419,5 +432,26 @@ describe('behavior setting changes', () => {
     expect(
       canonicalizeBehaviorSettingChange({ kind: 'inherit', field: 'overlayPosition' }),
     ).toEqual({ kind: 'inherit', field: 'overlayPosition' });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayPositionButton',
+        value: false,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayPositionButton', value: false });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlaySettingsButton',
+        value: true,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlaySettingsButton', value: true });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayPositionButton',
+        value: 'yes',
+      } as never),
+    ).toBeNull();
   });
 });

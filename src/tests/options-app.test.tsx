@@ -18,6 +18,8 @@ function builtInBehavior() {
     speedTick: { value: 0.25, source: 'built-in' as const },
     overlayVisible: { value: true, source: 'built-in' as const },
     overlayPosition: { value: OVERLAY_POSITION.TOP_CENTER, source: 'built-in' as const },
+    overlayPositionButton: { value: true, source: 'built-in' as const },
+    overlaySettingsButton: { value: true, source: 'built-in' as const },
     overlayAutoHide: { value: true, source: 'built-in' as const },
     overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
   };
@@ -45,7 +47,10 @@ function click(element: Element | null): void {
   }
 }
 
-function resetBadge(container: ParentNode, name: string): {
+function resetBadge(
+  container: ParentNode,
+  name: string,
+): {
   button: Element | null;
   root: Element | null;
 } {
@@ -136,7 +141,9 @@ describe('Options page', () => {
     expect(container.querySelector('h2')?.textContent).toBe('example.com');
     expect(container.textContent).toContain('Overrides global defaults for this site.');
     expect(
-      [...container.querySelectorAll('button')].some((button) => button.textContent === 'Reset defaults'),
+      [...container.querySelectorAll('button')].some(
+        (button) => button.textContent === 'Reset defaults',
+      ),
     ).toBe(false);
   });
 
@@ -618,7 +625,12 @@ describe('Options page', () => {
   it('places switch and position descriptions under their labels', async () => {
     sendMessage.mockResolvedValue(getOk(snapshot()));
     await renderApp();
-    for (const id of ['overlay-visible', 'overlay-auto-hide']) {
+    for (const id of [
+      'overlay-visible',
+      'overlay-position-button',
+      'overlay-settings-button',
+      'overlay-auto-hide',
+    ]) {
       const label = container.querySelector(`label[for="${id}"]`);
       expect(label?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
     }
@@ -638,16 +650,85 @@ describe('Options page', () => {
     }
   });
 
+  it('groups position and settings overlay buttons on one wide-screen row', async () => {
+    sendMessage.mockResolvedValue(getOk(snapshot()));
+    await renderApp();
+    const positionButton = container
+      .querySelector('#overlay-position-button')
+      ?.closest('[data-slot="field"]');
+    const settingsButton = container
+      .querySelector('#overlay-settings-button')
+      ?.closest('[data-slot="field"]');
+    expect(positionButton?.parentElement).toBe(settingsButton?.parentElement);
+    expect(positionButton?.parentElement?.getAttribute('data-slot')).toBe('field-group');
+    expect(positionButton?.parentElement?.className).toContain('@md/field-group:grid-cols-2');
+    expect(positionButton?.parentElement).not.toBe(
+      container.querySelector('#overlay-auto-hide')?.closest('[data-slot="field"]')?.parentElement,
+    );
+  });
+
   it('groups auto-hide overlay and delay on one wide-screen row', async () => {
     sendMessage.mockResolvedValue(getOk(snapshot()));
     await renderApp();
-    const autoHideField = container.querySelector('#overlay-auto-hide')?.closest('[data-slot="field"]');
+    const autoHideField = container
+      .querySelector('#overlay-auto-hide')
+      ?.closest('[data-slot="field"]');
     const delayField = container
       .querySelector('#overlay-auto-hide-delay')
       ?.closest('[data-slot="field"]');
     expect(autoHideField?.parentElement).toBe(delayField?.parentElement);
     expect(autoHideField?.parentElement?.getAttribute('data-slot')).toBe('field-group');
     expect(autoHideField?.parentElement?.className).toContain('@md/field-group:grid-cols-2');
+  });
+
+  it('sends overlayPositionButton false from the Show position button switch', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    const toggle = container.querySelector('#overlay-position-button');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(toggle);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlayPositionButton', value: false },
+    });
+  });
+
+  it('sends overlaySettingsButton false from the Show settings button switch', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    const toggle = container.querySelector('#overlay-settings-button');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(toggle);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlaySettingsButton', value: false },
+    });
   });
 
   it('toggles Show overlay when the field label is clicked', async () => {
@@ -687,6 +768,10 @@ describe('Options page', () => {
     const autoHide = container.querySelector('#overlay-auto-hide');
     expect(autoHide).toBeInstanceOf(HTMLInputElement);
     expect((autoHide as HTMLInputElement).disabled).toBe(true);
+    const positionButton = container.querySelector('#overlay-position-button');
+    const settingsButton = container.querySelector('#overlay-settings-button');
+    expect((positionButton as HTMLInputElement).disabled).toBe(true);
+    expect((settingsButton as HTMLInputElement).disabled).toBe(true);
   });
 
   it('disables auto-hide delay when Auto-hide overlay is off', async () => {

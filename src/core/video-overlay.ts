@@ -6,7 +6,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { OverlayRoot } from '../overlay/OverlayRoot';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
 import type { OverlayActions } from '../overlay/types';
-import { canonicalizeOverlayAutoHideDelayMs, overlayPositionToGrid } from '../settings/site-behavior';
+import {
+  canonicalizeOverlayAutoHideDelayMs,
+  overlayPositionToGrid,
+} from '../settings/site-behavior';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 
 export const OVERLAY_HOST_TAG = 'osvsc-overlay';
@@ -22,8 +25,6 @@ export class VideoOverlay {
   private behavior: AppliedTabBehavior | null = null;
   private controlled = false;
   private autoHideExpired = false;
-  private controlsPointer = false;
-  private focusWithin = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly resizeObserver: ResizeObserver;
 
@@ -58,7 +59,6 @@ export class VideoOverlay {
     this.resizeObserver.observe(video);
 
     const signal = this.videoAbort.signal;
-    video.addEventListener('pointerenter', this.onVideoActivity, { signal });
     video.addEventListener('pointermove', this.onVideoActivity, { signal });
     video.addEventListener('focus', this.onVideoActivity, { signal });
     video.addEventListener('focusin', this.onVideoActivity, { signal });
@@ -86,8 +86,6 @@ export class VideoOverlay {
     if (!owned) {
       this.clearHideTimer();
       this.autoHideExpired = false;
-      this.controlsPointer = false;
-      this.focusWithin = false;
       this.requestLayout();
       return;
     }
@@ -97,7 +95,11 @@ export class VideoOverlay {
 
   layout(): void {
     const visible = this.isVisible();
+    const wasVisible = this.host.style.visibility !== 'hidden';
     this.host.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
+    if (wasVisible !== visible) {
+      this.renderControls();
+    }
     if (!visible || !this.behavior) {
       return;
     }
@@ -143,29 +145,18 @@ export class VideoOverlay {
       this.reactRoot.render(
         createElement(OverlayRoot, {
           behavior,
+          visible: this.isVisible(),
           onAdjust: (direction) => {
             this.restartAutoHide();
             this.actions.adjustSpeed(direction);
           },
-          onPointerActiveChange: (active) => {
-            this.controlsPointer = active;
-            if (active) {
-              this.clearHideTimer();
-              this.autoHideExpired = false;
-            } else {
-              this.restartAutoHide();
-            }
-            this.requestLayout();
+          onSetPosition: (position) => {
+            this.restartAutoHide();
+            this.actions.setOverlayPosition?.(position);
           },
-          onFocusWithinChange: (focused) => {
-            this.focusWithin = focused;
-            if (focused) {
-              this.clearHideTimer();
-              this.autoHideExpired = false;
-            } else {
-              this.restartAutoHide();
-            }
-            this.requestLayout();
+          onOpenSettings: () => {
+            this.restartAutoHide();
+            this.actions.openSettings?.();
           },
         }),
       );
@@ -211,7 +202,7 @@ export class VideoOverlay {
     if (!this.behavior.overlayAutoHide) {
       return true;
     }
-    return !this.autoHideExpired || this.controlsPointer || this.focusWithin;
+    return !this.autoHideExpired;
   }
 
   private isRenderable(): boolean {
@@ -225,16 +216,13 @@ export class VideoOverlay {
   private restartAutoHide(): void {
     this.clearHideTimer();
     this.autoHideExpired = false;
-    if (!this.behavior?.overlayAutoHide || this.controlsPointer || this.focusWithin) {
+    if (!this.behavior?.overlayAutoHide) {
       return;
     }
-    this.hideTimer = setTimeout(
-      () => {
-        this.autoHideExpired = true;
-        this.requestLayout();
-      },
-      canonicalizeOverlayAutoHideDelayMs(this.behavior.overlayAutoHideDelayMs),
-    );
+    this.hideTimer = setTimeout(() => {
+      this.autoHideExpired = true;
+      this.requestLayout();
+    }, canonicalizeOverlayAutoHideDelayMs(this.behavior.overlayAutoHideDelayMs));
   }
 
   private clearHideTimer(): void {

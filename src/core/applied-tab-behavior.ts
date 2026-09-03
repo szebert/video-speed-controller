@@ -16,6 +16,8 @@ export type AppliedTabBehavior = {
   speedTick: number;
   overlayVisible: boolean;
   overlayPosition: OverlayPosition;
+  overlayPositionButton: boolean;
+  overlaySettingsButton: boolean;
   overlayAutoHide: boolean;
   overlayAutoHideDelayMs: number;
 };
@@ -27,6 +29,8 @@ const APPLIED_TAB_BEHAVIOR_KEYS = [
   'speedTick',
   'overlayVisible',
   'overlayPosition',
+  'overlayPositionButton',
+  'overlaySettingsButton',
   'overlayAutoHide',
   'overlayAutoHideDelayMs',
 ] as const;
@@ -42,6 +46,8 @@ export function toAppliedTabBehavior(
     speedTick: effective.speedTick,
     overlayVisible: effective.overlayVisible,
     overlayPosition: effective.overlayPosition,
+    overlayPositionButton: effective.overlayPositionButton,
+    overlaySettingsButton: effective.overlaySettingsButton,
     overlayAutoHide: effective.overlayAutoHide,
     overlayAutoHideDelayMs: canonicalizeOverlayAutoHideDelayMs(effective.overlayAutoHideDelayMs),
   };
@@ -62,6 +68,8 @@ export function appliedTabBehaviorEqual(
     left.speedTick === right.speedTick &&
     left.overlayVisible === right.overlayVisible &&
     left.overlayPosition === right.overlayPosition &&
+    left.overlayPositionButton === right.overlayPositionButton &&
+    left.overlaySettingsButton === right.overlaySettingsButton &&
     left.overlayAutoHide === right.overlayAutoHide &&
     left.overlayAutoHideDelayMs === right.overlayAutoHideDelayMs
   );
@@ -76,6 +84,8 @@ export function overlayFieldsFrom(
     speedTick: behavior.speedTick,
     overlayVisible: behavior.overlayVisible,
     overlayPosition: behavior.overlayPosition,
+    overlayPositionButton: behavior.overlayPositionButton,
+    overlaySettingsButton: behavior.overlaySettingsButton,
     overlayAutoHide: behavior.overlayAutoHide,
     overlayAutoHideDelayMs: behavior.overlayAutoHideDelayMs,
   };
@@ -114,6 +124,8 @@ export function isAppliedTabBehavior(value: unknown): value is AppliedTabBehavio
     Number.isFinite(record.speedTick) &&
     isOverlayPosition(record.overlayPosition) &&
     typeof record.overlayVisible === 'boolean' &&
+    typeof record.overlayPositionButton === 'boolean' &&
+    typeof record.overlaySettingsButton === 'boolean' &&
     typeof record.overlayAutoHide === 'boolean' &&
     typeof record.overlayAutoHideDelayMs === 'number' &&
     Number.isFinite(record.overlayAutoHideDelayMs)

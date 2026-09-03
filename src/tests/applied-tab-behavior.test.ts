@@ -43,6 +43,8 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.speedMax).toBe(4);
     expect(BUILT_IN_SITE_BEHAVIOR.speedTick).toBe(0.25);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayVisible).toBe(true);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlayPositionButton).toBe(true);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlaySettingsButton).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHide).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
   });

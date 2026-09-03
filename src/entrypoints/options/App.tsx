@@ -67,6 +67,8 @@ import { normalizeSiteHostname } from '../../settings/site-hostname';
 
 type Selection = { kind: 'settings' } | { kind: 'global' } | { kind: 'site'; hostname: string };
 type DraftKey = 'speedMin' | 'speedMax' | 'speedTick' | 'delay';
+type OverlaySwitchFieldName =
+  'overlayVisible' | 'overlayPositionButton' | 'overlaySettingsButton' | 'overlayAutoHide';
 
 const POSITION_OPTIONS: { value: OverlayPosition; labelKey: Parameters<typeof t>[0] }[] = [
   { value: OVERLAY_POSITION.TOP_LEFT, labelKey: 'positionTopLeft' },
@@ -95,12 +97,68 @@ function resetFieldLabel(fieldLabel: string): string {
   return `${t('reset')}: ${fieldLabel}`;
 }
 
-function showsInherited(
-  selection: Selection,
-  source: SettingSource,
-  draft?: string,
-): boolean {
+function showsInherited(selection: Selection, source: SettingSource, draft?: string): boolean {
   return !ownsOverride(selection, source) && draft == null;
+}
+
+function OverlaySwitchField({
+  id,
+  name,
+  field,
+  label,
+  description,
+  setting,
+  selection,
+  disabled,
+  resetBadgeText,
+  onMutate,
+}: {
+  id: string;
+  name: string;
+  field: OverlaySwitchFieldName;
+  label: string;
+  description: string;
+  setting: { value: boolean; source: SettingSource };
+  selection: Selection;
+  disabled: boolean;
+  resetBadgeText: string;
+  onMutate: (change: BehaviorSettingChange) => void;
+}) {
+  const helpId = `${id}-help`;
+  return (
+    <Field orientation="horizontal" data-disabled={disabled || undefined}>
+      <FieldContent>
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <FieldDescription id={helpId}>{description}</FieldDescription>
+      </FieldContent>
+      <div className="flex items-center gap-2">
+        <ResetBadge
+          active={ownsOverride(selection, setting.source)}
+          disabled={disabled}
+          text={resetBadgeText}
+          label={resetFieldLabel(label)}
+          onReset={() => {
+            onMutate({ kind: 'inherit', field });
+          }}
+        />
+        <Switch
+          id={id}
+          name={name}
+          className={
+            showsInherited(selection, setting.source)
+              ? 'data-selected:bg-muted-foreground'
+              : undefined
+          }
+          aria-describedby={helpId}
+          isDisabled={disabled}
+          isSelected={setting.value}
+          onChange={(selected) => {
+            onMutate({ kind: 'value', field, value: selected });
+          }}
+        />
+      </div>
+    </Field>
+  );
 }
 
 function InputGroupInheritReset({
@@ -582,386 +640,395 @@ export function App() {
               </div>
 
               <FieldGroup>
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('settingsPlayback')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <FieldSet>
-                  <FieldLegend className="sr-only">{t('settingsPlayback')}</FieldLegend>
-                  <SpeedControls
-                    heading={selection.kind === 'global' ? t('defaultSpeed') : t('siteSpeed')}
-                    displaySpeed={speed}
-                    disabled={pending}
-                    resetDisabled={!ownsOverride(selection, behavior.speed.source)}
-                    muted={showsInherited(selection, behavior.speed.source) && sliderPreview == null}
-                    policy={policy}
-                    onAdjust={(direction) => {
-                      void mutate({
-                        kind: 'value',
-                        field: 'speed',
-                        value: adjustSpeed(behavior.speed.value, direction, policy),
-                      });
-                    }}
-                    onReset={() => {
-                      void mutate({ kind: 'inherit', field: 'speed' });
-                    }}
-                    onPreviewSlider={setSliderPreview}
-                    onCommitSlider={(value) => {
-                      void mutate({ kind: 'value', field: 'speed', value });
-                    }}
-                  />
-                  <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-3">
-                    <Field>
-                      <FieldLabel htmlFor="speed-min">{t('speedMin')}</FieldLabel>
-                      <InputGroup isDisabled={pending}>
-                        <InputGroupInput
-                          id="speed-min"
-                          className={cn(
-                            showsInherited(selection, behavior.speedMin.source, drafts.speedMin) &&
-                              'text-muted-foreground',
-                          )}
-                          name="speedMin"
-                          type="number"
-                          inputMode="decimal"
-                          enterKeyHint="done"
-                          min={SPEED_MIN_SETTING_MIN}
-                          max={SPEED_MIN_SETTING_MAX}
-                          step={SPEED_TICK_SETTING_MIN}
-                          autoComplete="off"
-                          disabled={pending}
-                          value={drafts.speedMin ?? String(behavior.speedMin.value)}
-                          onChange={(event) => {
-                            setDrafts((current) => ({ ...current, speedMin: event.target.value }));
-                          }}
-                          onBlur={() => {
-                            commitDecimal(
-                              'speedMin',
-                              behavior.speedMin.value,
-                              SPEED_MIN_SETTING_MIN,
-                              SPEED_MIN_SETTING_MAX,
-                            );
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              commitDecimal(
-                                'speedMin',
-                                behavior.speedMin.value,
-                                SPEED_MIN_SETTING_MIN,
-                                SPEED_MIN_SETTING_MAX,
-                              );
-                            }
-                          }}
-                        />
-                        <InputGroupInheritReset
-                          active={ownsOverride(selection, behavior.speedMin.source)}
-                          disabled={pending}
-                          label={resetFieldLabel(t('speedMin'))}
-                          onReset={() => {
-                            void mutate({ kind: 'inherit', field: 'speedMin' });
-                          }}
-                        />
-                      </InputGroup>
-                      <FieldDescription>{t('speedMinDescription')}</FieldDescription>
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="speed-tick">{t('speedTick')}</FieldLabel>
-                      <InputGroup isDisabled={pending}>
-                        <InputGroupInput
-                          id="speed-tick"
-                          className={cn(
-                            showsInherited(selection, behavior.speedTick.source, drafts.speedTick) &&
-                              'text-muted-foreground',
-                          )}
-                          name="speedTick"
-                          type="number"
-                          inputMode="decimal"
-                          enterKeyHint="done"
-                          min={SPEED_TICK_SETTING_MIN}
-                          max={SPEED_TICK_SETTING_MAX}
-                          step={SPEED_TICK_SETTING_MIN}
-                          autoComplete="off"
-                          disabled={pending}
-                          value={drafts.speedTick ?? String(behavior.speedTick.value)}
-                          onChange={(event) => {
-                            setDrafts((current) => ({ ...current, speedTick: event.target.value }));
-                          }}
-                          onBlur={() => {
-                            commitDecimal(
-                              'speedTick',
-                              behavior.speedTick.value,
-                              SPEED_TICK_SETTING_MIN,
-                              SPEED_TICK_SETTING_MAX,
-                            );
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              commitDecimal(
-                                'speedTick',
-                                behavior.speedTick.value,
-                                SPEED_TICK_SETTING_MIN,
-                                SPEED_TICK_SETTING_MAX,
-                              );
-                            }
-                          }}
-                        />
-                        <InputGroupInheritReset
-                          active={ownsOverride(selection, behavior.speedTick.source)}
-                          disabled={pending}
-                          label={resetFieldLabel(t('speedTick'))}
-                          onReset={() => {
-                            void mutate({ kind: 'inherit', field: 'speedTick' });
-                          }}
-                        />
-                      </InputGroup>
-                      <FieldDescription>{t('speedTickDescription')}</FieldDescription>
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="speed-max">{t('speedMax')}</FieldLabel>
-                      <InputGroup isDisabled={pending}>
-                        <InputGroupInput
-                          id="speed-max"
-                          className={cn(
-                            showsInherited(selection, behavior.speedMax.source, drafts.speedMax) &&
-                              'text-muted-foreground',
-                          )}
-                          name="speedMax"
-                          type="number"
-                          inputMode="decimal"
-                          enterKeyHint="done"
-                          min={SPEED_MAX_SETTING_MIN}
-                          max={SPEED_MAX_SETTING_MAX}
-                          step={0.05}
-                          autoComplete="off"
-                          disabled={pending}
-                          value={drafts.speedMax ?? String(behavior.speedMax.value)}
-                          onChange={(event) => {
-                            setDrafts((current) => ({ ...current, speedMax: event.target.value }));
-                          }}
-                          onBlur={() => {
-                            commitDecimal(
-                              'speedMax',
-                              behavior.speedMax.value,
-                              SPEED_MAX_SETTING_MIN,
-                              SPEED_MAX_SETTING_MAX,
-                            );
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              commitDecimal(
-                                'speedMax',
-                                behavior.speedMax.value,
-                                SPEED_MAX_SETTING_MIN,
-                                SPEED_MAX_SETTING_MAX,
-                              );
-                            }
-                          }}
-                        />
-                        <InputGroupInheritReset
-                          active={ownsOverride(selection, behavior.speedMax.source)}
-                          disabled={pending}
-                          label={resetFieldLabel(t('speedMax'))}
-                          onReset={() => {
-                            void mutate({ kind: 'inherit', field: 'speedMax' });
-                          }}
-                        />
-                      </InputGroup>
-                      <FieldDescription>{t('speedMaxDescription')}</FieldDescription>
-                    </Field>
-                  </FieldGroup>
-                </FieldSet>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('settingsOverlay')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <FieldSet>
-                  <FieldLegend className="sr-only">{t('settingsOverlay')}</FieldLegend>
-                  <Field orientation="horizontal">
-                    <FieldContent>
-                      <FieldLabel htmlFor="overlay-visible">{t('overlayVisible')}</FieldLabel>
-                      <FieldDescription id="overlay-visible-help">
-                        {t('overlayVisibleDescription')}
-                      </FieldDescription>
-                    </FieldContent>
-                    <div className="flex items-center gap-2">
-                      <ResetBadge
-                        active={ownsOverride(selection, behavior.overlayVisible.source)}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('settingsPlayback')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FieldSet>
+                      <FieldLegend className="sr-only">{t('settingsPlayback')}</FieldLegend>
+                      <SpeedControls
+                        heading={selection.kind === 'global' ? t('defaultSpeed') : t('siteSpeed')}
+                        displaySpeed={speed}
                         disabled={pending}
-                        text={resetBadgeText}
-                        label={resetFieldLabel(t('overlayVisible'))}
+                        resetDisabled={!ownsOverride(selection, behavior.speed.source)}
+                        muted={
+                          showsInherited(selection, behavior.speed.source) && sliderPreview == null
+                        }
+                        policy={policy}
+                        onAdjust={(direction) => {
+                          void mutate({
+                            kind: 'value',
+                            field: 'speed',
+                            value: adjustSpeed(behavior.speed.value, direction, policy),
+                          });
+                        }}
                         onReset={() => {
-                          void mutate({ kind: 'inherit', field: 'overlayVisible' });
+                          void mutate({ kind: 'inherit', field: 'speed' });
+                        }}
+                        onPreviewSlider={setSliderPreview}
+                        onCommitSlider={(value) => {
+                          void mutate({ kind: 'value', field: 'speed', value });
                         }}
                       />
-                      <Switch
+                      <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-3">
+                        <Field>
+                          <FieldLabel htmlFor="speed-min">{t('speedMin')}</FieldLabel>
+                          <InputGroup isDisabled={pending}>
+                            <InputGroupInput
+                              id="speed-min"
+                              className={cn(
+                                showsInherited(
+                                  selection,
+                                  behavior.speedMin.source,
+                                  drafts.speedMin,
+                                ) && 'text-muted-foreground',
+                              )}
+                              name="speedMin"
+                              type="number"
+                              inputMode="decimal"
+                              enterKeyHint="done"
+                              min={SPEED_MIN_SETTING_MIN}
+                              max={SPEED_MIN_SETTING_MAX}
+                              step={SPEED_TICK_SETTING_MIN}
+                              autoComplete="off"
+                              disabled={pending}
+                              value={drafts.speedMin ?? String(behavior.speedMin.value)}
+                              onChange={(event) => {
+                                setDrafts((current) => ({
+                                  ...current,
+                                  speedMin: event.target.value,
+                                }));
+                              }}
+                              onBlur={() => {
+                                commitDecimal(
+                                  'speedMin',
+                                  behavior.speedMin.value,
+                                  SPEED_MIN_SETTING_MIN,
+                                  SPEED_MIN_SETTING_MAX,
+                                );
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  commitDecimal(
+                                    'speedMin',
+                                    behavior.speedMin.value,
+                                    SPEED_MIN_SETTING_MIN,
+                                    SPEED_MIN_SETTING_MAX,
+                                  );
+                                }
+                              }}
+                            />
+                            <InputGroupInheritReset
+                              active={ownsOverride(selection, behavior.speedMin.source)}
+                              disabled={pending}
+                              label={resetFieldLabel(t('speedMin'))}
+                              onReset={() => {
+                                void mutate({ kind: 'inherit', field: 'speedMin' });
+                              }}
+                            />
+                          </InputGroup>
+                          <FieldDescription>{t('speedMinDescription')}</FieldDescription>
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="speed-tick">{t('speedTick')}</FieldLabel>
+                          <InputGroup isDisabled={pending}>
+                            <InputGroupInput
+                              id="speed-tick"
+                              className={cn(
+                                showsInherited(
+                                  selection,
+                                  behavior.speedTick.source,
+                                  drafts.speedTick,
+                                ) && 'text-muted-foreground',
+                              )}
+                              name="speedTick"
+                              type="number"
+                              inputMode="decimal"
+                              enterKeyHint="done"
+                              min={SPEED_TICK_SETTING_MIN}
+                              max={SPEED_TICK_SETTING_MAX}
+                              step={SPEED_TICK_SETTING_MIN}
+                              autoComplete="off"
+                              disabled={pending}
+                              value={drafts.speedTick ?? String(behavior.speedTick.value)}
+                              onChange={(event) => {
+                                setDrafts((current) => ({
+                                  ...current,
+                                  speedTick: event.target.value,
+                                }));
+                              }}
+                              onBlur={() => {
+                                commitDecimal(
+                                  'speedTick',
+                                  behavior.speedTick.value,
+                                  SPEED_TICK_SETTING_MIN,
+                                  SPEED_TICK_SETTING_MAX,
+                                );
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  commitDecimal(
+                                    'speedTick',
+                                    behavior.speedTick.value,
+                                    SPEED_TICK_SETTING_MIN,
+                                    SPEED_TICK_SETTING_MAX,
+                                  );
+                                }
+                              }}
+                            />
+                            <InputGroupInheritReset
+                              active={ownsOverride(selection, behavior.speedTick.source)}
+                              disabled={pending}
+                              label={resetFieldLabel(t('speedTick'))}
+                              onReset={() => {
+                                void mutate({ kind: 'inherit', field: 'speedTick' });
+                              }}
+                            />
+                          </InputGroup>
+                          <FieldDescription>{t('speedTickDescription')}</FieldDescription>
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="speed-max">{t('speedMax')}</FieldLabel>
+                          <InputGroup isDisabled={pending}>
+                            <InputGroupInput
+                              id="speed-max"
+                              className={cn(
+                                showsInherited(
+                                  selection,
+                                  behavior.speedMax.source,
+                                  drafts.speedMax,
+                                ) && 'text-muted-foreground',
+                              )}
+                              name="speedMax"
+                              type="number"
+                              inputMode="decimal"
+                              enterKeyHint="done"
+                              min={SPEED_MAX_SETTING_MIN}
+                              max={SPEED_MAX_SETTING_MAX}
+                              step={0.05}
+                              autoComplete="off"
+                              disabled={pending}
+                              value={drafts.speedMax ?? String(behavior.speedMax.value)}
+                              onChange={(event) => {
+                                setDrafts((current) => ({
+                                  ...current,
+                                  speedMax: event.target.value,
+                                }));
+                              }}
+                              onBlur={() => {
+                                commitDecimal(
+                                  'speedMax',
+                                  behavior.speedMax.value,
+                                  SPEED_MAX_SETTING_MIN,
+                                  SPEED_MAX_SETTING_MAX,
+                                );
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  commitDecimal(
+                                    'speedMax',
+                                    behavior.speedMax.value,
+                                    SPEED_MAX_SETTING_MIN,
+                                    SPEED_MAX_SETTING_MAX,
+                                  );
+                                }
+                              }}
+                            />
+                            <InputGroupInheritReset
+                              active={ownsOverride(selection, behavior.speedMax.source)}
+                              disabled={pending}
+                              label={resetFieldLabel(t('speedMax'))}
+                              onReset={() => {
+                                void mutate({ kind: 'inherit', field: 'speedMax' });
+                              }}
+                            />
+                          </InputGroup>
+                          <FieldDescription>{t('speedMaxDescription')}</FieldDescription>
+                        </Field>
+                      </FieldGroup>
+                    </FieldSet>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('settingsOverlay')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FieldSet>
+                      <FieldLegend className="sr-only">{t('settingsOverlay')}</FieldLegend>
+                      <OverlaySwitchField
                         id="overlay-visible"
                         name="overlayVisible"
-                        className={
-                          showsInherited(selection, behavior.overlayVisible.source)
-                            ? 'data-selected:bg-muted-foreground'
-                            : undefined
-                        }
-                        aria-describedby="overlay-visible-help"
-                        isDisabled={pending}
-                        isSelected={behavior.overlayVisible.value}
-                        onChange={(selected) => {
-                          void mutate({ kind: 'value', field: 'overlayVisible', value: selected });
+                        field="overlayVisible"
+                        label={t('overlayVisible')}
+                        description={t('overlayVisibleDescription')}
+                        setting={behavior.overlayVisible}
+                        selection={selection}
+                        disabled={pending}
+                        resetBadgeText={resetBadgeText}
+                        onMutate={(change) => {
+                          void mutate(change);
                         }}
                       />
-                    </div>
-                  </Field>
-                  <Field data-disabled={overlayLocked || undefined}>
-                    <div className="flex items-start justify-between gap-2">
-                      <FieldContent>
-                        <FieldLabel>{t('overlayPosition')}</FieldLabel>
-                        <FieldDescription id="overlay-position-help">
-                          {t('overlayPositionDescription')}
-                        </FieldDescription>
-                      </FieldContent>
-                      <ResetBadge
-                        active={ownsOverride(selection, behavior.overlayPosition.source)}
-                        disabled={overlayLocked}
-                        text={resetBadgeText}
-                        label={resetFieldLabel(t('overlayPosition'))}
-                        onReset={() => {
-                          void mutate({ kind: 'inherit', field: 'overlayPosition' });
-                        }}
-                      />
-                    </div>
-                    <RadioGroup
-                      name="overlayPosition"
-                      aria-label={t('overlayPosition')}
-                      aria-describedby="overlay-position-help"
-                      className="grid grid-cols-3 gap-2"
-                      isDisabled={overlayLocked}
-                      value={String(behavior.overlayPosition.value)}
-                      onChange={(value) => {
-                        void mutate({
-                          kind: 'value',
-                          field: 'overlayPosition',
-                          value: Number(value) as OverlayPosition,
-                        });
-                      }}
-                    >
-                      {POSITION_OPTIONS.map((option) => (
-                        <RadioField
-                          key={option.value}
-                          value={String(option.value)}
-                          className="contents"
-                        >
-                          <RadioButton
-                            className={cn(
-                              'rounded-md border border-border px-2 py-2 text-center text-xs',
-                              showsInherited(selection, behavior.overlayPosition.source)
-                                ? 'data-selected:bg-muted data-selected:text-muted-foreground'
-                                : 'data-selected:bg-accent',
-                            )}
-                          >
-                            {t(option.labelKey)}
-                          </RadioButton>
-                        </RadioField>
-                      ))}
-                    </RadioGroup>
-                  </Field>
-                  <FieldGroup className="grid grid-cols-1 gap-4 @md/field-group:grid-cols-2">
-                    <Field orientation="horizontal" data-disabled={overlayLocked || undefined}>
-                      <FieldContent>
-                        <FieldLabel htmlFor="overlay-auto-hide">{t('overlayAutoHide')}</FieldLabel>
-                        <FieldDescription id="overlay-auto-hide-help">
-                          {t('overlayAutoHideDescription')}
-                        </FieldDescription>
-                      </FieldContent>
-                      <div className="flex items-center gap-2">
-                        <ResetBadge
-                          active={ownsOverride(selection, behavior.overlayAutoHide.source)}
-                          disabled={overlayLocked}
-                          text={resetBadgeText}
-                          label={resetFieldLabel(t('overlayAutoHide'))}
-                          onReset={() => {
-                            void mutate({ kind: 'inherit', field: 'overlayAutoHide' });
-                          }}
-                        />
-                        <Switch
-                          id="overlay-auto-hide"
-                          name="overlayAutoHide"
-                          className={
-                            showsInherited(selection, behavior.overlayAutoHide.source)
-                              ? 'data-selected:bg-muted-foreground'
-                              : undefined
-                          }
-                          aria-describedby="overlay-auto-hide-help"
+                      <Field data-disabled={overlayLocked || undefined}>
+                        <div className="flex items-start justify-between gap-2">
+                          <FieldContent>
+                            <FieldLabel>{t('overlayPosition')}</FieldLabel>
+                            <FieldDescription id="overlay-position-help">
+                              {t('overlayPositionDescription')}
+                            </FieldDescription>
+                          </FieldContent>
+                          <ResetBadge
+                            active={ownsOverride(selection, behavior.overlayPosition.source)}
+                            disabled={overlayLocked}
+                            text={resetBadgeText}
+                            label={resetFieldLabel(t('overlayPosition'))}
+                            onReset={() => {
+                              void mutate({ kind: 'inherit', field: 'overlayPosition' });
+                            }}
+                          />
+                        </div>
+                        <RadioGroup
+                          name="overlayPosition"
+                          aria-label={t('overlayPosition')}
+                          aria-describedby="overlay-position-help"
+                          className="grid grid-cols-3 gap-2"
                           isDisabled={overlayLocked}
-                          isSelected={behavior.overlayAutoHide.value}
-                          onChange={(selected) => {
+                          value={String(behavior.overlayPosition.value)}
+                          onChange={(value) => {
                             void mutate({
                               kind: 'value',
-                              field: 'overlayAutoHide',
-                              value: selected,
+                              field: 'overlayPosition',
+                              value: Number(value) as OverlayPosition,
                             });
                           }}
-                        />
-                      </div>
-                    </Field>
-                    <Field data-disabled={delayLocked || undefined}>
-                      <FieldLabel htmlFor="overlay-auto-hide-delay">
-                        {t('overlayAutoHideDelay')}
-                      </FieldLabel>
-                      <InputGroup isDisabled={delayLocked}>
-                        <InputGroupInput
-                          id="overlay-auto-hide-delay"
-                          className={cn(
-                            showsInherited(
-                              selection,
-                              behavior.overlayAutoHideDelayMs.source,
-                              drafts.delay,
-                            ) && 'text-muted-foreground',
-                          )}
-                          name="overlayAutoHideDelay"
-                          type="number"
-                          inputMode="decimal"
-                          enterKeyHint="done"
-                          min={OVERLAY_AUTO_HIDE_DELAY_MS_MIN / 1000}
-                          max={OVERLAY_AUTO_HIDE_DELAY_MS_MAX / 1000}
-                          step={0.1}
-                          autoComplete="off"
-                          disabled={delayLocked}
-                          value={drafts.delay ?? delaySeconds}
-                          aria-describedby="overlay-auto-hide-delay-help"
-                          onChange={(event) => {
-                            setDrafts((current) => ({ ...current, delay: event.target.value }));
-                          }}
-                          onBlur={commitDelay}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              commitDelay();
-                            }
+                        >
+                          {POSITION_OPTIONS.map((option) => (
+                            <RadioField
+                              key={option.value}
+                              value={String(option.value)}
+                              className="contents"
+                            >
+                              <RadioButton
+                                className={cn(
+                                  'rounded-md border border-border px-2 py-2 text-center text-xs',
+                                  showsInherited(selection, behavior.overlayPosition.source)
+                                    ? 'data-selected:bg-muted data-selected:text-muted-foreground'
+                                    : 'data-selected:bg-accent',
+                                )}
+                              >
+                                {t(option.labelKey)}
+                              </RadioButton>
+                            </RadioField>
+                          ))}
+                        </RadioGroup>
+                      </Field>
+                      <FieldGroup className="grid grid-cols-1 gap-4 @md/field-group:grid-cols-2">
+                        <OverlaySwitchField
+                          id="overlay-position-button"
+                          name="overlayPositionButton"
+                          field="overlayPositionButton"
+                          label={t('overlayPositionButton')}
+                          description={t('overlayPositionButtonDescription')}
+                          setting={behavior.overlayPositionButton}
+                          selection={selection}
+                          disabled={overlayLocked}
+                          resetBadgeText={resetBadgeText}
+                          onMutate={(change) => {
+                            void mutate(change);
                           }}
                         />
-                        <InputGroupInheritReset
-                          active={ownsOverride(selection, behavior.overlayAutoHideDelayMs.source)}
-                          disabled={delayLocked}
-                          label={resetFieldLabel(t('overlayAutoHideDelay'))}
-                          onReset={() => {
-                            void mutate({ kind: 'inherit', field: 'overlayAutoHideDelayMs' });
+                        <OverlaySwitchField
+                          id="overlay-settings-button"
+                          name="overlaySettingsButton"
+                          field="overlaySettingsButton"
+                          label={t('overlaySettingsButton')}
+                          description={t('overlaySettingsButtonDescription')}
+                          setting={behavior.overlaySettingsButton}
+                          selection={selection}
+                          disabled={overlayLocked}
+                          resetBadgeText={resetBadgeText}
+                          onMutate={(change) => {
+                            void mutate(change);
                           }}
                         />
-                      </InputGroup>
-                      <FieldDescription id="overlay-auto-hide-delay-help">
-                        {t('overlayAutoHideDelayDescription')}
-                      </FieldDescription>
-                    </Field>
-                  </FieldGroup>
-                </FieldSet>
-              </CardContent>
-              </Card>
+                      </FieldGroup>
+                      <FieldGroup className="grid grid-cols-1 gap-4 @md/field-group:grid-cols-2">
+                        <OverlaySwitchField
+                          id="overlay-auto-hide"
+                          name="overlayAutoHide"
+                          field="overlayAutoHide"
+                          label={t('overlayAutoHide')}
+                          description={t('overlayAutoHideDescription')}
+                          setting={behavior.overlayAutoHide}
+                          selection={selection}
+                          disabled={overlayLocked}
+                          resetBadgeText={resetBadgeText}
+                          onMutate={(change) => {
+                            void mutate(change);
+                          }}
+                        />
+                        <Field data-disabled={delayLocked || undefined}>
+                          <FieldLabel htmlFor="overlay-auto-hide-delay">
+                            {t('overlayAutoHideDelay')}
+                          </FieldLabel>
+                          <InputGroup isDisabled={delayLocked}>
+                            <InputGroupInput
+                              id="overlay-auto-hide-delay"
+                              className={cn(
+                                showsInherited(
+                                  selection,
+                                  behavior.overlayAutoHideDelayMs.source,
+                                  drafts.delay,
+                                ) && 'text-muted-foreground',
+                              )}
+                              name="overlayAutoHideDelay"
+                              type="number"
+                              inputMode="decimal"
+                              enterKeyHint="done"
+                              min={OVERLAY_AUTO_HIDE_DELAY_MS_MIN / 1000}
+                              max={OVERLAY_AUTO_HIDE_DELAY_MS_MAX / 1000}
+                              step={0.1}
+                              autoComplete="off"
+                              disabled={delayLocked}
+                              value={drafts.delay ?? delaySeconds}
+                              aria-describedby="overlay-auto-hide-delay-help"
+                              onChange={(event) => {
+                                setDrafts((current) => ({ ...current, delay: event.target.value }));
+                              }}
+                              onBlur={commitDelay}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  commitDelay();
+                                }
+                              }}
+                            />
+                            <InputGroupInheritReset
+                              active={ownsOverride(
+                                selection,
+                                behavior.overlayAutoHideDelayMs.source,
+                              )}
+                              disabled={delayLocked}
+                              label={resetFieldLabel(t('overlayAutoHideDelay'))}
+                              onReset={() => {
+                                void mutate({ kind: 'inherit', field: 'overlayAutoHideDelayMs' });
+                              }}
+                            />
+                          </InputGroup>
+                          <FieldDescription id="overlay-auto-hide-delay-help">
+                            {t('overlayAutoHideDelayDescription')}
+                          </FieldDescription>
+                        </Field>
+                      </FieldGroup>
+                    </FieldSet>
+                  </CardContent>
+                </Card>
               </FieldGroup>
 
               {selection.kind === 'global' ? (

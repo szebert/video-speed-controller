@@ -21,6 +21,21 @@ const overlayActions: OverlayActions = {
         console.warn('ADJUST_SPEED failed', error);
       });
   },
+  setOverlayPosition(position) {
+    void chrome.runtime
+      .sendMessage({
+        type: 'SET_OVERLAY_POSITION',
+        position,
+      })
+      .catch((error) => {
+        console.warn('SET_OVERLAY_POSITION failed', error);
+      });
+  },
+  openSettings() {
+    void chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' }).catch((error) => {
+      console.warn('OPEN_OPTIONS_PAGE failed', error);
+    });
+  },
 };
 
 function isTopFrame(): boolean {

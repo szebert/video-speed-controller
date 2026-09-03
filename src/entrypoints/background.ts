@@ -6,6 +6,8 @@ import { handleFrameReady } from '../background/frame-ready';
 import { getPopupState } from '../background/popup-state';
 import { resetSiteSpeed } from '../background/reset-site-speed';
 import { adjustTabSpeed } from '../background/adjust-tab-speed';
+import { openOptionsFromSender } from '../background/open-options-from-sender';
+import { setOverlayPositionFromSender } from '../background/set-overlay-position';
 import { setSpeed } from '../background/set-speed';
 import {
   deleteSiteBehaviorSettings,
@@ -103,6 +105,26 @@ export default defineBackground(() => {
         respondWithError(sendResponse, 'ADJUST_SPEED', {
           ok: false,
           error: 'Unexpected adjust-speed failure',
+        }),
+      );
+      return true;
+    }
+    if (message.type === 'SET_OVERLAY_POSITION') {
+      void setOverlayPositionFromSender(sender, message.position).then(
+        sendResponse,
+        respondWithError(sendResponse, 'SET_OVERLAY_POSITION', {
+          ok: false,
+          error: 'Unexpected overlay position failure',
+        }),
+      );
+      return true;
+    }
+    if (message.type === 'OPEN_OPTIONS_PAGE') {
+      void openOptionsFromSender(sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'OPEN_OPTIONS_PAGE', {
+          ok: false,
+          error: 'Unexpected options open failure',
         }),
       );
       return true;

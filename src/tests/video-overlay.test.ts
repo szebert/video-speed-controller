@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { shadowDOM } from '@react-stately/flags';
+import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import {
@@ -288,7 +289,7 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('hidden');
   });
 
-  it('holds while keyboard focus is inside the controls', () => {
+  it('hides after the idle delay even if a control stays focused', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -298,12 +299,6 @@ describe('VideoOverlay', () => {
     const faster = overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]');
     expect(faster).toBeInstanceOf(HTMLButtonElement);
     (faster as HTMLButtonElement).focus();
-    vi.advanceTimersByTime(1_000);
-    overlay.layout();
-    expect(overlay.host.style.visibility).toBe('visible');
-    (faster as HTMLButtonElement).blur();
-    overlay.layout();
-    expect(overlay.host.style.visibility).toBe('visible');
     vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
@@ -316,10 +311,96 @@ describe('VideoOverlay', () => {
     overlay.setControlled(true);
     overlay.layout();
     const root = overlay.host.shadowRoot;
+    expect(root?.querySelector('[aria-label="Move overlay"]')?.tagName.toLowerCase()).toBe(
+      'button',
+    );
     expect(root?.querySelector('[aria-label="Slower"]')?.tagName.toLowerCase()).toBe('button');
     expect(overlay.speedReadout?.tagName.toLowerCase()).not.toBe('button');
     expect(root?.querySelector('[aria-label="Faster"]')?.tagName.toLowerCase()).toBe('button');
+    expect(root?.querySelector('[aria-label="Open settings"]')?.tagName.toLowerCase()).toBe(
+      'button',
+    );
     expect(overlay.host.hasAttribute('aria-hidden')).toBe(false);
+  });
+
+  it('hides the position and settings buttons when those settings are off', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(
+      tabBehavior(1.25, {
+        overlayAutoHide: false,
+        overlayPositionButton: false,
+        overlaySettingsButton: false,
+      }),
+    );
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    expect(root?.querySelector('[aria-label="Move overlay"]')).toBeNull();
+    expect(root?.querySelector('[aria-label="Open settings"]')).toBeNull();
+    expect(root?.querySelector('[aria-label="Slower"]')).toBeInstanceOf(HTMLButtonElement);
+    expect(root?.querySelector('[aria-label="Faster"]')).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  it('opens a position picker and reports the chosen cell', () => {
+    const setOverlayPosition = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      setOverlayPosition,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    expect(root?.querySelector('[aria-label="Bottom right"]')).toBeNull();
+    act(() => {
+      (root?.querySelector('[aria-label="Move overlay"]') as HTMLButtonElement).click();
+    });
+    const bottomRight = root?.querySelector('[aria-label="Bottom right"]');
+    expect(bottomRight).toBeInstanceOf(HTMLButtonElement);
+    act(() => {
+      (bottomRight as HTMLButtonElement).click();
+    });
+    expect(setOverlayPosition).toHaveBeenCalledWith(OVERLAY_POSITION.BOTTOM_RIGHT);
+    expect(root?.querySelector('[aria-label="Bottom right"]')).toBeNull();
+  });
+
+  it('hides after idle even if the position picker is open, then shows it closed', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    act(() => {
+      (root?.querySelector('[aria-label="Move overlay"]') as HTMLButtonElement).click();
+    });
+    expect(root?.querySelector('.position-picker')).not.toBeNull();
+    vi.advanceTimersByTime(200);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    video.dispatchEvent(new Event('pointermove'));
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('visible');
+    expect(root?.querySelector('.position-picker')).toBeNull();
+  });
+
+  it('opens settings from the gear button', () => {
+    const openSettings = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      openSettings,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const settings = overlay.host.shadowRoot?.querySelector('[aria-label="Open settings"]');
+    expect(settings).toBeInstanceOf(HTMLButtonElement);
+    (settings as HTMLButtonElement).click();
+    expect(openSettings).toHaveBeenCalledTimes(1);
   });
 
   it('disables plus at max speed and minus at min speed', () => {
@@ -367,7 +448,7 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('visible');
   });
 
-  it('reveals on video pointer activity and does not reveal on pointerleave', () => {
+  it('does not reveal on pointerenter or pointerleave after idle hide', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -382,10 +463,13 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('hidden');
     video.dispatchEvent(new Event('pointerenter'));
     overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    video.dispatchEvent(new Event('pointermove'));
+    overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
 
-  it('holds while the pointer is over the controls and restarts after leave', () => {
+  it('hides after idle even if the pointer stays over the controls', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -394,19 +478,13 @@ describe('VideoOverlay', () => {
     overlay.layout();
     const controls = overlay.host.shadowRoot?.querySelector('.controls');
     expect(controls).toBeInstanceOf(HTMLElement);
-    controls?.dispatchEvent(new PointerEvent('pointerenter'));
-    vi.advanceTimersByTime(1_000);
-    overlay.layout();
-    expect(overlay.host.style.visibility).toBe('visible');
-    controls?.dispatchEvent(new PointerEvent('pointerleave'));
-    overlay.layout();
-    expect(overlay.host.style.visibility).toBe('visible');
+    controls?.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
     vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
   });
 
-  it('hides immediately on surrender even when the pointer is over the controls', () => {
+  it('hides immediately on surrender', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -415,27 +493,20 @@ describe('VideoOverlay', () => {
     );
     overlay.setControlled(true);
     overlay.layout();
-    overlay.host.shadowRoot
-      ?.querySelector('.controls')
-      ?.dispatchEvent(new PointerEvent('pointerenter'));
     overlay.setControlled(false);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
   });
 
-  it('starts a fresh auto-hide timer on retake after surrender while hovered', () => {
+  it('starts a fresh auto-hide timer on retake after surrender', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
     overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
     overlay.setControlled(true);
     overlay.layout();
-    overlay.host.shadowRoot
-      ?.querySelector('.controls')
-      ?.dispatchEvent(new PointerEvent('pointerenter'));
     overlay.setControlled(false);
     overlay.layout();
-    document.body.dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 0 }));
     overlay.setControlled(true);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');

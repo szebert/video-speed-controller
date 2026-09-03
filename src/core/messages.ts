@@ -3,10 +3,12 @@
 import type { HostPattern } from '../access/site-access';
 import {
   hasExactKeys,
+  isBooleanBehaviorField,
   isEditableBehaviorField,
   isOverlayPosition,
   type BehaviorSettingChange,
   type EditableResolvedBehavior,
+  type OverlayPosition,
 } from '../settings/site-behavior';
 import { isAppliedTabBehavior, type AppliedTabBehavior } from './applied-tab-behavior';
 
@@ -58,6 +60,15 @@ export type AdjustSpeedRequest = {
   direction: -1 | 1;
 };
 
+export type SetOverlayPositionRequest = {
+  type: 'SET_OVERLAY_POSITION';
+  position: OverlayPosition;
+};
+
+export type OpenOptionsPageRequest = {
+  type: 'OPEN_OPTIONS_PAGE';
+};
+
 export type BehaviorSettingsScope = { kind: 'global' } | { kind: 'site'; hostname: string };
 
 export type GetBehaviorSettingsRequest = {
@@ -98,6 +109,8 @@ export type ExtensionRequest =
   | TopFrameDestroyedRequest
   | ApplyTabBehaviorRequest
   | AdjustSpeedRequest
+  | SetOverlayPositionRequest
+  | OpenOptionsPageRequest
   | GetBehaviorSettingsRequest
   | SetBehaviorSettingRequest
   | DeleteSiteSettingsRequest
@@ -197,10 +210,7 @@ function isBehaviorSettingChange(value: unknown): value is BehaviorSettingChange
   if (record.field === 'overlayPosition') {
     return isOverlayPosition(record.value);
   }
-  return (
-    (record.field === 'overlayVisible' || record.field === 'overlayAutoHide') &&
-    typeof record.value === 'boolean'
-  );
+  return isBooleanBehaviorField(record.field) && typeof record.value === 'boolean';
 }
 
 function isGetBehaviorSettingsRequest(value: object): value is GetBehaviorSettingsRequest {
@@ -275,6 +285,13 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
         (value as { direction?: unknown }).direction === -1 ||
         (value as { direction?: unknown }).direction === 1
       );
+    case 'SET_OVERLAY_POSITION':
+      return (
+        hasExactKeys(value, ['type', 'position']) &&
+        isOverlayPosition((value as { position?: unknown }).position)
+      );
+    case 'OPEN_OPTIONS_PAGE':
+      return hasExactKeys(value, ['type']);
     case 'RECONCILE_ACCESS':
       return (
         Array.isArray((value as { allowedHostPatterns?: unknown }).allowedHostPatterns) &&
