@@ -7,6 +7,13 @@ import { ThemeProvider } from '@/components/theme-provider';
 import type { PopupStateResponse } from '../core/messages';
 import { App } from '../entrypoints/popup/App';
 
+function expectPopupControlsOrder(container: HTMLElement): void {
+  const text = container.textContent ?? '';
+  expect(text.indexOf('Enabled on this site')).toBeGreaterThan(-1);
+  expect(text.indexOf('Site speed')).toBeGreaterThan(-1);
+  expect(text.indexOf('Enabled on this site')).toBeLessThan(text.indexOf('Site speed'));
+}
+
 function popupState(overrides: Partial<PopupStateResponse> = {}): PopupStateResponse {
   return {
     supported: true,
@@ -137,5 +144,17 @@ describe('Popup settings button', () => {
       url: optionsTab.url,
     });
     expect(sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ url: youtubeTab.url }));
+    expectPopupControlsOrder(container);
+    expect(container.textContent).toContain('Disabled');
+    expect(container.textContent).not.toContain('Changes apply to this site');
+  });
+
+  it('keeps enable above site speed on a supported site', async () => {
+    sendMessage.mockResolvedValue(popupState({ siteAccess: false }));
+    await renderApp();
+    expect(container.textContent).toContain('www.youtube.com');
+    expectPopupControlsOrder(container);
+    expect(container.textContent).toContain('Disabled');
+    expect(container.textContent).not.toContain('Changes apply to this site');
   });
 });

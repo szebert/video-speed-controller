@@ -18,12 +18,12 @@ import { cn } from '@/lib/utils';
 
 type SpeedControlsProps = {
   displaySpeed: number;
-  disabled: boolean;
+  disabled?: boolean;
+  pending?: boolean;
   heading?: string;
   resetLabel?: string;
   resetDisabled?: boolean;
   muted?: boolean;
-  showOffBadge?: boolean;
   policy?: SpeedPolicy;
   onAdjust: (direction: 1 | -1) => void;
   onReset: () => void;
@@ -37,12 +37,12 @@ function snappedValue(value: number | number[], policy: SpeedPolicy): number {
 
 export function SpeedControls({
   displaySpeed,
-  disabled,
+  disabled = false,
+  pending = false,
   heading,
   resetLabel,
   resetDisabled = false,
   muted = false,
-  showOffBadge = false,
   policy = DEFAULT_SPEED_POLICY,
   onAdjust,
   onReset,
@@ -52,11 +52,12 @@ export function SpeedControls({
   const readout = formatSpeed(displaySpeed);
   const speedLabel = heading ?? t('siteSpeed');
   const bounds = sliderBounds(policy);
+  const locked = disabled || pending;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-medium">{speedLabel}</h2>
-        {showOffBadge ? <Badge variant="secondary">{t('disabled')}</Badge> : null}
+        {disabled ? <Badge variant="secondary">{t('disabled')}</Badge> : null}
       </div>
       <div
         className={cn(
@@ -71,7 +72,7 @@ export function SpeedControls({
         <Button
           type="button"
           variant="outline"
-          isDisabled={disabled}
+          isDisabled={locked}
           onPress={() => onAdjust(-1)}
           aria-label={t('slower')}
         >
@@ -80,7 +81,7 @@ export function SpeedControls({
         <Button
           type="button"
           variant="outline"
-          isDisabled={disabled || resetDisabled}
+          isDisabled={locked || resetDisabled}
           onPress={onReset}
         >
           {resetLabel ?? t('reset')}
@@ -88,7 +89,7 @@ export function SpeedControls({
         <Button
           type="button"
           variant="outline"
-          isDisabled={disabled}
+          isDisabled={locked}
           onPress={() => onAdjust(1)}
           aria-label={t('faster')}
         >
@@ -99,7 +100,7 @@ export function SpeedControls({
         <span>{formatSpeed(policy.min)}</span>
         <Slider
           aria-label={speedLabel}
-          isDisabled={disabled}
+          isDisabled={locked}
           minValue={bounds.minValue}
           maxValue={bounds.maxValue}
           step={SPEED_SLIDER_STEP}

@@ -153,6 +153,7 @@ export function App() {
     return (
       <PopupShell hostname={view?.hostname}>
         <p className="text-sm text-muted-foreground">{t('popupUnavailable')}</p>
+        <EnableSwitch isDisabled />
         <SpeedControls
           displaySpeed={1}
           disabled
@@ -160,7 +161,6 @@ export function App() {
           onReset={() => undefined}
           onCommitSlider={() => undefined}
         />
-        <EnableSwitch isDisabled />
       </PopupShell>
     );
   }
@@ -274,7 +274,6 @@ export function App() {
       <SpeedControls
         displaySpeed={shown}
         disabled={!view.siteAccess}
-        showOffBadge={!view.siteAccess}
         policy={policy}
         onAdjust={(direction) => {
           void sendSpeed(adjustSpeed(currentForAdjust, direction, policy));
@@ -288,7 +287,6 @@ export function App() {
           void sendSpeed(speed);
         }}
       />
-      <p className="text-xs text-muted-foreground">{t('changesApplyToThisSite')}</p>
     </PopupShell>
   );
 }

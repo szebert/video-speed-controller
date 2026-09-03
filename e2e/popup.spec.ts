@@ -51,7 +51,6 @@ test('Enable is available on the fixture site and Faster applies to every video'
   await expect(popup.getByRole('heading', { name: 'OS Video Speed Controller' })).toBeVisible();
   await expect(popup.getByText('127.0.0.1')).toBeVisible();
   await expect(popup.getByRole('heading', { name: 'Site speed' })).toBeVisible();
-  await expect(popup.getByText('Changes apply to this site')).toBeVisible();
   const enable = popup.getByRole('switch', { name: 'Enabled on this site' });
   await expect(enable).toBeEnabled();
   await expect(enable).toBeChecked();
@@ -289,10 +288,7 @@ test('Reset wins when clicked immediately after Faster', async ({ site, openExte
     .toBe(1);
 });
 
-test('Settings opens the current site options page', async ({
-  context,
-  openExtensionPopup,
-}) => {
+test('Settings opens the current site options page', async ({ context, openExtensionPopup }) => {
   const popup = await openExtensionPopup();
   const optionsOpened = context.waitForEvent('page');
   await popup.getByRole('button', { name: 'Open settings' }).click();
@@ -330,5 +326,5 @@ test('unsupported pages keep Enable disabled', async ({ context, extensionId, se
   await expect(popup.getByRole('switch', { name: 'Enabled on this site' })).toBeDisabled();
   await expect(popup.getByRole('button', { name: 'Faster' })).toBeDisabled();
   await expect(popup.getByText('1.00×')).toBeVisible();
-  await expect(popup.getByText('Disabled')).toHaveCount(0);
+  await expect(popup.getByText('Disabled')).toBeVisible();
 });

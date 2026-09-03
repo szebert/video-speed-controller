@@ -650,7 +650,7 @@ export function App() {
                       <SpeedControls
                         heading={selection.kind === 'global' ? t('defaultSpeed') : t('siteSpeed')}
                         displaySpeed={speed}
-                        disabled={pending}
+                        pending={pending}
                         resetDisabled={!ownsOverride(selection, behavior.speed.source)}
                         muted={
                           showsInherited(selection, behavior.speed.source) && sliderPreview == null
