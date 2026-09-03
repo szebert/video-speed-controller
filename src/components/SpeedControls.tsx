@@ -5,11 +5,24 @@ import { t } from '@/i18n/t';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Slider } from '@/components/ui/slider';
-import { DEFAULT_SPEED_POLICY, formatSpeed, snapSliderSpeed, type SpeedPolicy } from '@/core/speed';
+import {
+  DEFAULT_SPEED_POLICY,
+  formatSpeed,
+  sliderBounds,
+  sliderValue,
+  snapSliderSpeed,
+  SPEED_SLIDER_STEP,
+  type SpeedPolicy,
+} from '@/core/speed';
+import { cn } from '@/lib/utils';
 
 type SpeedControlsProps = {
   displaySpeed: number;
   disabled: boolean;
+  heading?: string;
+  resetLabel?: string;
+  resetDisabled?: boolean;
+  muted?: boolean;
   showOffBadge?: boolean;
   policy?: SpeedPolicy;
   onAdjust: (direction: 1 | -1) => void;
@@ -25,6 +38,10 @@ function snappedValue(value: number | number[], policy: SpeedPolicy): number {
 export function SpeedControls({
   displaySpeed,
   disabled,
+  heading,
+  resetLabel,
+  resetDisabled = false,
+  muted = false,
   showOffBadge = false,
   policy = DEFAULT_SPEED_POLICY,
   onAdjust,
@@ -33,13 +50,21 @@ export function SpeedControls({
   onCommitSlider,
 }: SpeedControlsProps) {
   const readout = formatSpeed(displaySpeed);
+  const speedLabel = heading ?? t('siteSpeed');
+  const bounds = sliderBounds(policy);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-medium">{t('siteSpeed')}</h2>
+        <h2 className="text-sm font-medium">{speedLabel}</h2>
         {showOffBadge ? <Badge variant="secondary">{t('disabled')}</Badge> : null}
       </div>
-      <div className="text-center text-3xl font-semibold tabular-nums" aria-live="polite">
+      <div
+        className={cn(
+          'text-center text-3xl font-semibold tabular-nums',
+          muted && 'text-muted-foreground',
+        )}
+        aria-live="polite"
+      >
         {readout}
       </div>
       <ButtonGroup className="w-full [&>[data-slot=button]]:flex-1">
@@ -52,8 +77,13 @@ export function SpeedControls({
         >
           −
         </Button>
-        <Button type="button" variant="outline" isDisabled={disabled} onPress={onReset}>
-          {t('reset')}
+        <Button
+          type="button"
+          variant="outline"
+          isDisabled={disabled || resetDisabled}
+          onPress={onReset}
+        >
+          {resetLabel ?? t('reset')}
         </Button>
         <Button
           type="button"
@@ -68,12 +98,12 @@ export function SpeedControls({
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>{formatSpeed(policy.min)}</span>
         <Slider
-          aria-label={t('siteSpeed')}
+          aria-label={speedLabel}
           isDisabled={disabled}
-          minValue={policy.min}
-          maxValue={policy.max}
-          step={policy.sliderStep}
-          value={snapSliderSpeed(displaySpeed, policy)}
+          minValue={bounds.minValue}
+          maxValue={bounds.maxValue}
+          step={SPEED_SLIDER_STEP}
+          value={sliderValue(displaySpeed, policy)}
           onChange={(value) => {
             onPreviewSlider?.(snappedValue(value, policy));
           }}

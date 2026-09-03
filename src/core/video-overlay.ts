@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { OverlayRoot } from '../overlay/OverlayRoot';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
 import type { OverlayActions } from '../overlay/types';
-import { overlayPositionToGrid } from '../settings/site-behavior';
+import { canonicalizeOverlayAutoHideDelayMs, overlayPositionToGrid } from '../settings/site-behavior';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 
 export const OVERLAY_HOST_TAG = 'osvsc-overlay';
@@ -205,6 +205,9 @@ export class VideoOverlay {
     if (this.behavior == null || !this.controlled || !this.isRenderable()) {
       return false;
     }
+    if (!this.behavior.overlayVisible) {
+      return false;
+    }
     if (!this.behavior.overlayAutoHide) {
       return true;
     }
@@ -230,7 +233,7 @@ export class VideoOverlay {
         this.autoHideExpired = true;
         this.requestLayout();
       },
-      Math.max(0, this.behavior.overlayAutoHideDelayMs),
+      canonicalizeOverlayAutoHideDelayMs(this.behavior.overlayAutoHideDelayMs),
     );
   }
 

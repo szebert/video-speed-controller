@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@react-stately/flags':
+        specifier: 3.2.1
+        version: 3.2.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wxt-dev/i18n':
         specifier: 0.2.7
         version: 0.2.7(wxt@0.21.4(esbuild@0.28.2)(eslint@10.9.1(jiti@2.7.0))(rolldown@1.2.6)(rollup@4.63.0)(typescript@6.0.3)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)))
@@ -29,9 +32,6 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
-      react-stately:
-        specifier: 3.49.0
-        version: 3.49.0(react@19.2.8)
       tailwind-merge:
         specifier: 3.6.0
         version: 3.6.0
@@ -596,6 +596,12 @@ packages:
     resolution: {integrity: sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ==}
     engines: {node: '>=20'}
     hasBin: true
+
+  '@react-stately/flags@3.2.1':
+    resolution: {integrity: sha512-WPw9z4SPYqQMuExCnBNrQyyxCWSi9CDYnVqca19bqxaHZRT/uL5nL+IGCPHHa70Y5rx39E5hYKl8Hf0QJ6XKyA==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
+      react-dom: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
 
   '@react-types/shared@3.36.1':
     resolution: {integrity: sha512-AzsuD9OfxTOZMMvTRhlN3oHBwOmFN7tDh27LzqmHt4+uOgPhJT7ZM7/kVs/8/o0WxayMUIk3hBmCFRHv1FUoag==}
@@ -3705,6 +3711,13 @@ snapshots:
   '@playwright/test@1.62.1':
     dependencies:
       playwright: 1.62.1
+
+  '@react-stately/flags@3.2.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@swc/helpers': 0.5.23
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      react-stately: 3.49.0(react@19.2.8)
 
   '@react-types/shared@3.36.1(react@19.2.8)':
     dependencies:

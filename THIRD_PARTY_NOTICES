@@ -75,6 +75,7 @@ Open Source Video Speed Controller. Project code is licensed under GPL-3.0-only.
 - @nodelib/fs.walk@1.2.8: MIT
 - @oxc-project/types@0.147.0: MIT
 - @playwright/test@1.62.1: Apache-2.0
+- @react-stately/flags@3.2.1: Apache-2.0
 - @react-types/shared@3.36.1: Apache-2.0
 - @rolldown/binding-darwin-arm64@1.2.6: MIT
 - @rolldown/pluginutils@1.0.1: MIT

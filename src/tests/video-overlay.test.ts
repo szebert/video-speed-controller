@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { shadowDOM } from 'react-stately/private/flags/flags';
+import { shadowDOM } from '@react-stately/flags';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import {
@@ -178,6 +178,15 @@ describe('VideoOverlay', () => {
     overlay.setControlled(true);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
+  });
+
+  it('stays hidden when overlayVisible is false even if auto-hide is off', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1.25, { overlayVisible: false, overlayAutoHide: false }));
+    overlay.setControlled(true);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
   });
 
   it('hides when the video is disconnected or near-zero size', () => {

@@ -2,20 +2,22 @@
 
 import { useLayoutEffect, useRef } from 'react';
 import { Button } from 'react-aria-components';
-import { canAdjustSpeed, DEFAULT_SPEED_POLICY, formatSpeed } from '../core/speed';
+import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
+import { canAdjustSpeed, formatSpeed } from '../core/speed';
 import { t } from '../i18n/t';
 import './enable-shadow-dom';
 import type { OverlayControlsProps } from './types';
 
 export function OverlayControls({
   behavior,
-  policy = DEFAULT_SPEED_POLICY,
+  policy,
   onAdjust,
   onPointerActiveChange,
   onFocusWithinChange,
 }: OverlayControlsProps) {
-  const canSlow = canAdjustSpeed(behavior.targetSpeed, -1, policy);
-  const canFast = canAdjustSpeed(behavior.targetSpeed, 1, policy);
+  const resolvedPolicy = policy ?? speedPolicyFromApplied(behavior);
+  const canSlow = canAdjustSpeed(behavior.targetSpeed, -1, resolvedPolicy);
+  const canFast = canAdjustSpeed(behavior.targetSpeed, 1, resolvedPolicy);
   const controlsRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
