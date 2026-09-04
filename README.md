@@ -2,14 +2,23 @@
 
 Open source Chrome extension for controlling HTML5 video playback speed.
 
-OS Video Speed Controller (OS VSC) is a toolbar popup that sets HTML5 `<video>` playback speed on sites you explicitly enable. There are no accounts, analytics, or servers.
+OS Video Speed Controller (OS VSC) is a toolbar popup and per-video overlay that sets HTML5 `<video>` playback speed on sites you explicitly enable. There are no accounts, analytics, or servers.
 
 ## Features
 
-- Per-site synced speed intent (`siteSpeed`) and a per-tab effective speed (`tabTarget`)
 - Enable one site at a time through Chrome’s optional host permission prompt
-- Tick buttons, reset, and a slider (the slider commits when you release it)
-- Works in same-origin frames and granted iframes; ungranted embeds stay untouched
+- Toolbar popup: Faster / Slower, reset to 1×, and a slider (commits when you release it)
+- Per-site default speed, plus a per-tab effective speed so changing defaults does not jump an already-playing tab
+- Configurable speed range and step (0.0625×–16×, step 0.0005×–1×)
+- Per-video overlay: speed, Faster / Slower, optional position picker and settings button
+- Overlay position (3×3 grid), show/hide, auto-hide, hover-hold, and delay
+- Options page with Global defaults and per-site overrides; reset defaults, delete a site, or reset all
+- Light, dark, and system theme
+- Same-origin frames and granted iframes; ungranted embeds stay untouched
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned and exploratory features.
 
 ## Install (development)
 
