@@ -138,6 +138,31 @@ export type FrameReadyResponse = { action: 'applied' } | { action: 'dormant' };
 export type SetSpeedResponse =
   { ok: true; targetSpeed: number; persistError?: string } | { ok: false; error: string };
 
+export type SetOverlayPositionResponse =
+  { ok: true; reapplyError?: string } | { ok: false; error: string };
+
+export function intentFailureMessage(response: unknown): string | null {
+  if (!response || typeof response !== 'object') {
+    return 'Invalid response';
+  }
+  const record = response as {
+    ok?: unknown;
+    error?: unknown;
+    persistError?: unknown;
+    reapplyError?: unknown;
+  };
+  if (record.ok === false) {
+    return typeof record.error === 'string' ? record.error : 'Request failed';
+  }
+  if (typeof record.reapplyError === 'string') {
+    return record.reapplyError;
+  }
+  if (typeof record.persistError === 'string') {
+    return record.persistError;
+  }
+  return null;
+}
+
 export type EnableSiteResponse = { ok: true; targetSpeed: number } | { ok: false; error: string };
 
 export type BehaviorSettingsSnapshot = {

@@ -1162,6 +1162,247 @@ describe('Options page', () => {
     expect(container.textContent).toContain('1.25×');
     expect(container.textContent).toContain('Saved, but settings could not be refreshed.');
   });
+
+  it('rescans custom sites when a successful delete omits membership', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: ['example.com'] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot('example.com'));
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp('chrome-extension://extid/options.html?site=example.com');
+    const trash = container.querySelector('[aria-label="Delete site settings: example.com"]');
+    await act(async () => {
+      click(trash);
+    });
+    sendMessage.mockClear();
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    const confirm = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Delete',
+    );
+    await act(async () => {
+      confirm?.click();
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'DELETE_SITE_SETTINGS',
+      'GET_CUSTOM_SITES',
+    ]);
+    expect(container.textContent).toContain('No site settings yet.');
+    expect(container.textContent).not.toContain('Could not save this setting.');
+  });
+
+  it('rescans custom sites when a successful site save omits membership', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: ['example.com'] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot('example.com'));
+      }
+      return {
+        ok: true,
+        state: snapshot('example.com'),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp('chrome-extension://extid/options.html?site=example.com');
+    expect(container.textContent).toContain('example.com');
+    expect(container.textContent).not.toContain('No site settings yet.');
+    sendMessage.mockClear();
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot('example.com'));
+      }
+      return {
+        ok: true,
+        state: snapshot('example.com'),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'SET_BEHAVIOR_SETTING',
+      'GET_CUSTOM_SITES',
+    ]);
+    expect(container.textContent).toContain('No site settings yet.');
+    expect(container.textContent).not.toContain('Could not save this setting.');
+  });
+
+  it('recovers pane after a thrown persist', async () => {
+    const recovered = snapshot();
+    recovered.global.speed = { value: 1.25, source: 'global' };
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    sendMessage.mockClear();
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(recovered);
+      }
+      throw new Error('channel closed');
+    });
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'SET_BEHAVIOR_SETTING',
+      'GET_BEHAVIOR_SETTINGS',
+    ]);
+    expect(container.textContent).toContain('Could not save this setting.');
+    expect(container.textContent).toContain('1.25×');
+  });
+
+  it('recovers pane and sidebar after a thrown site persist', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: ['example.com'] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot('example.com'));
+      }
+      throw new Error('channel closed');
+    });
+    await renderApp('chrome-extension://extid/options.html?site=example.com');
+    sendMessage.mockClear();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'SET_BEHAVIOR_SETTING',
+      'GET_BEHAVIOR_SETTINGS',
+      'GET_CUSTOM_SITES',
+    ]);
+    expect(container.textContent).toContain('Could not save this setting.');
+  });
+
+  it('recovers pane after a thrown Reset defaults', async () => {
+    const recovered = snapshot();
+    recovered.global.speed = { value: 1.25, source: 'global' };
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    sendMessage.mockClear();
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(recovered);
+      }
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      throw new Error('channel closed');
+    });
+    const resetDefaults = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Reset defaults',
+    );
+    await act(async () => {
+      resetDefaults?.click();
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'RESET_GLOBAL_BEHAVIOR',
+      'GET_BEHAVIOR_SETTINGS',
+    ]);
+    expect(container.textContent).toContain('Could not save this setting.');
+    expect(container.textContent).toContain('1.25×');
+  });
+
+  it('recovers pane and sidebar after a thrown Reset All', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot(), ['example.com']));
+    await renderApp();
+    const settings = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Settings',
+    );
+    await act(async () => {
+      settings?.click();
+    });
+    const resetAll = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Reset ALL Settings',
+    );
+    await act(async () => {
+      resetAll?.click();
+    });
+    sendMessage.mockClear();
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      throw new Error('channel closed');
+    });
+    const confirm = [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
+      (button) => button.textContent === 'Reset',
+    );
+    await act(async () => {
+      click(confirm ?? null);
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'RESET_ALL_BEHAVIOR',
+      'GET_BEHAVIOR_SETTINGS',
+      'GET_CUSTOM_SITES',
+    ]);
+    expect(container.textContent).toContain('Could not save this setting.');
+    expect(container.textContent).toContain('No site settings yet.');
+  });
+
+  it('recovers pane and sidebar after a thrown site delete', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: ['example.com'] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot('example.com'));
+      }
+      throw new Error('channel closed');
+    });
+    await renderApp('chrome-extension://extid/options.html?site=example.com');
+    const trash = container.querySelector('[aria-label="Delete site settings: example.com"]');
+    await act(async () => {
+      click(trash);
+    });
+    sendMessage.mockClear();
+    const confirm = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Delete',
+    );
+    await act(async () => {
+      confirm?.click();
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'DELETE_SITE_SETTINGS',
+      'GET_BEHAVIOR_SETTINGS',
+      'GET_CUSTOM_SITES',
+    ]);
+    expect(container.textContent).toContain('Could not save this setting.');
+  });
 });
 
 describe('SpeedControls preview vs persist', () => {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
-import { isExtensionRequest } from '../core/messages';
+import { intentFailureMessage, isExtensionRequest } from '../core/messages';
 import { tabBehavior } from './tab-behavior-fixture';
 
 describe('isExtensionRequest', () => {
@@ -166,5 +166,18 @@ describe('isExtensionRequest', () => {
       isExtensionRequest({ type: 'RESET_ALL_BEHAVIOR', snapshotHostname: 'example.com' }),
     ).toBe(true);
     expect(isExtensionRequest({ type: 'RESET_ALL_BEHAVIOR', snapshotHostname: 1 })).toBe(false);
+  });
+});
+
+describe('intentFailureMessage', () => {
+  it('reports resolved application failures and warnings', () => {
+    expect(intentFailureMessage({ ok: false, error: 'Missing tab' })).toBe('Missing tab');
+    expect(intentFailureMessage({ ok: false })).toBe('Request failed');
+    expect(
+      intentFailureMessage({ ok: true, reapplyError: 'Failed to apply overlay position' }),
+    ).toBe('Failed to apply overlay position');
+    expect(intentFailureMessage({ ok: true, persistError: 'quota' })).toBe('quota');
+    expect(intentFailureMessage({ ok: true, targetSpeed: 1.25 })).toBeNull();
+    expect(intentFailureMessage(undefined)).toBe('Invalid response');
   });
 });

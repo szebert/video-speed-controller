@@ -37,17 +37,25 @@ export function OverlayControls({
   const [pointerWithin, setPointerWithin] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  if (!visible && (pointerWithin || focusWithin || pickerOpen)) {
+    setPointerWithin(false);
+    setFocusWithin(false);
+    setPickerOpen(false);
+  } else if (visible && !behavior.overlayPositionButton && pickerOpen) {
+    setPickerOpen(false);
+  }
   const lastInteractive = useRef<boolean | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const pickerAllowed = visible && behavior.overlayPositionButton;
-  const interactive = visible && ((pointerWithin && behavior.overlayHoverHold) || focusWithin);
+  const interactive =
+    visible && (pickerOpen || focusWithin || (pointerWithin && behavior.overlayHoverHold));
 
   useLayoutEffect(() => {
     const shell = shellRef.current;
     if (!shell) {
       return;
     }
-    if (shell.matches(':hover')) {
+    if (visible && shell.matches(':hover')) {
       setPointerWithin(true);
     }
     const onEnter = () => {
@@ -62,7 +70,7 @@ export function OverlayControls({
       shell.removeEventListener('pointerenter', onEnter);
       shell.removeEventListener('pointerleave', onLeave);
     };
-  }, []);
+  }, [visible]);
 
   useEffect(() => {
     if (lastInteractive.current === interactive) {

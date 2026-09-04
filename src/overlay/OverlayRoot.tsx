@@ -8,10 +8,7 @@ import type { OverlayControlsProps } from './types';
 export function OverlayRoot(props: OverlayControlsProps) {
   return (
     <I18nProvider locale={resolveLocale()}>
-      <OverlayControls
-        key={props.visible && props.behavior.overlayPositionButton ? 'held' : 'reset'}
-        {...props}
-      />
+      <OverlayControls {...props} />
     </I18nProvider>
   );
 }

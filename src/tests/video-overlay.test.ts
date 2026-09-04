@@ -368,7 +368,7 @@ describe('VideoOverlay', () => {
     expect(root?.querySelector('[aria-label="Bottom right"]')).toBeNull();
   });
 
-  it('does not keep the overlay visible after opening the position picker', () => {
+  it('keeps the overlay visible after opening the position picker', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -386,7 +386,26 @@ describe('VideoOverlay', () => {
       vi.advanceTimersByTime(200);
     });
     overlay.layout();
+    expect(overlay.host.style.visibility).toBe('visible');
+  });
+
+  it('keeps the same Faster button across hide and reveal', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const faster = overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]');
+    expect(faster).toBeInstanceOf(HTMLButtonElement);
+    vi.advanceTimersByTime(200);
+    overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
+    expect(overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]')).toBe(faster);
+    video.dispatchEvent(new Event('pointermove'));
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('visible');
+    expect(overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]')).toBe(faster);
   });
 
   it('does not keep the overlay visible after closing the position picker', () => {

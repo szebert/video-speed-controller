@@ -880,6 +880,49 @@ describe('site settings storage', () => {
     expect(deps.local.data['site:vimeo.com']).toMatchObject({
       overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
     });
+    expect(deps.sync.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+    expect(deps.sync.data['site:vimeo.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
     await expect(listCustomSiteHostnames({ ...deps, now: () => 200 })).resolves.toEqual([]);
+  });
+
+  it('does not promote Local-only sites into Sync during Reset All', async () => {
+    const deps = pair(50);
+    deps.local.data['site:local-only.example'] = {
+      schemaVersion: 1,
+      lastUsedAt: 40,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 40 } },
+    };
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    await deleteAllSiteSettings({ ...deps, now: () => 200 });
+    expect(deps.local.data['site:local-only.example']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+    expect(deps.sync.data['site:local-only.example']).toBeUndefined();
+    expect(deps.sync.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+  });
+
+  it('reconciles Sync once after Reset All instead of per site', async () => {
+    const deps = pair(50);
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
+    await persistSiteSpeed('https://example.com/', 1.75, deps);
+    let fullReads = 0;
+    const sync = {
+      ...deps.sync,
+      async get(keys: Parameters<typeof deps.sync.get>[0]) {
+        if (keys == null) {
+          fullReads += 1;
+        }
+        return deps.sync.get(keys);
+      },
+    };
+    await deleteAllSiteSettings({ ...deps, sync, now: () => 200 });
+    expect(fullReads).toBe(2);
   });
 });

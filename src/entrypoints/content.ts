@@ -7,34 +7,48 @@ import {
   type HostPattern,
 } from '../access/site-access';
 import { destroyEngine, startEngine } from '../core/video-speed-engine';
-import { isExtensionRequest } from '../core/messages';
+import { intentFailureMessage, isExtensionRequest } from '../core/messages';
 import type { OverlayActions } from '../overlay/types';
+import type { OverlayPosition } from '../settings/site-behavior';
+
+async function sendOverlayIntent(
+  message:
+    | { type: 'ADJUST_SPEED'; direction: -1 | 1 }
+    | { type: 'SET_OVERLAY_POSITION'; position: OverlayPosition }
+    | { type: 'OPEN_OPTIONS_PAGE' },
+  label: string,
+): Promise<void> {
+  try {
+    const failure = intentFailureMessage(await chrome.runtime.sendMessage(message));
+    if (failure) {
+      console.warn(`${label} failed`, failure);
+    }
+  } catch (error) {
+    console.warn(`${label} failed`, error);
+  }
+}
 
 const overlayActions: OverlayActions = {
   adjustSpeed(direction) {
-    void chrome.runtime
-      .sendMessage({
+    void sendOverlayIntent(
+      {
         type: 'ADJUST_SPEED',
         direction,
-      })
-      .catch((error) => {
-        console.warn('ADJUST_SPEED failed', error);
-      });
+      },
+      'ADJUST_SPEED',
+    );
   },
   setOverlayPosition(position) {
-    void chrome.runtime
-      .sendMessage({
+    void sendOverlayIntent(
+      {
         type: 'SET_OVERLAY_POSITION',
         position,
-      })
-      .catch((error) => {
-        console.warn('SET_OVERLAY_POSITION failed', error);
-      });
+      },
+      'SET_OVERLAY_POSITION',
+    );
   },
   openSettings() {
-    void chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' }).catch((error) => {
-      console.warn('OPEN_OPTIONS_PAGE failed', error);
-    });
+    void sendOverlayIntent({ type: 'OPEN_OPTIONS_PAGE' }, 'OPEN_OPTIONS_PAGE');
   },
 };
 

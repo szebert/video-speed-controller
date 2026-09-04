@@ -19,7 +19,7 @@ export type OverlaySwitchFieldName =
   | 'overlaySettingsButton'
   | 'overlayAutoHide'
   | 'overlayHoverHold';
-export type RecoverKind = 'pane' | 'pane-and-sidebar';
+export type RecoverKind = 'pane' | 'sidebar' | 'pane-and-sidebar';
 
 export const POSITION_OPTIONS: { value: OverlayPosition; labelKey: Parameters<typeof t>[0] }[] = [
   { value: OVERLAY_POSITION.TOP_LEFT, labelKey: 'positionTopLeft' },

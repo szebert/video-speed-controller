@@ -86,7 +86,7 @@ describe('setOverlayPositionFromSender', () => {
     );
     expect(result).toEqual({
       ok: true,
-      persistError: 'Failed to apply overlay position',
+      reapplyError: 'Failed to apply overlay position',
     });
   });
 

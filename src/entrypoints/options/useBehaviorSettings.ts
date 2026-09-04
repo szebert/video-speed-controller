@@ -135,13 +135,15 @@ export function useBehaviorSettings() {
   }
 
   async function recover(kind: RecoverKind): Promise<void> {
-    const recovered = await requestGet(snapshotHostname).catch(() => null);
-    if (recovered?.ok) {
-      setSnapshot(recovered.state);
-      clearAllDrafts();
-      setSliderPreview(null);
+    if (kind !== 'sidebar') {
+      const recovered = await requestGet(snapshotHostname).catch(() => null);
+      if (recovered?.ok) {
+        setSnapshot(recovered.state);
+        clearAllDrafts();
+        setSliderPreview(null);
+      }
     }
-    if (kind === 'pane-and-sidebar') {
+    if (kind !== 'pane') {
       const sites = await requestCustomSites().catch(() => null);
       if (sites?.ok) {
         setCustomSites(sites.customSites);
@@ -177,9 +179,12 @@ export function useBehaviorSettings() {
       });
       if (!applyResponse(response) || (response && !response.ok)) {
         await recover(membership ? 'pane-and-sidebar' : 'pane');
+      } else if (membership && response?.ok && !response.siteMembership) {
+        await recover('sidebar');
       }
     } catch {
       setError(t('settingsSaveError'));
+      await recover(membership ? 'pane-and-sidebar' : 'pane');
     } finally {
       setPending(false);
     }
@@ -223,6 +228,7 @@ export function useBehaviorSettings() {
       }
     } catch {
       setError(t('settingsSaveError'));
+      await recover('pane');
     } finally {
       setPending(false);
     }
@@ -242,6 +248,7 @@ export function useBehaviorSettings() {
       }
     } catch {
       setError(t('settingsSaveError'));
+      await recover('pane-and-sidebar');
     } finally {
       setPending(false);
     }
@@ -266,11 +273,15 @@ export function useBehaviorSettings() {
         await recover('pane-and-sidebar');
         return;
       }
+      if (response?.ok && !response.siteMembership) {
+        await recover('sidebar');
+      }
       if (selection.kind === 'site' && selection.hostname === hostname) {
         setSelection({ kind: 'global' });
       }
     } catch {
       setError(t('settingsSaveError'));
+      await recover('pane-and-sidebar');
     } finally {
       setPending(false);
     }

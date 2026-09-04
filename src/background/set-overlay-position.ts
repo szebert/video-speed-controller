@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import type { SetOverlayPositionResponse } from '../core/messages';
 import { isOverlayPosition, type OverlayPosition } from '../settings/site-behavior';
 import { persistSiteBehaviorChange, type SiteSettingsDeps } from '../storage/site-settings';
 import { getSiteKey } from '../storage/site-key';
@@ -8,9 +9,6 @@ import {
   reapplyBehaviorSettings,
   type ReapplyBehaviorSettingsDeps,
 } from './reapply-behavior-settings';
-
-export type SetOverlayPositionResponse =
-  { ok: true; persistError?: string } | { ok: false; error: string };
 
 export type SetOverlayPositionDeps = SiteSettingsDeps &
   ReapplyBehaviorSettingsDeps & {
@@ -60,7 +58,7 @@ export async function setOverlayPositionFromSender(
   if (reapply.reapplyError || reapply.reapplyFailures > 0) {
     return {
       ok: true,
-      persistError: reapply.reapplyError ?? 'Failed to apply overlay position',
+      reapplyError: reapply.reapplyError ?? 'Failed to apply overlay position',
     };
   }
   return { ok: true };

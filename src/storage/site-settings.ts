@@ -49,12 +49,7 @@ import {
 import { getSiteKey, getSiteStorageKey, hostnameFromSiteStorageKey } from './site-key';
 import { SITE_SETTINGS_LOCK, enqueueStorageMutation } from './storage-mutation-queue';
 
-export type { DurableSettingsStore } from './durable-store';
-
-/** @deprecated Use DurableSettingsStore. Kept so older tests can be updated incrementally. */
-export type SiteSettingsStore = DurableSettingsStore;
-
-export type StorageClock = () => number;
+type StorageClock = () => number;
 
 export type SiteSettingsDeps = {
   sync?: DurableSettingsStore;
@@ -208,21 +203,29 @@ export async function reconcileSyncHotSet(
   );
 }
 
+async function writeSyncEligibleUnlocked(
+  sync: DurableSettingsStore,
+  storageKey: string,
+  record: SiteSettingsV1,
+  now: number,
+): Promise<'set' | 'removed'> {
+  const eligible = toSyncEligibleSiteRecord(record, now);
+  if (!eligible) {
+    await sync.remove(storageKey);
+    return 'removed';
+  }
+  await sync.set({ [storageKey]: eligible });
+  return 'set';
+}
+
 async function publishSyncSite(
   sync: DurableSettingsStore,
   storageKey: string,
   record: SiteSettingsV1,
   now: number,
 ): Promise<void> {
-  const eligible = toSyncEligibleSiteRecord(record, now);
-  const write = async (): Promise<'set' | 'removed'> => {
-    if (!eligible) {
-      await sync.remove(storageKey);
-      return 'removed';
-    }
-    await sync.set({ [storageKey]: eligible });
-    return 'set';
-  };
+  const write = (): Promise<'set' | 'removed'> =>
+    writeSyncEligibleUnlocked(sync, storageKey, record, now);
 
   let result: 'set' | 'removed';
   try {
@@ -577,6 +580,51 @@ export async function deleteSiteSettings(
   });
 }
 
+async function writeSyncSiteBatchUnlocked(
+  sync: DurableSettingsStore,
+  records: ReadonlyArray<{ key: string; record: SiteSettingsV1 }>,
+  now: number,
+): Promise<void> {
+  if (records.length === 0) {
+    return;
+  }
+
+  const apply = async (): Promise<void> => {
+    const items: Record<string, SiteSettingsV1> = {};
+    const removals: string[] = [];
+    for (const { key, record } of records) {
+      const eligible = toSyncEligibleSiteRecord(record, now);
+      if (!eligible) {
+        removals.push(key);
+        continue;
+      }
+      items[key] = eligible;
+    }
+    if (Object.keys(items).length > 0) {
+      await sync.set(items);
+    }
+    if (removals.length > 0) {
+      await sync.remove(removals);
+    }
+  };
+
+  try {
+    await apply();
+  } catch (error) {
+    if (!isCapacityError(error) || isWriteRateError(error)) {
+      throw error;
+    }
+    await reconcileSyncHotSetUnlocked(sync, now);
+    await apply();
+  }
+
+  try {
+    await reconcileSyncHotSetUnlocked(sync, now);
+  } catch {
+    // Post-publication maintenance must not fail a successful Sync write.
+  }
+}
+
 export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promise<void> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
     const { sync, local, now } = stores(deps);
@@ -589,12 +637,21 @@ export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promis
         ),
       ),
     ];
+    const localItems: Record<string, SiteSettingsV1> = {};
+    const syncRecords: { key: string; record: SiteSettingsV1 }[] = [];
     for (const key of keys) {
       const record = tombstoneMergedSite(mergedOverridesForKey(syncAll, localAll, key), at);
       if (!record) {
         continue;
       }
-      await writeSiteRecordUnlocked(sync, local, key, record, at);
+      localItems[key] = record;
+      if (Object.prototype.hasOwnProperty.call(syncAll, key)) {
+        syncRecords.push({ key, record });
+      }
     }
+    if (Object.keys(localItems).length > 0) {
+      await local.set(localItems);
+    }
+    await writeSyncSiteBatchUnlocked(sync, syncRecords, at);
   });
 }

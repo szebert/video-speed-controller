@@ -254,7 +254,7 @@ test('overlay auto-hides and returns when the pointer moves over a video', async
     .toBe('visible');
 });
 
-test('opening or closing the position picker does not prevent auto-hide', async ({
+test('opening the position picker keeps the overlay visible until it closes', async ({
   site,
   openExtensionPopup,
 }) => {
@@ -275,16 +275,21 @@ test('opening or closing the position picker does not prevent auto-hide', async 
     )
     .toBe(true);
   await site.mouse.move(0, 0);
-  await expect
-    .poll(async () => overlay.evaluate((host) => (host as HTMLElement).style.visibility), {
-      timeout: 5_000,
-    })
-    .toBe('hidden');
+  await site.waitForTimeout(2_500);
+  expect(await overlay.evaluate((host) => (host as HTMLElement).style.visibility)).toBe('visible');
 
   await site.locator('#v1').hover();
   await expect(move).toBeVisible();
   await move.click();
-  await move.click();
+  await expect
+    .poll(async () =>
+      site.evaluate(
+        () =>
+          document.querySelector('osvsc-overlay')?.shadowRoot?.querySelector('.position-picker') ==
+          null,
+      ),
+    )
+    .toBe(true);
   await site.mouse.move(0, 0);
   await expect
     .poll(async () => overlay.evaluate((host) => (host as HTMLElement).style.visibility), {
