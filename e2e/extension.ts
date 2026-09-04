@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { existsSync, readFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   test as base,
   chromium,
@@ -15,32 +11,10 @@ import {
   E2E_POPUP_TARGET_TAB_ID_KEY,
   E2E_POPUP_TARGET_URL_KEY,
 } from '../src/access/popup-target-tab';
+import { assertE2eExtensionBuild, extensionPath } from './extension-build';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const extensionPath = resolve(root, '.output/chrome-mv3');
+export { extensionPath };
 export const fixtureOrigin = 'http://127.0.0.1:4173';
-
-export function ensureExtensionBuild(): void {
-  const manifestPath = resolve(extensionPath, 'manifest.json');
-  if (existsSync(manifestPath) && existsSync(resolve(extensionPath, 'options.html'))) {
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-      host_permissions?: string[];
-      options_ui?: { page?: string; open_in_tab?: boolean };
-    };
-    if (
-      manifest.host_permissions?.includes('http://127.0.0.1:4173/*') &&
-      manifest.options_ui?.page === 'options.html' &&
-      manifest.options_ui.open_in_tab === true
-    ) {
-      return;
-    }
-  }
-  execSync('pnpm build', {
-    cwd: root,
-    stdio: 'inherit',
-    env: { ...process.env, OSVSC_E2E: '1' },
-  });
-}
 
 export async function waitForServiceWorker(context: BrowserContext): Promise<Worker> {
   const existing = context.serviceWorkers()[0];
@@ -129,7 +103,7 @@ export const test = base.extend<ExtensionFixtures>({
     use,
     testInfo,
   ) => {
-    ensureExtensionBuild();
+    assertE2eExtensionBuild();
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
       headless: testInfo.project.use.headless !== false,
