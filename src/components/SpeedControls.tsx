@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Slider } from '@/components/ui/slider';
 import {
+  canAdjustSpeed,
   DEFAULT_SPEED_POLICY,
   formatSpeed,
   sliderBounds,
@@ -53,6 +54,8 @@ export function SpeedControls({
   const speedLabel = heading ?? t('siteSpeed');
   const bounds = sliderBounds(policy);
   const locked = disabled || pending;
+  const canSlow = canAdjustSpeed(displaySpeed, -1, policy);
+  const canFast = canAdjustSpeed(displaySpeed, 1, policy);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
@@ -72,7 +75,7 @@ export function SpeedControls({
         <Button
           type="button"
           variant="outline"
-          isDisabled={locked}
+          isDisabled={locked || !canSlow}
           onPress={() => onAdjust(-1)}
           aria-label={t('slower')}
         >
@@ -89,7 +92,7 @@ export function SpeedControls({
         <Button
           type="button"
           variant="outline"
-          isDisabled={locked}
+          isDisabled={locked || !canFast}
           onPress={() => onAdjust(1)}
           aria-label={t('faster')}
         >

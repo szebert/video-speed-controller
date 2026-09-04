@@ -12,13 +12,20 @@ export type OpenOptionsFromSenderDeps = {
 export async function openOptionsFromSender(
   sender: chrome.runtime.MessageSender,
   deps: OpenOptionsFromSenderDeps = {},
-): Promise<{ ok: true }> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const resolved = await resolveSenderTabUrl(
     sender,
     deps.readTab ?? ((tabId) => chrome.tabs.get(tabId)),
   );
   const key = resolved ? getSiteKey(resolved.url) : { supported: false as const };
   const openPage = deps.openPage ?? openExtensionOptionsPage;
-  openPage(key.supported ? key.hostname : null);
-  return { ok: true };
+  try {
+    await openPage(key.supported ? key.hostname : null);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to open options',
+    };
+  }
 }

@@ -17,6 +17,8 @@ export function optionsPageUrl(hostname?: string | null): string {
   return normalized ? `${base}?site=${encodeURIComponent(normalized)}` : base;
 }
 
-export function openExtensionOptionsPage(hostname?: string | null): void {
-  void chrome.tabs.create({ url: optionsPageUrl(hostname) });
+export function openExtensionOptionsPage(
+  hostname?: string | null,
+): Promise<chrome.tabs.Tab | undefined> {
+  return Promise.resolve(chrome.tabs.create({ url: optionsPageUrl(hostname) }));
 }

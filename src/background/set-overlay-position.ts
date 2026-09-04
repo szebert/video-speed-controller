@@ -9,7 +9,8 @@ import {
   type ReapplyBehaviorSettingsDeps,
 } from './reapply-behavior-settings';
 
-export type SetOverlayPositionResponse = { ok: true } | { ok: false; error: string };
+export type SetOverlayPositionResponse =
+  { ok: true; persistError?: string } | { ok: false; error: string };
 
 export type SetOverlayPositionDeps = SiteSettingsDeps &
   ReapplyBehaviorSettingsDeps & {
@@ -49,12 +50,18 @@ export async function setOverlayPositionFromSender(
     };
   }
 
-  await reapplyBehaviorSettings(
+  const reapply = await reapplyBehaviorSettings(
     {
       scope: { kind: 'site', hostname: key.hostname },
-      change: { kind: 'value', field: 'overlayPosition', value: position },
+      mode: 'preserve-target',
     },
     deps,
   );
+  if (reapply.reapplyError || reapply.reapplyFailures > 0) {
+    return {
+      ok: true,
+      persistError: reapply.reapplyError ?? 'Failed to apply overlay position',
+    };
+  }
   return { ok: true };
 }

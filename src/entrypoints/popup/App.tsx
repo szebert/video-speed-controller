@@ -88,7 +88,9 @@ function PopupShell({
             size="icon"
             aria-label={t('openSettings')}
             onPress={() => {
-              openExtensionOptionsPage(hostname);
+              void openExtensionOptionsPage(hostname).catch((error) => {
+                console.warn('OPEN_OPTIONS_PAGE failed', error);
+              });
             }}
           >
             <SettingsIcon data-icon="inline-start" />

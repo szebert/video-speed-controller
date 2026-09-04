@@ -28,4 +28,17 @@ describe('openOptionsFromSender', () => {
     ).resolves.toEqual({ ok: true });
     expect(openPage).toHaveBeenCalledWith(null);
   });
+
+  it('reports failure when opening the options page throws', async () => {
+    await expect(
+      openOptionsFromSender(
+        { tab: { id: 3, url: 'https://www.youtube.com/watch' } as chrome.tabs.Tab },
+        {
+          openPage: async () => {
+            throw new Error('tabs.create failed');
+          },
+        },
+      ),
+    ).resolves.toEqual({ ok: false, error: 'tabs.create failed' });
+  });
 });

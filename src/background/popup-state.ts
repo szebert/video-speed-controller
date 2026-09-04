@@ -5,8 +5,14 @@ import type { PopupStateResponse } from '../core/messages';
 import { DEFAULT_SPEED_POLICY } from '../core/speed';
 import { toEffectiveBehavior } from '../settings/site-behavior';
 import { getSiteKey } from '../storage/site-key';
-import { readSiteSpeed, resolveSiteBehaviorForUrl } from '../storage/site-settings';
+import { resolveSiteBehaviorForUrl } from '../storage/site-settings';
 import { getTabState } from '../storage/tab-state';
+
+export type PopupStateDeps = {
+  resolveBehavior?: typeof resolveSiteBehaviorForUrl;
+  readTabState?: typeof getTabState;
+  hasAccess?: (url: string) => Promise<boolean>;
+};
 
 function unsupportedState(): PopupStateResponse {
   return {
@@ -21,24 +27,30 @@ function unsupportedState(): PopupStateResponse {
   };
 }
 
-export async function getPopupState(tabId: number, url: string): Promise<PopupStateResponse> {
+export async function getPopupState(
+  tabId: number,
+  url: string,
+  deps: PopupStateDeps = {},
+): Promise<PopupStateResponse> {
   const siteKey = getSiteKey(url);
   if (!siteKey.supported) {
     return unsupportedState();
   }
 
-  const [siteSpeed, resolved, tabState, siteAccess] = await Promise.all([
-    readSiteSpeed(url),
-    resolveSiteBehaviorForUrl(url, { touchUsage: false }),
-    getTabState(tabId),
-    containsExactOriginAccess(url),
+  const resolveBehavior = deps.resolveBehavior ?? resolveSiteBehaviorForUrl;
+  const readTabState = deps.readTabState ?? getTabState;
+  const hasAccess = deps.hasAccess ?? containsExactOriginAccess;
+  const [resolved, tabState, siteAccess] = await Promise.all([
+    resolveBehavior(url, { touchUsage: false }),
+    readTabState(tabId),
+    hasAccess(url),
   ]);
   const effective = resolved ? toEffectiveBehavior(resolved) : null;
 
   return {
     supported: true,
     hostname: siteKey.hostname,
-    siteSpeed,
+    siteSpeed: effective?.speed ?? null,
     tabTarget: tabState?.targetSpeed ?? null,
     siteAccess,
     speedMin: effective?.speedMin ?? DEFAULT_SPEED_POLICY.min,
