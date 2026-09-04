@@ -6,8 +6,9 @@ import {
   persistGlobalBehaviorOverrides,
   readGlobalBehaviorOverrides,
   resetBehaviorDefaultsRepairBackoff,
+  resetGlobalBehaviorOverrides,
 } from '../storage/behavior-defaults';
-import { OVERLAY_POSITION } from '../settings/site-behavior';
+import { EDITABLE_BEHAVIOR_FIELDS, OVERLAY_POSITION } from '../settings/site-behavior';
 import { resetStorageMutationQueue } from '../storage/storage-mutation-queue';
 import { memoryDurable } from './memory-store';
 
@@ -81,6 +82,24 @@ describe('global behavior defaults', () => {
         speed: { kind: 'value', value: 1.5, updatedAt: 11 },
       },
     });
+  });
+
+  it('writes inherit tombstones for every editable field on reset', async () => {
+    const sync = memoryDurable();
+    const local = memoryDurable();
+    await persistGlobalBehaviorChange(
+      { kind: 'value', field: 'speed', value: 1.5 },
+      { sync, local, now: () => 10 },
+    );
+    await resetGlobalBehaviorOverrides({ sync, local, now: () => 200 });
+    const overrides = (
+      local.data['defaults:site-behavior'] as { overrides: Record<string, unknown> }
+    ).overrides;
+    expect(Object.keys(overrides)).toEqual([...EDITABLE_BEHAVIOR_FIELDS]);
+    for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+      expect(overrides[field]).toEqual({ kind: 'inherit', updatedAt: 200 });
+    }
+    expect(sync.data['defaults:site-behavior']).toMatchObject({ overrides });
   });
 
   it('treats a non-Error rejection as a persistence failure', async () => {

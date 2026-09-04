@@ -798,24 +798,88 @@ describe('site settings storage', () => {
     ]);
   });
 
-  it('deletes one site from Local and Sync', async () => {
-    const deps = pair();
-    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
-    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
-    await deleteSiteSettings('www.youtube.com', deps);
-    expect(deps.local.data['site:www.youtube.com']).toBeUndefined();
-    expect(deps.sync.data['site:www.youtube.com']).toBeUndefined();
-    expect(deps.local.data['site:vimeo.com']).toBeDefined();
-    await expect(listCustomSiteHostnames(deps)).resolves.toEqual(['vimeo.com']);
+  it('omits a site when merged Sync inherit beats a stale Local value', async () => {
+    const deps = pair(200);
+    deps.sync.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 200,
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    };
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 100,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 100 } },
+    };
+    await expect(listCustomSiteHostnames(deps)).resolves.toEqual([]);
   });
 
-  it('deletes every site record from Local and Sync', async () => {
-    const deps = pair();
+  it('tombstones existing site fields instead of removing the record', async () => {
+    const deps = pair(50);
     await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
     await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
-    await deleteAllSiteSettings(deps);
-    expect(Object.keys(deps.local.data).filter((key) => key.startsWith('site:'))).toEqual([]);
-    expect(Object.keys(deps.sync.data).filter((key) => key.startsWith('site:'))).toEqual([]);
-    await expect(listCustomSiteHostnames(deps)).resolves.toEqual([]);
+    await deleteSiteSettings('www.youtube.com', { ...deps, now: () => 200 });
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+    expect(deps.sync.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+    expect(deps.local.data['site:vimeo.com']).toBeDefined();
+    await expect(listCustomSiteHostnames({ ...deps, now: () => 200 })).resolves.toEqual([
+      'vimeo.com',
+    ]);
+  });
+
+  it('refreshes an existing inherit so a later offline value cannot resurrect', async () => {
+    const deps = pair(200);
+    deps.sync.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 100,
+      overrides: { speed: { kind: 'inherit', updatedAt: 100 } },
+    };
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 100,
+      overrides: { speed: { kind: 'inherit', updatedAt: 100 } },
+    };
+    await deleteSiteSettings('www.youtube.com', deps);
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 150,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 150 } },
+    };
+    const resolved = await resolveSiteBehaviorForUrl('https://www.youtube.com/watch', {
+      ...deps,
+      touchUsage: false,
+    });
+    expect(resolved?.speed).toEqual({ value: 1, source: 'built-in' });
+  });
+
+  it('treats delete of a nonexistent or invalid-only site as a successful no-op', async () => {
+    const deps = pair();
+    await expect(deleteSiteSettings('www.youtube.com', deps)).resolves.toBeUndefined();
+    expect(deps.local.data['site:www.youtube.com']).toBeUndefined();
+    deps.sync.data['site:www.youtube.com'] = { schemaVersion: 1, speed: 3 };
+    deps.local.data['site:www.youtube.com'] = { not: 'a record' };
+    await expect(deleteSiteSettings('www.youtube.com', deps)).resolves.toBeUndefined();
+    expect(deps.local.data['site:www.youtube.com']).toEqual({ not: 'a record' });
+    expect(deps.sync.data['site:www.youtube.com']).toEqual({ schemaVersion: 1, speed: 3 });
+  });
+
+  it('tombstones every known site field during Reset All without recursive persist', async () => {
+    const deps = pair(50);
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
+    await deleteAllSiteSettings({ ...deps, now: () => 200 });
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+    expect(deps.local.data['site:vimeo.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+    await expect(listCustomSiteHostnames({ ...deps, now: () => 200 })).resolves.toEqual([]);
   });
 });

@@ -5,6 +5,9 @@ import { DEFAULT_SPEED_POLICY } from '../core/speed';
 import {
   applyBehaviorSettingChange,
   canonicalizeBehaviorSettingChange,
+  EDITABLE_BEHAVIOR_FIELDS,
+  inheritAllEditableFields,
+  tombstoneExistingSiteFields,
   mergeOverrideField,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
@@ -39,6 +42,7 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayPositionButton).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlaySettingsButton).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlayAutoHide).toEqual({ value: true, source: 'built-in' });
+    expect(resolved.overlayHoverHold).toEqual({ value: false, source: 'built-in' });
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
   });
@@ -303,10 +307,12 @@ describe('strict V1 parsers', () => {
       parseBehaviorOverrides({
         overlayPositionButton: { kind: 'value', value: false, updatedAt: 1 },
         overlaySettingsButton: { kind: 'value', value: true, updatedAt: 2 },
+        overlayHoverHold: { kind: 'value', value: false, updatedAt: 3 },
       }),
     ).toEqual({
       overlayPositionButton: { kind: 'value', value: false, updatedAt: 1 },
       overlaySettingsButton: { kind: 'value', value: true, updatedAt: 2 },
+      overlayHoverHold: { kind: 'value', value: false, updatedAt: 3 },
     });
   });
 });
@@ -427,8 +433,11 @@ describe('behavior setting changes', () => {
       canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedTick', value: 0.1 }),
     ).toEqual({ kind: 'value', field: 'speedTick', value: 0.1 });
     expect(
-      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedTick', value: 0.001 }),
-    ).toEqual({ kind: 'value', field: 'speedTick', value: 0.01 });
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedTick', value: 0.0005 }),
+    ).toEqual({ kind: 'value', field: 'speedTick', value: 0.0005 });
+    expect(
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedTick', value: 0.0001 }),
+    ).toEqual({ kind: 'value', field: 'speedTick', value: 0.0005 });
     expect(
       canonicalizeBehaviorSettingChange({ kind: 'inherit', field: 'overlayPosition' }),
     ).toEqual({ kind: 'inherit', field: 'overlayPosition' });
@@ -453,5 +462,22 @@ describe('behavior setting changes', () => {
         value: 'yes',
       } as never),
     ).toBeNull();
+  });
+
+  it('tombstones existing site fields and leaves absent fields absent', () => {
+    expect(
+      tombstoneExistingSiteFields(
+        {
+          speed: { kind: 'value', value: 2, updatedAt: 100 },
+          overlayVisible: { kind: 'inherit', updatedAt: 80 },
+        },
+        200,
+      ),
+    ).toEqual({
+      speed: { kind: 'inherit', updatedAt: 200 },
+      overlayVisible: { kind: 'inherit', updatedAt: 200 },
+    });
+    expect(tombstoneExistingSiteFields({}, 200)).toEqual({});
+    expect(Object.keys(inheritAllEditableFields(5))).toEqual([...EDITABLE_BEHAVIOR_FIELDS]);
   });
 });

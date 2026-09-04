@@ -5,7 +5,7 @@ import { readOverlaySeed } from '../background/applied-behavior';
 import {
   builtInAppliedTabBehavior,
   isAppliedTabBehavior,
-  overlayFieldsFrom,
+  nonTargetBehaviorFrom,
   toAppliedTabBehavior,
 } from '../core/applied-tab-behavior';
 import {
@@ -46,6 +46,7 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.overlayPositionButton).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlaySettingsButton).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHide).toBe(true);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlayHoverHold).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
   });
 
@@ -82,6 +83,6 @@ describe('applied tab behavior', () => {
       readOverlaySeed('https://example.com/watch', async () => {
         throw new Error('offline');
       }),
-    ).resolves.toEqual(overlayFieldsFrom(builtInAppliedTabBehavior()));
+    ).resolves.toEqual(nonTargetBehaviorFrom(builtInAppliedTabBehavior()));
   });
 });

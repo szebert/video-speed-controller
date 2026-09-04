@@ -33,6 +33,7 @@ import {
   withSpeedInherit,
   applyBehaviorSettingChange,
   hasValueOverrides,
+  tombstoneExistingSiteFields,
   type BehaviorSettingChange,
   type BehaviorOverrides,
   type SiteSettingsV1,
@@ -474,21 +475,81 @@ export async function persistSiteSpeedInherit(
   await persistSiteBehaviorChange(url, { kind: 'inherit', field: 'speed' }, deps);
 }
 
+function mergedOverridesForKey(
+  syncAll: Record<string, unknown>,
+  localAll: Record<string, unknown>,
+  key: string,
+): BehaviorOverrides {
+  return mergeBehaviorOverrides(
+    parseSiteSettings(syncAll[key])?.overrides ?? {},
+    parseSiteSettings(localAll[key])?.overrides ?? {},
+  );
+}
+
+async function writeSiteRecordUnlocked(
+  sync: DurableSettingsStore,
+  local: DurableSettingsStore,
+  storageKey: string,
+  record: SiteSettingsV1,
+  now: number,
+): Promise<void> {
+  const [localResult, syncResult] = await Promise.all([
+    local.set({ [storageKey]: record }).then(
+      () => undefined,
+      (error: unknown) => error,
+    ),
+    publishSyncSite(sync, storageKey, record, now).then(
+      () => undefined,
+      (error: unknown) => error,
+    ),
+  ]);
+  const failure = localResult ?? syncResult;
+  if (failure instanceof Error) {
+    throw failure;
+  }
+  if (failure) {
+    throw new Error('Failed to persist site settings');
+  }
+}
+
+function tombstoneMergedSite(merged: BehaviorOverrides, now: number): SiteSettingsV1 | null {
+  const overrides = tombstoneExistingSiteFields(merged, now);
+  if (!hasSemanticOverrides(overrides)) {
+    return null;
+  }
+  return { schemaVersion: 1, overrides, lastUsedAt: now };
+}
+
+export async function readSiteMembership(
+  hostname: string,
+  deps: SiteSettingsDeps = {},
+): Promise<boolean> {
+  const normalized = normalizeSiteHostname(hostname);
+  if (!normalized) {
+    return false;
+  }
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
+    const { sync, local } = stores(deps);
+    const storageKey = getSiteStorageKey({ supported: true, hostname: normalized });
+    const [syncAll, localAll] = await Promise.all([sync.get(storageKey), local.get(storageKey)]);
+    return hasValueOverrides(mergedOverridesForKey(syncAll, localAll, storageKey));
+  });
+}
+
 export async function listCustomSiteHostnames(deps: SiteSettingsDeps = {}): Promise<string[]> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
     const { sync, local } = stores(deps);
     const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
     const hostnames = new Set<string>();
-    for (const source of [syncAll, localAll]) {
-      for (const [key, value] of Object.entries(source)) {
-        const hostname = hostnameFromSiteStorageKey(key);
-        if (!hostname || !normalizeSiteHostname(hostname)) {
-          continue;
-        }
-        const record = parseSiteSettings(value);
-        if (record && hasValueOverrides(record.overrides)) {
-          hostnames.add(hostname);
-        }
+    const keys = new Set([...Object.keys(syncAll), ...Object.keys(localAll)]);
+    for (const key of keys) {
+      const hostname = hostnameFromSiteStorageKey(key);
+      if (!hostname || !normalizeSiteHostname(hostname)) {
+        continue;
+      }
+      const merged = mergedOverridesForKey(syncAll, localAll, key);
+      if (hasValueOverrides(merged)) {
+        hostnames.add(hostname);
       }
     }
     return [...hostnames].sort((left, right) => left.localeCompare(right));
@@ -504,31 +565,22 @@ export async function deleteSiteSettings(
     throw new Error('Cannot delete settings for an unsupported hostname');
   }
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
-    const { sync, local } = stores(deps);
+    const { sync, local, now } = stores(deps);
+    const at = now();
     const storageKey = getSiteStorageKey({ supported: true, hostname: normalized });
-    const [localResult, syncResult] = await Promise.all([
-      local.remove(storageKey).then(
-        () => undefined,
-        (error: unknown) => error,
-      ),
-      sync.remove(storageKey).then(
-        () => undefined,
-        (error: unknown) => error,
-      ),
-    ]);
-    const failure = localResult ?? syncResult;
-    if (failure instanceof Error) {
-      throw failure;
+    const [syncAll, localAll] = await Promise.all([sync.get(storageKey), local.get(storageKey)]);
+    const record = tombstoneMergedSite(mergedOverridesForKey(syncAll, localAll, storageKey), at);
+    if (!record) {
+      return;
     }
-    if (failure) {
-      throw new Error('Failed to delete site settings');
-    }
+    await writeSiteRecordUnlocked(sync, local, storageKey, record, at);
   });
 }
 
 export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promise<void> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
-    const { sync, local } = stores(deps);
+    const { sync, local, now } = stores(deps);
+    const at = now();
     const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
     const keys = [
       ...new Set(
@@ -537,25 +589,12 @@ export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promis
         ),
       ),
     ];
-    if (keys.length === 0) {
-      return;
-    }
-    const [localResult, syncResult] = await Promise.all([
-      local.remove(keys).then(
-        () => undefined,
-        (error: unknown) => error,
-      ),
-      sync.remove(keys).then(
-        () => undefined,
-        (error: unknown) => error,
-      ),
-    ]);
-    const failure = localResult ?? syncResult;
-    if (failure instanceof Error) {
-      throw failure;
-    }
-    if (failure) {
-      throw new Error('Failed to delete site settings');
+    for (const key of keys) {
+      const record = tombstoneMergedSite(mergedOverridesForKey(syncAll, localAll, key), at);
+      if (!record) {
+        continue;
+      }
+      await writeSiteRecordUnlocked(sync, local, key, record, at);
     }
   });
 }

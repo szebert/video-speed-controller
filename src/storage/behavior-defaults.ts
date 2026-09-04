@@ -5,6 +5,7 @@ import {
   REPAIR_BACKOFF_MS,
   applyBehaviorSettingChange,
   behaviorOverridesEqual,
+  inheritAllEditableFields,
   mergeBehaviorOverrides,
   parseGlobalBehaviorSettings,
   type BehaviorOverrides,
@@ -132,5 +133,5 @@ export async function persistGlobalBehaviorChange(
 }
 
 export async function resetGlobalBehaviorOverrides(deps: BehaviorDefaultsDeps = {}): Promise<void> {
-  await persistGlobalBehaviorOverrides(() => ({}), deps);
+  await persistGlobalBehaviorOverrides((_current, now) => inheritAllEditableFields(now), deps);
 }

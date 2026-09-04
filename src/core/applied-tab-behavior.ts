@@ -19,6 +19,7 @@ export type AppliedTabBehavior = {
   overlayPositionButton: boolean;
   overlaySettingsButton: boolean;
   overlayAutoHide: boolean;
+  overlayHoverHold: boolean;
   overlayAutoHideDelayMs: number;
 };
 
@@ -32,6 +33,7 @@ const APPLIED_TAB_BEHAVIOR_KEYS = [
   'overlayPositionButton',
   'overlaySettingsButton',
   'overlayAutoHide',
+  'overlayHoverHold',
   'overlayAutoHideDelayMs',
 ] as const;
 
@@ -49,6 +51,7 @@ export function toAppliedTabBehavior(
     overlayPositionButton: effective.overlayPositionButton,
     overlaySettingsButton: effective.overlaySettingsButton,
     overlayAutoHide: effective.overlayAutoHide,
+    overlayHoverHold: effective.overlayHoverHold,
     overlayAutoHideDelayMs: canonicalizeOverlayAutoHideDelayMs(effective.overlayAutoHideDelayMs),
   };
 }
@@ -71,11 +74,12 @@ export function appliedTabBehaviorEqual(
     left.overlayPositionButton === right.overlayPositionButton &&
     left.overlaySettingsButton === right.overlaySettingsButton &&
     left.overlayAutoHide === right.overlayAutoHide &&
+    left.overlayHoverHold === right.overlayHoverHold &&
     left.overlayAutoHideDelayMs === right.overlayAutoHideDelayMs
   );
 }
 
-export function overlayFieldsFrom(
+export function nonTargetBehaviorFrom(
   behavior: AppliedTabBehavior,
 ): Omit<AppliedTabBehavior, 'targetSpeed'> {
   return {
@@ -87,6 +91,7 @@ export function overlayFieldsFrom(
     overlayPositionButton: behavior.overlayPositionButton,
     overlaySettingsButton: behavior.overlaySettingsButton,
     overlayAutoHide: behavior.overlayAutoHide,
+    overlayHoverHold: behavior.overlayHoverHold,
     overlayAutoHideDelayMs: behavior.overlayAutoHideDelayMs,
   };
 }
@@ -127,6 +132,7 @@ export function isAppliedTabBehavior(value: unknown): value is AppliedTabBehavio
     typeof record.overlayPositionButton === 'boolean' &&
     typeof record.overlaySettingsButton === 'boolean' &&
     typeof record.overlayAutoHide === 'boolean' &&
+    typeof record.overlayHoverHold === 'boolean' &&
     typeof record.overlayAutoHideDelayMs === 'number' &&
     Number.isFinite(record.overlayAutoHideDelayMs)
   );

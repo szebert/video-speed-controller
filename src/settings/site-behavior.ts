@@ -97,6 +97,7 @@ export type SiteBehavior = {
   overlayPositionButton: boolean;
   overlaySettingsButton: boolean;
   overlayAutoHide: boolean;
+  overlayHoverHold: boolean;
   overlayAutoHideDelayMs: number;
   hotkeys: Partial<Record<SiteHotkeyAction, HotkeyBinding | null>>;
 };
@@ -114,6 +115,7 @@ export type BehaviorOverrides = {
   overlayPositionButton?: Override<boolean>;
   overlaySettingsButton?: Override<boolean>;
   overlayAutoHide?: Override<boolean>;
+  overlayHoverHold?: Override<boolean>;
   overlayAutoHideDelayMs?: Override<number>;
   hotkeys?: Partial<Record<SiteHotkeyAction, Override<HotkeyBinding | null>>>;
 };
@@ -139,6 +141,7 @@ export type ResolvedSiteBehavior = {
   overlayPositionButton: ResolvedSetting<boolean>;
   overlaySettingsButton: ResolvedSetting<boolean>;
   overlayAutoHide: ResolvedSetting<boolean>;
+  overlayHoverHold: ResolvedSetting<boolean>;
   overlayAutoHideDelayMs: ResolvedSetting<number>;
   hotkeys: Partial<Record<SiteHotkeyAction, ResolvedSetting<HotkeyBinding | null>>>;
 };
@@ -153,6 +156,7 @@ export const BUILT_IN_SITE_BEHAVIOR: SiteBehavior = {
   overlayPositionButton: true,
   overlaySettingsButton: true,
   overlayAutoHide: true,
+  overlayHoverHold: false,
   overlayAutoHideDelayMs: 2000,
   hotkeys: {},
 };
@@ -225,6 +229,7 @@ const BEHAVIOR_OVERRIDE_KEYS = new Set([
   'overlayPositionButton',
   'overlaySettingsButton',
   'overlayAutoHide',
+  'overlayHoverHold',
   'overlayAutoHideDelayMs',
   'hotkeys',
 ]);
@@ -292,6 +297,12 @@ export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null
       return null;
     }
     overrides.overlayAutoHide = raw.overlayAutoHide;
+  }
+  if ('overlayHoverHold' in raw) {
+    if (!isOverride(raw.overlayHoverHold, isBoolean)) {
+      return null;
+    }
+    overrides.overlayHoverHold = raw.overlayHoverHold;
   }
   if ('overlayAutoHideDelayMs' in raw) {
     if (!isOverride(raw.overlayAutoHideDelayMs, isNonNegativeIntegerMs)) {
@@ -388,6 +399,9 @@ export function listOverrides(overrides: BehaviorOverrides): Override<unknown>[]
   if (overrides.overlayAutoHide) {
     listed.push(overrides.overlayAutoHide);
   }
+  if (overrides.overlayHoverHold) {
+    listed.push(overrides.overlayHoverHold);
+  }
   if (overrides.overlayAutoHideDelayMs) {
     listed.push(overrides.overlayAutoHideDelayMs);
   }
@@ -462,6 +476,12 @@ export function toSyncEligibleSiteRecord(
     !isExpiredSiteInherit(record.overrides.overlayAutoHide, now)
   ) {
     overrides.overlayAutoHide = record.overrides.overlayAutoHide;
+  }
+  if (
+    record.overrides.overlayHoverHold &&
+    !isExpiredSiteInherit(record.overrides.overlayHoverHold, now)
+  ) {
+    overrides.overlayHoverHold = record.overrides.overlayHoverHold;
   }
   if (
     record.overrides.overlayAutoHideDelayMs &&
@@ -568,6 +588,13 @@ export function mergeBehaviorOverrides(
   );
   if (overlayAutoHide) {
     merged.overlayAutoHide = overlayAutoHide;
+  }
+  const overlayHoverHold = mergeOverrideField(
+    syncOverrides.overlayHoverHold,
+    localOverrides.overlayHoverHold,
+  );
+  if (overlayHoverHold) {
+    merged.overlayHoverHold = overlayHoverHold;
   }
   const overlayAutoHideDelayMs = mergeOverrideField(
     syncOverrides.overlayAutoHideDelayMs,
@@ -681,6 +708,11 @@ export function resolveSiteBehavior(
       globalOverrides.overlayAutoHide,
       siteOverrides.overlayAutoHide,
     ),
+    overlayHoverHold: resolveOverride(
+      BUILT_IN_SITE_BEHAVIOR.overlayHoverHold,
+      globalOverrides.overlayHoverHold,
+      siteOverrides.overlayHoverHold,
+    ),
     overlayAutoHideDelayMs: clampResolvedOverlayAutoHideDelay(
       resolveOverride(
         BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs,
@@ -710,6 +742,7 @@ export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavio
     overlayPositionButton: resolved.overlayPositionButton.value,
     overlaySettingsButton: resolved.overlaySettingsButton.value,
     overlayAutoHide: resolved.overlayAutoHide.value,
+    overlayHoverHold: resolved.overlayHoverHold.value,
     overlayAutoHideDelayMs: resolved.overlayAutoHideDelayMs.value,
     hotkeys,
   };
@@ -726,6 +759,7 @@ export function behaviorOverridesEqual(left: BehaviorOverrides, right: BehaviorO
     fieldsEqual(left.overlayPositionButton, right.overlayPositionButton) &&
     fieldsEqual(left.overlaySettingsButton, right.overlaySettingsButton) &&
     fieldsEqual(left.overlayAutoHide, right.overlayAutoHide) &&
+    fieldsEqual(left.overlayHoverHold, right.overlayHoverHold) &&
     fieldsEqual(left.overlayAutoHideDelayMs, right.overlayAutoHideDelayMs) &&
     SITE_HOTKEY_ACTIONS.every((action) =>
       fieldsEqual(left.hotkeys?.[action], right.hotkeys?.[action]),
@@ -753,6 +787,7 @@ export type EditableBehaviorField =
   | 'overlayPositionButton'
   | 'overlaySettingsButton'
   | 'overlayAutoHide'
+  | 'overlayHoverHold'
   | 'overlayAutoHideDelayMs';
 
 export const EDITABLE_BEHAVIOR_FIELDS = [
@@ -765,6 +800,7 @@ export const EDITABLE_BEHAVIOR_FIELDS = [
   'overlayPositionButton',
   'overlaySettingsButton',
   'overlayAutoHide',
+  'overlayHoverHold',
   'overlayAutoHideDelayMs',
 ] as const satisfies readonly EditableBehaviorField[];
 
@@ -773,6 +809,7 @@ export const BOOLEAN_BEHAVIOR_FIELDS = [
   'overlayPositionButton',
   'overlaySettingsButton',
   'overlayAutoHide',
+  'overlayHoverHold',
 ] as const satisfies readonly EditableBehaviorField[];
 
 export function isBooleanBehaviorField(
@@ -793,6 +830,7 @@ export type BehaviorSettingChange =
   | { kind: 'value'; field: 'overlayPositionButton'; value: boolean }
   | { kind: 'value'; field: 'overlaySettingsButton'; value: boolean }
   | { kind: 'value'; field: 'overlayAutoHide'; value: boolean }
+  | { kind: 'value'; field: 'overlayHoverHold'; value: boolean }
   | { kind: 'value'; field: 'overlayAutoHideDelayMs'; value: number }
   | { kind: 'inherit'; field: EditableBehaviorField };
 
@@ -804,10 +842,6 @@ export function isEditableBehaviorField(value: unknown): value is EditableBehavi
   return (
     typeof value === 'string' && (EDITABLE_BEHAVIOR_FIELDS as readonly string[]).includes(value)
   );
-}
-
-export function isSpeedRetargetField(field: EditableBehaviorField): boolean {
-  return field === 'speed' || field === 'speedMin' || field === 'speedMax';
 }
 
 export function speedPolicyFromResolved(
@@ -833,8 +867,44 @@ export function toEditableResolvedBehavior(
     overlayPositionButton: resolved.overlayPositionButton,
     overlaySettingsButton: resolved.overlaySettingsButton,
     overlayAutoHide: resolved.overlayAutoHide,
+    overlayHoverHold: resolved.overlayHoverHold,
     overlayAutoHideDelayMs: resolved.overlayAutoHideDelayMs,
   };
+}
+
+const SCALAR_OVERRIDE_FIELDS = [
+  'speed',
+  'speedMin',
+  'speedMax',
+  'speedTick',
+  'overlayVisible',
+  'overlayPosition',
+  'overlayPositionButton',
+  'overlaySettingsButton',
+  'overlayAutoHide',
+  'overlayHoverHold',
+  'overlayAutoHideDelayMs',
+] as const satisfies readonly Exclude<keyof BehaviorOverrides, 'hotkeys'>[];
+
+export function tombstoneExistingSiteFields(
+  current: BehaviorOverrides,
+  updatedAt: number,
+): BehaviorOverrides {
+  const next: BehaviorOverrides = {};
+  for (const field of SCALAR_OVERRIDE_FIELDS) {
+    if (current[field]) {
+      next[field] = { kind: 'inherit', updatedAt };
+    }
+  }
+  return next;
+}
+
+export function inheritAllEditableFields(updatedAt: number): BehaviorOverrides {
+  const overrides: BehaviorOverrides = {};
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+    overrides[field] = { kind: 'inherit', updatedAt };
+  }
+  return overrides;
 }
 
 export function applyBehaviorSettingChange(
