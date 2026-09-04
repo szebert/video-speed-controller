@@ -23,9 +23,7 @@ function RadioGroup({ className, ...props }: RadioGroupProps) {
 }
 
 function RadioField({ className, ...props }: RadioFieldProps) {
-  return (
-    <RadioFieldPrimitive data-slot="radio-field" className={cn(className)} {...props} />
-  );
+  return <RadioFieldPrimitive data-slot="radio-field" className={cn(className)} {...props} />;
 }
 
 function RadioButton({ className, ...props }: RadioButtonProps) {

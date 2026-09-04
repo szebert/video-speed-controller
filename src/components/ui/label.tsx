@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import {
-  LabelContext,
-  Label as LabelPrimitive,
-  type LabelProps,
-} from 'react-aria-components';
+import { LabelContext, Label as LabelPrimitive, type LabelProps } from 'react-aria-components';
 
 import { cn } from '@/lib/utils';
 
