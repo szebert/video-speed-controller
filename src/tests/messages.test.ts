@@ -75,6 +75,8 @@ describe('isExtensionRequest', () => {
     expect(isExtensionRequest({ type: 'OPEN_OPTIONS_PAGE', extra: true })).toBe(false);
     expect(isExtensionRequest({ type: 'UNKNOWN' })).toBe(false);
     expect(isExtensionRequest({ type: 'GET_BEHAVIOR_SETTINGS' })).toBe(true);
+    expect(isExtensionRequest({ type: 'GET_CUSTOM_SITES' })).toBe(true);
+    expect(isExtensionRequest({ type: 'GET_CUSTOM_SITES', extra: true })).toBe(false);
     expect(isExtensionRequest({ type: 'GET_BEHAVIOR_SETTINGS', hostname: 'example.com' })).toBe(
       true,
     );
@@ -133,6 +135,13 @@ describe('isExtensionRequest', () => {
         type: 'SET_BEHAVIOR_SETTING',
         scope: { kind: 'global' },
         change: { kind: 'value', field: 'overlaySettingsButton', value: true },
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'overlayHoverHold', value: false },
       }),
     ).toBe(true);
     expect(

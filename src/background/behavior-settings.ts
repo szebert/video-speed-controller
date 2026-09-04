@@ -5,10 +5,12 @@ import type {
   DeleteSiteSettingsRequest,
   GetBehaviorSettingsRequest,
   GetBehaviorSettingsResponse,
+  GetCustomSitesResponse,
   ResetAllBehaviorRequest,
   ResetGlobalBehaviorRequest,
   SetBehaviorSettingRequest,
   SetBehaviorSettingResponse,
+  SiteMembershipUpdate,
 } from '../core/messages';
 import {
   canonicalizeBehaviorSettingChange,
@@ -27,12 +29,14 @@ import {
   deleteSiteSettings,
   listCustomSiteHostnames,
   persistSiteBehaviorChange,
+  readSiteMembership,
   resolveSiteBehaviorForUrl,
   type SiteSettingsDeps,
 } from '../storage/site-settings';
 import { isExtensionPageSender } from './extension-page-sender';
 import {
   reapplyBehaviorSettings,
+  reapplyModeForField,
   type ReapplyBehaviorRequest,
   type ReapplyBehaviorSettingsDeps,
 } from './reapply-behavior-settings';
@@ -49,13 +53,10 @@ export async function readBehaviorSettingsSnapshot(
   hostname: string | null,
   deps: BehaviorSettingsDeps = {},
 ): Promise<BehaviorSettingsSnapshot> {
-  const [globalOverrides, customSites] = await Promise.all([
-    readGlobalBehaviorOverrides(deps),
-    listCustomSiteHostnames(deps),
-  ]);
+  const globalOverrides = await readGlobalBehaviorOverrides(deps);
   const global = toEditableResolvedBehavior(resolveSiteBehavior(globalOverrides, {}));
   if (!hostname) {
-    return { global, site: null, customSites };
+    return { global, site: null };
   }
   const resolved = await resolveSiteBehaviorForUrl(siteResolutionUrl(hostname), {
     ...deps,
@@ -67,7 +68,6 @@ export async function readBehaviorSettingsSnapshot(
       hostname,
       behavior: resolved ? toEditableResolvedBehavior(resolved) : global,
     },
-    customSites,
   };
 }
 
@@ -84,20 +84,44 @@ function validatedOptionalHostname(
   return { ok: true, hostname: normalized };
 }
 
+async function siteMembershipOf(
+  hostname: string,
+  deps: BehaviorSettingsDeps,
+): Promise<SiteMembershipUpdate | undefined> {
+  try {
+    return {
+      hostname,
+      customized: await readSiteMembership(hostname, deps),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 async function afterPersist(
   snapshotHostname: string | null,
   request: ReapplyBehaviorRequest,
   deps: BehaviorSettingsDeps,
+  membershipHostname: string | null = null,
 ): Promise<SetBehaviorSettingResponse> {
   const reapply = await reapplyBehaviorSettings(request, deps);
+  const siteMembership = membershipHostname
+    ? await siteMembershipOf(membershipHostname, deps)
+    : undefined;
   try {
     const state = await readBehaviorSettingsSnapshot(snapshotHostname, deps);
-    return { ok: true, state, ...reapply };
+    return {
+      ok: true,
+      state,
+      ...reapply,
+      ...(siteMembership ? { siteMembership } : {}),
+    };
   } catch (error) {
     return {
       ok: true,
       snapshotError: errorMessage(error, 'Failed to refresh settings'),
       ...reapply,
+      ...(siteMembership ? { siteMembership } : {}),
     };
   }
 }
@@ -118,6 +142,20 @@ export async function getBehaviorSettings(
     return { ok: true, state: await readBehaviorSettingsSnapshot(hostname.hostname, deps) };
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to read settings') };
+  }
+}
+
+export async function getCustomSites(
+  sender: chrome.runtime.MessageSender,
+  deps: BehaviorSettingsDeps = {},
+): Promise<GetCustomSitesResponse> {
+  if (!isExtensionPageSender(sender)) {
+    return { ok: false, error: 'Unauthorized' };
+  }
+  try {
+    return { ok: true, customSites: await listCustomSiteHostnames(deps) };
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, 'Failed to list sites') };
   }
 }
 
@@ -158,16 +196,15 @@ export async function setBehaviorSetting(
     return { ok: false, error: errorMessage(error, 'Failed to persist setting') };
   }
 
+  const scope = message.scope.kind === 'global' ? 'global' : 'site';
   return afterPersist(
     snapshot.hostname,
     {
-      scope:
-        message.scope.kind === 'global'
-          ? { kind: 'global' }
-          : { kind: 'site', hostname: persistHostname! },
-      change,
+      scope: scope === 'global' ? { kind: 'global' } : { kind: 'site', hostname: persistHostname! },
+      mode: reapplyModeForField(scope, change.field),
     },
     deps,
+    persistHostname,
   );
 }
 
@@ -197,8 +234,9 @@ export async function deleteSiteBehaviorSettings(
 
   return afterPersist(
     snapshot.hostname,
-    { scope: { kind: 'site', hostname }, change: { kind: 'inherit', field: 'speed' } },
+    { scope: { kind: 'site', hostname }, mode: 'resolve-target' },
     deps,
+    hostname,
   );
 }
 
@@ -224,7 +262,7 @@ export async function resetGlobalBehaviorSettings(
 
   return afterPersist(
     snapshot.hostname,
-    { scope: { kind: 'global' }, change: { kind: 'inherit', field: 'overlayVisible' } },
+    { scope: { kind: 'global' }, mode: 'revalidate-target' },
     deps,
   );
 }
@@ -250,9 +288,5 @@ export async function resetAllBehaviorSettings(
     return { ok: false, error: errorMessage(error, 'Failed to reset settings') };
   }
 
-  return afterPersist(
-    snapshot.hostname,
-    { scope: { kind: 'all' }, change: { kind: 'inherit', field: 'speed' } },
-    deps,
-  );
+  return afterPersist(snapshot.hostname, { scope: { kind: 'all' }, mode: 'resolve-target' }, deps);
 }

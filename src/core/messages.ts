@@ -76,6 +76,10 @@ export type GetBehaviorSettingsRequest = {
   hostname?: string;
 };
 
+export type GetCustomSitesRequest = {
+  type: 'GET_CUSTOM_SITES';
+};
+
 export type SetBehaviorSettingRequest = {
   type: 'SET_BEHAVIOR_SETTING';
   scope: BehaviorSettingsScope;
@@ -112,6 +116,7 @@ export type ExtensionRequest =
   | SetOverlayPositionRequest
   | OpenOptionsPageRequest
   | GetBehaviorSettingsRequest
+  | GetCustomSitesRequest
   | SetBehaviorSettingRequest
   | DeleteSiteSettingsRequest
   | ResetGlobalBehaviorRequest
@@ -141,11 +146,18 @@ export type BehaviorSettingsSnapshot = {
     hostname: string;
     behavior: EditableResolvedBehavior;
   } | null;
-  customSites: string[];
 };
 
 export type GetBehaviorSettingsResponse =
   { ok: true; state: BehaviorSettingsSnapshot } | { ok: false; error: string };
+
+export type GetCustomSitesResponse =
+  { ok: true; customSites: string[] } | { ok: false; error: string };
+
+export type SiteMembershipUpdate = {
+  hostname: string;
+  customized: boolean;
+};
 
 export type ReapplyResult = {
   reappliedTabs: number;
@@ -154,8 +166,18 @@ export type ReapplyResult = {
 };
 
 export type SetBehaviorSettingResponse =
-  | ({ ok: true; state: BehaviorSettingsSnapshot; snapshotError?: never } & ReapplyResult)
-  | ({ ok: true; state?: never; snapshotError: string } & ReapplyResult)
+  | ({
+      ok: true;
+      state: BehaviorSettingsSnapshot;
+      snapshotError?: never;
+      siteMembership?: SiteMembershipUpdate;
+    } & ReapplyResult)
+  | ({
+      ok: true;
+      state?: never;
+      snapshotError: string;
+      siteMembership?: SiteMembershipUpdate;
+    } & ReapplyResult)
   | { ok: false; error: string };
 
 function isNonNegativeInteger(value: unknown): value is number {
@@ -301,6 +323,8 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
       );
     case 'GET_BEHAVIOR_SETTINGS':
       return isGetBehaviorSettingsRequest(value);
+    case 'GET_CUSTOM_SITES':
+      return hasExactKeys(value, ['type']);
     case 'SET_BEHAVIOR_SETTING':
       return isSetBehaviorSettingRequest(value);
     case 'DELETE_SITE_SETTINGS':

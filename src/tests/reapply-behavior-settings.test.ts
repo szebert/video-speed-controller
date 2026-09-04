@@ -5,7 +5,7 @@ import { applyTabBehavior } from '../background/broadcast';
 import { reapplyBehaviorSettings } from '../background/reapply-behavior-settings';
 import { enqueueTabMutation, resetTabMutationQueue } from '../background/tab-mutation-queue';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
-import type { TabStateStore } from '../storage/tab-state';
+import { listTargetedTabIds, type TabStateStore } from '../storage/tab-state';
 import { tabBehavior } from './tab-behavior-fixture';
 
 function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
@@ -39,14 +39,14 @@ describe('reapplyBehaviorSettings', () => {
   });
 
   it('does not apply a global speed change', async () => {
-    const queryTabs = vi.fn(async () => [tab(1, 'https://www.youtube.com/watch')]);
+    const listTabIds = vi.fn(async () => [1]);
     const apply = vi.fn();
     const result = await reapplyBehaviorSettings(
-      { scope: { kind: 'global' }, change: { kind: 'value', field: 'speed', value: 1.5 } },
-      { queryTabs, apply },
+      { scope: { kind: 'global' }, mode: 'none' },
+      { listTabIds, apply },
     );
     expect(result).toEqual({ reappliedTabs: 0, reapplyFailures: 0 });
-    expect(queryTabs).not.toHaveBeenCalled();
+    expect(listTabIds).not.toHaveBeenCalled();
     expect(apply).not.toHaveBeenCalled();
   });
 
@@ -57,12 +57,8 @@ describe('reapplyBehaviorSettings', () => {
     });
     const apply = vi.fn();
     const result = await reapplyBehaviorSettings(
+      { scope: { kind: 'global' }, mode: 'preserve-target' },
       {
-        scope: { kind: 'global' },
-        change: { kind: 'value', field: 'overlayPosition', value: OVERLAY_POSITION.BOTTOM_RIGHT },
-      },
-      {
-        queryTabs: async () => [tab(1, 'https://www.youtube.com/watch')],
         getTab: async () => tab(1, 'https://www.youtube.com/watch'),
         tabStateStore: store,
         readBehavior: async () =>
@@ -91,15 +87,8 @@ describe('reapplyBehaviorSettings', () => {
     });
     const apply = vi.fn();
     const result = await reapplyBehaviorSettings(
+      { scope: { kind: 'site', hostname: 'www.youtube.com' }, mode: 'resolve-target' },
       {
-        scope: { kind: 'site', hostname: 'www.youtube.com' },
-        change: { kind: 'inherit', field: 'speed' },
-      },
-      {
-        queryTabs: async () => [
-          tab(1, 'https://www.youtube.com/watch'),
-          tab(2, 'https://vimeo.com/1'),
-        ],
         getTab: async (id) =>
           id === 1 ? tab(1, 'https://www.youtube.com/watch') : tab(2, 'https://vimeo.com/1'),
         tabStateStore: store,
@@ -119,20 +108,16 @@ describe('reapplyBehaviorSettings', () => {
     expect(apply).toHaveBeenCalledTimes(1);
   });
 
-  it('retargets when a site max speed change clamps the current tab', async () => {
+  it('clamps the previous target when revalidating site max speed', async () => {
     const store = memoryTabStore();
     await store.set({ 'tab:1': tabBehavior(4) });
     const apply = vi.fn();
     const result = await reapplyBehaviorSettings(
+      { scope: { kind: 'site', hostname: 'www.youtube.com' }, mode: 'revalidate-target' },
       {
-        scope: { kind: 'site', hostname: 'www.youtube.com' },
-        change: { kind: 'value', field: 'speedMax', value: 2 },
-      },
-      {
-        queryTabs: async () => [tab(1, 'https://www.youtube.com/watch')],
         getTab: async () => tab(1, 'https://www.youtube.com/watch'),
         tabStateStore: store,
-        readBehavior: async () => tabBehavior(2, { speedMax: 2 }),
+        readBehavior: async () => tabBehavior(1, { speedMax: 2 }),
         apply,
         enqueue: enqueueTabMutation,
       },
@@ -141,17 +126,31 @@ describe('reapplyBehaviorSettings', () => {
     expect(store.data['tab:1']).toEqual(tabBehavior(2, { speedMax: 2 }));
   });
 
+  it('keeps an in-range target when revalidating instead of resolving a new default', async () => {
+    const store = memoryTabStore();
+    await store.set({ 'tab:1': tabBehavior(3) });
+    const apply = vi.fn();
+    const result = await reapplyBehaviorSettings(
+      { scope: { kind: 'global' }, mode: 'revalidate-target' },
+      {
+        getTab: async () => tab(1, 'https://www.youtube.com/watch'),
+        tabStateStore: store,
+        readBehavior: async () => tabBehavior(1, { speedMin: 0.5 }),
+        apply,
+        enqueue: enqueueTabMutation,
+      },
+    );
+    expect(result).toEqual({ reappliedTabs: 1, reapplyFailures: 0 });
+    expect(store.data['tab:1']).toEqual(tabBehavior(3, { speedMin: 0.5 }));
+  });
+
   it('uses the current tabs.get URL rather than the discovery-time URL', async () => {
     const store = memoryTabStore();
     await store.set({ 'tab:1': tabBehavior(1.25) });
     const apply = vi.fn();
     const result = await reapplyBehaviorSettings(
+      { scope: { kind: 'site', hostname: 'www.youtube.com' }, mode: 'preserve-target' },
       {
-        scope: { kind: 'site', hostname: 'www.youtube.com' },
-        change: { kind: 'value', field: 'overlayPosition', value: OVERLAY_POSITION.BOTTOM_RIGHT },
-      },
-      {
-        queryTabs: async () => [tab(1, 'https://vimeo.com/stale')],
         getTab: async () => tab(1, 'https://www.youtube.com/watch'),
         tabStateStore: store,
         readBehavior: async (url, options) => {
@@ -172,12 +171,8 @@ describe('reapplyBehaviorSettings', () => {
     const previous = tabBehavior(1.25);
     await store.set({ 'tab:1': previous });
     const result = await reapplyBehaviorSettings(
+      { scope: { kind: 'global' }, mode: 'preserve-target' },
       {
-        scope: { kind: 'global' },
-        change: { kind: 'value', field: 'overlayAutoHide', value: false },
-      },
-      {
-        queryTabs: async () => [tab(1, 'https://www.youtube.com/watch')],
         getTab: async () => tab(1, 'https://www.youtube.com/watch'),
         tabStateStore: store,
         readBehavior: async () => tabBehavior(1, { overlayAutoHide: false }),
@@ -200,12 +195,8 @@ describe('reapplyBehaviorSettings', () => {
     const previous = tabBehavior(1.25);
     await store.set({ 'tab:1': previous });
     const result = await reapplyBehaviorSettings(
+      { scope: { kind: 'site', hostname: 'www.youtube.com' }, mode: 'resolve-target' },
       {
-        scope: { kind: 'site', hostname: 'www.youtube.com' },
-        change: { kind: 'value', field: 'speed', value: 1.5 },
-      },
-      {
-        queryTabs: async () => [tab(1, 'https://www.youtube.com/watch')],
         getTab: async () => tab(1, 'https://www.youtube.com/watch'),
         tabStateStore: store,
         readBehavior: async () => {
@@ -219,22 +210,19 @@ describe('reapplyBehaviorSettings', () => {
     expect(store.data['tab:1']).toEqual(previous);
   });
 
-  it('surfaces query failure as reapplyError without counting phantom tabs', async () => {
+  it('surfaces discovery failure as reapplyError without counting phantom tabs', async () => {
     const result = await reapplyBehaviorSettings(
+      { scope: { kind: 'global' }, mode: 'preserve-target' },
       {
-        scope: { kind: 'global' },
-        change: { kind: 'value', field: 'overlayPosition', value: OVERLAY_POSITION.BOTTOM_LEFT },
-      },
-      {
-        queryTabs: async () => {
-          throw new Error('tabs.query failed');
+        listTabIds: async () => {
+          throw new Error('session.get failed');
         },
       },
     );
     expect(result).toEqual({
       reappliedTabs: 0,
       reapplyFailures: 0,
-      reapplyError: 'tabs.query failed',
+      reapplyError: 'session.get failed',
     });
   });
 
@@ -244,12 +232,8 @@ describe('reapplyBehaviorSettings', () => {
     let latest = tabBehavior(1, { overlayPosition: OVERLAY_POSITION.BOTTOM_LEFT });
     const apply = vi.fn();
     const first = reapplyBehaviorSettings(
+      { scope: { kind: 'global' }, mode: 'preserve-target' },
       {
-        scope: { kind: 'global' },
-        change: { kind: 'value', field: 'overlayPosition', value: OVERLAY_POSITION.BOTTOM_LEFT },
-      },
-      {
-        queryTabs: async () => [tab(1, 'https://www.youtube.com/watch')],
         getTab: async () => tab(1, 'https://www.youtube.com/watch'),
         tabStateStore: store,
         readBehavior: async () => latest,
@@ -259,12 +243,8 @@ describe('reapplyBehaviorSettings', () => {
     );
     latest = tabBehavior(1, { overlayPosition: OVERLAY_POSITION.BOTTOM_RIGHT });
     const second = reapplyBehaviorSettings(
+      { scope: { kind: 'global' }, mode: 'preserve-target' },
       {
-        scope: { kind: 'global' },
-        change: { kind: 'value', field: 'overlayPosition', value: OVERLAY_POSITION.BOTTOM_RIGHT },
-      },
-      {
-        queryTabs: async () => [tab(1, 'https://www.youtube.com/watch')],
         getTab: async () => tab(1, 'https://www.youtube.com/watch'),
         tabStateStore: store,
         readBehavior: async () => latest,
@@ -286,12 +266,8 @@ describe('reapplyBehaviorSettings', () => {
     });
     const apply = vi.fn();
     const result = await reapplyBehaviorSettings(
-      { scope: { kind: 'all' }, change: { kind: 'inherit', field: 'speed' } },
+      { scope: { kind: 'all' }, mode: 'resolve-target' },
       {
-        queryTabs: async () => [
-          tab(1, 'https://www.youtube.com/watch'),
-          tab(2, 'https://vimeo.com/1'),
-        ],
         getTab: async (id) =>
           id === 1 ? tab(1, 'https://www.youtube.com/watch') : tab(2, 'https://vimeo.com/1'),
         tabStateStore: store,
@@ -304,5 +280,15 @@ describe('reapplyBehaviorSettings', () => {
     expect(store.data['tab:1']).toEqual(tabBehavior(1));
     expect(store.data['tab:2']).toEqual(tabBehavior(1));
     expect(apply).toHaveBeenCalledTimes(2);
+  });
+
+  it('discovers only strict tab:<id> session keys', async () => {
+    const store = memoryTabStore();
+    await store.set({
+      'tab:1': tabBehavior(1.25),
+      'tab:01': tabBehavior(2),
+      'e2e:popup-target-url': 'https://www.youtube.com/watch',
+    });
+    await expect(listTargetedTabIds(store)).resolves.toEqual([1]);
   });
 });

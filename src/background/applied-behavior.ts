@@ -2,7 +2,7 @@
 
 import {
   builtInAppliedTabBehavior,
-  overlayFieldsFrom,
+  nonTargetBehaviorFrom,
   toAppliedTabBehavior,
   type AppliedTabBehavior,
 } from '../core/applied-tab-behavior';
@@ -30,8 +30,8 @@ export async function readOverlaySeed(
     readAppliedTabBehavior(targetUrl, { touchUsage: false }),
 ): Promise<OverlaySeed> {
   try {
-    return overlayFieldsFrom(await readBehavior(url));
+    return nonTargetBehaviorFrom(await readBehavior(url));
   } catch {
-    return overlayFieldsFrom(builtInAppliedTabBehavior());
+    return nonTargetBehaviorFrom(builtInAppliedTabBehavior());
   }
 }

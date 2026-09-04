@@ -14,6 +14,27 @@ export type TabStateStore = {
 
 const tabKey = (tabId: number): string => `tab:${tabId}`;
 
+export function tabIdFromKey(key: string): number | null {
+  const match = /^tab:(0|[1-9]\d*)$/.exec(key);
+  if (!match) {
+    return null;
+  }
+  const tabId = Number(match[1]);
+  return Number.isSafeInteger(tabId) ? tabId : null;
+}
+
+export async function listTargetedTabIds(store: TabStateStore = sessionStore()): Promise<number[]> {
+  const all = await store.get(null);
+  const ids: number[] = [];
+  for (const key of Object.keys(all)) {
+    const tabId = tabIdFromKey(key);
+    if (tabId != null) {
+      ids.push(tabId);
+    }
+  }
+  return ids;
+}
+
 function sessionStore(): TabStateStore {
   return chrome.storage.session;
 }

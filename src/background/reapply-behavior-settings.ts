@@ -2,19 +2,28 @@
 
 import {
   appliedTabBehaviorEqual,
-  overlayFieldsFrom,
+  nonTargetBehaviorFrom,
+  speedPolicyFromApplied,
   type AppliedTabBehavior,
 } from '../core/applied-tab-behavior';
+import { resolveEffectiveSpeed } from '../core/speed';
 import type { BehaviorSettingsScope, ReapplyResult } from '../core/messages';
-import { isSpeedRetargetField, type BehaviorSettingChange } from '../settings/site-behavior';
+import type { EditableBehaviorField } from '../settings/site-behavior';
 import { getSiteKey } from '../storage/site-key';
-import { getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
+import {
+  getTabState,
+  listTargetedTabIds,
+  setTabState,
+  type TabStateStore,
+} from '../storage/tab-state';
 import { enqueueTabMutation } from './tab-mutation-queue';
 import { applyTabBehavior, type TabMessenger } from './broadcast';
 import { readAppliedTabBehavior } from './applied-behavior';
 
+export type ReapplyMode = 'none' | 'preserve-target' | 'revalidate-target' | 'resolve-target';
+
 export type ReapplyBehaviorSettingsDeps = {
-  queryTabs?: () => Promise<chrome.tabs.Tab[]>;
+  listTabIds?: () => Promise<number[]>;
   getTab?: (tabId: number) => Promise<chrome.tabs.Tab>;
   getTabState?: typeof getTabState;
   setTabState?: typeof setTabState;
@@ -29,8 +38,21 @@ export type ReapplyScope = BehaviorSettingsScope | { kind: 'all' };
 
 export type ReapplyBehaviorRequest = {
   scope: ReapplyScope;
-  change: BehaviorSettingChange;
+  mode: ReapplyMode;
 };
+
+export function reapplyModeForField(
+  scope: 'global' | 'site',
+  field: EditableBehaviorField,
+): ReapplyMode {
+  if (field === 'speed') {
+    return scope === 'global' ? 'none' : 'resolve-target';
+  }
+  if (field === 'speedMin' || field === 'speedMax') {
+    return 'revalidate-target';
+  }
+  return 'preserve-target';
+}
 
 type TabOutcome = 'applied' | 'skipped' | 'failed';
 
@@ -38,11 +60,31 @@ function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function nextBehavior(
+  previous: AppliedTabBehavior,
+  fresh: AppliedTabBehavior,
+  mode: Exclude<ReapplyMode, 'none'>,
+): AppliedTabBehavior {
+  if (mode === 'resolve-target') {
+    return fresh;
+  }
+  if (mode === 'preserve-target') {
+    return { ...previous, ...nonTargetBehaviorFrom(fresh), targetSpeed: previous.targetSpeed };
+  }
+  return {
+    ...fresh,
+    targetSpeed: resolveEffectiveSpeed(previous.targetSpeed, speedPolicyFromApplied(fresh)),
+  };
+}
+
 async function reapplyOneTab(
   tabId: number,
   request: ReapplyBehaviorRequest,
   deps: ReapplyBehaviorSettingsDeps,
 ): Promise<TabOutcome> {
+  if (request.mode === 'none') {
+    return 'skipped';
+  }
   const readState = deps.getTabState ?? getTabState;
   const writeState = deps.setTabState ?? setTabState;
   const readTab = deps.getTab ?? ((id: number) => chrome.tabs.get(id));
@@ -76,9 +118,7 @@ async function reapplyOneTab(
   let next: AppliedTabBehavior;
   try {
     const fresh = await readBehavior(url, { touchUsage: false });
-    next = isSpeedRetargetField(request.change.field)
-      ? fresh
-      : { ...previous, ...overlayFieldsFrom(fresh) };
+    next = nextBehavior(previous, fresh, request.mode);
   } catch {
     return 'failed';
   }
@@ -105,13 +145,13 @@ export async function reapplyBehaviorSettings(
   request: ReapplyBehaviorRequest,
   deps: ReapplyBehaviorSettingsDeps = {},
 ): Promise<ReapplyResult> {
-  if (request.scope.kind === 'global' && request.change.field === 'speed') {
+  if (request.mode === 'none') {
     return { reappliedTabs: 0, reapplyFailures: 0 };
   }
 
-  let discovered: chrome.tabs.Tab[];
+  let discovered: number[];
   try {
-    discovered = await (deps.queryTabs ?? (() => chrome.tabs.query({})))();
+    discovered = await (deps.listTabIds ?? (() => listTargetedTabIds(deps.tabStateStore)))();
   } catch (error) {
     return {
       reappliedTabs: 0,
@@ -124,21 +164,19 @@ export async function reapplyBehaviorSettings(
   let reappliedTabs = 0;
   let reapplyFailures = 0;
   await Promise.all(
-    discovered
-      .filter((tab): tab is chrome.tabs.Tab & { id: number } => typeof tab.id === 'number')
-      .map(async (tab) => {
-        try {
-          const outcome = await enqueue(tab.id, () => reapplyOneTab(tab.id, request, deps));
-          if (outcome === 'applied') {
-            reappliedTabs += 1;
-          } else if (outcome === 'failed') {
-            reapplyFailures += 1;
-          }
-        } catch (error) {
-          void error;
+    discovered.map(async (tabId) => {
+      try {
+        const outcome = await enqueue(tabId, () => reapplyOneTab(tabId, request, deps));
+        if (outcome === 'applied') {
+          reappliedTabs += 1;
+        } else if (outcome === 'failed') {
           reapplyFailures += 1;
         }
-      }),
+      } catch (error) {
+        void error;
+        reapplyFailures += 1;
+      }
+    }),
   );
   return { reappliedTabs, reapplyFailures };
 }

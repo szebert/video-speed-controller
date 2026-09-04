@@ -12,6 +12,7 @@ import { setSpeed } from '../background/set-speed';
 import {
   deleteSiteBehaviorSettings,
   getBehaviorSettings,
+  getCustomSites,
   resetAllBehaviorSettings,
   resetGlobalBehaviorSettings,
   setBehaviorSetting,
@@ -157,6 +158,16 @@ export default defineBackground(() => {
         respondWithError(sendResponse, 'GET_BEHAVIOR_SETTINGS', {
           ok: false,
           error: 'Unexpected settings read failure',
+        }),
+      );
+      return true;
+    }
+    if (message.type === 'GET_CUSTOM_SITES') {
+      void getCustomSites(sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'GET_CUSTOM_SITES', {
+          ok: false,
+          error: 'Unexpected custom sites read failure',
         }),
       );
       return true;

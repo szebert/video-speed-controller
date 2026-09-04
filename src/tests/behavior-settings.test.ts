@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteSiteBehaviorSettings,
   getBehaviorSettings,
+  getCustomSites,
   resetAllBehaviorSettings,
   resetGlobalBehaviorSettings,
   setBehaviorSetting,
@@ -53,6 +54,10 @@ describe('behavior settings API', () => {
     await expect(
       getBehaviorSettings({ type: 'GET_BEHAVIOR_SETTINGS' }, { url: 'https://example.com/' }),
     ).resolves.toEqual({ ok: false, error: 'Unauthorized' });
+    await expect(getCustomSites({ url: 'https://example.com/' })).resolves.toEqual({
+      ok: false,
+      error: 'Unauthorized',
+    });
     await expect(
       setBehaviorSetting(
         {
@@ -66,7 +71,7 @@ describe('behavior settings API', () => {
   });
 
   it('returns a global-only snapshot when hostname is omitted', async () => {
-    const deps = { ...stores(), queryTabs: async () => [] };
+    const deps = { ...stores(), listTabIds: async () => [] };
     await persistGlobalBehaviorChange({ kind: 'value', field: 'speed', value: 1.5 }, deps);
     const response = await getBehaviorSettings(
       { type: 'GET_BEHAVIOR_SETTINGS' },
@@ -78,7 +83,6 @@ describe('behavior settings API', () => {
       state: {
         global: { speed: { value: 1.5, source: 'global' } },
         site: null,
-        customSites: [],
       },
     });
   });
@@ -102,7 +106,7 @@ describe('behavior settings API', () => {
           snapshotHostname: 'https://example.com',
         },
         extensionSender(),
-        { ...stores(), queryTabs: async () => [] },
+        { ...stores(), listTabIds: async () => [] },
       ),
     ).resolves.toEqual({ ok: false, error: 'Invalid hostname' });
   });
@@ -112,7 +116,7 @@ describe('behavior settings API', () => {
     await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
     const record = deps.local.data['site:www.youtube.com'] as { lastUsedAt: number };
     expect(record.lastUsedAt).toBe(1_000);
-    const later = { ...deps, now: () => 1_000 + 120_000, queryTabs: async () => [] };
+    const later = { ...deps, now: () => 1_000 + 120_000, listTabIds: async () => [] };
     await getBehaviorSettings(
       { type: 'GET_BEHAVIOR_SETTINGS', hostname: 'www.youtube.com' },
       extensionSender(),
@@ -124,7 +128,7 @@ describe('behavior settings API', () => {
   });
 
   it('returns re-resolved site behavior after a global SET with snapshotHostname', async () => {
-    const deps = { ...stores(), queryTabs: async () => [] };
+    const deps = { ...stores(), listTabIds: async () => [] };
     await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
     const response = await setBehaviorSetting(
       {
@@ -150,8 +154,8 @@ describe('behavior settings API', () => {
   });
 
   it('does not reapply when persist fails', async () => {
-    const queryTabs = vi.fn(async () => {
-      throw new Error('should not query tabs');
+    const listTabIds = vi.fn(async () => {
+      throw new Error('should not list tabs');
     });
     const response = await setBehaviorSetting(
       {
@@ -168,11 +172,11 @@ describe('behavior settings API', () => {
             throw new Error('quota');
           },
         },
-        queryTabs,
+        listTabIds,
       },
     );
     expect(response).toEqual({ ok: false, error: 'quota' });
-    expect(queryTabs).not.toHaveBeenCalled();
+    expect(listTabIds).not.toHaveBeenCalled();
   });
 
   it('returns ok with snapshotError when persist succeeds but refresh fails', async () => {
@@ -198,7 +202,7 @@ describe('behavior settings API', () => {
       {
         local: snapshotLocal,
         sync: memoryDurable(),
-        queryTabs: async () => [],
+        listTabIds: async () => [],
       },
     );
     expect(response).toMatchObject({
@@ -213,19 +217,24 @@ describe('behavior settings API', () => {
     }
   });
 
-  it('lists custom sites on GET and removes one site', async () => {
-    const deps = { ...stores(), queryTabs: async () => [] };
+  it('lists custom sites separately and returns a membership delta on delete', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
     await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
     await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
-    const listed = await getBehaviorSettings(
+    const snapshot = await getBehaviorSettings(
       { type: 'GET_BEHAVIOR_SETTINGS' },
       extensionSender(),
       deps,
     );
-    expect(listed).toMatchObject({
+    expect(snapshot).toMatchObject({
       ok: true,
-      state: { customSites: ['vimeo.com', 'www.youtube.com'] },
+      state: { site: null },
     });
+    if (snapshot.ok) {
+      expect(snapshot.state).not.toHaveProperty('customSites');
+    }
+    const listed = await getCustomSites(extensionSender(), deps);
+    expect(listed).toEqual({ ok: true, customSites: ['vimeo.com', 'www.youtube.com'] });
     const deleted = await deleteSiteBehaviorSettings(
       { type: 'DELETE_SITE_SETTINGS', hostname: 'www.youtube.com' },
       extensionSender(),
@@ -235,12 +244,18 @@ describe('behavior settings API', () => {
     if (!deleted.ok || !deleted.state) {
       throw new Error('expected a snapshot');
     }
-    expect(deleted.state.customSites).toEqual(['vimeo.com']);
-    expect(deps.local.data['site:www.youtube.com']).toBeUndefined();
+    expect(deleted.state).not.toHaveProperty('customSites');
+    expect(deleted.siteMembership).toEqual({
+      hostname: 'www.youtube.com',
+      customized: false,
+    });
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit' } },
+    });
   });
 
   it('resets global defaults without deleting site records', async () => {
-    const deps = { ...stores(), queryTabs: async () => [] };
+    const deps = { ...stores(), listTabIds: async () => [] };
     await persistGlobalBehaviorChange({ kind: 'value', field: 'speed', value: 1.5 }, deps);
     await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
     const response = await resetGlobalBehaviorSettings(
@@ -253,11 +268,15 @@ describe('behavior settings API', () => {
       throw new Error('expected a snapshot');
     }
     expect(response.state.global.speed).toEqual({ value: 1, source: 'built-in' });
-    expect(response.state.customSites).toEqual(['www.youtube.com']);
+    expect(response.state).not.toHaveProperty('customSites');
+    await expect(getCustomSites(extensionSender(), deps)).resolves.toEqual({
+      ok: true,
+      customSites: ['www.youtube.com'],
+    });
   });
 
   it('resets all settings and clears custom sites', async () => {
-    const deps = { ...stores(), queryTabs: async () => [] };
+    const deps = { ...stores(), listTabIds: async () => [] };
     await persistGlobalBehaviorChange({ kind: 'value', field: 'speed', value: 1.5 }, deps);
     await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
     const response = await resetAllBehaviorSettings(
@@ -270,8 +289,36 @@ describe('behavior settings API', () => {
       throw new Error('expected a snapshot');
     }
     expect(response.state.global.speed).toEqual({ value: 1, source: 'built-in' });
-    expect(response.state.customSites).toEqual([]);
-    expect(deps.local.data['site:www.youtube.com']).toBeUndefined();
+    expect(response.state).not.toHaveProperty('customSites');
+    expect(response.siteMembership).toBeUndefined();
+    await expect(getCustomSites(extensionSender(), deps)).resolves.toEqual({
+      ok: true,
+      customSites: [],
+    });
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit' } },
+    });
+  });
+
+  it('returns a site membership delta after a site SET', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'site', hostname: 'www.youtube.com' },
+        change: { kind: 'value', field: 'speed', value: 1.5 },
+      },
+      extensionSender(),
+      deps,
+    );
+    expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('expected success');
+    }
+    expect(response.siteMembership).toEqual({
+      hostname: 'www.youtube.com',
+      customized: true,
+    });
   });
 
   it('rejects privileged reset and delete senders from the web', async () => {
