@@ -13,7 +13,7 @@ export const SPEED_MAX_SETTING_MIN = 2;
 /** Chromium `HTMLMediaElement.kMaxPlaybackRate`. Values above this throw. */
 export const SPEED_MAX_SETTING_MAX = 16;
 /** Faster/Slower increment. Independent of the playbackRate floor. */
-export const SPEED_TICK_SETTING_MIN = 0.01;
+export const SPEED_TICK_SETTING_MIN = 0.0005;
 export const SPEED_TICK_SETTING_MAX = 1;
 const SPEED_CANONICAL_SCALE = 10_000;
 export const SPEED_SLIDER_STEP = 0.01;

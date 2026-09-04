@@ -21,19 +21,33 @@ function builtInBehavior() {
     overlayPositionButton: { value: true, source: 'built-in' as const },
     overlaySettingsButton: { value: true, source: 'built-in' as const },
     overlayAutoHide: { value: true, source: 'built-in' as const },
+    overlayHoverHold: { value: false, source: 'built-in' as const },
     overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
   };
 }
 
-function snapshot(
-  site: string | null = null,
-  customSites: string[] = [],
-): BehaviorSettingsSnapshot {
+function snapshot(site: string | null = null): BehaviorSettingsSnapshot {
   const global = builtInBehavior();
   return {
     global,
     site: site ? { hostname: site, behavior: { ...global } } : null,
-    customSites,
+  };
+}
+
+function loadReply(state: BehaviorSettingsSnapshot, customSites: string[] = []) {
+  return async (message: { type?: string }) => {
+    if (message.type === 'GET_CUSTOM_SITES') {
+      return { ok: true, customSites };
+    }
+    if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+      return getOk(state);
+    }
+    return {
+      ok: true,
+      state,
+      reappliedTabs: 0,
+      reapplyFailures: 0,
+    };
   };
 }
 
@@ -117,9 +131,10 @@ describe('Options page', () => {
   });
 
   it('loads global defaults on mount', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot()));
+    sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     expect(sendMessage).toHaveBeenCalledWith({ type: 'GET_BEHAVIOR_SETTINGS' });
+    expect(sendMessage).toHaveBeenCalledWith({ type: 'GET_CUSTOM_SITES' });
     expect(container.textContent).toContain('Global defaults');
     expect(container.textContent).toContain('Sites use these values until you change them.');
     expect(container.textContent).toContain('No site settings yet.');
@@ -131,7 +146,7 @@ describe('Options page', () => {
   });
 
   it('selects Site when ?site= is a valid hostname', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot('example.com')));
+    sendMessage.mockImplementation(loadReply(snapshot('example.com')));
     await renderApp('chrome-extension://extid/options.html?site=example.com');
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'GET_BEHAVIOR_SETTINGS',
@@ -148,7 +163,7 @@ describe('Options page', () => {
   });
 
   it('treats an invalid ?site= as Global-only before GET', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot()));
+    sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp('chrome-extension://extid/options.html?site=example.com:8080');
     expect(sendMessage).toHaveBeenCalledWith({ type: 'GET_BEHAVIOR_SETTINGS' });
     expect(container.querySelector('h2')?.textContent).toBe('Global defaults');
@@ -156,10 +171,13 @@ describe('Options page', () => {
 
   it('lists custom sites and loads a site when selected', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
-      if (message.type === 'GET_BEHAVIOR_SETTINGS' && message.hostname === 'www.youtube.com') {
-        return getOk(snapshot('www.youtube.com', ['www.youtube.com']));
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: ['www.youtube.com'] };
       }
-      return getOk(snapshot(null, ['www.youtube.com']));
+      if (message.type === 'GET_BEHAVIOR_SETTINGS' && message.hostname === 'www.youtube.com') {
+        return getOk(snapshot('www.youtube.com'));
+      }
+      return getOk(snapshot());
     });
     await renderApp();
     expect(container.textContent).toContain('www.youtube.com');
@@ -180,6 +198,9 @@ describe('Options page', () => {
     const state = snapshot();
     state.global.speed = { value: 1.5, source: 'global' };
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(state);
       }
@@ -207,7 +228,7 @@ describe('Options page', () => {
   });
 
   it('disables speed Reset when the field is already inherited', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot()));
+    sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     const resetSpeed = [...container.querySelectorAll('button')].find(
       (button) => button.textContent === 'Reset' && button.getAttribute('aria-label') == null,
@@ -229,6 +250,9 @@ describe('Options page', () => {
     const state = snapshot();
     state.global.speedMin = { value: 0.5, source: 'global' };
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(state);
       }
@@ -260,6 +284,9 @@ describe('Options page', () => {
     const state = snapshot();
     state.global.overlayVisible = { value: false, source: 'global' };
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(state);
       }
@@ -293,7 +320,7 @@ describe('Options page', () => {
     if (state.site) {
       state.site.behavior.overlayVisible = { value: false, source: 'site' };
     }
-    sendMessage.mockResolvedValue(getOk(state));
+    sendMessage.mockImplementation(loadReply(state));
     await renderApp('chrome-extension://extid/options.html?site=example.com');
     const { root } = resetBadge(container, 'Reset: Show overlay');
     expect(root?.textContent).toContain('Override');
@@ -304,6 +331,9 @@ describe('Options page', () => {
     const state = snapshot();
     state.global.overlayPosition = { value: OVERLAY_POSITION.BOTTOM_RIGHT, source: 'global' };
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(state);
       }
@@ -330,7 +360,7 @@ describe('Options page', () => {
   });
 
   it('keeps a hidden Custom badge in layout when the field is inherited', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot()));
+    sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     const { button, root } = resetBadge(container, 'Reset: Show overlay');
     expect(button).toBeTruthy();
@@ -363,6 +393,9 @@ describe('Options page', () => {
       'Bottom right',
     ];
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -398,6 +431,9 @@ describe('Options page', () => {
 
   it('clamps delay below 0.1 seconds to 100 ms', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -431,6 +467,9 @@ describe('Options page', () => {
 
   it('clamps delay above 300 seconds to 5 minutes', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -464,6 +503,9 @@ describe('Options page', () => {
 
   it('persists delay 2.5 seconds as 2500 ms', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -495,8 +537,11 @@ describe('Options page', () => {
     });
   });
 
-  it('clamps minimum speed below 0.0625 and tick below 0.01', async () => {
+  it('clamps minimum speed below 0.0625 and tick below 0.0005', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -533,7 +578,7 @@ describe('Options page', () => {
         return;
       }
       tickInput.focus();
-      setInputValue(tickInput, '0.001');
+      setInputValue(tickInput, '0.0001');
       tickInput.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
       );
@@ -542,12 +587,15 @@ describe('Options page', () => {
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
-      change: { kind: 'value', field: 'speedTick', value: 0.01 },
+      change: { kind: 'value', field: 'speedTick', value: 0.0005 },
     });
   });
 
   it('persists speed max 10 and tick 0.05', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -599,6 +647,9 @@ describe('Options page', () => {
 
   it('sends overlayVisible false from the Show overlay switch', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -623,13 +674,14 @@ describe('Options page', () => {
   });
 
   it('places switch and position descriptions under their labels', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot()));
+    sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     for (const id of [
       'overlay-visible',
       'overlay-position-button',
       'overlay-settings-button',
       'overlay-auto-hide',
+      'overlay-hover-hold',
     ]) {
       const label = container.querySelector(`label[for="${id}"]`);
       expect(label?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
@@ -640,8 +692,24 @@ describe('Options page', () => {
     expect(positionLabel?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
   });
 
+  it('lets reset badges wrap under their switches', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    for (const id of [
+      'overlay-visible',
+      'overlay-position-button',
+      'overlay-settings-button',
+      'overlay-auto-hide',
+      'overlay-hover-hold',
+    ]) {
+      const field = container.querySelector(`#${id}`)?.closest('[data-slot="field"]');
+      const cluster = field?.querySelector('[data-slot="reset-badge"]')?.parentElement;
+      expect(cluster?.className).toContain('flex-wrap-reverse');
+    }
+  });
+
   it('places input descriptions under their input groups', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot()));
+    sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     for (const id of ['speed-min', 'speed-tick', 'speed-max', 'overlay-auto-hide-delay']) {
       const input = container.querySelector(`#${id}`);
@@ -651,7 +719,7 @@ describe('Options page', () => {
   });
 
   it('groups position and settings overlay buttons on one wide-screen row', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot()));
+    sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     const positionButton = container
       .querySelector('#overlay-position-button')
@@ -667,22 +735,29 @@ describe('Options page', () => {
     );
   });
 
-  it('groups auto-hide overlay and delay on one wide-screen row', async () => {
-    sendMessage.mockResolvedValue(getOk(snapshot()));
+  it('groups auto-hide overlay, hover hold, and delay on one wide-screen row', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     const autoHideField = container
       .querySelector('#overlay-auto-hide')
       ?.closest('[data-slot="field"]');
+    const hoverField = container
+      .querySelector('#overlay-hover-hold')
+      ?.closest('[data-slot="field"]');
     const delayField = container
       .querySelector('#overlay-auto-hide-delay')
       ?.closest('[data-slot="field"]');
-    expect(autoHideField?.parentElement).toBe(delayField?.parentElement);
+    expect(autoHideField?.parentElement).toBe(hoverField?.parentElement);
+    expect(hoverField?.parentElement).toBe(delayField?.parentElement);
     expect(autoHideField?.parentElement?.getAttribute('data-slot')).toBe('field-group');
-    expect(autoHideField?.parentElement?.className).toContain('@md/field-group:grid-cols-2');
+    expect(autoHideField?.parentElement?.className).toContain('@xl/field-group:grid-cols-3');
   });
 
   it('sends overlayPositionButton false from the Show position button switch', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -706,8 +781,39 @@ describe('Options page', () => {
     });
   });
 
+  it('sends overlayHoverHold true from the Prevent auto-hide on hover switch', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    const toggle = container.querySelector('#overlay-hover-hold');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(toggle);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlayHoverHold', value: true },
+    });
+  });
+
   it('sends overlaySettingsButton false from the Show settings button switch', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -733,6 +839,9 @@ describe('Options page', () => {
 
   it('toggles Show overlay when the field label is clicked', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -760,7 +869,7 @@ describe('Options page', () => {
   it('disables overlay position auto-hide and delay when Show overlay is off', async () => {
     const hidden = snapshot();
     hidden.global.overlayVisible = { value: false, source: 'global' };
-    sendMessage.mockResolvedValue(getOk(hidden));
+    sendMessage.mockImplementation(loadReply(hidden));
     await renderApp();
     const delay = container.querySelector('#overlay-auto-hide-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
@@ -768,6 +877,9 @@ describe('Options page', () => {
     const autoHide = container.querySelector('#overlay-auto-hide');
     expect(autoHide).toBeInstanceOf(HTMLInputElement);
     expect((autoHide as HTMLInputElement).disabled).toBe(true);
+    const hoverHold = container.querySelector('#overlay-hover-hold');
+    expect(hoverHold).toBeInstanceOf(HTMLInputElement);
+    expect((hoverHold as HTMLInputElement).disabled).toBe(true);
     const positionButton = container.querySelector('#overlay-position-button');
     const settingsButton = container.querySelector('#overlay-settings-button');
     expect((positionButton as HTMLInputElement).disabled).toBe(true);
@@ -778,7 +890,7 @@ describe('Options page', () => {
     const hidden = snapshot();
     hidden.global.overlayAutoHide = { value: false, source: 'global' };
     hidden.global.overlayAutoHideDelayMs = { value: 2500, source: 'global' };
-    sendMessage.mockResolvedValue(getOk(hidden));
+    sendMessage.mockImplementation(loadReply(hidden));
     await renderApp();
     const delay = container.querySelector('#overlay-auto-hide-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
@@ -786,6 +898,9 @@ describe('Options page', () => {
     const autoHide = container.querySelector('#overlay-auto-hide');
     expect(autoHide).toBeInstanceOf(HTMLInputElement);
     expect((autoHide as HTMLInputElement).disabled).toBe(false);
+    const hoverHold = container.querySelector('#overlay-hover-hold');
+    expect(hoverHold).toBeInstanceOf(HTMLInputElement);
+    expect((hoverHold as HTMLInputElement).disabled).toBe(true);
     const resetDelay = container.querySelector('[aria-label="Reset: Auto-hide delay"]');
     expect(resetDelay).toBeTruthy();
     expect(resetDelay?.hasAttribute('disabled')).toBe(true);
@@ -794,6 +909,9 @@ describe('Options page', () => {
 
   it('resets defaults without watching whether values are already default', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -818,6 +936,9 @@ describe('Options page', () => {
 
   it('confirms Reset ALL Settings before sending RESET_ALL_BEHAVIOR', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -858,8 +979,11 @@ describe('Options page', () => {
 
   it('deletes a listed site after confirmation', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: ['example.com'] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
-        return getOk(snapshot('example.com', ['example.com']));
+        return getOk(snapshot('example.com'));
       }
       return {
         ok: true,
@@ -890,6 +1014,9 @@ describe('Options page', () => {
     const recovered = snapshot();
     recovered.global.speed = { value: 1.25, source: 'global' };
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(recovered);
       }
@@ -898,6 +1025,9 @@ describe('Options page', () => {
     await renderApp();
     sendMessage.mockClear();
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(recovered);
       }
@@ -915,6 +1045,9 @@ describe('Options page', () => {
 
   it('shows the refresh warning when open tabs could not be refreshed', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
       }
@@ -932,6 +1065,102 @@ describe('Options page', () => {
       click(faster);
     });
     expect(container.textContent).toContain('Saved, but open tabs could not be refreshed.');
+  });
+
+  it('adds a site from membership without rescanning after a successful site SET', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot('example.com'));
+      }
+      return {
+        ok: true,
+        state: snapshot('example.com'),
+        siteMembership: { hostname: 'example.com', customized: true },
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp('chrome-extension://extid/options.html?site=example.com');
+    expect(container.textContent).toContain('No site settings yet.');
+    sendMessage.mockClear();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual(['SET_BEHAVIOR_SETTING']);
+    expect(container.textContent).toContain('example.com');
+    expect(container.textContent).not.toContain('No site settings yet.');
+  });
+
+  it('recovers pane and sidebar after a failed site persist', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: ['example.com'] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot('example.com'));
+      }
+      return { ok: false, error: 'quota' };
+    });
+    await renderApp('chrome-extension://extid/options.html?site=example.com');
+    sendMessage.mockClear();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'SET_BEHAVIOR_SETTING',
+      'GET_BEHAVIOR_SETTINGS',
+      'GET_CUSTOM_SITES',
+    ]);
+  });
+
+  it('recovers pane after ok-without-state', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        snapshotError: 'refresh failed',
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    sendMessage.mockClear();
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        const recovered = snapshot();
+        recovered.global.speed = { value: 1.25, source: 'global' };
+        return getOk(recovered);
+      }
+      return {
+        ok: true,
+        snapshotError: 'refresh failed',
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'SET_BEHAVIOR_SETTING',
+      'GET_BEHAVIOR_SETTINGS',
+    ]);
+    expect(container.textContent).toContain('1.25×');
+    expect(container.textContent).toContain('Saved, but settings could not be refreshed.');
   });
 });
 
@@ -1022,5 +1251,29 @@ describe('SpeedControls preview vs persist', () => {
       );
     });
     expect(onCommit).toHaveBeenCalledWith(4);
+  });
+
+  it('disables minus and plus at the policy bounds', async () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        <SpeedControls
+          displaySpeed={0.25}
+          disabled={false}
+          policy={{ min: 0.25, max: 4, tick: 0.25 }}
+          onAdjust={() => {}}
+          onReset={() => {}}
+          onCommitSlider={() => {}}
+        />,
+      );
+    });
+    const slower = container.querySelector('[aria-label="Slower"]');
+    const faster = container.querySelector('[aria-label="Faster"]');
+    expect(slower).toBeInstanceOf(HTMLButtonElement);
+    expect(faster).toBeInstanceOf(HTMLButtonElement);
+    expect((slower as HTMLButtonElement).disabled).toBe(true);
+    expect((faster as HTMLButtonElement).disabled).toBe(false);
   });
 });

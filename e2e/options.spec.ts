@@ -57,6 +57,7 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   await expect(options.getByText('Built-in')).toHaveCount(0);
   await expect(options.getByRole('tab')).toHaveCount(0);
   await expect(options.getByRole('button', { name: 'Reset defaults' })).toBeEnabled();
+  await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeEnabled();
   await expect(options.getByRole('button', { name: 'Reset ALL Settings' })).toHaveCount(0);
 
   await options.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -106,7 +107,9 @@ test('site auto-hide off stays visible and deleting the site restores the timeou
   await expect.poll(async () => overlayVisibility(site), { timeout: 5_000 }).toBe('hidden');
 
   const options = await openOptions(context, extensionId, '127.0.0.1');
+  await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeEnabled();
   await clickOptionsSwitch(options, 'Auto-hide overlay');
+  await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeDisabled();
   await site.locator('#v1').hover();
   await expect.poll(async () => overlayVisibility(site)).toBe('visible');
   await site.waitForTimeout(2500);
