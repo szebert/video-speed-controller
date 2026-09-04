@@ -25,6 +25,7 @@ export class VideoOverlay {
   private behavior: AppliedTabBehavior | null = null;
   private controlled = false;
   private autoHideExpired = false;
+  private interactive = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly resizeObserver: ResizeObserver;
 
@@ -84,6 +85,7 @@ export class VideoOverlay {
   setControlled(owned: boolean): void {
     this.controlled = owned;
     if (!owned) {
+      this.interactive = false;
       this.clearHideTimer();
       this.autoHideExpired = false;
       this.requestLayout();
@@ -158,6 +160,9 @@ export class VideoOverlay {
             this.restartAutoHide();
             this.actions.openSettings?.();
           },
+          onInteractiveChange: (active) => {
+            this.setInteractive(active);
+          },
         }),
       );
     });
@@ -213,10 +218,31 @@ export class VideoOverlay {
     return rect.width >= OVERLAY_MIN_SIZE_PX && rect.height >= OVERLAY_MIN_SIZE_PX;
   }
 
+  private setInteractive(active: boolean): void {
+    if (this.interactive === active) {
+      return;
+    }
+    this.interactive = active;
+    if (active) {
+      this.clearHideTimer();
+      this.autoHideExpired = false;
+      this.requestLayout();
+      return;
+    }
+    this.restartAutoHide();
+    this.requestLayout();
+  }
+
   private restartAutoHide(): void {
     this.clearHideTimer();
     this.autoHideExpired = false;
-    if (!this.behavior?.overlayAutoHide) {
+    if (
+      !this.controlled ||
+      !this.behavior ||
+      !this.behavior.overlayVisible ||
+      !this.behavior.overlayAutoHide ||
+      this.interactive
+    ) {
       return;
     }
     this.hideTimer = setTimeout(() => {

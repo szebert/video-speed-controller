@@ -17,4 +17,5 @@ export type OverlayControlsProps = {
   onAdjust(direction: -1 | 1): void;
   onSetPosition(position: OverlayPosition): void;
   onOpenSettings(): void;
+  onInteractiveChange(active: boolean): void;
 };

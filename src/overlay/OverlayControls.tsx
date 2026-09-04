@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent } from 'react';
 import { Grid3x3Icon, SettingsIcon } from 'lucide-react';
-import { Button } from 'react-aria-components';
+import { Button, type PressEvent } from 'react-aria-components';
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
 import { canAdjustSpeed, formatSpeed } from '../core/speed';
 import { t, type MessageKey } from '../i18n/t';
@@ -29,20 +29,70 @@ export function OverlayControls({
   onAdjust,
   onSetPosition,
   onOpenSettings,
+  onInteractiveChange,
 }: OverlayControlsProps) {
   const resolvedPolicy = policy ?? speedPolicyFromApplied(behavior);
   const canSlow = canAdjustSpeed(behavior.targetSpeed, -1, resolvedPolicy);
   const canFast = canAdjustSpeed(behavior.targetSpeed, 1, resolvedPolicy);
+  const [pointerWithin, setPointerWithin] = useState(false);
+  const [focusWithin, setFocusWithin] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  if (!visible && pickerOpen) {
-    setPickerOpen(false);
-  }
-  const showPicker = visible && pickerOpen && behavior.overlayPositionButton;
+  const lastInteractive = useRef<boolean | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const pickerAllowed = visible && behavior.overlayPositionButton;
+  const interactive = visible && ((pointerWithin && behavior.overlayHoverHold) || focusWithin);
+
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) {
+      return;
+    }
+    if (shell.matches(':hover')) {
+      setPointerWithin(true);
+    }
+    const onEnter = () => {
+      setPointerWithin(true);
+    };
+    const onLeave = () => {
+      setPointerWithin(false);
+    };
+    shell.addEventListener('pointerenter', onEnter);
+    shell.addEventListener('pointerleave', onLeave);
+    return () => {
+      shell.removeEventListener('pointerenter', onEnter);
+      shell.removeEventListener('pointerleave', onLeave);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (lastInteractive.current === interactive) {
+      return;
+    }
+    lastInteractive.current = interactive;
+    onInteractiveChange(interactive);
+  }, [interactive, onInteractiveChange]);
+
+  const showPicker = pickerAllowed && pickerOpen;
   const pickerPlacement =
     overlayPositionToGrid(behavior.overlayPosition).row === 2 ? 'above' : 'below';
 
+  function onShellBlur(event: FocusEvent<HTMLDivElement>): void {
+    const next = event.relatedTarget;
+    if (next instanceof Node && event.currentTarget.contains(next)) {
+      return;
+    }
+    setFocusWithin(false);
+  }
+
   return (
-    <div className="controls-shell">
+    <div
+      ref={shellRef}
+      className="controls-shell"
+      onFocus={() => {
+        setFocusWithin(true);
+      }}
+      onBlur={onShellBlur}
+    >
       <div className="controls" role="group">
         {behavior.overlayPositionButton ? (
           <Button
@@ -50,8 +100,9 @@ export function OverlayControls({
             aria-label={t('overlayMove')}
             aria-expanded={showPicker}
             aria-haspopup="true"
-            onPress={() => {
+            onPress={(event) => {
               setPickerOpen((open) => !open);
+              blurAfterPointerPress(event);
             }}
           >
             <Grid3x3Icon />
@@ -111,9 +162,10 @@ export function OverlayControls({
                 className="position-cell"
                 aria-label={t(labelKey)}
                 aria-pressed={selected}
-                onPress={() => {
+                onPress={(event) => {
                   setPickerOpen(false);
                   onSetPosition(position);
+                  blurAfterPointerPress(event);
                 }}
               >
                 <span
@@ -126,4 +178,11 @@ export function OverlayControls({
       ) : null}
     </div>
   );
+}
+
+function blurAfterPointerPress(event: PressEvent): void {
+  if (event.pointerType === 'keyboard' || !(event.target instanceof HTMLElement)) {
+    return;
+  }
+  event.target.blur();
 }
