@@ -153,11 +153,32 @@ async function applyOverlayEngine(popup: Page, site: Page): Promise<void> {
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.00×', '1.00×', '1.00×']);
 }
 
-async function clickVisibleOverlayControl(page: Page, label: 'Faster' | 'Slower'): Promise<void> {
+async function clickVisibleOverlayControl(
+  page: Page,
+  label: 'Faster' | 'Slower' | 'Move overlay',
+): Promise<void> {
   await page.locator('#v1').hover();
   const control = page.locator('osvsc-overlay').first().getByRole('button', { name: label });
   await expect(control).toBeVisible();
-  await control.click();
+  const box = await control.boundingBox();
+  if (!box) {
+    throw new Error(`Missing ${label} overlay control bounds`);
+  }
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await expect(control).toBeVisible();
+  await expect
+    .poll(() =>
+      control.evaluate((button) => {
+        const rect = button.getBoundingClientRect();
+        const root = button.getRootNode() as ShadowRoot;
+        const hit = root.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return hit === button || (hit instanceof Node && button.contains(hit));
+      }),
+    )
+    .toBe(true);
+  await page.mouse.click(x, y);
 }
 
 test('overlay plus and minus update every video and the popup', async ({
@@ -261,10 +282,7 @@ test('opening the position picker keeps the overlay visible until it closes', as
   const popup = await openExtensionPopup();
   await applyOverlayEngine(popup, site);
   const overlay = site.locator('osvsc-overlay').first();
-  const move = overlay.getByRole('button', { name: 'Move overlay' });
-  await site.locator('#v1').hover();
-  await expect(move).toBeVisible();
-  await move.click();
+  await clickVisibleOverlayControl(site, 'Move overlay');
   await expect
     .poll(async () =>
       site.evaluate(
@@ -278,9 +296,7 @@ test('opening the position picker keeps the overlay visible until it closes', as
   await site.waitForTimeout(2_500);
   expect(await overlay.evaluate((host) => (host as HTMLElement).style.visibility)).toBe('visible');
 
-  await site.locator('#v1').hover();
-  await expect(move).toBeVisible();
-  await move.click();
+  await clickVisibleOverlayControl(site, 'Move overlay');
   await expect
     .poll(async () =>
       site.evaluate(
