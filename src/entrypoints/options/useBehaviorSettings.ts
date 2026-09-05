@@ -281,7 +281,11 @@ export function useBehaviorSettings() {
         if (!applyResponse(response, { sentChanges: batch.changes }) || response?.ok === false) {
           await recover(membership ? 'pane-and-sidebar' : 'pane');
           writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
-        } else if (membership && response?.ok) {
+        } else if (
+          membership &&
+          response?.ok &&
+          !('siteMembership' in response && response.siteMembership)
+        ) {
           await recover('sidebar');
         }
       } catch {

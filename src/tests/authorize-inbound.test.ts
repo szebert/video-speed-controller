@@ -43,10 +43,27 @@ describe('authorizeBackgroundInbound', () => {
         tab: { id: 1 },
       } as chrome.runtime.MessageSender),
     ).toBe('allow');
+  });
+
+  it('ignores content commands from extension pages and tabless senders', () => {
+    const extensionPage = { url: `${EXTENSION_ORIGIN}/options.html` };
+    expect(
+      authorizeBackgroundInbound(inboundChannel('FRAME_READY'), 'FRAME_READY', extensionPage),
+    ).toBe('ignore');
+    expect(
+      authorizeBackgroundInbound(
+        inboundChannel('OPEN_OPTIONS_PAGE'),
+        'OPEN_OPTIONS_PAGE',
+        extensionPage,
+      ),
+    ).toBe('ignore');
+    expect(
+      authorizeBackgroundInbound(inboundChannel('ADJUST_SPEED'), 'ADJUST_SPEED', extensionPage),
+    ).toBe('ignore');
     expect(
       authorizeBackgroundInbound(inboundChannel('FRAME_READY'), 'FRAME_READY', {
-        url: `${EXTENSION_ORIGIN}/options.html`,
-      }),
-    ).toBe('allow');
+        url: 'https://example.com/',
+      } as chrome.runtime.MessageSender),
+    ).toBe('ignore');
   });
 });

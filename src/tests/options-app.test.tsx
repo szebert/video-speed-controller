@@ -1080,19 +1080,18 @@ describe('Options page', () => {
     expect(container.textContent).toContain('Saved, but open tabs could not be refreshed.');
   });
 
-  it('refreshes the sidebar after a successful site SET', async () => {
-    let customized = false;
+  it('shows a first site override from SET membership without GET_CUSTOM_SITES', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: customized ? ['example.com'] : [] };
+        return { ok: true, customSites: [] };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot('example.com'));
       }
-      customized = true;
       return {
         ok: true,
         state: snapshot('example.com'),
+        siteMembership: { hostname: 'example.com', customized: true },
         reappliedTabs: 0,
         reapplyFailures: 0,
       };
@@ -1104,10 +1103,7 @@ describe('Options page', () => {
     await act(async () => {
       click(faster);
     });
-    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
-      'SET_BEHAVIOR_SETTING',
-      'GET_CUSTOM_SITES',
-    ]);
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual(['SET_BEHAVIOR_SETTING']);
     expect(container.textContent).toContain('example.com');
     expect(container.textContent).not.toContain('No site settings yet.');
   });

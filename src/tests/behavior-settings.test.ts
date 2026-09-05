@@ -15,6 +15,7 @@ import {
   resetBehaviorDefaultsRepairBackoff,
 } from '../storage/behavior-defaults';
 import { persistSiteSpeed, resetSiteRepairBackoff } from '../storage/site-settings';
+import * as siteSettings from '../storage/site-settings';
 import { resetStorageMutationQueue } from '../storage/storage-mutation-queue';
 import { resetTabMutationQueue } from '../background/tab-mutation-queue';
 import { memoryDurable } from './memory-store';
@@ -144,6 +145,7 @@ describe('behavior settings API', () => {
     if (!response.ok || !response.state) {
       throw new Error('expected a snapshot');
     }
+    expect(response).not.toHaveProperty('siteMembership');
     expect(response.state.site).toEqual({
       hostname: 'www.youtube.com',
       behavior: expect.objectContaining({
@@ -370,7 +372,7 @@ describe('behavior settings API', () => {
     expect(response.state.global.overlayVisible).toEqual({ value: false, source: 'global' });
   });
 
-  it('does not attach site membership to a site SET', async () => {
+  it('attaches site membership to a successful site SET', async () => {
     const deps = { ...stores(), listTabIds: async () => [] };
     const response = await setBehaviorSetting(
       {
@@ -385,7 +387,33 @@ describe('behavior settings API', () => {
     if (!response.ok) {
       throw new Error('expected success');
     }
+    expect(response.siteMembership).toEqual({
+      hostname: 'www.youtube.com',
+      customized: true,
+    });
+  });
+
+  it('keeps a successful site SET when membership lookup fails', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
+    const membership = vi
+      .spyOn(siteSettings, 'readSiteMembership')
+      .mockRejectedValueOnce(new Error('membership failed'));
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'site', hostname: 'www.youtube.com' },
+        change: { kind: 'value', field: 'speed', value: 1.5 },
+      },
+      extensionSender(),
+      deps,
+    );
+    membership.mockRestore();
+    expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('expected success');
+    }
     expect(response).not.toHaveProperty('siteMembership');
+    await expect(siteSettings.readSiteMembership('www.youtube.com', deps)).resolves.toBe(true);
   });
 
   it('rejects privileged reset and delete senders from the web', async () => {

@@ -16,7 +16,7 @@ export function authorizeBackgroundInbound(
     return type === 'GET_POPUP_STATE' ? 'ignore' : 'unauthorized';
   }
   if (channel === 'content') {
-    return 'allow';
+    return sender.tab?.id != null ? 'allow' : 'ignore';
   }
   return 'ignore';
 }

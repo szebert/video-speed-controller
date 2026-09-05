@@ -55,7 +55,14 @@ export const GetCustomSitesResponseSchema = z.union([
   z.object({ ok: z.literal(false), error: z.string() }),
 ]);
 
-export const SetBehaviorSettingResponseSchema = BehaviorMutationResponseSchema;
+export const SetBehaviorSettingResponseSchema = z.union([
+  BehaviorMutationSuccessSchema.and(
+    z.object({
+      siteMembership: SiteMembershipUpdateSchema.optional(),
+    }),
+  ),
+  z.object({ ok: z.literal(false), error: z.string() }),
+]);
 
 export const DeleteSiteSettingsResponseSchema = z.union([
   BehaviorMutationSuccessSchema.and(

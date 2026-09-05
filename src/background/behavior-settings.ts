@@ -213,7 +213,7 @@ export async function setBehaviorSetting(
   }
 
   const scope = message.scope.kind === 'global' ? 'global' : 'site';
-  return afterPersist(
+  const result = await afterPersist(
     snapshot.hostname,
     {
       scope: scope === 'global' ? { kind: 'global' } : { kind: 'site', hostname: persistHostname! },
@@ -221,6 +221,11 @@ export async function setBehaviorSetting(
     },
     deps,
   );
+  if (scope === 'site' && persistHostname) {
+    const siteMembership = await siteMembershipOf(persistHostname, deps);
+    return siteMembership ? { ...result, siteMembership } : result;
+  }
+  return result;
 }
 
 export async function deleteSiteBehaviorSettings(
