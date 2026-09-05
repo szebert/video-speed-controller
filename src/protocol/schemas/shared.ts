@@ -87,6 +87,8 @@ export const EditableResolvedBehaviorSchema = z.object({
   overlayAutoHideDelayMs: resolvedSettingSchema(z.number()),
 }) satisfies z.ZodType<EditableResolvedBehavior>;
 
+true satisfies Equal<z.infer<typeof EditableResolvedBehaviorSchema>, EditableResolvedBehavior>;
+
 export const BehaviorSettingsSnapshotSchema = z.object({
   global: EditableResolvedBehaviorSchema,
   site: z

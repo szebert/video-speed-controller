@@ -273,6 +273,11 @@ describe('forward-compatible V1 parsers', () => {
         overrides: { overlayPosition: { kind: 'value', value: 'top-center', updatedAt: 1 } },
       }),
     ).toBeNull();
+    expect(
+      parseBehaviorOverrides({
+        overlayPosition: { kind: 'value', value: 9, updatedAt: 1 },
+      }),
+    ).toEqual({});
     expect(parseSiteSettings({ schemaVersion: 1, lastUsedAt: 1, overrides: {} })).toBeNull();
     expect(
       parseSiteSettings({

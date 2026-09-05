@@ -1,109 +1,120 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const SRC = join(process.cwd(), 'src');
+const CONTENT_ENTRY = join(SRC, 'entrypoints/content.ts');
 
-// One content script (content.ts + everything it imports). Regular Zod is
-// banned in this whole graph. Mini is allowed only in protocol/content, which
-// content.ts calls at the chrome.runtime boundary. Overlay/engine stay in the
-// same script but must not import that folder — they take already-parsed
-// AppliedTabBehavior, they do not parse messages.
-const CONTENT_GRAPH_FILES = [
-  'entrypoints/content.ts',
-  'settings/behavior-fields.ts',
-  'settings/site-behavior.ts',
-  'types/equal.ts',
-  'core/applied-tab-behavior.ts',
-  'core/video-speed-engine.ts',
-  'core/video-overlay.ts',
-  'core/media-controller.ts',
-  'core/media-registry.ts',
-  'core/arbitration.ts',
-  'core/speed.ts',
-];
-
-const FORBIDDEN_CONTENT_GRAPH = [
-  /^(?:zod|zod\/mini)$/,
-  /(?:^|\/)behavior-schema(?:\.ts)?$/,
-  /(?:^|\/)protocol\/schemas(?:\/|$)/,
-];
-
-const FORBIDDEN_PROTOCOL_CONTENT = [
-  /^zod$/,
-  /(?:^|\/)behavior-schema(?:\.ts)?$/,
-  /(?:^|\/)protocol\/schemas(?:\/|$)/,
-];
-
-const FORBIDDEN_OVERLAY = [/(?:^|\/)protocol\/content(?:\/|$)/];
-
-function walkTsFiles(directory: string): string[] {
-  const found: string[] = [];
-  for (const entry of readdirSync(directory)) {
-    const path = join(directory, entry);
-    if (statSync(path).isDirectory()) {
-      found.push(...walkTsFiles(path));
-      continue;
-    }
-    if (entry.endsWith('.ts') || entry.endsWith('.tsx')) {
-      found.push(path);
-    }
-  }
-  return found;
+function toPosix(path: string): string {
+  return path.split(sep).join('/');
 }
 
-function importSpecifiers(source: string): string[] {
+function srcPath(file: string): string {
+  return toPosix(relative(SRC, file));
+}
+
+function moduleSpecifiers(source: string): string[] {
   const specifiers: string[] = [];
-  const pattern = /(?:^|\n)\s*import(?:\s+type)?(?:\s+[\s\S]*?\s+from\s+|\s+)['"]([^'"]+)['"]/g;
-  for (const match of source.matchAll(pattern)) {
-    if (match[1]) {
-      specifiers.push(match[1]);
+  const patterns = [
+    /(?:^|\n)\s*import(?:\s+type)?(?:\s+[\s\S]*?\s+from\s+|\s+)['"]([^'"]+)['"]/g,
+    /(?:^|\n)\s*export(?:\s+type)?\s+(?:\*(?:\s+as\s+\w+)?\s+from\s+|\{[\s\S]*?\}\s+from\s+)['"]([^'"]+)['"]/g,
+  ];
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      if (match[1]) {
+        specifiers.push(match[1]);
+      }
     }
   }
   return specifiers;
 }
 
-describe('content import isolation', () => {
-  it('keeps regular Zod and privileged schemas out of the content graph', () => {
-    const files = [
-      ...CONTENT_GRAPH_FILES.map((file) => join(SRC, file)),
-      ...walkTsFiles(join(SRC, 'overlay')),
-    ];
-    const violations: string[] = [];
-    for (const file of files) {
-      const specifiers = importSpecifiers(readFileSync(file, 'utf8'));
-      for (const specifier of specifiers) {
-        if (FORBIDDEN_CONTENT_GRAPH.some((pattern) => pattern.test(specifier))) {
-          violations.push(`${relative(SRC, file)} imports ${specifier}`);
-        }
+function resolveImportedFile(fromFile: string, specifier: string): string | 'external' | 'asset' {
+  const bare = specifier.split('?')[0] ?? specifier;
+  if (/\.(css|json|svg|png)$/.test(bare)) {
+    return 'asset';
+  }
+  if (!bare.startsWith('.') && !bare.startsWith('@/')) {
+    return 'external';
+  }
+  const base = bare.startsWith('@/') ? join(SRC, bare.slice(2)) : join(dirname(fromFile), bare);
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    join(base, 'index.ts'),
+    join(base, 'index.tsx'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate) && statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+  throw new Error(`Unresolvable import ${specifier} from ${srcPath(fromFile)}`);
+}
+
+function walkFrom(entry: string): Map<string, string[]> {
+  const graph = new Map<string, string[]>();
+  const queue = [entry];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (!file || graph.has(file)) {
+      continue;
+    }
+    const specifiers = moduleSpecifiers(readFileSync(file, 'utf8'));
+    graph.set(file, specifiers);
+    for (const specifier of specifiers) {
+      const resolved = resolveImportedFile(file, specifier);
+      if (resolved !== 'external' && resolved !== 'asset') {
+        queue.push(resolved);
       }
     }
-    expect(violations).toEqual([]);
+  }
+  return graph;
+}
+
+function isProtocolContent(file: string): boolean {
+  return srcPath(file).startsWith('protocol/content/');
+}
+
+function isContentEntrypoint(file: string): boolean {
+  return srcPath(file) === 'entrypoints/content.ts';
+}
+
+const CONTENT_GRAPH = walkFrom(CONTENT_ENTRY);
+
+describe('content import isolation', () => {
+  it('walks every file reachable from content.ts', () => {
+    const files = [...CONTENT_GRAPH.keys()].map(srcPath);
+    expect(files).toContain('access/site-access.ts');
+    expect(files).toContain('protocol/content/client.ts');
+    expect(files).toContain('overlay/OverlayRoot.tsx');
+    expect(files).not.toContain('settings/behavior-schema.ts');
+    expect(files).not.toContain('protocol/schemas/shared.ts');
   });
 
-  it('allows zod/mini only under protocol/content', () => {
+  it('keeps regular Zod and privileged schemas out of the content graph', () => {
     const violations: string[] = [];
-    for (const file of walkTsFiles(join(SRC, 'protocol/content'))) {
-      const specifiers = importSpecifiers(readFileSync(file, 'utf8'));
+    for (const [file, specifiers] of CONTENT_GRAPH) {
+      const path = srcPath(file);
       for (const specifier of specifiers) {
-        if (FORBIDDEN_PROTOCOL_CONTENT.some((pattern) => pattern.test(specifier))) {
-          violations.push(`${relative(SRC, file)} imports ${specifier}`);
+        if (specifier === 'zod' || /(?:^|\/)behavior-schema(?:\.ts)?$/.test(specifier)) {
+          violations.push(`${path} imports ${specifier}`);
         }
-      }
-    }
-    const overlayAndEngine = [
-      ...CONTENT_GRAPH_FILES.filter((file) => file !== 'entrypoints/content.ts').map((file) =>
-        join(SRC, file),
-      ),
-      ...walkTsFiles(join(SRC, 'overlay')),
-    ];
-    for (const file of overlayAndEngine) {
-      const specifiers = importSpecifiers(readFileSync(file, 'utf8'));
-      for (const specifier of specifiers) {
-        if (FORBIDDEN_OVERLAY.some((pattern) => pattern.test(specifier))) {
-          violations.push(`${relative(SRC, file)} imports ${specifier}`);
+        if (/(?:^|\/)protocol\/schemas(?:\/|$)/.test(specifier)) {
+          violations.push(`${path} imports ${specifier}`);
+        }
+        if (specifier === 'zod/mini' && !isProtocolContent(file)) {
+          violations.push(`${path} imports ${specifier}`);
+        }
+        if (
+          /(?:^|\/)protocol\/content(?:\/|$)/.test(specifier) &&
+          !isProtocolContent(file) &&
+          !isContentEntrypoint(file)
+        ) {
+          violations.push(`${path} imports ${specifier}`);
         }
       }
     }

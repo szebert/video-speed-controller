@@ -7,8 +7,10 @@ import { BEHAVIOR_FIELDS, type BehaviorField } from './behavior-fields';
 import {
   hasSemanticOverrides,
   isFiniteTimestamp,
+  type BehaviorFieldValue,
   type BehaviorOverrides,
   type GlobalBehaviorSettingsV1,
+  type OverlayPosition,
   type SiteSettingsV1,
 } from './site-behavior';
 
@@ -16,6 +18,22 @@ const StoredDelaySchema = z
   .number()
   .refine(Number.isInteger)
   .refine((value) => value >= 0);
+
+const StoredOverlayPositionSchema = z.union([
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
+  z.literal(6),
+  z.literal(7),
+  z.literal(8),
+]) satisfies z.ZodType<OverlayPosition>;
+
+type BehaviorValueSchemaMap = {
+  [K in BehaviorField]: z.ZodType<BehaviorFieldValue<K>>;
+};
 
 // Storage salvage (regular Zod). Stricter than RPC/Mini (finite numbers,
 // integer delay). Cannot be imported from protocol/content or the content graph.
@@ -25,15 +43,18 @@ export const behaviorValueSchemas = {
   speedMax: z.number().finite(),
   speedTick: z.number().finite(),
   overlayVisible: z.boolean(),
-  overlayPosition: z.number().int().min(0).max(8),
+  overlayPosition: StoredOverlayPositionSchema,
   overlayPositionButton: z.boolean(),
   overlaySettingsButton: z.boolean(),
   overlayAutoHide: z.boolean(),
   overlayHoverHold: z.boolean(),
   overlayAutoHideDelayMs: StoredDelaySchema,
-} satisfies Record<BehaviorField, z.ZodType>;
+} satisfies BehaviorValueSchemaMap;
 
-true satisfies Equal<BehaviorField, keyof typeof behaviorValueSchemas>;
+true satisfies Equal<
+  { [K in BehaviorField]: z.infer<(typeof behaviorValueSchemas)[K]> },
+  { [K in BehaviorField]: BehaviorFieldValue<K> }
+>;
 
 const SITE_ENVELOPE_KEYS = ['schemaVersion', 'overrides', 'lastUsedAt'] as const;
 const GLOBAL_ENVELOPE_KEYS = ['schemaVersion', 'overrides'] as const;

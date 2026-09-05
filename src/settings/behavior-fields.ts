@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { DEFAULT_SPEED_POLICY } from '../core/speed';
+import type { Equal } from '../types/equal';
 
 export type ReapplyMode = 'none' | 'preserve-target' | 'revalidate-target' | 'resolve-target';
 
@@ -93,3 +94,8 @@ export const NUMBER_BEHAVIOR_FIELDS = EDITABLE_BEHAVIOR_FIELDS.filter(
   (field): field is NumberBehaviorField =>
     field !== 'overlayPosition' && typeof BEHAVIOR_FIELDS[field].default === 'number',
 ) as [NumberBehaviorField, ...NumberBehaviorField[]];
+
+// Inherit covers every field. This proves each field also has a writable value
+// kind. A string/enum/object default fails compile until the model is extended.
+type ModeledValueField = NumberBehaviorField | BooleanBehaviorField | 'overlayPosition';
+true satisfies Equal<BehaviorField, ModeledValueField>;

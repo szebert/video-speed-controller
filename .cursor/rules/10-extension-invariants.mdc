@@ -57,6 +57,10 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
 - Do not merge Mini schemas, regular Zod RPC/storage schemas, or the
   handwritten session `isAppliedTabBehavior` guard. Those copies are the
   isolation wall. Domain types may derive from `BEHAVIOR_FIELDS`.
+- Every registry field must have a writable value kind (number, boolean, or
+  overlayPosition). Storage schemas must match those domain value types.
+- Content isolation is a transitive import walk from `content.ts`, not a
+  hand-maintained file list.
 - `sendContentRequest()` does not runtime-parse requests it constructs;
   only the receiver parses inbound requests. It only runtime-parses the
   unknown response.

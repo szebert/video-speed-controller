@@ -102,7 +102,7 @@ export type ResolvedSetting<T> = {
 // and behavior-schema (storage) — this file is on the content graph.
 type WidenDefault<T> = T extends boolean ? boolean : T extends number ? number : T;
 
-type BehaviorFieldValue<K extends BehaviorField> = K extends 'overlayPosition'
+export type BehaviorFieldValue<K extends BehaviorField> = K extends 'overlayPosition'
   ? OverlayPosition
   : WidenDefault<(typeof BEHAVIOR_FIELDS)[K]['default']>;
 
