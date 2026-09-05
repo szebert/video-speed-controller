@@ -2,8 +2,11 @@
 
 import * as z from 'zod/mini';
 import type { AppliedTabBehavior } from '../../core/applied-tab-behavior';
+import type { Equal } from '../../types/equal';
 import { OverlayPositionSchema } from './content-background';
 
+// APPLY wire (Mini). Extra keys strip. Session storage uses the handwritten
+// exact-key guard in applied-tab-behavior — overlay cannot import this module.
 export const AppliedTabBehaviorSchema = z.object({
   targetSpeed: z.number(),
   speedMin: z.number(),
@@ -18,9 +21,6 @@ export const AppliedTabBehaviorSchema = z.object({
   overlayAutoHideDelayMs: z.number(),
 });
 
-// prettier-ignore
-type Equal<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 true satisfies Equal<z.infer<typeof AppliedTabBehaviorSchema>, AppliedTabBehavior>;
 
 export const ApplyTabBehaviorRequestSchema = z.object({

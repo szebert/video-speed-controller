@@ -2,6 +2,11 @@
 
 import * as z from 'zod/mini';
 
+// Content → background wire (Zod Mini). Regular Zod twins live in
+// protocol/schemas and must not be imported here — they would ship in content.js.
+//
+// Same 0–8 grid as OverlayPosition in site-behavior. Mini copy of the privileged
+// OverlayPositionSchema in protocol/schemas/shared.ts.
 export const OverlayPositionSchema = z.literal([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
 export const AdjustSpeedRequestSchema = z.object({

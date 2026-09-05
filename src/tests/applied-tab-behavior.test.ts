@@ -67,6 +67,7 @@ describe('applied tab behavior', () => {
     expect(isAppliedTabBehavior({ ...tabBehavior(1.25), extra: true })).toBe(false);
     expect(isAppliedTabBehavior({ ...tabBehavior(1.25), targetSpeed: Number.NaN })).toBe(false);
     expect(isAppliedTabBehavior({ ...tabBehavior(1.25), overlayPosition: 9 })).toBe(false);
+    expect(isAppliedTabBehavior({ ...tabBehavior(1.25), overlayVisible: 1 })).toBe(false);
   });
 
   it('treats old speed-only session state as absent and round-trips full behavior', async () => {

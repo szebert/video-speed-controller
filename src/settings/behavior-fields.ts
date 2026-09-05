@@ -4,6 +4,9 @@ import { DEFAULT_SPEED_POLICY } from '../core/speed';
 
 export type ReapplyMode = 'none' | 'preserve-target' | 'revalidate-target' | 'resolve-target';
 
+// Content-safe registry: defaults and reapply policy. Domain types derive from
+// this. Validators do not — Mini APPLY, options RPC, and storage salvage each
+// keep their own schema so Zod stays out of overlay/content.
 export const BEHAVIOR_FIELDS = {
   speed: {
     default: 1,

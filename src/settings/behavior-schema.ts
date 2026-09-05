@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { z } from 'zod';
+import type { Equal } from '../types/equal';
 import { hasOpaqueContent, pickUnknownKeys, type OpaqueFields } from './opaque-fields';
 import { BEHAVIOR_FIELDS, type BehaviorField } from './behavior-fields';
 import {
@@ -16,6 +17,8 @@ const StoredDelaySchema = z
   .refine(Number.isInteger)
   .refine((value) => value >= 0);
 
+// Storage salvage (regular Zod). Stricter than RPC/Mini (finite numbers,
+// integer delay). Cannot be imported from protocol/content or the content graph.
 export const behaviorValueSchemas = {
   speed: z.number().finite(),
   speedMin: z.number().finite(),
@@ -30,9 +33,6 @@ export const behaviorValueSchemas = {
   overlayAutoHideDelayMs: StoredDelaySchema,
 } satisfies Record<BehaviorField, z.ZodType>;
 
-// prettier-ignore
-type Equal<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 true satisfies Equal<BehaviorField, keyof typeof behaviorValueSchemas>;
 
 const SITE_ENVELOPE_KEYS = ['schemaVersion', 'overrides', 'lastUsedAt'] as const;

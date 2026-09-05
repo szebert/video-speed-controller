@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+// Content-script RPC client. Parses only the unknown response with Mini
+// schemas from this folder. Do not import protocol/schemas here.
 import { CONTENT_TO_BACKGROUND, type ContentToBackgroundRequest } from './content-background';
 
 type ContentResponse<T extends ContentToBackgroundRequest> =

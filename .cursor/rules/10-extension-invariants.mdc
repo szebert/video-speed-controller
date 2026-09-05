@@ -54,6 +54,9 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
 - Regular Zod stays out of `content.js`, including `import type` from files
   that runtime-import regular Zod. Content may import `protocol/content/*`
   (Mini only). Overlay, playback, and engine import neither Zod variant.
+- Do not merge Mini schemas, regular Zod RPC/storage schemas, or the
+  handwritten session `isAppliedTabBehavior` guard. Those copies are the
+  isolation wall. Domain types may derive from `BEHAVIOR_FIELDS`.
 - `sendContentRequest()` does not runtime-parse requests it constructs;
   only the receiver parses inbound requests. It only runtime-parses the
   unknown response.

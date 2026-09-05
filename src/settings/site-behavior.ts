@@ -15,10 +15,12 @@ import {
   speedPolicyFrom,
   type SpeedPolicy,
 } from '../core/speed';
+import type { Equal } from '../types/equal';
 import {
   BEHAVIOR_FIELDS,
   BOOLEAN_BEHAVIOR_FIELDS,
   EDITABLE_BEHAVIOR_FIELDS,
+  type BehaviorField,
   type BooleanBehaviorField,
   type EditableBehaviorField,
   type NumberBehaviorField,
@@ -95,18 +97,18 @@ export type ResolvedSetting<T> = {
   source: SettingSource;
 };
 
+// Domain shapes from BEHAVIOR_FIELDS. hotkeys is reserved extras, not a
+// registry row. Zod copies of these fields stay in protocol/schemas (RPC)
+// and behavior-schema (storage) — this file is on the content graph.
+type WidenDefault<T> = T extends boolean ? boolean : T extends number ? number : T;
+
+type BehaviorFieldValue<K extends BehaviorField> = K extends 'overlayPosition'
+  ? OverlayPosition
+  : WidenDefault<(typeof BEHAVIOR_FIELDS)[K]['default']>;
+
 export type SiteBehavior = {
-  speed: number;
-  speedMin: number;
-  speedMax: number;
-  speedTick: number;
-  overlayVisible: boolean;
-  overlayPosition: OverlayPosition;
-  overlayPositionButton: boolean;
-  overlaySettingsButton: boolean;
-  overlayAutoHide: boolean;
-  overlayHoverHold: boolean;
-  overlayAutoHideDelayMs: number;
+  [K in BehaviorField]: BehaviorFieldValue<K>;
+} & {
   hotkeys: Partial<Record<SiteHotkeyAction, HotkeyBinding | null>>;
 };
 
@@ -114,17 +116,8 @@ export type Override<T> =
   { kind: 'value'; value: T; updatedAt: number } | { kind: 'inherit'; updatedAt: number };
 
 export type BehaviorOverrides = {
-  speed?: Override<number>;
-  speedMin?: Override<number>;
-  speedMax?: Override<number>;
-  speedTick?: Override<number>;
-  overlayVisible?: Override<boolean>;
-  overlayPosition?: Override<OverlayPosition>;
-  overlayPositionButton?: Override<boolean>;
-  overlaySettingsButton?: Override<boolean>;
-  overlayAutoHide?: Override<boolean>;
-  overlayHoverHold?: Override<boolean>;
-  overlayAutoHideDelayMs?: Override<number>;
+  [K in BehaviorField]?: Override<BehaviorFieldValue<K>>;
+} & {
   hotkeys?: Partial<Record<SiteHotkeyAction, Override<HotkeyBinding | null>>>;
 };
 
@@ -140,17 +133,8 @@ export type GlobalBehaviorSettingsV1 = {
 };
 
 export type ResolvedSiteBehavior = {
-  speed: ResolvedSetting<number>;
-  speedMin: ResolvedSetting<number>;
-  speedMax: ResolvedSetting<number>;
-  speedTick: ResolvedSetting<number>;
-  overlayVisible: ResolvedSetting<boolean>;
-  overlayPosition: ResolvedSetting<OverlayPosition>;
-  overlayPositionButton: ResolvedSetting<boolean>;
-  overlaySettingsButton: ResolvedSetting<boolean>;
-  overlayAutoHide: ResolvedSetting<boolean>;
-  overlayHoverHold: ResolvedSetting<boolean>;
-  overlayAutoHideDelayMs: ResolvedSetting<number>;
+  [K in BehaviorField]: ResolvedSetting<BehaviorFieldValue<K>>;
+} & {
   hotkeys: Partial<Record<SiteHotkeyAction, ResolvedSetting<HotkeyBinding | null>>>;
 };
 
@@ -436,15 +420,14 @@ export function isBooleanBehaviorField(
 
 export type EditableResolvedBehavior = Pick<ResolvedSiteBehavior, EditableBehaviorField>;
 
+// Domain change. Wire twin is BehaviorSettingChangeSchema (regular Zod, options
+// RPC). Do not import that schema here — content graph must stay Zod-free.
 export type BehaviorSettingChange =
   | { kind: 'inherit'; field: EditableBehaviorField }
   | { kind: 'value'; field: NumberBehaviorField; value: number }
   | { kind: 'value'; field: 'overlayPosition'; value: OverlayPosition }
   | { kind: 'value'; field: BooleanBehaviorField; value: boolean };
 
-// prettier-ignore
-type Equal<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 true satisfies Equal<EditableBehaviorField, BehaviorSettingChange['field']>;
 
 export function hasValueOverrides(overrides: BehaviorOverrides): boolean {

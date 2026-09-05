@@ -6,9 +6,16 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = join(process.cwd(), 'src');
 
+// One content script (content.ts + everything it imports). Regular Zod is
+// banned in this whole graph. Mini is allowed only in protocol/content, which
+// content.ts calls at the chrome.runtime boundary. Overlay/engine stay in the
+// same script but must not import that folder — they take already-parsed
+// AppliedTabBehavior, they do not parse messages.
 const CONTENT_GRAPH_FILES = [
   'entrypoints/content.ts',
+  'settings/behavior-fields.ts',
   'settings/site-behavior.ts',
+  'types/equal.ts',
   'core/applied-tab-behavior.ts',
   'core/video-speed-engine.ts',
   'core/video-overlay.ts',

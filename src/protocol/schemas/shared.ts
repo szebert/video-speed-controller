@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { z } from 'zod';
+import type { Equal } from '../../types/equal';
 import {
   BOOLEAN_BEHAVIOR_FIELDS,
   EDITABLE_BEHAVIOR_FIELDS,
   NUMBER_BEHAVIOR_FIELDS,
+  type BehaviorField,
 } from '../../settings/behavior-fields';
 import type {
   BehaviorSettingChange as DomainBehaviorSettingChange,
   EditableResolvedBehavior,
   OverlayPosition,
 } from '../../settings/site-behavior';
-import type { BehaviorField } from '../../settings/behavior-fields';
 
+// Options/popup RPC (regular Zod). Field lists stay here because this module
+// cannot be imported by protocol/content or overlay. Mini twins: OverlayPosition
+// and AppliedTabBehavior schemas under protocol/content.
 export const OverlayPositionSchema = z.union([
   z.literal(0),
   z.literal(1),
@@ -52,9 +56,6 @@ export const BehaviorSettingChangeSchema = z.union([
   }),
 ]);
 
-// prettier-ignore
-type Equal<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 true satisfies Equal<BehaviorField, z.infer<typeof BehaviorSettingChangeSchema>['field']>;
 true satisfies Equal<DomainBehaviorSettingChange, z.infer<typeof BehaviorSettingChangeSchema>>;
 

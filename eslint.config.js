@@ -86,7 +86,9 @@ export default tseslint.config(
   },
   {
     files: [
+      'src/settings/behavior-fields.ts',
       'src/settings/site-behavior.ts',
+      'src/types/equal.ts',
       'src/core/applied-tab-behavior.ts',
       'src/core/video-speed-engine.ts',
       'src/core/video-overlay.ts',
