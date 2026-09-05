@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
-import type { SetSpeedResponse } from '../core/messages';
+import type { SetSpeedResponse } from '../protocol/schemas/popup-background';
 import {
   persistSiteSpeedInherit,
   resolveSpeedAfterSiteInherit,

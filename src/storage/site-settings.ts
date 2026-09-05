@@ -44,11 +44,9 @@ import {
   emptyOpaqueFields,
   migrateSiteSettings,
   projectSyncEligibleSite,
-  resetAllResult,
   serializeSiteRecord,
   serializedRecordsEqual,
   type OpaqueFields,
-  type ResetAllResult,
   type SettingsParseResult,
 } from '../settings/migrate';
 import { normalizeSiteHostname } from '../settings/site-hostname';
@@ -238,8 +236,7 @@ async function reconcileSyncHotSetUnlocked(
       return !hasSyncRetainedInherit(entry.parsed.record.overrides, now);
     })
     .sort((left, right) => {
-      const rank =
-        opaqueReadyEvictionRank(left.parsed) - opaqueReadyEvictionRank(right.parsed);
+      const rank = opaqueReadyEvictionRank(left.parsed) - opaqueReadyEvictionRank(right.parsed);
       if (rank !== 0) {
         return rank;
       }
@@ -772,7 +769,9 @@ async function writeSyncSiteBatchUnlocked(
   }
 }
 
-export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promise<ResetAllResult> {
+export async function deleteAllSiteSettings(
+  deps: SiteSettingsDeps = {},
+): Promise<{ skippedRecordCount: number }> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
     const { sync, local, now } = stores(deps);
     const at = now();
@@ -786,11 +785,11 @@ export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promis
     ];
     const localItems: Record<string, unknown> = {};
     const syncRecords: { key: string; record: SiteSettingsV1; extras: OpaqueFields }[] = [];
-    let skippedNewerVersionCount = 0;
+    let skippedRecordCount = 0;
     for (const key of keys) {
       const copies = copiesForKey(syncAll, localAll, key);
       if (cannotSafelyDestroy(copies.syncParsed) || cannotSafelyDestroy(copies.localParsed)) {
-        skippedNewerVersionCount += 1;
+        skippedRecordCount += 1;
         continue;
       }
       const record = tombstoneMergedSite(copies.merged, at);
@@ -821,6 +820,6 @@ export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promis
       await local.set(localItems);
     }
     await writeSyncSiteBatchUnlocked(sync, syncRecords, at);
-    return resetAllResult(skippedNewerVersionCount);
+    return { skippedRecordCount };
   });
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import type { BehaviorSettingsSnapshot } from '../../core/messages';
+import type { BehaviorSettingsSnapshot } from '../../protocol/schemas/shared';
 import { t } from '@/i18n/t';
 import {
   BUILT_IN_SITE_BEHAVIOR,

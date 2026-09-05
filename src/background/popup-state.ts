@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { containsExactOriginAccess } from '../access/site-access';
-import type { PopupStateResponse } from '../core/messages';
+import type { PopupStateResponse } from '../protocol/schemas/popup-background';
 import { DEFAULT_SPEED_POLICY } from '../core/speed';
 import { toEffectiveBehavior } from '../settings/site-behavior';
 import { getSiteKey } from '../storage/site-key';

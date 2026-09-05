@@ -5,7 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@/components/theme-provider';
 import { SpeedControls } from '@/components/SpeedControls';
-import type { BehaviorSettingsSnapshot, GetBehaviorSettingsResponse } from '../core/messages';
+import type { GetBehaviorSettingsResponse } from '../protocol/schemas/options-background';
+import type { BehaviorSettingsSnapshot } from '../protocol/schemas/shared';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import { SPEED_MIN_SETTING_MIN } from '../core/speed';
 import { App } from '../entrypoints/options/App';
@@ -1079,18 +1080,19 @@ describe('Options page', () => {
     expect(container.textContent).toContain('Saved, but open tabs could not be refreshed.');
   });
 
-  it('adds a site from membership without rescanning after a successful site SET', async () => {
+  it('refreshes the sidebar after a successful site SET', async () => {
+    let customized = false;
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: [] };
+        return { ok: true, customSites: customized ? ['example.com'] : [] };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot('example.com'));
       }
+      customized = true;
       return {
         ok: true,
         state: snapshot('example.com'),
-        siteMembership: { hostname: 'example.com', customized: true },
         reappliedTabs: 0,
         reapplyFailures: 0,
       };
@@ -1102,7 +1104,10 @@ describe('Options page', () => {
     await act(async () => {
       click(faster);
     });
-    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual(['SET_BEHAVIOR_SETTING']);
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'SET_BEHAVIOR_SETTING',
+      'GET_CUSTOM_SITES',
+    ]);
     expect(container.textContent).toContain('example.com');
     expect(container.textContent).not.toContain('No site settings yet.');
   });
@@ -1680,7 +1685,7 @@ describe('Options page', () => {
       return {
         ok: true,
         state: snapshot(),
-        resetAll: { partial: true, skippedNewerVersionCount: 1 },
+        skippedRecordCount: 1,
         reappliedTabs: 0,
         reapplyFailures: 0,
       };

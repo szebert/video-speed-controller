@@ -7,7 +7,7 @@ import {
   type AppliedTabBehavior,
 } from '../core/applied-tab-behavior';
 import { resolveEffectiveSpeed } from '../core/speed';
-import type { BehaviorSettingsScope, ReapplyResult } from '../core/messages';
+import type { BehaviorSettingsScope, ReapplyResult } from '../protocol/schemas/shared';
 import type { EditableBehaviorField } from '../settings/site-behavior';
 import { getSiteKey } from '../storage/site-key';
 import {

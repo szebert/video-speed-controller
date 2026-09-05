@@ -5,7 +5,6 @@ import {
   detectVersion,
   migrateGlobalBehaviorSettings,
   migrateSiteSettings,
-  resetAllResult,
 } from '../settings/migrate';
 import { parseReadySiteSettings } from '../settings/site-behavior';
 import { migrateThemeRecord } from '../settings/theme';
@@ -97,13 +96,6 @@ describe('migrate settings', () => {
       value: 10,
       updatedAt: 1,
     });
-  });
-});
-
-describe('ResetAllResult', () => {
-  it('sets partial exactly when skippedNewerVersionCount is positive', () => {
-    expect(resetAllResult(0)).toEqual({ partial: false, skippedNewerVersionCount: 0 });
-    expect(resetAllResult(1)).toEqual({ partial: true, skippedNewerVersionCount: 1 });
   });
 });
 

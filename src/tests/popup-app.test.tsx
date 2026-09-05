@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@/components/theme-provider';
-import type { PopupStateResponse } from '../core/messages';
+import type { PopupStateResponse } from '../protocol/schemas/popup-background';
 import { App } from '../entrypoints/popup/App';
 
 function expectPopupControlsOrder(container: HTMLElement): void {

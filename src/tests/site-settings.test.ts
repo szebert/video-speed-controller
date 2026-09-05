@@ -1027,7 +1027,9 @@ describe('site settings storage', () => {
       extra: true,
       overrides: { speed: { kind: 'value', value: 2, updatedAt: 1 } },
     };
-    await expect(deleteSiteSettings('www.youtube.com', { ...deps, now: () => 200 })).resolves.toBeUndefined();
+    await expect(
+      deleteSiteSettings('www.youtube.com', { ...deps, now: () => 200 }),
+    ).resolves.toBeUndefined();
     expect(deps.local.data['site:www.youtube.com']).toMatchObject({
       extra: true,
       overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
@@ -1062,7 +1064,7 @@ describe('site settings storage', () => {
     deps.sync.data['site:www.youtube.com'] = youtubeSync;
     deps.local.data['site:www.youtube.com'] = youtubeLocal;
     const result = await deleteAllSiteSettings({ ...deps, now: () => 200 });
-    expect(result).toEqual({ partial: true, skippedNewerVersionCount: 1 });
+    expect(result).toEqual({ skippedRecordCount: 1 });
     expect(deps.sync.data['site:www.youtube.com']).toEqual(youtubeSync);
     expect(deps.local.data['site:www.youtube.com']).toEqual(youtubeLocal);
     expect(deps.local.data['site:vimeo.com']).toMatchObject({
@@ -1084,7 +1086,7 @@ describe('site settings storage', () => {
     deps.sync.data['site:www.youtube.com'] = opaque;
     deps.local.data['site:www.youtube.com'] = opaque;
     const result = await deleteAllSiteSettings({ ...deps, now: () => 200 });
-    expect(result).toEqual({ partial: true, skippedNewerVersionCount: 1 });
+    expect(result).toEqual({ skippedRecordCount: 1 });
     expect(deps.sync.data['site:www.youtube.com']).toEqual(opaque);
     expect(deps.local.data['site:www.youtube.com']).toEqual(opaque);
     expect(deps.local.data['site:vimeo.com']).toMatchObject({

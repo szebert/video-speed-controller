@@ -50,5 +50,51 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    files: [
+      'src/entrypoints/content.ts',
+      'src/protocol/content-codec/**/*.{ts,tsx}',
+      'src/settings/site-behavior.ts',
+      'src/core/applied-tab-behavior.ts',
+      'src/core/video-speed-engine.ts',
+      'src/core/video-overlay.ts',
+      'src/core/media-controller.ts',
+      'src/core/media-registry.ts',
+      'src/core/arbitration.ts',
+      'src/core/speed.ts',
+      'src/overlay/**/*.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'zod',
+              message: 'Content, overlay, and playback must stay Zod-free.',
+              allowTypeImports: false,
+            },
+            {
+              name: 'zod/mini',
+              message: 'Content, overlay, and playback must stay Zod-free.',
+              allowTypeImports: false,
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                '**/behavior-schema',
+                '**/behavior-schema.*',
+                '**/protocol/schemas',
+                '**/protocol/schemas/**',
+              ],
+              message: 'Content may import only protocol/types and protocol/content-codec.',
+              allowTypeImports: false,
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );

@@ -2,7 +2,10 @@
 
 import type { HostPattern } from '../access/site-access';
 import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
-import type { ApplyTabBehaviorRequest, ReconcileAccessRequest } from '../core/messages';
+import type {
+  ApplyTabBehaviorRequest,
+  ReconcileAccessRequest,
+} from '../protocol/types/background-content';
 
 export type TabMessenger = {
   query: (queryInfo: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>;

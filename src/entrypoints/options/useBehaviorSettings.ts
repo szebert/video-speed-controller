@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { sendOptionsRequest } from '../../protocol/rpc';
 import type {
-  BehaviorSettingsSnapshot,
-  GetBehaviorSettingsResponse,
-  GetCustomSitesResponse,
+  DeleteSiteSettingsResponse,
+  OptionsToBackgroundRequest,
+  ResetAllBehaviorResponse,
+  ResetGlobalBehaviorResponse,
   SetBehaviorSettingResponse,
-  SiteMembershipUpdate,
-} from '../../core/messages';
+} from '../../protocol/schemas/options-background';
+import type { BehaviorSettingsSnapshot, SiteMembershipUpdate } from '../../protocol/schemas/shared';
 import { adjustSpeed, clampPolicyNumber } from '../../core/speed';
 import { t } from '@/i18n/t';
 import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../../settings/migrate';
@@ -33,19 +35,25 @@ import {
   type Selection,
 } from './options-model';
 
-async function requestGet(hostname: string | null): Promise<GetBehaviorSettingsResponse> {
-  const message =
+async function requestGet(hostname: string | null) {
+  const response = await sendOptionsRequest(
     hostname == null
-      ? { type: 'GET_BEHAVIOR_SETTINGS' as const }
-      : { type: 'GET_BEHAVIOR_SETTINGS' as const, hostname };
-  return (await chrome.runtime.sendMessage(message)) as GetBehaviorSettingsResponse;
+      ? { type: 'GET_BEHAVIOR_SETTINGS' }
+      : { type: 'GET_BEHAVIOR_SETTINGS', hostname },
+  );
+  return response ?? { ok: false as const, error: 'Invalid response' };
 }
 
-async function requestCustomSites(): Promise<GetCustomSitesResponse> {
-  return (await chrome.runtime.sendMessage({
-    type: 'GET_CUSTOM_SITES',
-  })) as GetCustomSitesResponse;
+async function requestCustomSites() {
+  const response = await sendOptionsRequest({ type: 'GET_CUSTOM_SITES' });
+  return response ?? { ok: false as const, error: 'Invalid response' };
 }
+
+type MutationResponse =
+  | SetBehaviorSettingResponse
+  | DeleteSiteSettingsResponse
+  | ResetGlobalBehaviorResponse
+  | ResetAllBehaviorResponse;
 
 function applyMembership(current: string[], update: SiteMembershipUpdate): string[] {
   const has = current.includes(update.hostname);
@@ -181,7 +189,7 @@ export function useBehaviorSettings() {
   }
 
   function applyResponse(
-    response: SetBehaviorSettingResponse | undefined,
+    response: MutationResponse | undefined,
     options: { clearCustomSites?: boolean; sentChanges?: readonly BehaviorSettingChange[] } = {},
   ): boolean {
     if (!response) {
@@ -196,7 +204,7 @@ export function useBehaviorSettings() {
     if (response.reapplyFailures > 0 || response.reapplyError) {
       nextWarning = t('settingsReapplyError');
     }
-    if (response.resetAll?.partial) {
+    if ('skippedRecordCount' in response && response.skippedRecordCount > 0) {
       const partial = t('settingsResetPartial');
       nextWarning = nextWarning ? `${nextWarning} ${partial}` : partial;
     }
@@ -212,8 +220,9 @@ export function useBehaviorSettings() {
       );
       if (options.clearCustomSites) {
         setCustomSites([]);
-      } else if (response.siteMembership) {
-        setCustomSites((current) => applyMembership(current, response.siteMembership!));
+      } else if ('siteMembership' in response && response.siteMembership) {
+        const membership = response.siteMembership;
+        setCustomSites((current) => applyMembership(current, membership));
       }
       if (!options.sentChanges) {
         clearAllDrafts();
@@ -242,14 +251,9 @@ export function useBehaviorSettings() {
     }
   }
 
-  async function sendPrivileged(
-    message: Record<string, unknown>,
-  ): Promise<SetBehaviorSettingResponse | undefined> {
+  function withSnapshotHostname<T extends OptionsToBackgroundRequest>(message: T): T {
     const hostname = snapshotHostnameRef.current;
-    return (await chrome.runtime.sendMessage({
-      ...message,
-      ...(hostname ? { snapshotHostname: hostname } : {}),
-    })) as SetBehaviorSettingResponse | undefined;
+    return hostname ? { ...message, snapshotHostname: hostname } : message;
   }
 
   useLayoutEffect(() => {
@@ -263,21 +267,21 @@ export function useBehaviorSettings() {
       const payload =
         batch.changes.length === 1
           ? {
-              type: 'SET_BEHAVIOR_SETTING',
+              type: 'SET_BEHAVIOR_SETTING' as const,
               scope: batch.scope,
               change: batch.changes[0],
             }
           : {
-              type: 'SET_BEHAVIOR_SETTING',
+              type: 'SET_BEHAVIOR_SETTING' as const,
               scope: batch.scope,
               changes: batch.changes,
             };
       try {
-        const response = await sendPrivileged(payload);
+        const response = await sendOptionsRequest(withSnapshotHostname(payload));
         if (!applyResponse(response, { sentChanges: batch.changes }) || response?.ok === false) {
           await recover(membership ? 'pane-and-sidebar' : 'pane');
           writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
-        } else if (membership && response?.ok && !response.siteMembership) {
+        } else if (membership && response?.ok) {
           await recover('sidebar');
         }
       } catch {
@@ -372,7 +376,9 @@ export function useBehaviorSettings() {
   async function resetDefaults(): Promise<void> {
     await runDestructive(async () => {
       try {
-        const response = await sendPrivileged({ type: 'RESET_GLOBAL_BEHAVIOR' });
+        const response = await sendOptionsRequest(
+          withSnapshotHostname({ type: 'RESET_GLOBAL_BEHAVIOR' }),
+        );
         if (!applyResponse(response) || (response && !response.ok)) {
           await recover('pane');
         }
@@ -386,8 +392,12 @@ export function useBehaviorSettings() {
   async function resetAll(): Promise<void> {
     await runDestructive(async () => {
       try {
-        const response = await sendPrivileged({ type: 'RESET_ALL_BEHAVIOR' });
-        const partial = Boolean(response?.ok && response.resetAll?.partial);
+        const response = await sendOptionsRequest(
+          withSnapshotHostname({ type: 'RESET_ALL_BEHAVIOR' }),
+        );
+        const partial = Boolean(
+          response?.ok && 'skippedRecordCount' in response && response.skippedRecordCount > 0,
+        );
         if (
           !applyResponse(response, { clearCustomSites: !partial }) ||
           (response && !response.ok)
@@ -430,12 +440,14 @@ export function useBehaviorSettings() {
   async function deleteSite(hostname: string): Promise<void> {
     await runDestructive(async () => {
       try {
-        const response = await sendPrivileged({ type: 'DELETE_SITE_SETTINGS', hostname });
+        const response = await sendOptionsRequest(
+          withSnapshotHostname({ type: 'DELETE_SITE_SETTINGS', hostname }),
+        );
         if (!applyResponse(response) || (response && !response.ok)) {
           await recover('pane-and-sidebar');
           return;
         }
-        if (response?.ok && !response.siteMembership) {
+        if (response?.ok && !('siteMembership' in response && response.siteMembership)) {
           await recover('sidebar');
         }
         if (selectionRef.current.kind === 'site' && selectionRef.current.hostname === hostname) {

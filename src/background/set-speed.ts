@@ -2,7 +2,7 @@
 
 import { canonicalizeSpeed, clampSpeed, type SpeedPolicy } from '../core/speed';
 import { speedPolicyFromApplied, type AppliedTabBehavior } from '../core/applied-tab-behavior';
-import type { SetSpeedResponse } from '../core/messages';
+import type { SetSpeedResponse } from '../protocol/schemas/popup-background';
 import { persistSiteSpeed } from '../storage/site-settings';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { readOverlaySeed, type OverlaySeed } from './applied-behavior';

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
-import type { EnableSiteResponse } from '../core/messages';
+import type { EnableSiteResponse } from '../protocol/schemas/popup-background';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { readAppliedTabBehavior, type AppliedBehaviorReader } from './applied-behavior';
 import { applyTabBehavior } from './broadcast';

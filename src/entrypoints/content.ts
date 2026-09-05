@@ -7,7 +7,11 @@ import {
   type HostPattern,
 } from '../access/site-access';
 import { destroyEngine, startEngine } from '../core/video-speed-engine';
-import { intentFailureMessage, isExtensionRequest } from '../core/messages';
+import { parseBackgroundToContent } from '../protocol/content-codec/background-content';
+import {
+  intentOutcomeFailureMessage,
+  parseIntentOutcome,
+} from '../protocol/content-codec/content-responses';
 import type { OverlayActions } from '../overlay/types';
 import type { OverlayPosition } from '../settings/site-behavior';
 
@@ -19,7 +23,12 @@ async function sendOverlayIntent(
   label: string,
 ): Promise<void> {
   try {
-    const failure = intentFailureMessage(await chrome.runtime.sendMessage(message));
+    const outcome = parseIntentOutcome(await chrome.runtime.sendMessage(message));
+    if (!outcome) {
+      console.warn(`${label} failed`, 'Invalid response');
+      return;
+    }
+    const failure = intentOutcomeFailureMessage(outcome);
     if (failure) {
       console.warn(`${label} failed`, failure);
     }
@@ -100,16 +109,17 @@ export default defineContentScript({
         _sender: chrome.runtime.MessageSender,
         sendResponse: (response?: unknown) => void,
       ): boolean => {
-        if (!isExtensionRequest(message)) {
+        const inbound = parseBackgroundToContent(message);
+        if (!inbound) {
           return false;
         }
-        if (message.type === 'APPLY_TAB_BEHAVIOR') {
-          engine.setBehavior(message.behavior);
+        if (inbound.type === 'APPLY_TAB_BEHAVIOR') {
+          engine.setBehavior(inbound.behavior);
           sendResponse({ ok: true });
           return false;
         }
-        if (message.type === 'RECONCILE_ACCESS') {
-          reconcileAccess(message.allowedHostPatterns);
+        if (inbound.type === 'RECONCILE_ACCESS') {
+          reconcileAccess(inbound.allowedHostPatterns);
           return false;
         }
         return false;

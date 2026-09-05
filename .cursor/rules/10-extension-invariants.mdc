@@ -33,6 +33,27 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
 - Permission removal must reconcile already-running content scripts, not only future registrations.
 - Treat opaque/fallback-frame behavior according to the current specification rather than guessing from `location.origin`.
 
+## Messaging
+
+- Parse incoming `unknown` at every runtime boundary. Privileged receivers
+  (background inbound, options/popup responses, storage) use regular Zod.
+  Content uses handwritten codecs in `protocol/content-codec`.
+- Keep RPC channel-bounded. Do not restore a global request union or
+  `src/core/messages.ts`.
+- RPC schemas validate known fields and do not repair them: no `z.coerce`,
+  `.default()`, `.transform()`, `.preprocess()`, `.catch()`, or product
+  canonicalize. Unknown additive object properties may be stripped by
+  `z.object()`. That is forward-compat; content scripts can outlive a
+  service-worker update.
+- Authorize by sender class after parse: options and popup inbound require an
+  extension-page sender (`Unauthorized` or ignore `GET_POPUP_STATE`). Content
+  inbound uses the existing tab checks. Do not match `options.html` vs
+  `popup.html`.
+- No Zod of any kind in `content.js`, including `import type` from files that
+  runtime-import Zod. Content may import only `protocol/types/*` and
+  `protocol/content-codec/*`.
+- No Zod on `timeupdate`, overlay render, or playback math.
+
 ## Media behavior
 
 - Tab-level requested speed and per-video arbitration are separate concerns.

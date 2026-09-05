@@ -18,7 +18,8 @@ import {
   setBehaviorSetting,
 } from '../background/behavior-settings';
 import { enqueueTabMutation } from '../background/tab-mutation-queue';
-import { isExtensionRequest } from '../core/messages';
+import { authorizeBackgroundInbound } from '../background/authorize-inbound';
+import { inboundChannel, parseBackgroundInbound } from '../protocol/schemas/background-inbound';
 import { restrictStorageAccess } from '../storage/restrict-access';
 import { clearTabState } from '../storage/tab-state';
 
@@ -62,19 +63,33 @@ export default defineBackground(() => {
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (!isExtensionRequest(message)) {
+    const inbound = parseBackgroundInbound(message);
+    if (!inbound) {
       return false;
     }
+    const authorization = authorizeBackgroundInbound(
+      inboundChannel(inbound.type),
+      inbound.type,
+      sender,
+    );
+    if (authorization === 'ignore') {
+      return false;
+    }
+    if (authorization === 'unauthorized') {
+      sendResponse({ ok: false, error: 'Unauthorized' });
+      return false;
+    }
+    const request = inbound;
 
-    if (message.type === 'GET_POPUP_STATE') {
-      void getPopupState(message.tabId, message.url).then(
+    if (request.type === 'GET_POPUP_STATE') {
+      void getPopupState(request.tabId, request.url).then(
         sendResponse,
         respondWithError(sendResponse, 'GET_POPUP_STATE', undefined),
       );
       return true;
     }
-    if (message.type === 'ENABLE_SITE') {
-      void enqueueTabMutation(message.tabId, () => enableSite(message.tabId, message.url)).then(
+    if (request.type === 'ENABLE_SITE') {
+      void enqueueTabMutation(request.tabId, () => enableSite(request.tabId, request.url)).then(
         sendResponse,
         respondWithError(sendResponse, 'ENABLE_SITE', {
           ok: false,
@@ -83,9 +98,9 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'SET_SPEED') {
-      void enqueueTabMutation(message.tabId, () =>
-        setSpeed(message.tabId, message.url, message.speed),
+    if (request.type === 'SET_SPEED') {
+      void enqueueTabMutation(request.tabId, () =>
+        setSpeed(request.tabId, request.url, request.speed),
       ).then(
         sendResponse,
         respondWithError(sendResponse, 'SET_SPEED', {
@@ -95,13 +110,13 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'ADJUST_SPEED') {
+    if (request.type === 'ADJUST_SPEED') {
       const tabId = sender.tab?.id;
       if (tabId == null) {
         sendResponse({ ok: false, error: 'Missing tab' });
         return false;
       }
-      void enqueueTabMutation(tabId, () => adjustTabSpeed(sender, message.direction)).then(
+      void enqueueTabMutation(tabId, () => adjustTabSpeed(sender, request.direction)).then(
         sendResponse,
         respondWithError(sendResponse, 'ADJUST_SPEED', {
           ok: false,
@@ -110,8 +125,8 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'SET_OVERLAY_POSITION') {
-      void setOverlayPositionFromSender(sender, message.position).then(
+    if (request.type === 'SET_OVERLAY_POSITION') {
+      void setOverlayPositionFromSender(sender, request.position).then(
         sendResponse,
         respondWithError(sendResponse, 'SET_OVERLAY_POSITION', {
           ok: false,
@@ -120,7 +135,7 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'OPEN_OPTIONS_PAGE') {
+    if (request.type === 'OPEN_OPTIONS_PAGE') {
       void openOptionsFromSender(sender).then(
         sendResponse,
         respondWithError(sendResponse, 'OPEN_OPTIONS_PAGE', {
@@ -130,8 +145,8 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'RESET_SITE_SPEED') {
-      void enqueueTabMutation(message.tabId, () => resetSiteSpeed(message.tabId, message.url)).then(
+    if (request.type === 'RESET_SITE_SPEED') {
+      void enqueueTabMutation(request.tabId, () => resetSiteSpeed(request.tabId, request.url)).then(
         sendResponse,
         respondWithError(sendResponse, 'RESET_SITE_SPEED', {
           ok: false,
@@ -140,7 +155,7 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'FRAME_READY') {
+    if (request.type === 'FRAME_READY') {
       const tabId = sender.tab?.id;
       if (tabId == null) {
         sendResponse({ action: 'dormant' });
@@ -152,8 +167,8 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'GET_BEHAVIOR_SETTINGS') {
-      void getBehaviorSettings(message, sender).then(
+    if (request.type === 'GET_BEHAVIOR_SETTINGS') {
+      void getBehaviorSettings(request, sender).then(
         sendResponse,
         respondWithError(sendResponse, 'GET_BEHAVIOR_SETTINGS', {
           ok: false,
@@ -162,7 +177,7 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'GET_CUSTOM_SITES') {
+    if (request.type === 'GET_CUSTOM_SITES') {
       void getCustomSites(sender).then(
         sendResponse,
         respondWithError(sendResponse, 'GET_CUSTOM_SITES', {
@@ -172,8 +187,8 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'SET_BEHAVIOR_SETTING') {
-      void setBehaviorSetting(message, sender).then(
+    if (request.type === 'SET_BEHAVIOR_SETTING') {
+      void setBehaviorSetting(request, sender).then(
         sendResponse,
         respondWithError(sendResponse, 'SET_BEHAVIOR_SETTING', {
           ok: false,
@@ -182,8 +197,8 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'DELETE_SITE_SETTINGS') {
-      void deleteSiteBehaviorSettings(message, sender).then(
+    if (request.type === 'DELETE_SITE_SETTINGS') {
+      void deleteSiteBehaviorSettings(request, sender).then(
         sendResponse,
         respondWithError(sendResponse, 'DELETE_SITE_SETTINGS', {
           ok: false,
@@ -192,8 +207,8 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'RESET_GLOBAL_BEHAVIOR') {
-      void resetGlobalBehaviorSettings(message, sender).then(
+    if (request.type === 'RESET_GLOBAL_BEHAVIOR') {
+      void resetGlobalBehaviorSettings(request, sender).then(
         sendResponse,
         respondWithError(sendResponse, 'RESET_GLOBAL_BEHAVIOR', {
           ok: false,
@@ -202,8 +217,8 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'RESET_ALL_BEHAVIOR') {
-      void resetAllBehaviorSettings(message, sender).then(
+    if (request.type === 'RESET_ALL_BEHAVIOR') {
+      void resetAllBehaviorSettings(request, sender).then(
         sendResponse,
         respondWithError(sendResponse, 'RESET_ALL_BEHAVIOR', {
           ok: false,
@@ -212,7 +227,7 @@ export default defineBackground(() => {
       );
       return true;
     }
-    if (message.type === 'TOP_FRAME_DESTROYED') {
+    if (request.type === 'TOP_FRAME_DESTROYED') {
       const tabId = sender.tab?.id;
       if (tabId != null && sender.frameId === 0) {
         void enqueueTabMutation(tabId, () => clearTabState(tabId)).catch((error) => {

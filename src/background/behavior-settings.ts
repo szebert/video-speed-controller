@@ -1,17 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type {
-  BehaviorSettingsSnapshot,
   DeleteSiteSettingsRequest,
+  DeleteSiteSettingsResponse,
   GetBehaviorSettingsRequest,
   GetBehaviorSettingsResponse,
   GetCustomSitesResponse,
   ResetAllBehaviorRequest,
+  ResetAllBehaviorResponse,
   ResetGlobalBehaviorRequest,
+  ResetGlobalBehaviorResponse,
   SetBehaviorSettingRequest,
   SetBehaviorSettingResponse,
+} from '../protocol/schemas/options-background';
+import type {
+  BehaviorMutationSuccess,
+  BehaviorSettingsSnapshot,
   SiteMembershipUpdate,
-} from '../core/messages';
+} from '../protocol/schemas/shared';
 import {
   canonicalizeBehaviorSettingChange,
   resolveSiteBehavior,
@@ -34,7 +40,6 @@ import {
   resolveSiteBehaviorForUrl,
   type SiteSettingsDeps,
 } from '../storage/site-settings';
-import { resetAllResult, type ResetAllResult } from '../settings/migrate';
 import { isExtensionPageSender } from './extension-page-sender';
 import {
   reapplyBehaviorSettings,
@@ -104,29 +109,20 @@ async function afterPersist(
   snapshotHostname: string | null,
   request: ReapplyBehaviorRequest,
   deps: BehaviorSettingsDeps,
-  membershipHostname: string | null = null,
-  resetAll?: ResetAllResult,
-): Promise<SetBehaviorSettingResponse> {
+): Promise<BehaviorMutationSuccess> {
   const reapply = await reapplyBehaviorSettings(request, deps);
-  const siteMembership = membershipHostname
-    ? await siteMembershipOf(membershipHostname, deps)
-    : undefined;
   try {
     const state = await readBehaviorSettingsSnapshot(snapshotHostname, deps);
     return {
       ok: true,
       state,
       ...reapply,
-      ...(siteMembership ? { siteMembership } : {}),
-      ...(resetAll ? { resetAll } : {}),
     };
   } catch (error) {
     return {
       ok: true,
       snapshotError: errorMessage(error, 'Failed to refresh settings'),
       ...reapply,
-      ...(siteMembership ? { siteMembership } : {}),
-      ...(resetAll ? { resetAll } : {}),
     };
   }
 }
@@ -170,7 +166,7 @@ function requestedBehaviorChanges(
   const raw = message.changes ?? (message.change ? [message.change] : []);
   const canonical: BehaviorSettingChange[] = [];
   for (const change of raw) {
-    const next = canonicalizeBehaviorSettingChange(change);
+    const next = canonicalizeBehaviorSettingChange(change as BehaviorSettingChange);
     if (!next) {
       return null;
     }
@@ -224,7 +220,6 @@ export async function setBehaviorSetting(
       mode: reapplyModeForFields(scope, changes),
     },
     deps,
-    persistHostname,
   );
 }
 
@@ -232,7 +227,7 @@ export async function deleteSiteBehaviorSettings(
   message: DeleteSiteSettingsRequest,
   sender: chrome.runtime.MessageSender,
   deps: BehaviorSettingsDeps = {},
-): Promise<SetBehaviorSettingResponse> {
+): Promise<DeleteSiteSettingsResponse> {
   if (!isExtensionPageSender(sender)) {
     return { ok: false, error: 'Unauthorized' };
   }
@@ -252,19 +247,20 @@ export async function deleteSiteBehaviorSettings(
     return { ok: false, error: errorMessage(error, 'Failed to delete site settings') };
   }
 
-  return afterPersist(
+  const result = await afterPersist(
     snapshot.hostname,
     { scope: { kind: 'site', hostname }, mode: 'resolve-target' },
     deps,
-    hostname,
   );
+  const siteMembership = await siteMembershipOf(hostname, deps);
+  return siteMembership ? { ...result, siteMembership } : result;
 }
 
 export async function resetGlobalBehaviorSettings(
   message: ResetGlobalBehaviorRequest,
   sender: chrome.runtime.MessageSender,
   deps: BehaviorSettingsDeps = {},
-): Promise<SetBehaviorSettingResponse> {
+): Promise<ResetGlobalBehaviorResponse> {
   if (!isExtensionPageSender(sender)) {
     return { ok: false, error: 'Unauthorized' };
   }
@@ -291,7 +287,7 @@ export async function resetAllBehaviorSettings(
   message: ResetAllBehaviorRequest,
   sender: chrome.runtime.MessageSender,
   deps: BehaviorSettingsDeps = {},
-): Promise<SetBehaviorSettingResponse> {
+): Promise<ResetAllBehaviorResponse> {
   if (!isExtensionPageSender(sender)) {
     return { ok: false, error: 'Unauthorized' };
   }
@@ -304,16 +300,13 @@ export async function resetAllBehaviorSettings(
   try {
     const globalOutcome = await resetGlobalBehaviorOverrides(deps, { ifUnsupported: 'skip' });
     const sites = await deleteAllSiteSettings(deps);
-    const resetAll = resetAllResult(
-      (globalOutcome === 'skipped' ? 1 : 0) + sites.skippedNewerVersionCount,
-    );
-    return afterPersist(
+    const skippedRecordCount = (globalOutcome === 'skipped' ? 1 : 0) + sites.skippedRecordCount;
+    const result = await afterPersist(
       snapshot.hostname,
       { scope: { kind: 'all' }, mode: 'resolve-target' },
       deps,
-      null,
-      resetAll,
     );
+    return { ...result, skippedRecordCount };
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to reset settings') };
   }

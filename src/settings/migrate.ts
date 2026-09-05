@@ -40,11 +40,6 @@ export type SettingsParseResult<T> =
   | { status: 'unsupported'; schemaVersion: number }
   | { status: 'invalid' };
 
-export type ResetAllResult = {
-  partial: boolean;
-  skippedNewerVersionCount: number;
-};
-
 export {
   EMPTY_OPAQUE_FIELDS,
   emptyOpaqueFields,
@@ -68,13 +63,6 @@ export function detectVersion(value: unknown): number | null {
     return schemaVersion;
   }
   return null;
-}
-
-export function resetAllResult(skippedNewerVersionCount: number): ResetAllResult {
-  return {
-    partial: skippedNewerVersionCount > 0,
-    skippedNewerVersionCount,
-  };
 }
 
 export function hasOpaqueOverrideExtras(extras: OpaqueFields): boolean {

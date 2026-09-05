@@ -2,7 +2,7 @@
 
 import { adjustSpeed, DEFAULT_SPEED_POLICY, type SpeedPolicy } from '../core/speed';
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
-import type { SetSpeedResponse } from '../core/messages';
+import type { SetSpeedResponse } from '../protocol/schemas/popup-background';
 import { getSiteKey } from '../storage/site-key';
 import { getTabState, type TabStateStore } from '../storage/tab-state';
 import { readAppliedTabBehavior, type AppliedBehaviorReader } from './applied-behavior';

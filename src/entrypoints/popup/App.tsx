@@ -17,7 +17,8 @@ import { ModeToggle } from '@/components/mode-toggle';
 import { SpeedControls } from '@/components/SpeedControls';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import type { EnableSiteResponse, PopupStateResponse, SetSpeedResponse } from '../../core/messages';
+import { sendPopupRequest } from '../../protocol/rpc';
+import type { PopupStateResponse } from '../../protocol/schemas/popup-background';
 import {
   adjustSpeed,
   displaySpeed,
@@ -58,11 +59,11 @@ async function loadPopup(): Promise<PopupView | null> {
   if (!tab?.id || !tab.url) {
     return null;
   }
-  const state = (await chrome.runtime.sendMessage({
+  const state = await sendPopupRequest({
     type: 'GET_POPUP_STATE',
     tabId: tab.id,
     url: tab.url,
-  })) as PopupStateResponse | undefined;
+  });
   if (!state) {
     return null;
   }
@@ -199,14 +200,14 @@ export function App() {
     if (!(await ensureAccess())) {
       return;
     }
-    const response = (await chrome.runtime.sendMessage({
+    const response = await sendPopupRequest({
       type: 'SET_SPEED',
       tabId: view.tabId,
       url: view.url,
       speed,
-    })) as SetSpeedResponse;
-    if (!response.ok) {
-      setNotice(response.error);
+    });
+    if (!response?.ok) {
+      setNotice(response?.error ?? t('settingsSaveError'));
       await refresh();
       return;
     }
@@ -218,13 +219,13 @@ export function App() {
     if (!(await ensureAccess())) {
       return;
     }
-    const response = (await chrome.runtime.sendMessage({
+    const response = await sendPopupRequest({
       type: 'RESET_SITE_SPEED',
       tabId: view.tabId,
       url: view.url,
-    })) as SetSpeedResponse;
-    if (!response.ok) {
-      setNotice(response.error);
+    });
+    if (!response?.ok) {
+      setNotice(response?.error ?? t('settingsSaveError'));
       await refresh();
       return;
     }
@@ -238,13 +239,13 @@ export function App() {
       if (!(await ensureAccess(grant))) {
         return;
       }
-      const response = (await chrome.runtime.sendMessage({
+      const response = await sendPopupRequest({
         type: 'ENABLE_SITE',
         tabId: view.tabId,
         url: view.url,
-      })) as EnableSiteResponse;
-      if (!response.ok) {
-        setNotice(response.error);
+      });
+      if (!response?.ok) {
+        setNotice(response?.error ?? t('settingsSaveError'));
       }
       await refresh();
       return;

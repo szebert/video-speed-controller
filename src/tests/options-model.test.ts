@@ -8,7 +8,7 @@ import {
   sameBehaviorSettingChange,
 } from '../entrypoints/options/options-model';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
-import type { BehaviorSettingsSnapshot } from '../core/messages';
+import type { BehaviorSettingsSnapshot } from '../protocol/schemas/shared';
 
 function snapshot(): BehaviorSettingsSnapshot {
   const global = {

@@ -290,7 +290,7 @@ describe('behavior settings API', () => {
     }
     expect(response.state.global.speed).toEqual({ value: 1, source: 'built-in' });
     expect(response.state).not.toHaveProperty('customSites');
-    expect(response.siteMembership).toBeUndefined();
+    expect(response).not.toHaveProperty('siteMembership');
     await expect(getCustomSites(extensionSender(), deps)).resolves.toEqual({
       ok: true,
       customSites: [],
@@ -298,7 +298,7 @@ describe('behavior settings API', () => {
     expect(deps.local.data['site:www.youtube.com']).toMatchObject({
       overrides: { speed: { kind: 'inherit' } },
     });
-    expect(response.resetAll).toEqual({ partial: false, skippedNewerVersionCount: 0 });
+    expect(response.ok && 'skippedRecordCount' in response && response.skippedRecordCount).toBe(0);
   });
 
   it('resets V1 sites when global is a newer schema and reports a partial Reset All', async () => {
@@ -315,7 +315,7 @@ describe('behavior settings API', () => {
     if (!response.ok) {
       throw new Error('expected success');
     }
-    expect(response.resetAll).toEqual({ partial: true, skippedNewerVersionCount: 1 });
+    expect(response.ok && 'skippedRecordCount' in response && response.skippedRecordCount).toBe(1);
     expect(deps.sync.data['defaults:site-behavior']).toEqual({
       schemaVersion: 2,
       overrides: { extra: true },
@@ -370,7 +370,7 @@ describe('behavior settings API', () => {
     expect(response.state.global.overlayVisible).toEqual({ value: false, source: 'global' });
   });
 
-  it('returns a site membership delta after a site SET', async () => {
+  it('does not attach site membership to a site SET', async () => {
     const deps = { ...stores(), listTabIds: async () => [] };
     const response = await setBehaviorSetting(
       {
@@ -385,10 +385,7 @@ describe('behavior settings API', () => {
     if (!response.ok) {
       throw new Error('expected success');
     }
-    expect(response.siteMembership).toEqual({
-      hostname: 'www.youtube.com',
-      customized: true,
-    });
+    expect(response).not.toHaveProperty('siteMembership');
   });
 
   it('rejects privileged reset and delete senders from the web', async () => {
