@@ -5,6 +5,7 @@ import { createKeyedMutationQueue } from './keyed-mutation-queue';
 
 export const SITE_SETTINGS_LOCK = 'site:*';
 export const GLOBAL_DEFAULTS_LOCK = GLOBAL_BEHAVIOR_KEY;
+export const THEME_LOCK = 'pref:theme';
 
 const storageMutations = createKeyedMutationQueue<string>();
 

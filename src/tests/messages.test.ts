@@ -147,6 +147,10 @@ describe('parseBackgroundInbound', () => {
     expect(accepted({ type: 'RESET_GLOBAL_BEHAVIOR' })).toBe(true);
     expect(accepted({ type: 'RESET_ALL_BEHAVIOR', snapshotHostname: 'example.com' })).toBe(true);
     expect(accepted({ type: 'RESET_ALL_BEHAVIOR', snapshotHostname: 1 })).toBe(false);
+    expect(accepted({ type: 'SET_THEME', preference: 'light' })).toBe(true);
+    expect(accepted({ type: 'SET_THEME', preference: 'system' })).toBe(true);
+    expect(accepted({ type: 'SET_THEME', preference: 'sepia' })).toBe(false);
+    expect(accepted({ type: 'SET_THEME' })).toBe(false);
     expect(accepted({ type: 'APPLY_TAB_BEHAVIOR', behavior: tabBehavior(1.5) })).toBe(false);
   });
 

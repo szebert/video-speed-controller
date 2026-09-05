@@ -176,5 +176,74 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: [
+      'src/entrypoints/popup/**/*.{ts,tsx}',
+      'src/entrypoints/options/**/*.{ts,tsx}',
+      'src/components/**/*.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/settings/theme',
+              importNames: ['persistTheme'],
+              message: 'Theme writes go through SET_THEME.',
+              allowTypeImports: true,
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/settings/theme', '**/settings/theme.*'],
+              importNames: ['persistTheme'],
+              message: 'Theme writes go through SET_THEME.',
+              allowTypeImports: true,
+            },
+            {
+              group: ['**/storage/site-settings', '**/storage/site-settings.*'],
+              importNames: [
+                'persistSiteBehaviorChanges',
+                'persistSiteBehaviorChange',
+                'persistSiteSpeed',
+                'persistSiteSpeedInherit',
+                'deleteSiteSettings',
+                'deleteAllSiteSettings',
+              ],
+              message: 'Site persist APIs are background-only.',
+              allowTypeImports: true,
+            },
+            {
+              group: ['**/storage/behavior-defaults', '**/storage/behavior-defaults.*'],
+              importNames: [
+                'persistGlobalBehaviorOverrides',
+                'persistGlobalBehaviorChanges',
+                'persistGlobalBehaviorChange',
+                'resetGlobalBehaviorOverrides',
+              ],
+              message: 'Global persist APIs are background-only.',
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/storage/durable-store.ts', 'src/tests/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.property.name=/^(set|remove|clear)$/][callee.object.property.name=/^(local|sync)$/][callee.object.object.property.name='storage']",
+          message:
+            'Durable chrome.storage.local/sync writes belong in durable-store.ts. UI persists through RPC.',
+        },
+      ],
+    },
+  },
   prettier,
 );

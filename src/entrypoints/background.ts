@@ -17,6 +17,7 @@ import {
   resetGlobalBehaviorSettings,
   setBehaviorSetting,
 } from '../background/behavior-settings';
+import { setTheme } from '../background/set-theme';
 import { reconcilePendingGlobalReplicas } from '../storage/behavior-defaults';
 import { reconcilePendingSiteReplicas } from '../storage/site-settings';
 import { enqueueTabMutation } from '../background/tab-mutation-queue';
@@ -221,6 +222,16 @@ export default defineBackground(() => {
         respondWithError(sendResponse, 'RESET_ALL_BEHAVIOR', {
           ok: false,
           error: 'Unexpected reset failure',
+        }),
+      );
+      return true;
+    }
+    if (request.type === 'SET_THEME') {
+      void setTheme(request, sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'SET_THEME', {
+          ok: false,
+          error: 'Unexpected theme write failure',
         }),
       );
       return true;

@@ -25,6 +25,7 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
 - Extra keys inside a known Override object fail that field. Changing an existing field's representation requires a schemaVersion bump and a migrator (CURRENT_BEHAVIOR_SCHEMA_VERSION or CURRENT_THEME_SCHEMA_VERSION independently).
 - Never rewrite, repair, evict-as-corrupt, or downgrade a settings record whose schemaVersion this build does not support.
 - Destructive reset/delete of one logical record fails closed if any authoritative copy is unsupported or has opaque override extras this build cannot tombstone.
+- The background service worker is the sole `chrome.storage.local` / `chrome.storage.sync` writer. Popup, options, and content persist only through RPC.
 - Local-primary mutations record their Sync outbox in the same `chrome.storage.local.set` batch as canonical state. Multi-key `storage.local.set` is assumed to be one Chromium LevelDB batch — a Chrome implementation assumption, not a documented cross-browser transactional API.
 
 ## Frames and content scripts

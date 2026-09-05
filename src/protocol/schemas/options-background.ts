@@ -84,6 +84,16 @@ export const ResetAllBehaviorResponseSchema = z.union([
   z.object({ ok: z.literal(false), error: z.string() }),
 ]);
 
+export const SetThemeRequestSchema = z.object({
+  type: z.literal('SET_THEME'),
+  preference: z.enum(['dark', 'light', 'system']),
+});
+
+export const SetThemeResponseSchema = z.union([
+  z.object({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+]);
+
 export const OPTIONS_TO_BACKGROUND = {
   GET_BEHAVIOR_SETTINGS: {
     request: GetBehaviorSettingsRequestSchema,
@@ -109,6 +119,10 @@ export const OPTIONS_TO_BACKGROUND = {
     request: ResetAllBehaviorRequestSchema,
     response: ResetAllBehaviorResponseSchema,
   },
+  SET_THEME: {
+    request: SetThemeRequestSchema,
+    response: SetThemeResponseSchema,
+  },
 } as const;
 
 export type GetBehaviorSettingsRequest = z.infer<typeof GetBehaviorSettingsRequestSchema>;
@@ -123,6 +137,8 @@ export type SetBehaviorSettingResponse = z.infer<typeof SetBehaviorSettingRespon
 export type DeleteSiteSettingsResponse = z.infer<typeof DeleteSiteSettingsResponseSchema>;
 export type ResetGlobalBehaviorResponse = z.infer<typeof ResetGlobalBehaviorResponseSchema>;
 export type ResetAllBehaviorResponse = z.infer<typeof ResetAllBehaviorResponseSchema>;
+export type SetThemeRequest = z.infer<typeof SetThemeRequestSchema>;
+export type SetThemeResponse = z.infer<typeof SetThemeResponseSchema>;
 export type OptionsToBackgroundRequest = z.infer<
   (typeof OPTIONS_TO_BACKGROUND)[keyof typeof OPTIONS_TO_BACKGROUND]['request']
 >;

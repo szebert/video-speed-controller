@@ -10,7 +10,8 @@ import {
   type ReactNode,
 } from 'react';
 import { THEME_KEY } from '@/settings/site-behavior';
-import { applyTheme, parseThemeRecord, persistTheme, type ThemePreference } from '@/settings/theme';
+import { applyTheme, parseThemeRecord, type ThemePreference } from '@/settings/theme';
+import { sendOptionsRequest } from '@/protocol/rpc';
 
 type ThemeContextValue = {
   theme: ThemePreference;
@@ -31,9 +32,7 @@ export function ThemeProvider({
   const setTheme = useCallback((preference: ThemePreference) => {
     setThemeState(preference);
     applyTheme(preference);
-    void persistTheme(preference).catch(() => {
-      // Apply immediately even if the Sync write fails.
-    });
+    void sendOptionsRequest({ type: 'SET_THEME', preference });
   }, []);
 
   useEffect(() => {
