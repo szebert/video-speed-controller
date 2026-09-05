@@ -8,6 +8,7 @@ import {
 } from '../core/applied-tab-behavior';
 import { resolveEffectiveSpeed } from '../core/speed';
 import type { BehaviorSettingsScope, ReapplyResult } from '../protocol/schemas/shared';
+import { BEHAVIOR_FIELDS, type ReapplyMode } from '../settings/behavior-fields';
 import type { EditableBehaviorField } from '../settings/site-behavior';
 import { getSiteKey } from '../storage/site-key';
 import {
@@ -20,7 +21,7 @@ import { enqueueTabMutation } from './tab-mutation-queue';
 import { applyTabBehavior, type TabMessenger } from './broadcast';
 import { readAppliedTabBehavior } from './applied-behavior';
 
-export type ReapplyMode = 'none' | 'preserve-target' | 'revalidate-target' | 'resolve-target';
+export type { ReapplyMode };
 
 export type ReapplyBehaviorSettingsDeps = {
   listTabIds?: () => Promise<number[]>;
@@ -45,13 +46,7 @@ export function reapplyModeForField(
   scope: 'global' | 'site',
   field: EditableBehaviorField,
 ): ReapplyMode {
-  if (field === 'speed') {
-    return scope === 'global' ? 'none' : 'resolve-target';
-  }
-  if (field === 'speedMin' || field === 'speedMax') {
-    return 'revalidate-target';
-  }
-  return 'preserve-target';
+  return BEHAVIOR_FIELDS[field].reapply[scope];
 }
 
 const REAPPLY_MODE_RANK: Record<ReapplyMode, number> = {

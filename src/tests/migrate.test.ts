@@ -6,7 +6,7 @@ import {
   migrateGlobalBehaviorSettings,
   migrateSiteSettings,
 } from '../settings/migrate';
-import { parseReadySiteSettings } from '../settings/site-behavior';
+import { parseReadySiteSettings } from '../settings/behavior-schema';
 import { migrateThemeRecord } from '../settings/theme';
 import { reapplyModeForFields } from '../background/reapply-behavior-settings';
 

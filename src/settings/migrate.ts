@@ -13,9 +13,8 @@
  * must never be rewritten as V1.
  */
 
+import { parseReadyGlobalBehaviorSettings, parseReadySiteSettings } from './behavior-schema';
 import {
-  parseReadyGlobalBehaviorSettings,
-  parseReadySiteSettings,
   toSyncEligibleSiteRecord,
   type GlobalBehaviorSettingsV1,
   type SiteSettingsV1,

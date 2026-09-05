@@ -15,7 +15,13 @@ import {
   speedPolicyFrom,
   type SpeedPolicy,
 } from '../core/speed';
-import { hasOpaqueContent, pickUnknownKeys, type OpaqueFields } from './opaque-fields';
+import {
+  BEHAVIOR_FIELDS,
+  BOOLEAN_BEHAVIOR_FIELDS,
+  EDITABLE_BEHAVIOR_FIELDS,
+  type BooleanBehaviorField,
+  type EditableBehaviorField,
+} from './behavior-fields';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const SITE_INHERIT_SYNC_RETENTION_MS = 30 * DAY_MS;
@@ -147,20 +153,12 @@ export type ResolvedSiteBehavior = {
   hotkeys: Partial<Record<SiteHotkeyAction, ResolvedSetting<HotkeyBinding | null>>>;
 };
 
-export const BUILT_IN_SITE_BEHAVIOR: SiteBehavior = {
-  speed: 1,
-  speedMin: DEFAULT_SPEED_POLICY.min,
-  speedMax: DEFAULT_SPEED_POLICY.max,
-  speedTick: DEFAULT_SPEED_POLICY.tick,
-  overlayVisible: true,
-  overlayPosition: OVERLAY_POSITION.TOP_CENTER,
-  overlayPositionButton: true,
-  overlaySettingsButton: true,
-  overlayAutoHide: true,
-  overlayHoverHold: false,
-  overlayAutoHideDelayMs: 2000,
+export const BUILT_IN_SITE_BEHAVIOR = {
   hotkeys: {},
-};
+  ...Object.fromEntries(
+    EDITABLE_BEHAVIOR_FIELDS.map((field) => [field, BEHAVIOR_FIELDS[field].default]),
+  ),
+} as SiteBehavior;
 
 export function isOverlayPosition(value: unknown): value is OverlayPosition {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 8;
@@ -200,16 +198,8 @@ export function isOverride<T>(
   );
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
 export function isNonNegativeIntegerMs(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0;
-}
-
-function isBoolean(value: unknown): value is boolean {
-  return typeof value === 'boolean';
 }
 
 export function hasHotkeyEntries(overrides: BehaviorOverrides): boolean {
@@ -220,175 +210,19 @@ export function hasHotkeyEntries(overrides: BehaviorOverrides): boolean {
   return Object.keys(hotkeys).length > 0;
 }
 
-const SITE_ENVELOPE_KEYS = ['schemaVersion', 'overrides', 'lastUsedAt'] as const;
-const GLOBAL_ENVELOPE_KEYS = ['schemaVersion', 'overrides'] as const;
-
-type ScalarOverrideKey = Exclude<keyof BehaviorOverrides, 'hotkeys'>;
-
-const SCALAR_OVERRIDE_PARSERS: readonly {
-  key: ScalarOverrideKey;
-  isValue: (value: unknown) => boolean;
-}[] = [
-  { key: 'speed', isValue: isFiniteNumber },
-  { key: 'speedMin', isValue: isFiniteNumber },
-  { key: 'speedMax', isValue: isFiniteNumber },
-  { key: 'speedTick', isValue: isFiniteNumber },
-  { key: 'overlayVisible', isValue: isBoolean },
-  { key: 'overlayPosition', isValue: isOverlayPosition },
-  { key: 'overlayPositionButton', isValue: isBoolean },
-  { key: 'overlaySettingsButton', isValue: isBoolean },
-  { key: 'overlayAutoHide', isValue: isBoolean },
-  { key: 'overlayHoverHold', isValue: isBoolean },
-  { key: 'overlayAutoHideDelayMs', isValue: isNonNegativeIntegerMs },
-];
-
-export function parseBehaviorOverrideMap(value: unknown): {
-  overrides: BehaviorOverrides;
-  extras: Record<string, unknown>;
-} | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-  const raw = value as Record<string, unknown>;
-  const overrides: BehaviorOverrides = {};
-  const extras: Record<string, unknown> = {};
-
-  for (const [key, field] of Object.entries(raw)) {
-    if (key === 'hotkeys') {
-      if (!field || typeof field !== 'object' || Array.isArray(field)) {
-        continue;
-      }
-      if (Object.keys(field).length > 0) {
-        extras.hotkeys = field;
-      }
-      continue;
-    }
-    const parser = SCALAR_OVERRIDE_PARSERS.find((entry) => entry.key === key);
-    if (!parser) {
-      extras[key] = field;
-      continue;
-    }
-    if (isOverride(field, parser.isValue as (candidate: unknown) => candidate is never)) {
-      Object.assign(overrides, { [key]: field });
-    }
-  }
-
-  return { overrides, extras };
-}
-
-export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null {
-  return parseBehaviorOverrideMap(value)?.overrides ?? null;
-}
-
-function hasRequiredKeys(value: object, keys: readonly string[]): boolean {
-  return keys.every((key) => key in value);
-}
-
-export function parseReadySiteSettings(
-  value: unknown,
-): { record: SiteSettingsV1; extras: OpaqueFields } | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-  const raw = value as Record<string, unknown>;
-  if (!hasRequiredKeys(raw, SITE_ENVELOPE_KEYS) || raw.schemaVersion !== 1) {
-    return null;
-  }
-  if (!isFiniteTimestamp(raw.lastUsedAt)) {
-    return null;
-  }
-  const parsedOverrides = parseBehaviorOverrideMap(raw.overrides);
-  if (!parsedOverrides) {
-    return null;
-  }
-  const extras: OpaqueFields = {
-    record: pickUnknownKeys(raw, SITE_ENVELOPE_KEYS),
-    overrides: parsedOverrides.extras,
-  };
-  if (!hasSemanticOverrides(parsedOverrides.overrides) && !hasOpaqueContent(extras)) {
-    return null;
-  }
-  return {
-    record: {
-      schemaVersion: 1,
-      overrides: parsedOverrides.overrides,
-      lastUsedAt: raw.lastUsedAt,
-    },
-    extras,
-  };
-}
-
-export function parseSiteSettings(value: unknown): SiteSettingsV1 | null {
-  return parseReadySiteSettings(value)?.record ?? null;
-}
-
-export function parseReadyGlobalBehaviorSettings(
-  value: unknown,
-): { record: GlobalBehaviorSettingsV1; extras: OpaqueFields } | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-  const raw = value as Record<string, unknown>;
-  if (!hasRequiredKeys(raw, GLOBAL_ENVELOPE_KEYS) || raw.schemaVersion !== 1) {
-    return null;
-  }
-  const parsedOverrides = parseBehaviorOverrideMap(raw.overrides);
-  if (!parsedOverrides) {
-    return null;
-  }
-  return {
-    record: { schemaVersion: 1, overrides: parsedOverrides.overrides },
-    extras: {
-      record: pickUnknownKeys(raw, GLOBAL_ENVELOPE_KEYS),
-      overrides: parsedOverrides.extras,
-    },
-  };
-}
-
-export function parseGlobalBehaviorSettings(value: unknown): GlobalBehaviorSettingsV1 | null {
-  return parseReadyGlobalBehaviorSettings(value)?.record ?? null;
-}
-
 export function listOverrides(overrides: BehaviorOverrides): Override<unknown>[] {
   const listed: Override<unknown>[] = [];
-  if (overrides.speed) {
-    listed.push(overrides.speed);
-  }
-  if (overrides.speedMin) {
-    listed.push(overrides.speedMin);
-  }
-  if (overrides.speedMax) {
-    listed.push(overrides.speedMax);
-  }
-  if (overrides.speedTick) {
-    listed.push(overrides.speedTick);
-  }
-  if (overrides.overlayVisible) {
-    listed.push(overrides.overlayVisible);
-  }
-  if (overrides.overlayPosition) {
-    listed.push(overrides.overlayPosition);
-  }
-  if (overrides.overlayPositionButton) {
-    listed.push(overrides.overlayPositionButton);
-  }
-  if (overrides.overlaySettingsButton) {
-    listed.push(overrides.overlaySettingsButton);
-  }
-  if (overrides.overlayAutoHide) {
-    listed.push(overrides.overlayAutoHide);
-  }
-  if (overrides.overlayHoverHold) {
-    listed.push(overrides.overlayHoverHold);
-  }
-  if (overrides.overlayAutoHideDelayMs) {
-    listed.push(overrides.overlayAutoHideDelayMs);
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+    const current = overrides[field];
+    if (current) {
+      listed.push(current);
+    }
   }
   if (overrides.hotkeys) {
     for (const action of SITE_HOTKEY_ACTIONS) {
-      const field = overrides.hotkeys[action];
-      if (field) {
-        listed.push(field);
+      const current = overrides.hotkeys[action];
+      if (current) {
+        listed.push(current);
       }
     }
   }
@@ -414,59 +248,11 @@ export function toSyncEligibleSiteRecord(
   now: number,
 ): SiteSettingsV1 | null {
   const overrides: BehaviorOverrides = {};
-  if (record.overrides.speed && !isExpiredSiteInherit(record.overrides.speed, now)) {
-    overrides.speed = record.overrides.speed;
-  }
-  if (record.overrides.speedMin && !isExpiredSiteInherit(record.overrides.speedMin, now)) {
-    overrides.speedMin = record.overrides.speedMin;
-  }
-  if (record.overrides.speedMax && !isExpiredSiteInherit(record.overrides.speedMax, now)) {
-    overrides.speedMax = record.overrides.speedMax;
-  }
-  if (record.overrides.speedTick && !isExpiredSiteInherit(record.overrides.speedTick, now)) {
-    overrides.speedTick = record.overrides.speedTick;
-  }
-  if (
-    record.overrides.overlayVisible &&
-    !isExpiredSiteInherit(record.overrides.overlayVisible, now)
-  ) {
-    overrides.overlayVisible = record.overrides.overlayVisible;
-  }
-  if (
-    record.overrides.overlayPosition &&
-    !isExpiredSiteInherit(record.overrides.overlayPosition, now)
-  ) {
-    overrides.overlayPosition = record.overrides.overlayPosition;
-  }
-  if (
-    record.overrides.overlayPositionButton &&
-    !isExpiredSiteInherit(record.overrides.overlayPositionButton, now)
-  ) {
-    overrides.overlayPositionButton = record.overrides.overlayPositionButton;
-  }
-  if (
-    record.overrides.overlaySettingsButton &&
-    !isExpiredSiteInherit(record.overrides.overlaySettingsButton, now)
-  ) {
-    overrides.overlaySettingsButton = record.overrides.overlaySettingsButton;
-  }
-  if (
-    record.overrides.overlayAutoHide &&
-    !isExpiredSiteInherit(record.overrides.overlayAutoHide, now)
-  ) {
-    overrides.overlayAutoHide = record.overrides.overlayAutoHide;
-  }
-  if (
-    record.overrides.overlayHoverHold &&
-    !isExpiredSiteInherit(record.overrides.overlayHoverHold, now)
-  ) {
-    overrides.overlayHoverHold = record.overrides.overlayHoverHold;
-  }
-  if (
-    record.overrides.overlayAutoHideDelayMs &&
-    !isExpiredSiteInherit(record.overrides.overlayAutoHideDelayMs, now)
-  ) {
-    overrides.overlayAutoHideDelayMs = record.overrides.overlayAutoHideDelayMs;
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+    const current = record.overrides[field];
+    if (current && !isExpiredSiteInherit(current, now)) {
+      Object.assign(overrides, { [field]: current });
+    }
   }
   if (!hasSemanticOverrides(overrides)) {
     return null;
@@ -517,70 +303,14 @@ export function mergeBehaviorOverrides(
   localOverrides: BehaviorOverrides,
 ): BehaviorOverrides {
   const merged: BehaviorOverrides = {};
-  const speed = mergeOverrideField(syncOverrides.speed, localOverrides.speed);
-  if (speed) {
-    merged.speed = speed;
-  }
-  const speedMin = mergeOverrideField(syncOverrides.speedMin, localOverrides.speedMin);
-  if (speedMin) {
-    merged.speedMin = speedMin;
-  }
-  const speedMax = mergeOverrideField(syncOverrides.speedMax, localOverrides.speedMax);
-  if (speedMax) {
-    merged.speedMax = speedMax;
-  }
-  const speedTick = mergeOverrideField(syncOverrides.speedTick, localOverrides.speedTick);
-  if (speedTick) {
-    merged.speedTick = speedTick;
-  }
-  const overlayVisible = mergeOverrideField(
-    syncOverrides.overlayVisible,
-    localOverrides.overlayVisible,
-  );
-  if (overlayVisible) {
-    merged.overlayVisible = overlayVisible;
-  }
-  const overlayPosition = mergeOverrideField(
-    syncOverrides.overlayPosition,
-    localOverrides.overlayPosition,
-  );
-  if (overlayPosition) {
-    merged.overlayPosition = overlayPosition;
-  }
-  const overlayPositionButton = mergeOverrideField(
-    syncOverrides.overlayPositionButton,
-    localOverrides.overlayPositionButton,
-  );
-  if (overlayPositionButton) {
-    merged.overlayPositionButton = overlayPositionButton;
-  }
-  const overlaySettingsButton = mergeOverrideField(
-    syncOverrides.overlaySettingsButton,
-    localOverrides.overlaySettingsButton,
-  );
-  if (overlaySettingsButton) {
-    merged.overlaySettingsButton = overlaySettingsButton;
-  }
-  const overlayAutoHide = mergeOverrideField(
-    syncOverrides.overlayAutoHide,
-    localOverrides.overlayAutoHide,
-  );
-  if (overlayAutoHide) {
-    merged.overlayAutoHide = overlayAutoHide;
-  }
-  const overlayHoverHold = mergeOverrideField(
-    syncOverrides.overlayHoverHold,
-    localOverrides.overlayHoverHold,
-  );
-  if (overlayHoverHold) {
-    merged.overlayHoverHold = overlayHoverHold;
-  }
-  const overlayAutoHideDelayMs = mergeOverrideField(
-    syncOverrides.overlayAutoHideDelayMs,
-    localOverrides.overlayAutoHideDelayMs,
-  );
-  if (overlayAutoHideDelayMs) {
-    merged.overlayAutoHideDelayMs = overlayAutoHideDelayMs;
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+    const next = mergeOverrideField<SiteBehavior[typeof field]>(
+      syncOverrides[field] as Override<SiteBehavior[typeof field]> | undefined,
+      localOverrides[field] as Override<SiteBehavior[typeof field]> | undefined,
+    );
+    if (next) {
+      Object.assign(merged, { [field]: next });
+    }
   }
 
   const hotkeys: NonNullable<BehaviorOverrides['hotkeys']> = {};
@@ -627,80 +357,31 @@ export function resolveSiteBehavior(
   siteOverrides: BehaviorOverrides = {},
   policy?: SpeedPolicy,
 ): ResolvedSiteBehavior {
-  const speedSource = resolveOverride(
-    BUILT_IN_SITE_BEHAVIOR.speed,
-    globalOverrides.speed,
-    siteOverrides.speed,
-  );
-  const speedMin = resolveOverride(
-    BUILT_IN_SITE_BEHAVIOR.speedMin,
-    globalOverrides.speedMin,
-    siteOverrides.speedMin,
-  );
-  const speedMax = resolveOverride(
-    BUILT_IN_SITE_BEHAVIOR.speedMax,
-    globalOverrides.speedMax,
-    siteOverrides.speedMax,
-  );
-  const speedTick = resolveOverride(
-    BUILT_IN_SITE_BEHAVIOR.speedTick,
-    globalOverrides.speedTick,
-    siteOverrides.speedTick,
-  );
+  const resolved = { hotkeys: {} } as ResolvedSiteBehavior;
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+    Object.assign(resolved, {
+      [field]: resolveOverride(
+        BUILT_IN_SITE_BEHAVIOR[field],
+        globalOverrides[field] as Override<SiteBehavior[typeof field]> | undefined,
+        siteOverrides[field] as Override<SiteBehavior[typeof field]> | undefined,
+      ),
+    });
+  }
   const effectivePolicy =
     policy ??
     speedPolicyFrom({
-      min: speedMin.value,
-      max: speedMax.value,
-      tick: speedTick.value,
+      min: resolved.speedMin.value,
+      max: resolved.speedMax.value,
+      tick: resolved.speedTick.value,
     });
-  return {
-    speed: {
-      value: resolveEffectiveSpeed(speedSource.value, effectivePolicy),
-      source: speedSource.source,
-    },
-    speedMin,
-    speedMax,
-    speedTick,
-    overlayVisible: resolveOverride(
-      BUILT_IN_SITE_BEHAVIOR.overlayVisible,
-      globalOverrides.overlayVisible,
-      siteOverrides.overlayVisible,
-    ),
-    overlayPosition: resolveOverride(
-      BUILT_IN_SITE_BEHAVIOR.overlayPosition,
-      globalOverrides.overlayPosition,
-      siteOverrides.overlayPosition,
-    ),
-    overlayPositionButton: resolveOverride(
-      BUILT_IN_SITE_BEHAVIOR.overlayPositionButton,
-      globalOverrides.overlayPositionButton,
-      siteOverrides.overlayPositionButton,
-    ),
-    overlaySettingsButton: resolveOverride(
-      BUILT_IN_SITE_BEHAVIOR.overlaySettingsButton,
-      globalOverrides.overlaySettingsButton,
-      siteOverrides.overlaySettingsButton,
-    ),
-    overlayAutoHide: resolveOverride(
-      BUILT_IN_SITE_BEHAVIOR.overlayAutoHide,
-      globalOverrides.overlayAutoHide,
-      siteOverrides.overlayAutoHide,
-    ),
-    overlayHoverHold: resolveOverride(
-      BUILT_IN_SITE_BEHAVIOR.overlayHoverHold,
-      globalOverrides.overlayHoverHold,
-      siteOverrides.overlayHoverHold,
-    ),
-    overlayAutoHideDelayMs: clampResolvedOverlayAutoHideDelay(
-      resolveOverride(
-        BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs,
-        globalOverrides.overlayAutoHideDelayMs,
-        siteOverrides.overlayAutoHideDelayMs,
-      ),
-    ),
-    hotkeys: {},
+  resolved.speed = {
+    value: resolveEffectiveSpeed(resolved.speed.value, effectivePolicy),
+    source: resolved.speed.source,
   };
+  resolved.overlayAutoHideDelayMs = clampResolvedOverlayAutoHideDelay(
+    resolved.overlayAutoHideDelayMs,
+  );
+  return resolved;
 }
 
 export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavior {
@@ -711,35 +392,21 @@ export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavio
       hotkeys[action] = setting.value;
     }
   }
-  return {
-    speed: resolved.speed.value,
-    speedMin: resolved.speedMin.value,
-    speedMax: resolved.speedMax.value,
-    speedTick: resolved.speedTick.value,
-    overlayVisible: resolved.overlayVisible.value,
-    overlayPosition: resolved.overlayPosition.value,
-    overlayPositionButton: resolved.overlayPositionButton.value,
-    overlaySettingsButton: resolved.overlaySettingsButton.value,
-    overlayAutoHide: resolved.overlayAutoHide.value,
-    overlayHoverHold: resolved.overlayHoverHold.value,
-    overlayAutoHideDelayMs: resolved.overlayAutoHideDelayMs.value,
-    hotkeys,
-  };
+  const effective = { hotkeys } as SiteBehavior;
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+    Object.assign(effective, { [field]: resolved[field].value });
+  }
+  return effective;
 }
 
 export function behaviorOverridesEqual(left: BehaviorOverrides, right: BehaviorOverrides): boolean {
   return (
-    fieldsEqual(left.speed, right.speed) &&
-    fieldsEqual(left.speedMin, right.speedMin) &&
-    fieldsEqual(left.speedMax, right.speedMax) &&
-    fieldsEqual(left.speedTick, right.speedTick) &&
-    fieldsEqual(left.overlayVisible, right.overlayVisible) &&
-    fieldsEqual(left.overlayPosition, right.overlayPosition) &&
-    fieldsEqual(left.overlayPositionButton, right.overlayPositionButton) &&
-    fieldsEqual(left.overlaySettingsButton, right.overlaySettingsButton) &&
-    fieldsEqual(left.overlayAutoHide, right.overlayAutoHide) &&
-    fieldsEqual(left.overlayHoverHold, right.overlayHoverHold) &&
-    fieldsEqual(left.overlayAutoHideDelayMs, right.overlayAutoHideDelayMs) &&
+    EDITABLE_BEHAVIOR_FIELDS.every((field) =>
+      fieldsEqual(
+        left[field] as Override<unknown> | undefined,
+        right[field] as Override<unknown> | undefined,
+      ),
+    ) &&
     SITE_HOTKEY_ACTIONS.every((action) =>
       fieldsEqual(left.hotkeys?.[action], right.hotkeys?.[action]),
     )
@@ -756,44 +423,13 @@ function fieldsEqual<T>(left: Override<T> | undefined, right: Override<T> | unde
   return overridesEqual(left, right);
 }
 
-export type EditableBehaviorField =
-  | 'speed'
-  | 'speedMin'
-  | 'speedMax'
-  | 'speedTick'
-  | 'overlayVisible'
-  | 'overlayPosition'
-  | 'overlayPositionButton'
-  | 'overlaySettingsButton'
-  | 'overlayAutoHide'
-  | 'overlayHoverHold'
-  | 'overlayAutoHideDelayMs';
+export type { EditableBehaviorField };
 
-export const EDITABLE_BEHAVIOR_FIELDS = [
-  'speed',
-  'speedMin',
-  'speedMax',
-  'speedTick',
-  'overlayVisible',
-  'overlayPosition',
-  'overlayPositionButton',
-  'overlaySettingsButton',
-  'overlayAutoHide',
-  'overlayHoverHold',
-  'overlayAutoHideDelayMs',
-] as const satisfies readonly EditableBehaviorField[];
-
-export const BOOLEAN_BEHAVIOR_FIELDS = [
-  'overlayVisible',
-  'overlayPositionButton',
-  'overlaySettingsButton',
-  'overlayAutoHide',
-  'overlayHoverHold',
-] as const satisfies readonly EditableBehaviorField[];
+export { BOOLEAN_BEHAVIOR_FIELDS, EDITABLE_BEHAVIOR_FIELDS };
 
 export function isBooleanBehaviorField(
   field: EditableBehaviorField,
-): field is (typeof BOOLEAN_BEHAVIOR_FIELDS)[number] {
+): field is BooleanBehaviorField {
   return (BOOLEAN_BEHAVIOR_FIELDS as readonly string[]).includes(field);
 }
 
@@ -836,41 +472,19 @@ export function speedPolicyFromResolved(
 export function toEditableResolvedBehavior(
   resolved: ResolvedSiteBehavior,
 ): EditableResolvedBehavior {
-  return {
-    speed: resolved.speed,
-    speedMin: resolved.speedMin,
-    speedMax: resolved.speedMax,
-    speedTick: resolved.speedTick,
-    overlayVisible: resolved.overlayVisible,
-    overlayPosition: resolved.overlayPosition,
-    overlayPositionButton: resolved.overlayPositionButton,
-    overlaySettingsButton: resolved.overlaySettingsButton,
-    overlayAutoHide: resolved.overlayAutoHide,
-    overlayHoverHold: resolved.overlayHoverHold,
-    overlayAutoHideDelayMs: resolved.overlayAutoHideDelayMs,
-  };
+  const editable = {} as EditableResolvedBehavior;
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+    Object.assign(editable, { [field]: resolved[field] });
+  }
+  return editable;
 }
-
-const SCALAR_OVERRIDE_FIELDS = [
-  'speed',
-  'speedMin',
-  'speedMax',
-  'speedTick',
-  'overlayVisible',
-  'overlayPosition',
-  'overlayPositionButton',
-  'overlaySettingsButton',
-  'overlayAutoHide',
-  'overlayHoverHold',
-  'overlayAutoHideDelayMs',
-] as const satisfies readonly Exclude<keyof BehaviorOverrides, 'hotkeys'>[];
 
 export function tombstoneExistingSiteFields(
   current: BehaviorOverrides,
   updatedAt: number,
 ): BehaviorOverrides {
   const next: BehaviorOverrides = {};
-  for (const field of SCALAR_OVERRIDE_FIELDS) {
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
     if (current[field]) {
       next[field] = { kind: 'inherit', updatedAt };
     }

@@ -13,9 +13,6 @@ import {
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   overlayPositionFromGrid,
   overlayPositionToGrid,
-  parseBehaviorOverrides,
-  parseGlobalBehaviorSettings,
-  parseSiteSettings,
   resolveSiteBehavior,
   toEffectiveBehavior,
   toSyncEligibleSiteRecord,
@@ -26,6 +23,11 @@ import {
   withSpeedValue,
   type Override,
 } from '../settings/site-behavior';
+import {
+  parseBehaviorOverrides,
+  parseGlobalBehaviorSettings,
+  parseSiteSettings,
+} from '../settings/behavior-schema';
 
 describe('site behavior resolution', () => {
   it('uses built-in defaults when no overrides exist', () => {
@@ -306,6 +308,13 @@ describe('forward-compatible V1 parsers', () => {
       }),
     ).toEqual({
       overlayAutoHideDelayMs: { kind: 'value', value: 0, updatedAt: 1 },
+    });
+    expect(
+      parseBehaviorOverrides({
+        overlayAutoHideDelayMs: { kind: 'value', value: 50, updatedAt: 1 },
+      }),
+    ).toEqual({
+      overlayAutoHideDelayMs: { kind: 'value', value: 50, updatedAt: 1 },
     });
     expect(
       parseBehaviorOverrides({

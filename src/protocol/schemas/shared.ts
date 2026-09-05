@@ -4,9 +4,9 @@ import { z } from 'zod';
 import {
   BOOLEAN_BEHAVIOR_FIELDS,
   EDITABLE_BEHAVIOR_FIELDS,
-  type EditableResolvedBehavior,
-  type OverlayPosition,
-} from '../../settings/site-behavior';
+  NUMBER_BEHAVIOR_FIELDS,
+} from '../../settings/behavior-fields';
+import type { EditableResolvedBehavior, OverlayPosition } from '../../settings/site-behavior';
 
 export const OverlayPositionSchema = z.union([
   z.literal(0),
@@ -22,13 +22,7 @@ export const OverlayPositionSchema = z.union([
 
 export const EditableBehaviorFieldSchema = z.enum(EDITABLE_BEHAVIOR_FIELDS);
 
-const NumberBehaviorFieldSchema = z.enum([
-  'speed',
-  'speedMin',
-  'speedMax',
-  'speedTick',
-  'overlayAutoHideDelayMs',
-]);
+const NumberBehaviorFieldSchema = z.enum(NUMBER_BEHAVIOR_FIELDS);
 const BooleanBehaviorFieldSchema = z.enum(BOOLEAN_BEHAVIOR_FIELDS);
 
 export const BehaviorSettingChangeSchema = z.union([
