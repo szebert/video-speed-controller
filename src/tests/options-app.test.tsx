@@ -1595,10 +1595,84 @@ describe('Options page', () => {
     expect(container.textContent).toContain('Settings were created by a newer version.');
   });
 
+  it('keeps an unrelated draft when an in-flight persist finishes', async () => {
+    let releaseSpeed!: (value: unknown) => void;
+    sendMessage.mockImplementation((message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return Promise.resolve({ ok: true, customSites: [] });
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return Promise.resolve(getOk(snapshot()));
+      }
+      return new Promise((resolve) => {
+        releaseSpeed = resolve;
+      });
+    });
+    await renderApp();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    const maxInput = container.querySelector('#speed-max');
+    expect(maxInput).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      setInputValue(maxInput as HTMLInputElement, '6.5');
+    });
+    const next = snapshot();
+    next.global.speed = { value: 1.25, source: 'global' };
+    await act(async () => {
+      releaseSpeed({
+        ok: true,
+        state: next,
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      });
+    });
+    expect((container.querySelector('#speed-max') as HTMLInputElement).value).toBe('6.5');
+  });
+
+  it('keeps a slider preview when an unrelated persist finishes', async () => {
+    let releaseOverlay!: (value: unknown) => void;
+    sendMessage.mockImplementation((message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return Promise.resolve({ ok: true, customSites: [] });
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return Promise.resolve(getOk(snapshot()));
+      }
+      return new Promise((resolve) => {
+        releaseOverlay = resolve;
+      });
+    });
+    await renderApp();
+    const visibleSwitch = container.querySelector('#overlay-visible');
+    await act(async () => {
+      click(visibleSwitch);
+    });
+    const slider =
+      container.querySelector('[role="slider"]') ??
+      container.querySelector('[data-slot="slider-thumb"]');
+    await act(async () => {
+      slider?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(container.textContent).toContain('1.01×');
+    await act(async () => {
+      releaseOverlay({
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      });
+    });
+    expect(container.textContent).toContain('1.01×');
+  });
+
   it('warns when Reset All skipped newer-version records', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: [] };
+        return { ok: true, customSites: ['example.com'] };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());
@@ -1612,6 +1686,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    expect(container.textContent).toContain('example.com');
     const settings = [...container.querySelectorAll('button')].find(
       (button) => button.textContent === 'Settings',
     );
@@ -1633,6 +1708,7 @@ describe('Options page', () => {
     expect(container.textContent).toContain(
       'Some settings were created by a newer version and were left unchanged.',
     );
+    expect(container.textContent).toContain('example.com');
   });
 });
 

@@ -19,7 +19,6 @@ import {
 } from '../../settings/site-behavior';
 import {
   createSettingsWriteCoalescer,
-  shouldApplyGeneration,
   type SettingsWriteBatch,
   type SettingsWriteScope,
 } from './coalesce-settings-writes';
@@ -84,7 +83,6 @@ export function useBehaviorSettings() {
   const [snapshot, setSnapshot] = useState<BehaviorSettingsSnapshot | null>(null);
   const [customSites, setCustomSites] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -100,7 +98,6 @@ export function useBehaviorSettings() {
   const blockingRef = useRef(blocking);
   const behaviorRef = useRef(null as ReturnType<typeof currentBehavior> | null);
   const snapshotHostnameRef = useRef<string | null>(null);
-  const latestStartedRef = useRef(0);
   const sendBatchRef = useRef<(batch: SettingsWriteBatch) => Promise<void>>(async () => {});
   const [coalescer, setCoalescer] = useState<ReturnType<
     typeof createSettingsWriteCoalescer
@@ -218,8 +215,10 @@ export function useBehaviorSettings() {
       } else if (response.siteMembership) {
         setCustomSites((current) => applyMembership(current, response.siteMembership!));
       }
-      clearAllDrafts();
-      setSliderPreview(null);
+      if (!options.sentChanges) {
+        clearAllDrafts();
+        setSliderPreview(null);
+      }
       return true;
     }
     setWarning(t('settingsRefreshError'));
@@ -260,8 +259,6 @@ export function useBehaviorSettings() {
     behaviorRef.current = behavior;
     snapshotHostnameRef.current = snapshotHostname;
     sendBatchRef.current = async (batch: SettingsWriteBatch) => {
-      latestStartedRef.current = batch.generation;
-      setSaving(true);
       const membership = batch.scope.kind === 'site';
       const payload =
         batch.changes.length === 1
@@ -277,29 +274,16 @@ export function useBehaviorSettings() {
             };
       try {
         const response = await sendPrivileged(payload);
-        if (!shouldApplyGeneration(batch.generation, latestStartedRef.current)) {
-          return;
-        }
         if (!applyResponse(response, { sentChanges: batch.changes }) || response?.ok === false) {
-          if (!shouldApplyGeneration(batch.generation, latestStartedRef.current)) {
-            return;
-          }
           await recover(membership ? 'pane-and-sidebar' : 'pane');
           writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
         } else if (membership && response?.ok && !response.siteMembership) {
           await recover('sidebar');
         }
       } catch {
-        if (!shouldApplyGeneration(batch.generation, latestStartedRef.current)) {
-          return;
-        }
         setError(t('settingsSaveError'));
         await recover(membership ? 'pane-and-sidebar' : 'pane');
         writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
-      } finally {
-        if (shouldApplyGeneration(batch.generation, latestStartedRef.current)) {
-          setSaving(false);
-        }
       }
     };
     // Persist uses the latest apply/recover closures; those are recreated each
@@ -403,8 +387,16 @@ export function useBehaviorSettings() {
     await runDestructive(async () => {
       try {
         const response = await sendPrivileged({ type: 'RESET_ALL_BEHAVIOR' });
-        if (!applyResponse(response, { clearCustomSites: true }) || (response && !response.ok)) {
+        const partial = Boolean(response?.ok && response.resetAll?.partial);
+        if (
+          !applyResponse(response, { clearCustomSites: !partial }) ||
+          (response && !response.ok)
+        ) {
           await recover('pane-and-sidebar');
+          return;
+        }
+        if (partial) {
+          await recover('sidebar');
         }
       } catch {
         setError(t('settingsSaveError'));
@@ -533,7 +525,6 @@ export function useBehaviorSettings() {
     customSites,
     ready,
     pending: blocking,
-    saving,
     blocking,
     error,
     warning,

@@ -7,17 +7,12 @@ export const SETTINGS_WRITE_COALESCE_MS = 400;
 export type SettingsWriteScope = { kind: 'global' } | { kind: 'site'; hostname: string };
 
 export type SettingsWriteBatch = {
-  generation: number;
   scope: SettingsWriteScope;
   changes: BehaviorSettingChange[];
 };
 
 export function settingsWriteScopeId(scope: SettingsWriteScope): string {
   return scope.kind === 'global' ? 'global' : `site:${scope.hostname}`;
-}
-
-export function shouldApplyGeneration(started: number, latestStarted: number): boolean {
-  return started === latestStarted;
 }
 
 export function createSettingsWriteCoalescer(deps: {
@@ -33,7 +28,6 @@ export function createSettingsWriteCoalescer(deps: {
   const delayMs = deps.delayMs ?? SETTINGS_WRITE_COALESCE_MS;
   const schedule = deps.setTimeoutFn ?? setTimeout;
   const cancel = deps.clearTimeoutFn ?? clearTimeout;
-  let generation = 0;
   let inFlight = false;
   let quiet = true;
   let drainChain: Promise<void> = Promise.resolve();
@@ -65,7 +59,7 @@ export function createSettingsWriteCoalescer(deps: {
     }, delayMs);
   }
 
-  function takeScopeBatch(): Omit<SettingsWriteBatch, 'generation'> | null {
+  function takeScopeBatch(): SettingsWriteBatch | null {
     if (pending.size === 0) {
       return null;
     }
@@ -95,9 +89,8 @@ export function createSettingsWriteCoalescer(deps: {
     }
     markBusy();
     inFlight = true;
-    generation += 1;
     try {
-      await deps.send({ generation, ...next });
+      await deps.send(next);
     } finally {
       inFlight = false;
     }

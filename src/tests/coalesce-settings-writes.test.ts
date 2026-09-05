@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createSettingsWriteCoalescer,
   SETTINGS_WRITE_COALESCE_MS,
-  shouldApplyGeneration,
   type SettingsWriteBatch,
 } from '../entrypoints/options/coalesce-settings-writes';
 import type { BehaviorSettingChange } from '../settings/site-behavior';
@@ -53,7 +52,6 @@ describe('settings write coalescer', () => {
     await Promise.resolve();
     expect(sent).toEqual([
       {
-        generation: 1,
         scope: { kind: 'global' },
         changes: [speed(1.25)],
       },
@@ -98,7 +96,6 @@ describe('settings write coalescer', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(sent).toHaveLength(2);
-    expect(sent[1]?.generation).toBe(2);
     expect(sent[1]?.changes).toEqual([speed(1.5), overlay(false)]);
   });
 
@@ -186,10 +183,5 @@ describe('settings write coalescer', () => {
     await coalescer.flush();
     expect(sent).toHaveLength(2);
     expect(sent[1]?.changes).toEqual([speed(1.5)]);
-  });
-
-  it('treats only the latest started generation as current', () => {
-    expect(shouldApplyGeneration(1, 2)).toBe(false);
-    expect(shouldApplyGeneration(2, 2)).toBe(true);
   });
 });
