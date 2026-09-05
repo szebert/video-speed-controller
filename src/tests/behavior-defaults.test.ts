@@ -121,6 +121,36 @@ describe('global behavior defaults', () => {
     });
   });
 
+  it('does not reset when global extras.overrides are opaque', async () => {
+    const record = {
+      schemaVersion: 1,
+      overrides: {
+        speed: { kind: 'value', value: 1.5, updatedAt: 1 },
+        seekInterval: { kind: 'value', value: 10, updatedAt: 1 },
+      },
+    };
+    const sync = memoryDurable({ 'defaults:site-behavior': record });
+    const local = memoryDurable({ 'defaults:site-behavior': record });
+    await expect(resetGlobalBehaviorOverrides({ sync, local, now: () => 9 })).rejects.toThrow(
+      /newer version/i,
+    );
+    expect(sync.data['defaults:site-behavior']).toEqual(record);
+    expect(local.data['defaults:site-behavior']).toEqual(record);
+  });
+
+  it('skips opaque global extras.overrides during Reset All without aborting', async () => {
+    const record = {
+      schemaVersion: 1,
+      overrides: { seekInterval: { kind: 'value', value: 10, updatedAt: 1 } },
+    };
+    const sync = memoryDurable({ 'defaults:site-behavior': record });
+    const local = memoryDurable();
+    await expect(
+      resetGlobalBehaviorOverrides({ sync, local, now: () => 9 }, { ifUnsupported: 'skip' }),
+    ).resolves.toBe('skipped');
+    expect(sync.data['defaults:site-behavior']).toEqual(record);
+  });
+
   it('skips an unsupported global record during Reset All without aborting', async () => {
     const sync = memoryDurable({
       'defaults:site-behavior': { schemaVersion: 2, overrides: { extra: true } },

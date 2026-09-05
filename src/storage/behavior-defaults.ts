@@ -13,6 +13,7 @@ import {
 } from '../settings/site-behavior';
 import {
   SETTINGS_CREATED_BY_NEWER_VERSION,
+  cannotSafelyDestroy,
   emptyOpaqueFields,
   extrasForDestination,
   hasOpaqueContent,
@@ -265,7 +266,7 @@ export async function resetGlobalBehaviorOverrides(
   return enqueueStorageMutation(GLOBAL_DEFAULTS_LOCK, async () => {
     const { sync, local, now } = stores(deps);
     const copies = await readCopies(sync, local);
-    if (isUnsupportedCopy(copies.syncParsed) || isUnsupportedCopy(copies.localParsed)) {
+    if (cannotSafelyDestroy(copies.syncParsed) || cannotSafelyDestroy(copies.localParsed)) {
       if (options.ifUnsupported === 'skip') {
         return 'skipped';
       }

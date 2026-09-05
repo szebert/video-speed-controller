@@ -5,7 +5,7 @@
  *
  * Adding an optional setting does not bump schemaVersion. Changing the
  * representation or meaning of an existing field does: add a migrator and
- * increment CURRENT_SETTINGS_SCHEMA_VERSION.
+ * increment CURRENT_BEHAVIOR_SCHEMA_VERSION or CURRENT_THEME_SCHEMA_VERSION.
  *
  * Unknown envelope or override-map keys are preserved on rewrite. Malformed
  * known fields are dropped. Extra keys inside a known Override object fail
@@ -30,7 +30,8 @@ import {
   type OpaqueFields,
 } from './opaque-fields';
 
-export const CURRENT_SETTINGS_SCHEMA_VERSION = 1;
+export const CURRENT_BEHAVIOR_SCHEMA_VERSION = 1;
+export const CURRENT_THEME_SCHEMA_VERSION = 1;
 
 export const SETTINGS_CREATED_BY_NEWER_VERSION = 'Settings were created by a newer version';
 
@@ -76,15 +77,27 @@ export function resetAllResult(skippedNewerVersionCount: number): ResetAllResult
   };
 }
 
+export function hasOpaqueOverrideExtras(extras: OpaqueFields): boolean {
+  return Object.keys(extras.overrides).length > 0;
+}
+
+export function cannotSafelyDestroy<T>(parsed: SettingsParseResult<T>): boolean {
+  return (
+    parsed.status === 'unsupported' ||
+    (parsed.status === 'ready' && hasOpaqueOverrideExtras(parsed.extras))
+  );
+}
+
 export function migrateByDetectedVersion<T>(
   value: unknown,
   parseV1: (value: unknown) => { record: T; extras: OpaqueFields } | null,
+  currentVersion: number,
 ): SettingsParseResult<T> {
   const version = detectVersion(value);
   if (version == null) {
     return { status: 'invalid' };
   }
-  if (version > CURRENT_SETTINGS_SCHEMA_VERSION) {
+  if (version > currentVersion) {
     return { status: 'unsupported', schemaVersion: version };
   }
   if (version !== 1) {
@@ -98,13 +111,17 @@ export function migrateByDetectedVersion<T>(
 }
 
 export function migrateSiteSettings(value: unknown): SettingsParseResult<SiteSettingsV1> {
-  return migrateByDetectedVersion(value, parseReadySiteSettings);
+  return migrateByDetectedVersion(value, parseReadySiteSettings, CURRENT_BEHAVIOR_SCHEMA_VERSION);
 }
 
 export function migrateGlobalBehaviorSettings(
   value: unknown,
 ): SettingsParseResult<GlobalBehaviorSettingsV1> {
-  return migrateByDetectedVersion(value, parseReadyGlobalBehaviorSettings);
+  return migrateByDetectedVersion(
+    value,
+    parseReadyGlobalBehaviorSettings,
+    CURRENT_BEHAVIOR_SCHEMA_VERSION,
+  );
 }
 
 export function serializeSiteRecord(

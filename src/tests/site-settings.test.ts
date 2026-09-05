@@ -996,6 +996,44 @@ describe('site settings storage', () => {
     expect(deps.local.data['site:www.youtube.com']).toEqual(record);
   });
 
+  it('fails delete when a ready copy has opaque override extras', async () => {
+    const deps = pair();
+    const record = {
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: {
+        speed: { kind: 'value' as const, value: 2, updatedAt: 1 },
+        seekInterval: { kind: 'value', value: 10, updatedAt: 1 },
+      },
+    };
+    deps.sync.data['site:www.youtube.com'] = record;
+    deps.local.data['site:www.youtube.com'] = record;
+    await expect(deleteSiteSettings('www.youtube.com', deps)).rejects.toThrow(/newer version/i);
+    expect(deps.sync.data['site:www.youtube.com']).toEqual(record);
+    expect(deps.local.data['site:www.youtube.com']).toEqual(record);
+  });
+
+  it('deletes a site that only has envelope extras', async () => {
+    const deps = pair();
+    deps.sync.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      extra: true,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 1 } },
+    };
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      extra: true,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 1 } },
+    };
+    await expect(deleteSiteSettings('www.youtube.com', { ...deps, now: () => 200 })).resolves.toBeUndefined();
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      extra: true,
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+  });
+
   it('fails delete when any copy is a newer schema', async () => {
     const deps = pair();
     const syncRecord = { schemaVersion: 2, lastUsedAt: 1, overrides: {} };
@@ -1030,6 +1068,55 @@ describe('site settings storage', () => {
     expect(deps.local.data['site:vimeo.com']).toMatchObject({
       overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
     });
+  });
+
+  it('skips an opaque-override site during Reset All and leaves both copies', async () => {
+    const deps = pair(50);
+    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
+    const opaque = {
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: {
+        speed: { kind: 'value' as const, value: 2, updatedAt: 1 },
+        seekInterval: { kind: 'value', value: 10, updatedAt: 1 },
+      },
+    };
+    deps.sync.data['site:www.youtube.com'] = opaque;
+    deps.local.data['site:www.youtube.com'] = opaque;
+    const result = await deleteAllSiteSettings({ ...deps, now: () => 200 });
+    expect(result).toEqual({ partial: true, skippedNewerVersionCount: 1 });
+    expect(deps.sync.data['site:www.youtube.com']).toEqual(opaque);
+    expect(deps.local.data['site:www.youtube.com']).toEqual(opaque);
+    expect(deps.local.data['site:vimeo.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+  });
+
+  it('evicts understood Sync records before opaque-ready records', async () => {
+    const sync = memoryDurable();
+    for (let index = 0; index < SYNC_TARGET_MAX_SITE_ITEMS - 1; index += 1) {
+      sync.data[`site:keep-${index}.example`] = {
+        schemaVersion: 1,
+        lastUsedAt: 100 + index,
+        overrides: { speed: { kind: 'value', value: 1.25, updatedAt: 1 } },
+      };
+    }
+    sync.data['site:known-cold.example'] = {
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: { speed: { kind: 'value', value: 1.25, updatedAt: 1 } },
+    };
+    sync.data['site:opaque-older.example'] = {
+      schemaVersion: 1,
+      lastUsedAt: 0,
+      overrides: {
+        speed: { kind: 'value', value: 1.25, updatedAt: 1 },
+        seekInterval: { kind: 'value', value: 10, updatedAt: 1 },
+      },
+    };
+    await reconcileSyncHotSet(sync, 10);
+    expect(sync.data['site:known-cold.example']).toBeUndefined();
+    expect(sync.data['site:opaque-older.example']).toBeDefined();
   });
 
   it('does not evict unsupported schema records as corrupt', async () => {

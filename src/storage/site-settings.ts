@@ -38,6 +38,8 @@ import {
 } from '../settings/site-behavior';
 import {
   SETTINGS_CREATED_BY_NEWER_VERSION,
+  cannotSafelyDestroy,
+  hasOpaqueContent,
   extrasForDestination,
   emptyOpaqueFields,
   migrateSiteSettings,
@@ -113,6 +115,10 @@ function isUnsupportedCopy(parsed: SettingsParseResult<SiteSettingsV1>): boolean
   return parsed.status === 'unsupported';
 }
 
+function opaqueReadyEvictionRank(parsed: SettingsParseResult<SiteSettingsV1>): number {
+  return parsed.status === 'ready' && hasOpaqueContent(parsed.extras) ? 1 : 0;
+}
+
 function siteKnownAndExtrasEqual(
   left: SiteSettingsV1,
   leftExtras: OpaqueFields,
@@ -138,7 +144,7 @@ function assertCanDestroySite(
   syncParsed: SettingsParseResult<SiteSettingsV1>,
   localParsed: SettingsParseResult<SiteSettingsV1>,
 ): void {
-  if (isUnsupportedCopy(syncParsed) || isUnsupportedCopy(localParsed)) {
+  if (cannotSafelyDestroy(syncParsed) || cannotSafelyDestroy(localParsed)) {
     throw new Error(SETTINGS_CREATED_BY_NEWER_VERSION);
   }
 }
@@ -231,10 +237,16 @@ async function reconcileSyncHotSetUnlocked(
       }
       return !hasSyncRetainedInherit(entry.parsed.record.overrides, now);
     })
-    .sort(
-      (left, right) =>
-        (readyRecord(left.parsed)?.lastUsedAt ?? 0) - (readyRecord(right.parsed)?.lastUsedAt ?? 0),
-    );
+    .sort((left, right) => {
+      const rank =
+        opaqueReadyEvictionRank(left.parsed) - opaqueReadyEvictionRank(right.parsed);
+      if (rank !== 0) {
+        return rank;
+      }
+      return (
+        (readyRecord(left.parsed)?.lastUsedAt ?? 0) - (readyRecord(right.parsed)?.lastUsedAt ?? 0)
+      );
+    });
 
   for (const candidate of evictable) {
     if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
@@ -777,7 +789,7 @@ export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promis
     let skippedNewerVersionCount = 0;
     for (const key of keys) {
       const copies = copiesForKey(syncAll, localAll, key);
-      if (isUnsupportedCopy(copies.syncParsed) || isUnsupportedCopy(copies.localParsed)) {
+      if (cannotSafelyDestroy(copies.syncParsed) || cannotSafelyDestroy(copies.localParsed)) {
         skippedNewerVersionCount += 1;
         continue;
       }

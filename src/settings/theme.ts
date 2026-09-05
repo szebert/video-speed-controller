@@ -3,6 +3,7 @@
 import { THEME_KEY } from './site-behavior';
 import { defaultSyncStore, type DurableSettingsStore } from '../storage/durable-store';
 import {
+  CURRENT_THEME_SCHEMA_VERSION,
   SETTINGS_CREATED_BY_NEWER_VERSION,
   migrateByDetectedVersion,
   type SettingsParseResult,
@@ -50,7 +51,7 @@ export function parseReadyThemeRecord(
 }
 
 export function migrateThemeRecord(value: unknown): SettingsParseResult<ThemeRecordV1> {
-  return migrateByDetectedVersion(value, parseReadyThemeRecord);
+  return migrateByDetectedVersion(value, parseReadyThemeRecord, CURRENT_THEME_SCHEMA_VERSION);
 }
 
 export function parseThemeRecord(
