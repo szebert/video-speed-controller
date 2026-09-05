@@ -21,6 +21,7 @@ import {
   EDITABLE_BEHAVIOR_FIELDS,
   type BooleanBehaviorField,
   type EditableBehaviorField,
+  type NumberBehaviorField,
 } from './behavior-fields';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
@@ -436,18 +437,15 @@ export function isBooleanBehaviorField(
 export type EditableResolvedBehavior = Pick<ResolvedSiteBehavior, EditableBehaviorField>;
 
 export type BehaviorSettingChange =
-  | { kind: 'value'; field: 'speed'; value: number }
-  | { kind: 'value'; field: 'speedMin'; value: number }
-  | { kind: 'value'; field: 'speedMax'; value: number }
-  | { kind: 'value'; field: 'speedTick'; value: number }
-  | { kind: 'value'; field: 'overlayVisible'; value: boolean }
+  | { kind: 'inherit'; field: EditableBehaviorField }
+  | { kind: 'value'; field: NumberBehaviorField; value: number }
   | { kind: 'value'; field: 'overlayPosition'; value: OverlayPosition }
-  | { kind: 'value'; field: 'overlayPositionButton'; value: boolean }
-  | { kind: 'value'; field: 'overlaySettingsButton'; value: boolean }
-  | { kind: 'value'; field: 'overlayAutoHide'; value: boolean }
-  | { kind: 'value'; field: 'overlayHoverHold'; value: boolean }
-  | { kind: 'value'; field: 'overlayAutoHideDelayMs'; value: number }
-  | { kind: 'inherit'; field: EditableBehaviorField };
+  | { kind: 'value'; field: BooleanBehaviorField; value: boolean };
+
+// prettier-ignore
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+true satisfies Equal<EditableBehaviorField, BehaviorSettingChange['field']>;
 
 export function hasValueOverrides(overrides: BehaviorOverrides): boolean {
   return listOverrides(overrides).some((override) => override.kind === 'value');
@@ -533,73 +531,77 @@ export function withSpeedValue(
   );
 }
 
+function assertNever(value: never): never {
+  throw new Error(`Unexpected behavior field: ${JSON.stringify(value)}`);
+}
+
 export function canonicalizeBehaviorSettingChange(
   change: BehaviorSettingChange,
 ): BehaviorSettingChange | null {
-  if (!isEditableBehaviorField(change.field)) {
-    return null;
-  }
   if (change.kind === 'inherit') {
-    return { kind: 'inherit', field: change.field };
+    return isEditableBehaviorField(change.field) ? { kind: 'inherit', field: change.field } : null;
   }
-  if (change.field === 'speed') {
-    if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
-      return null;
-    }
-    return {
-      kind: 'value',
-      field: 'speed',
-      value: canonicalizeSpeed(
-        clampSpeed(change.value, {
-          ...DEFAULT_SPEED_POLICY,
-          min: SPEED_MIN_SETTING_MIN,
-          max: SPEED_MAX_SETTING_MAX,
-        }),
-      ),
-    };
+  switch (change.field) {
+    case 'speed':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'speed',
+        value: canonicalizeSpeed(
+          clampSpeed(change.value, {
+            ...DEFAULT_SPEED_POLICY,
+            min: SPEED_MIN_SETTING_MIN,
+            max: SPEED_MAX_SETTING_MAX,
+          }),
+        ),
+      };
+    case 'speedMin':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'speedMin',
+        value: clampPolicyNumber(change.value, SPEED_MIN_SETTING_MIN, SPEED_MIN_SETTING_MAX),
+      };
+    case 'speedMax':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'speedMax',
+        value: clampPolicyNumber(change.value, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX),
+      };
+    case 'speedTick':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'speedTick',
+        value: clampPolicyNumber(change.value, SPEED_TICK_SETTING_MIN, SPEED_TICK_SETTING_MAX),
+      };
+    case 'overlayAutoHideDelayMs':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'overlayAutoHideDelayMs',
+        value: canonicalizeOverlayAutoHideDelayMs(change.value),
+      };
+    case 'overlayPosition':
+      return isOverlayPosition(change.value) ? change : null;
+    case 'overlayVisible':
+    case 'overlayPositionButton':
+    case 'overlaySettingsButton':
+    case 'overlayAutoHide':
+    case 'overlayHoverHold':
+      return typeof change.value === 'boolean' ? change : null;
+    default:
+      return assertNever(change);
   }
-  if (change.field === 'speedMin') {
-    if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
-      return null;
-    }
-    return {
-      kind: 'value',
-      field: 'speedMin',
-      value: clampPolicyNumber(change.value, SPEED_MIN_SETTING_MIN, SPEED_MIN_SETTING_MAX),
-    };
-  }
-  if (change.field === 'speedMax') {
-    if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
-      return null;
-    }
-    return {
-      kind: 'value',
-      field: 'speedMax',
-      value: clampPolicyNumber(change.value, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX),
-    };
-  }
-  if (change.field === 'speedTick') {
-    if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
-      return null;
-    }
-    return {
-      kind: 'value',
-      field: 'speedTick',
-      value: clampPolicyNumber(change.value, SPEED_TICK_SETTING_MIN, SPEED_TICK_SETTING_MAX),
-    };
-  }
-  if (change.field === 'overlayPosition') {
-    return isOverlayPosition(change.value) ? change : null;
-  }
-  if (isBooleanBehaviorField(change.field)) {
-    return typeof change.value === 'boolean' ? change : null;
-  }
-  if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
-    return null;
-  }
-  return {
-    kind: 'value',
-    field: 'overlayAutoHideDelayMs',
-    value: canonicalizeOverlayAutoHideDelayMs(change.value),
-  };
 }

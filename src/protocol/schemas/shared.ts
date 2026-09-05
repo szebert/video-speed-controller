@@ -6,7 +6,12 @@ import {
   EDITABLE_BEHAVIOR_FIELDS,
   NUMBER_BEHAVIOR_FIELDS,
 } from '../../settings/behavior-fields';
-import type { EditableResolvedBehavior, OverlayPosition } from '../../settings/site-behavior';
+import type {
+  BehaviorSettingChange as DomainBehaviorSettingChange,
+  EditableResolvedBehavior,
+  OverlayPosition,
+} from '../../settings/site-behavior';
+import type { BehaviorField } from '../../settings/behavior-fields';
 
 export const OverlayPositionSchema = z.union([
   z.literal(0),
@@ -46,6 +51,12 @@ export const BehaviorSettingChangeSchema = z.union([
     value: z.boolean(),
   }),
 ]);
+
+// prettier-ignore
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+true satisfies Equal<BehaviorField, z.infer<typeof BehaviorSettingChangeSchema>['field']>;
+true satisfies Equal<DomainBehaviorSettingChange, z.infer<typeof BehaviorSettingChangeSchema>>;
 
 export const BehaviorSettingsScopeSchema = z.union([
   z.object({ kind: z.literal('global') }),

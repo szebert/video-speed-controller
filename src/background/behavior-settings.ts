@@ -166,7 +166,7 @@ function requestedBehaviorChanges(
   const raw = message.changes ?? (message.change ? [message.change] : []);
   const canonical: BehaviorSettingChange[] = [];
   for (const change of raw) {
-    const next = canonicalizeBehaviorSettingChange(change as BehaviorSettingChange);
+    const next = canonicalizeBehaviorSettingChange(change);
     if (!next) {
       return null;
     }

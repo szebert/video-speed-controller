@@ -25,6 +25,11 @@ export const behaviorValueSchemas = {
   overlayAutoHideDelayMs: z.number().int().nonnegative(),
 } satisfies Record<BehaviorField, z.ZodType>;
 
+// prettier-ignore
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+true satisfies Equal<BehaviorField, keyof typeof behaviorValueSchemas>;
+
 const SITE_ENVELOPE_KEYS = ['schemaVersion', 'overrides', 'lastUsedAt'] as const;
 const GLOBAL_ENVELOPE_KEYS = ['schemaVersion', 'overrides'] as const;
 
