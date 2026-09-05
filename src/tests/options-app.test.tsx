@@ -61,6 +61,16 @@ function click(element: Element | null): void {
   }
 }
 
+async function flushHiddenWrites(): Promise<void> {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => 'hidden',
+  });
+  await act(async () => {
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+}
+
 function resetBadge(
   container: ParentNode,
   name: string,
@@ -584,6 +594,7 @@ describe('Options page', () => {
       );
       tickInput.blur();
     });
+    await flushHiddenWrites();
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
@@ -638,6 +649,7 @@ describe('Options page', () => {
       );
       tickInput.blur();
     });
+    await flushHiddenWrites();
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
@@ -1402,6 +1414,223 @@ describe('Options page', () => {
       'GET_CUSTOM_SITES',
     ]);
     expect(container.textContent).toContain('Could not save this setting.');
+  });
+
+  it('keeps Faster enabled while saving and computes the next tick from optimistic speed', async () => {
+    const first = snapshot();
+    first.global.speed = { value: 1.25, source: 'global' };
+    let releaseFirst!: (value: unknown) => void;
+    sendMessage.mockImplementation((message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return Promise.resolve({ ok: true, customSites: [] });
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return Promise.resolve(getOk(snapshot()));
+      }
+      return new Promise((resolve) => {
+        releaseFirst = resolve;
+      });
+    });
+    await renderApp();
+    sendMessage.mockClear();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    expect(faster).toBeInstanceOf(HTMLButtonElement);
+    await act(async () => {
+      click(faster);
+    });
+    expect(container.textContent).toContain('1.25×');
+    expect((faster as HTMLButtonElement).disabled).toBe(false);
+    expect(
+      sendMessage.mock.calls.filter((call) => call[0]?.type === 'SET_BEHAVIOR_SETTING'),
+    ).toHaveLength(1);
+    await act(async () => {
+      click(faster);
+    });
+    expect(container.textContent).toContain('1.50×');
+    expect(
+      sendMessage.mock.calls.filter((call) => call[0]?.type === 'SET_BEHAVIOR_SETTING'),
+    ).toHaveLength(1);
+    await act(async () => {
+      releaseFirst({
+        ok: true,
+        state: first,
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      });
+    });
+    expect(container.textContent).toContain('1.50×');
+    const sets = sendMessage.mock.calls
+      .map((call) => call[0])
+      .filter((message) => message?.type === 'SET_BEHAVIOR_SETTING');
+    expect(sets).toHaveLength(2);
+    expect(sets[1]).toEqual({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'speed', value: 1.5 },
+    });
+  });
+
+  it('flushes a trailing speed change when the options page is hidden', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string; change?: { field?: string; value?: number } }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      const state = snapshot();
+      if (message.type === 'SET_BEHAVIOR_SETTING' && message.change?.field === 'speed') {
+        state.global.speed = { value: message.change.value ?? 1, source: 'global' };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(state);
+      }
+      return {
+        ok: true,
+        state,
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    sendMessage.mockClear();
+    await act(async () => {
+      click(faster);
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+    await flushHiddenWrites();
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'speed', value: 1.5 },
+    });
+  });
+
+  it('flushes the current site before loading another site', async () => {
+    let releaseSet!: (value: unknown) => void;
+    sendMessage.mockImplementation((message: { type?: string; hostname?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return Promise.resolve({
+          ok: true,
+          customSites: ['www.youtube.com', 'www.netflix.com'],
+        });
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return Promise.resolve(getOk(snapshot(message.hostname ?? 'www.youtube.com')));
+      }
+      return new Promise((resolve) => {
+        releaseSet = resolve;
+      });
+    });
+    await renderApp('chrome-extension://extid/options.html?site=www.youtube.com');
+    sendMessage.mockClear();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    const netflix = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'www.netflix.com',
+    );
+    await act(async () => {
+      netflix?.click();
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual(['SET_BEHAVIOR_SETTING']);
+    expect(sendMessage.mock.calls[0]?.[0]).toMatchObject({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'site', hostname: 'www.youtube.com' },
+    });
+    await act(async () => {
+      releaseSet({
+        ok: true,
+        state: snapshot('www.youtube.com'),
+        siteMembership: { hostname: 'www.youtube.com', customized: true },
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      });
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'GET_BEHAVIOR_SETTINGS',
+      hostname: 'www.netflix.com',
+    });
+  });
+
+  it('sends one batched persist when two fields change before the first drain', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    sendMessage.mockClear();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    const visibleSwitch = container.querySelector('#overlay-visible');
+    await act(async () => {
+      click(faster);
+      click(visibleSwitch);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      changes: [
+        { kind: 'value', field: 'speed', value: 1.25 },
+        { kind: 'value', field: 'overlayVisible', value: false },
+      ],
+    });
+  });
+
+  it('shows the newer-version persist error', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return { ok: false, error: 'Settings were created by a newer version' };
+    });
+    await renderApp();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    expect(container.textContent).toContain('Settings were created by a newer version.');
+  });
+
+  it('warns when Reset All skipped newer-version records', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        resetAll: { partial: true, skippedNewerVersionCount: 1 },
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    const settings = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Settings',
+    );
+    await act(async () => {
+      settings?.click();
+    });
+    const resetAll = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Reset ALL Settings',
+    );
+    await act(async () => {
+      resetAll?.click();
+    });
+    const confirm = [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
+      (button) => button.textContent === 'Reset',
+    );
+    await act(async () => {
+      click(confirm ?? null);
+    });
+    expect(container.textContent).toContain(
+      'Some settings were created by a newer version and were left unchanged.',
+    );
   });
 });
 

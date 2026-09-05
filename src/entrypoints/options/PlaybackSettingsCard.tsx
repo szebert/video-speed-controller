@@ -18,7 +18,6 @@ import {
   SPEED_MIN_SETTING_MIN,
   SPEED_TICK_SETTING_MAX,
   SPEED_TICK_SETTING_MIN,
-  adjustSpeed,
   type SpeedPolicy,
 } from '../../core/speed';
 import { t } from '@/i18n/t';
@@ -42,6 +41,7 @@ export function PlaybackSettingsCard({
   policy,
   sliderPreview,
   onMutate,
+  onAdjustSpeed,
   onPreviewSlider,
   onDraftChange,
   onCommitDecimal,
@@ -54,6 +54,7 @@ export function PlaybackSettingsCard({
   policy: SpeedPolicy;
   sliderPreview: number | null;
   onMutate: (change: BehaviorSettingChange) => void;
+  onAdjustSpeed: (direction: 1 | -1) => void;
   onPreviewSlider: (speed: number | null) => void;
   onDraftChange: (key: Exclude<DraftKey, 'delay'>, value: string) => void;
   onCommitDecimal: (
@@ -78,13 +79,7 @@ export function PlaybackSettingsCard({
             resetDisabled={!ownsOverride(selection, behavior.speed.source)}
             muted={showsInherited(selection, behavior.speed.source) && sliderPreview == null}
             policy={policy}
-            onAdjust={(direction) => {
-              onMutate({
-                kind: 'value',
-                field: 'speed',
-                value: adjustSpeed(behavior.speed.value, direction, policy),
-              });
-            }}
+            onAdjust={onAdjustSpeed}
             onReset={() => {
               onMutate({ kind: 'inherit', field: 'speed' });
             }}

@@ -42,6 +42,7 @@ export function App() {
     delayLocked,
     resetBadgeText,
     mutate,
+    adjustDisplayedSpeed,
     selectSite,
     selectPane,
     deleteSite,
@@ -154,6 +155,7 @@ export function App() {
                   onMutate={(change) => {
                     void mutate(change);
                   }}
+                  onAdjustSpeed={adjustDisplayedSpeed}
                   onPreviewSlider={setSliderPreview}
                   onDraftChange={updateDraft}
                   onCommitDecimal={commitDecimal}

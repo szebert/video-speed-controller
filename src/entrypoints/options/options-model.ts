@@ -3,7 +3,10 @@
 import type { BehaviorSettingsSnapshot } from '../../core/messages';
 import { t } from '@/i18n/t';
 import {
+  BUILT_IN_SITE_BEHAVIOR,
   OVERLAY_POSITION,
+  type BehaviorSettingChange,
+  type EditableBehaviorField,
   type EditableResolvedBehavior,
   type OverlayPosition,
   type SettingSource,
@@ -64,4 +67,69 @@ export function currentBehavior(
     return snapshot.site.behavior;
   }
   return snapshot.global;
+}
+
+export function applyOptimisticChange(
+  behavior: EditableResolvedBehavior,
+  change: BehaviorSettingChange,
+  selection: Selection,
+  snapshot: BehaviorSettingsSnapshot,
+): EditableResolvedBehavior {
+  if (change.kind === 'inherit') {
+    if (selection.kind === 'site') {
+      return { ...behavior, [change.field]: snapshot.global[change.field] };
+    }
+    return {
+      ...behavior,
+      [change.field]: { value: BUILT_IN_SITE_BEHAVIOR[change.field], source: 'built-in' },
+    };
+  }
+  return {
+    ...behavior,
+    [change.field]: {
+      value: change.value,
+      source: selection.kind === 'site' ? 'site' : 'global',
+    },
+  };
+}
+
+export function applyOptimisticChanges(
+  behavior: EditableResolvedBehavior,
+  changes: Partial<Record<EditableBehaviorField, BehaviorSettingChange>>,
+  selection: Selection,
+  snapshot: BehaviorSettingsSnapshot,
+): EditableResolvedBehavior {
+  let next = behavior;
+  for (const change of Object.values(changes)) {
+    if (change) {
+      next = applyOptimisticChange(next, change, selection, snapshot);
+    }
+  }
+  return next;
+}
+
+export function sameBehaviorSettingChange(
+  left: BehaviorSettingChange | undefined,
+  right: BehaviorSettingChange,
+): boolean {
+  if (!left || left.kind !== right.kind || left.field !== right.field) {
+    return false;
+  }
+  if (left.kind === 'inherit' || right.kind === 'inherit') {
+    return left.kind === 'inherit' && right.kind === 'inherit';
+  }
+  return left.value === right.value;
+}
+
+export function omitMatchingOptimisticChanges(
+  current: Partial<Record<EditableBehaviorField, BehaviorSettingChange>>,
+  sent: readonly BehaviorSettingChange[],
+): Partial<Record<EditableBehaviorField, BehaviorSettingChange>> {
+  const next = { ...current };
+  for (const change of sent) {
+    if (sameBehaviorSettingChange(next[change.field], change)) {
+      delete next[change.field];
+    }
+  }
+  return next;
 }

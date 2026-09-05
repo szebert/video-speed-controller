@@ -222,6 +222,42 @@ test('hiding overlay chrome buttons removes them from the badge', async ({
   await expect.poll(async () => overlayButtonLabels(site)).toEqual(['Slower', 'Faster']);
 });
 
+test('hiding the options page flushes a trailing speed change', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  const options = await openOptions(context, extensionId);
+  await options.getByRole('button', { name: 'Faster' }).click();
+  await options.getByRole('button', { name: 'Faster' }).click();
+  await expect(options.getByText('1.50×')).toBeVisible();
+  await options.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect
+    .poll(async () =>
+      serviceWorker.evaluate(async () => {
+        const key = 'defaults:site-behavior';
+        const [local, sync] = await Promise.all([
+          chrome.storage.local.get(key),
+          chrome.storage.sync.get(key),
+        ]);
+        const record = (sync[key] ?? local[key]) as
+          | { overrides?: { speed?: { value?: number } } }
+          | undefined;
+        return record?.overrides?.speed?.value ?? null;
+      }),
+    )
+    .toBe(1.5);
+  await options.close();
+  const reopened = await openOptions(context, extensionId);
+  await expect(reopened.getByText('1.50×')).toBeVisible();
+});
+
 test('hiding the overlay keeps videos playing at the current speed', async ({
   context,
   extensionId,
