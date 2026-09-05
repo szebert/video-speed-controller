@@ -9,25 +9,33 @@
  * propagation without an unbounded deletion ledger. During
  * SITE_INHERIT_SYNC_RETENTION_MS the inherit tombstone prevents resurrection.
  *
- * Site inherit retention is a minimum protection window, not an exact TTL.
- * Expired tombstones may remain in Sync while the hot set is under the soft
- * target. They are stripped from subsequent publication of that record and
- * pruned when capacity pressure exists. Expired Local tombstones remain
- * durable Local state and must never be promoted back into absent Sync.
+ * Site inherit retention is a minimum / best-effort window under the hybrid
+ * clock, not an exact wall-clock TTL. Observing a clock-ahead peer can inflate
+ * later updatedAt values and stretch the nominal 30 days. Expired tombstones
+ * may remain in Sync while the hot set is under the soft target. They are
+ * stripped from subsequent publication of that record and pruned when
+ * capacity pressure exists. Expired Local tombstones remain durable Local
+ * state and must never be promoted back into absent Sync. Hard-capacity
+ * last-resort inherit eviction is what prevents a future-skewed tombstone
+ * from permanently wedging Sync.
+ *
+ * Reset All resurrection is fenced by per-record generation among
+ * generation-aware builds. Individual-delete resurrection after tombstone
+ * expiry or eviction remains the accepted bounded-ledger limit. An older
+ * build that predates meta:site-generation can still re-publish a Local
+ * override after a new client removes Sync site keys; generation-aware
+ * clients treat that republish as generation 0 and ignore it.
  */
 
 import {
   LOCAL_LRU_THROTTLE_MS,
   REPAIR_BACKOFF_MS,
   SYNC_LRU_STALE_MS,
-  SYNC_TARGET_MAX_BYTES,
-  SYNC_TARGET_MAX_SITE_ITEMS,
   behaviorOverridesEqual,
   mergeBehaviorOverrides,
   resolveSiteBehavior,
   toEffectiveBehavior,
   hasSemanticOverrides,
-  hasSyncRetainedInherit,
   withSpeedInherit,
   applyBehaviorSettingChange,
   hasValueOverrides,
@@ -39,7 +47,6 @@ import {
 import { cannotSafelyDestroy } from '../settings/destroy-policy';
 import {
   SETTINGS_CREATED_BY_NEWER_VERSION,
-  hasOpaqueContent,
   extrasForDestination,
   emptyOpaqueFields,
   migrateSiteSettings,
@@ -49,14 +56,49 @@ import {
   type OpaqueFields,
   type SettingsParseResult,
 } from '../settings/migrate';
+import { checkedIncrement, isLogicalValue } from '../settings/logical-value';
 import { normalizeSiteHostname } from '../settings/site-hostname';
 import { readGlobalBehaviorOverrides } from './behavior-defaults';
+import { defaultLocalStore, defaultSyncStore, type DurableSettingsStore } from './durable-store';
+import type { ControlMetadataParse } from './control-metadata';
 import {
-  defaultLocalStore,
-  defaultSyncStore,
-  estimateStorageEntryBytes,
-  type DurableSettingsStore,
-} from './durable-store';
+  SITE_HLC_KEY,
+  assertHybridClockUsable,
+  collectOverrideTimestamps,
+  issueHybridTimestamp,
+  parseHybridClockRecord,
+} from './hybrid-clock';
+import {
+  SITE_OUTBOX_KEY,
+  addPublishSite,
+  applyResetAllToOutbox,
+  parseSiteReplicaOutbox,
+  serializeSiteOutbox,
+  usableSiteOutbox,
+  type SiteReplicaOutbox,
+} from './replica-outbox';
+import {
+  SITE_GENERATION_KEY,
+  assertKnownGeneration,
+  generationUpdatedAt,
+  mergeGenerationEpochs,
+  parseSiteGenerationRecord,
+  replicaNeedsGenerationRepair,
+  serializeSiteGeneration,
+  shouldApplySiteCopy,
+  type MergedGeneration,
+  type SiteGenerationRecord,
+} from './site-generation';
+import {
+  isCapacityError,
+  isWriteRateError,
+  publishSyncSite,
+  reconcileSyncHotSetUnlocked,
+  recoverCorruptSiteOutbox,
+  replaySiteOutboxUnlocked,
+  repairGenerationUpward,
+  type ReconcileHotSetOptions,
+} from './site-replica-sync';
 import { getSiteKey, getSiteStorageKey, hostnameFromSiteStorageKey } from './site-key';
 import { SITE_SETTINGS_LOCK, enqueueStorageMutation } from './storage-mutation-queue';
 
@@ -91,15 +133,7 @@ export function resetSiteRepairBackoff(storageKey?: string): void {
   siteRepairFailedAt.clear();
 }
 
-export function isCapacityError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /QUOTA_BYTES|QUOTA_BYTES_PER_ITEM|MAX_ITEMS/i.test(message);
-}
-
-export function isWriteRateError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /MAX_WRITE_OPERATIONS/i.test(message);
-}
+export { isCapacityError, isWriteRateError };
 
 function readyExtras(parsed: SettingsParseResult<SiteSettingsV1>): OpaqueFields {
   return parsed.status === 'ready' ? parsed.extras : emptyOpaqueFields();
@@ -113,10 +147,6 @@ function isUnsupportedCopy(parsed: SettingsParseResult<SiteSettingsV1>): boolean
   return parsed.status === 'unsupported';
 }
 
-function opaqueReadyEvictionRank(parsed: SettingsParseResult<SiteSettingsV1>): number {
-  return parsed.status === 'ready' && hasOpaqueContent(parsed.extras) ? 1 : 0;
-}
-
 function siteKnownAndExtrasEqual(
   left: SiteSettingsV1,
   leftExtras: OpaqueFields,
@@ -124,6 +154,7 @@ function siteKnownAndExtrasEqual(
   rightExtras: OpaqueFields,
 ): boolean {
   return (
+    left.generation === right.generation &&
     behaviorOverridesEqual(left.overrides, right.overrides) &&
     serializedRecordsEqual(leftExtras, rightExtras)
   );
@@ -147,167 +178,58 @@ function assertCanDestroySite(
   }
 }
 
-type RawSiteEntry = {
-  key: string;
-  raw: unknown;
-  parsed: SettingsParseResult<SiteSettingsV1>;
-};
-
-async function listRawSiteEntries(sync: DurableSettingsStore): Promise<RawSiteEntry[]> {
-  const all = await sync.get(null);
-  const entries: RawSiteEntry[] = [];
-  for (const [key, value] of Object.entries(all)) {
-    if (!key.startsWith('site:')) {
-      continue;
-    }
-    entries.push({ key, raw: value, parsed: migrateSiteSettings(value) });
-  }
-  return entries;
+function appliedOverrides(
+  parsed: SettingsParseResult<SiteSettingsV1>,
+  raw: unknown,
+  merged: MergedGeneration,
+): BehaviorOverrides {
+  return shouldApplySiteCopy(parsed, raw, merged) ? (readyRecord(parsed)?.overrides ?? {}) : {};
 }
 
-async function measureSiteBytes(
-  sync: DurableSettingsStore,
-  entries: RawSiteEntry[],
-): Promise<number> {
-  if (entries.length === 0) {
-    return 0;
+function withReadGeneration(record: SiteSettingsV1, epoch: number | undefined): SiteSettingsV1 {
+  if (epoch === undefined || record.generation === epoch) {
+    return record;
   }
-  try {
-    return await sync.getBytesInUse(entries.map((entry) => entry.key));
-  } catch {
-    return entries.reduce((sum, entry) => sum + estimateStorageEntryBytes(entry.key, entry.raw), 0);
+  if (record.generation === undefined && epoch === 0) {
+    return {
+      schemaVersion: 1,
+      overrides: record.overrides,
+      lastUsedAt: record.lastUsedAt,
+    };
   }
+  return { ...record, generation: epoch };
 }
 
-function isOverTarget(itemCount: number, bytes: number): boolean {
-  return itemCount > SYNC_TARGET_MAX_SITE_ITEMS || bytes > SYNC_TARGET_MAX_BYTES;
-}
-
-async function reconcileSyncHotSetUnlocked(
-  sync: DurableSettingsStore,
-  now: number,
-  options?: { protectedKey?: string },
-): Promise<void> {
-  let entries = await listRawSiteEntries(sync);
-  if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
-    return;
-  }
-
-  for (const entry of entries) {
-    if (entry.parsed.status === 'invalid') {
-      await sync.remove(entry.key);
+function observedHlcTimestamps(
+  syncRecord: SiteSettingsV1 | null,
+  localRecord: SiteSettingsV1 | null,
+  localGeneration: ControlMetadataParse<SiteGenerationRecord>,
+  syncGeneration: ControlMetadataParse<SiteGenerationRecord>,
+): number[] {
+  const timestamps = collectOverrideTimestamps(syncRecord?.overrides, localRecord?.overrides);
+  for (const value of [generationUpdatedAt(localGeneration), generationUpdatedAt(syncGeneration)]) {
+    if (isLogicalValue(value)) {
+      timestamps.push(value);
     }
   }
-  entries = await listRawSiteEntries(sync);
-  if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
-    return;
-  }
-
-  for (const entry of entries) {
-    if (entry.parsed.status !== 'ready') {
-      continue;
-    }
-    const projected = projectSyncEligibleSite(entry.parsed.record, entry.parsed.extras, now);
-    if (!projected) {
-      await sync.remove(entry.key);
-      continue;
-    }
-    const expected = serializeSiteRecord(projected.record, projected.extras);
-    if (!serializedRecordsEqual(entry.raw, expected)) {
-      await sync.set({ [entry.key]: expected });
-    }
-  }
-  entries = await listRawSiteEntries(sync);
-  if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
-    return;
-  }
-
-  const evictable = entries
-    .filter((entry) => {
-      if (options?.protectedKey && entry.key === options.protectedKey) {
-        return false;
-      }
-      if (entry.parsed.status === 'unsupported') {
-        return false;
-      }
-      if (entry.parsed.status !== 'ready') {
-        return true;
-      }
-      return !hasSyncRetainedInherit(entry.parsed.record.overrides, now);
-    })
-    .sort((left, right) => {
-      const rank = opaqueReadyEvictionRank(left.parsed) - opaqueReadyEvictionRank(right.parsed);
-      if (rank !== 0) {
-        return rank;
-      }
-      return (
-        (readyRecord(left.parsed)?.lastUsedAt ?? 0) - (readyRecord(right.parsed)?.lastUsedAt ?? 0)
-      );
-    });
-
-  for (const candidate of evictable) {
-    if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
-      break;
-    }
-    await sync.remove(candidate.key);
-    entries = entries.filter((entry) => entry.key !== candidate.key);
-  }
+  return timestamps;
 }
 
 export async function reconcileSyncHotSet(
   sync: DurableSettingsStore,
   now: number,
-  options?: { protectedKey?: string },
+  options?: ReconcileHotSetOptions,
 ): Promise<void> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, () =>
     reconcileSyncHotSetUnlocked(sync, now, options),
   );
 }
 
-async function writeSyncEligibleUnlocked(
-  sync: DurableSettingsStore,
-  storageKey: string,
-  record: SiteSettingsV1,
-  extras: OpaqueFields,
-  now: number,
-): Promise<'set' | 'removed'> {
-  const eligible = projectSyncEligibleSite(record, extras, now);
-  if (!eligible) {
-    await sync.remove(storageKey);
-    return 'removed';
-  }
-  await sync.set({ [storageKey]: serializeSiteRecord(eligible.record, eligible.extras) });
-  return 'set';
-}
-
-async function publishSyncSite(
-  sync: DurableSettingsStore,
-  storageKey: string,
-  record: SiteSettingsV1,
-  extras: OpaqueFields,
-  now: number,
-): Promise<void> {
-  const write = (): Promise<'set' | 'removed'> =>
-    writeSyncEligibleUnlocked(sync, storageKey, record, extras, now);
-
-  let result: 'set' | 'removed';
-  try {
-    result = await write();
-  } catch (error) {
-    if (!isCapacityError(error) || isWriteRateError(error)) {
-      throw error;
-    }
-    await reconcileSyncHotSetUnlocked(sync, now);
-    result = await write();
-  }
-
-  if (result === 'set') {
-    try {
-      await reconcileSyncHotSetUnlocked(sync, now, { protectedKey: storageKey });
-    } catch {
-      // Post-publication maintenance must not fail a successful Sync write.
-    }
-  }
+export async function reconcilePendingSiteReplicas(deps: SiteSettingsDeps = {}): Promise<void> {
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
+    const { sync, local, now } = stores(deps);
+    await replaySiteOutboxUnlocked(sync, local, now());
+  });
 }
 
 type LoadedSite = {
@@ -316,10 +238,17 @@ type LoadedSite = {
   localParsed: SettingsParseResult<SiteSettingsV1>;
   syncRecord: SiteSettingsV1 | null;
   localRecord: SiteSettingsV1 | null;
+  syncRaw: unknown;
+  localRaw: unknown;
   syncExtras: OpaqueFields;
   localExtras: OpaqueFields;
   mergedOverrides: BehaviorOverrides;
   globalOverrides: BehaviorOverrides;
+  mergedGeneration: MergedGeneration;
+  localGeneration: ControlMetadataParse<SiteGenerationRecord>;
+  syncGeneration: ControlMetadataParse<SiteGenerationRecord>;
+  siteOutbox: ControlMetadataParse<SiteReplicaOutbox>;
+  siteClock: ReturnType<typeof parseHybridClockRecord>;
   now: number;
   sync: DurableSettingsStore;
   local: DurableSettingsStore;
@@ -334,47 +263,63 @@ async function maybeRepairAndTouchSite(loaded: LoadedSite, touchUsage: boolean):
     localParsed,
     syncRecord,
     localRecord,
+    syncRaw,
+    localRaw,
     syncExtras,
     localExtras,
     mergedOverrides,
+    mergedGeneration,
+    localGeneration,
+    syncGeneration,
     now,
   } = loaded;
+
+  await repairGenerationUpward(sync, local, mergedGeneration, localGeneration, syncGeneration);
 
   if (isUnsupportedCopy(syncParsed) && isUnsupportedCopy(localParsed)) {
     return;
   }
-  if (!localRecord && !syncRecord && !hasSemanticOverrides(mergedOverrides)) {
+  const syncEligible = shouldApplySiteCopy(syncParsed, syncRaw, mergedGeneration);
+  const localEligible = shouldApplySiteCopy(localParsed, localRaw, mergedGeneration);
+  if (!localEligible && !syncEligible && !hasSemanticOverrides(mergedOverrides)) {
     return;
   }
 
   const localLastUsedAt = touchUsage
     ? now
     : (localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now);
-  const canonical: SiteSettingsV1 = {
-    schemaVersion: 1,
-    overrides: mergedOverrides,
-    lastUsedAt: touchUsage ? now : (localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now),
-  };
+  const generation =
+    mergedGeneration.status === 'known' ? mergedGeneration.epoch : undefined;
+  const nextLocal = withReadGeneration(
+    {
+      schemaVersion: 1,
+      overrides: mergedOverrides,
+      lastUsedAt: localLastUsedAt,
+      generation: localRecord?.generation,
+    },
+    generation,
+  );
+  const canonical = withReadGeneration(
+    {
+      schemaVersion: 1,
+      overrides: mergedOverrides,
+      lastUsedAt: touchUsage ? now : (localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now),
+      generation: syncRecord?.generation ?? localRecord?.generation,
+    },
+    generation,
+  );
 
-  if (!isUnsupportedCopy(localParsed)) {
+  if (!isUnsupportedCopy(localParsed) && (localEligible || hasSemanticOverrides(mergedOverrides))) {
     const destExtras = extrasForDestination('local', syncExtras, localExtras);
     const shouldWriteLocal =
       Boolean(localRecord || hasSemanticOverrides(mergedOverrides) || (touchUsage && syncRecord)) &&
       (!localRecord ||
-        !siteKnownAndExtrasEqual(
-          localRecord,
-          localExtras,
-          { schemaVersion: 1, overrides: mergedOverrides, lastUsedAt: localLastUsedAt },
-          destExtras,
-        ) ||
+        !siteKnownAndExtrasEqual(localRecord, localExtras, nextLocal, destExtras) ||
         (touchUsage && now - localRecord.lastUsedAt >= LOCAL_LRU_THROTTLE_MS));
     if (shouldWriteLocal) {
       try {
         await local.set({
-          [storageKey]: serializeSiteRecord(
-            { schemaVersion: 1, overrides: mergedOverrides, lastUsedAt: localLastUsedAt },
-            destExtras,
-          ),
+          [storageKey]: serializeSiteRecord(nextLocal, destExtras),
         });
       } catch {
         // Local repair must not change the resolved value.
@@ -383,6 +328,9 @@ async function maybeRepairAndTouchSite(loaded: LoadedSite, touchUsage: boolean):
   }
 
   if (isUnsupportedCopy(syncParsed)) {
+    return;
+  }
+  if (mergedGeneration.status === 'unknown') {
     return;
   }
 
@@ -407,7 +355,7 @@ async function maybeRepairAndTouchSite(loaded: LoadedSite, touchUsage: boolean):
       return;
     }
     try {
-      await publishSyncSite(sync, storageKey, canonical, syncDestExtras, now);
+      await publishSyncSite(sync, storageKey, canonical, syncDestExtras, now, mergedGeneration);
       siteRepairFailedAt.delete(storageKey);
     } catch {
       siteRepairFailedAt.set(storageKey, now);
@@ -420,9 +368,15 @@ async function maybeRepairAndTouchSite(loaded: LoadedSite, touchUsage: boolean):
       await publishSyncSite(
         sync,
         storageKey,
-        { schemaVersion: 1, overrides: mergedOverrides, lastUsedAt: now },
+        {
+          schemaVersion: 1,
+          overrides: mergedOverrides,
+          lastUsedAt: now,
+          ...(generation !== undefined ? { generation } : {}),
+        },
         syncDestExtras,
         now,
+        mergedGeneration,
       );
     } catch {
       // LRU must not fail the read.
@@ -439,27 +393,51 @@ async function loadMergedSite(url: string, deps: SiteSettingsDeps): Promise<Load
   const at = now();
   const storageKey = getSiteStorageKey(siteKey);
   const [syncAll, localAll, globalOverrides] = await Promise.all([
-    sync.get(storageKey),
-    local.get(storageKey),
+    sync.get([storageKey, SITE_GENERATION_KEY]),
+    local.get([storageKey, SITE_GENERATION_KEY, SITE_HLC_KEY, SITE_OUTBOX_KEY]),
     readGlobalBehaviorOverrides({ sync, local, now }),
   ]);
   const syncParsed = migrateSiteSettings(syncAll[storageKey]);
   const localParsed = migrateSiteSettings(localAll[storageKey]);
   const syncRecord = readyRecord(syncParsed);
   const localRecord = readyRecord(localParsed);
+  const localGeneration = parseSiteGenerationRecord(localAll[SITE_GENERATION_KEY]);
+  const syncGeneration = parseSiteGenerationRecord(syncAll[SITE_GENERATION_KEY]);
+  const siteOutbox = parseSiteReplicaOutbox(localAll[SITE_OUTBOX_KEY]);
+  const siteClock = parseHybridClockRecord(localAll[SITE_HLC_KEY]);
+  if (localGeneration.status === 'corrupt') {
+    console.warn('Failed to parse local site generation metadata', localAll[SITE_GENERATION_KEY]);
+  }
+  if (syncGeneration.status === 'corrupt') {
+    console.warn('Failed to parse sync site generation metadata', syncAll[SITE_GENERATION_KEY]);
+  }
+  if (siteOutbox.status === 'corrupt') {
+    console.warn('Failed to parse site replica outbox', localAll[SITE_OUTBOX_KEY]);
+  }
+  if (siteClock.status === 'corrupt') {
+    console.warn('Failed to parse site hybrid clock', localAll[SITE_HLC_KEY]);
+  }
+  const mergedGeneration = mergeGenerationEpochs(localGeneration, syncGeneration);
   return {
     storageKey,
     syncParsed,
     localParsed,
     syncRecord,
     localRecord,
+    syncRaw: syncAll[storageKey],
+    localRaw: localAll[storageKey],
     syncExtras: readyExtras(syncParsed),
     localExtras: readyExtras(localParsed),
     mergedOverrides: mergeBehaviorOverrides(
-      syncRecord?.overrides ?? {},
-      localRecord?.overrides ?? {},
+      appliedOverrides(syncParsed, syncAll[storageKey], mergedGeneration),
+      appliedOverrides(localParsed, localAll[storageKey], mergedGeneration),
     ),
     globalOverrides,
+    mergedGeneration,
+    localGeneration,
+    syncGeneration,
+    siteOutbox,
+    siteClock,
     now: at,
     sync,
     local,
@@ -502,56 +480,32 @@ export async function resolveSpeedAfterSiteInherit(
   });
 }
 
-async function writePersistedSides(
-  sync: DurableSettingsStore,
+async function commitLocalThenReplay(
   local: DurableSettingsStore,
-  storageKey: string,
-  record: SiteSettingsV1,
-  syncParsed: SettingsParseResult<SiteSettingsV1>,
-  localParsed: SettingsParseResult<SiteSettingsV1>,
-  syncExtras: OpaqueFields,
-  localExtras: OpaqueFields,
+  sync: DurableSettingsStore,
+  items: Record<string, unknown>,
   now: number,
 ): Promise<void> {
-  assertCanPersistSite(syncParsed, localParsed);
-  const writes: Promise<unknown>[] = [];
-  if (!isUnsupportedCopy(localParsed)) {
-    writes.push(
-      local
-        .set({
-          [storageKey]: serializeSiteRecord(
-            record,
-            extrasForDestination('local', syncExtras, localExtras),
-          ),
-        })
-        .then(
-          () => undefined,
-          (error: unknown) => error,
-        ),
-    );
+  await local.set(items);
+  try {
+    await replaySiteOutboxUnlocked(sync, local, now);
+  } catch {
+    // Local+outbox already committed.
   }
-  if (!isUnsupportedCopy(syncParsed)) {
-    writes.push(
-      publishSyncSite(
-        sync,
-        storageKey,
-        record,
-        extrasForDestination('sync', syncExtras, localExtras),
-        now,
-      ).then(
-        () => undefined,
-        (error: unknown) => error,
-      ),
-    );
+}
+
+function generationWrite(
+  localGeneration: ControlMetadataParse<SiteGenerationRecord>,
+  epoch: number,
+  updatedAt: number,
+): SiteGenerationRecord | null {
+  if (localGeneration.status === 'corrupt' || localGeneration.status === 'unsupported') {
+    return null;
   }
-  const results = await Promise.all(writes);
-  const failure = results.find((result) => result != null);
-  if (failure instanceof Error) {
-    throw failure;
+  if (!replicaNeedsGenerationRepair(localGeneration, epoch) && localGeneration.status === 'valid') {
+    return null;
   }
-  if (failure) {
-    throw new Error('Failed to persist site settings');
-  }
+  return serializeSiteGeneration(epoch, updatedAt);
 }
 
 async function persistMutatedSite(
@@ -564,22 +518,73 @@ async function persistMutatedSite(
     if (!loaded) {
       throw new Error('Cannot persist siteSpeed for an unsupported page');
     }
+    assertCanPersistSite(loaded.syncParsed, loaded.localParsed);
+    assertHybridClockUsable(loaded.siteClock);
+    assertKnownGeneration(loaded.mergedGeneration);
+    let outbox = loaded.siteOutbox;
+    if (outbox.status === 'corrupt') {
+      await recoverCorruptSiteOutbox(
+        loaded.sync,
+        loaded.local,
+        loaded.now,
+        loaded.mergedGeneration,
+        loaded.localGeneration,
+        loaded.syncGeneration,
+      );
+      outbox = { status: 'absent' };
+    }
+    const currentOutbox = usableSiteOutbox(outbox);
+    const issued = issueHybridTimestamp(
+      loaded.siteClock,
+      loaded.now,
+      observedHlcTimestamps(
+        loaded.syncRecord,
+        loaded.localRecord,
+        loaded.localGeneration,
+        loaded.syncGeneration,
+      ),
+    );
     const record: SiteSettingsV1 = {
       schemaVersion: 1,
-      overrides: mutate(loaded.mergedOverrides, loaded.now),
+      overrides: mutate(loaded.mergedOverrides, issued.timestamp),
       lastUsedAt: loaded.now,
+      generation: loaded.mergedGeneration.epoch,
     };
-    await writePersistedSides(
-      loaded.sync,
-      loaded.local,
-      loaded.storageKey,
-      record,
-      loaded.syncParsed,
-      loaded.localParsed,
-      loaded.syncExtras,
-      loaded.localExtras,
-      loaded.now,
+    const localItems: Record<string, unknown> = {
+      [SITE_HLC_KEY]: issued.record,
+    };
+    const generationRecord = generationWrite(
+      loaded.localGeneration,
+      loaded.mergedGeneration.epoch,
+      issued.timestamp,
     );
+    if (generationRecord) {
+      localItems[SITE_GENERATION_KEY] = generationRecord;
+    }
+
+    if (isUnsupportedCopy(loaded.localParsed)) {
+      await loaded.local.set(localItems);
+      await publishSyncSite(
+        loaded.sync,
+        loaded.storageKey,
+        record,
+        extrasForDestination('sync', loaded.syncExtras, loaded.localExtras),
+        loaded.now,
+        loaded.mergedGeneration,
+      );
+      return;
+    }
+
+    localItems[loaded.storageKey] = serializeSiteRecord(
+      record,
+      extrasForDestination('local', loaded.syncExtras, loaded.localExtras),
+    );
+    if (!isUnsupportedCopy(loaded.syncParsed)) {
+      localItems[SITE_OUTBOX_KEY] = serializeSiteOutbox(
+        addPublishSite(currentOutbox, loaded.storageKey),
+      );
+    }
+    await commitLocalThenReplay(loaded.local, loaded.sync, localItems, loaded.now);
   });
 }
 
@@ -590,10 +595,10 @@ export async function persistSiteBehaviorChanges(
 ): Promise<void> {
   await persistMutatedSite(
     url,
-    (current, now) => {
+    (current, at) => {
       let next = current;
       for (const change of changes) {
-        next = applyBehaviorSettingChange(next, change, now);
+        next = applyBehaviorSettingChange(next, change, at);
       }
       return next;
     },
@@ -631,10 +636,12 @@ function copiesForKey(
   syncAll: Record<string, unknown>,
   localAll: Record<string, unknown>,
   key: string,
+  merged: MergedGeneration,
 ): {
   syncParsed: SettingsParseResult<SiteSettingsV1>;
   localParsed: SettingsParseResult<SiteSettingsV1>;
   merged: BehaviorOverrides;
+  rawMerged: BehaviorOverrides;
 } {
   const syncParsed = migrateSiteSettings(syncAll[key]);
   const localParsed = migrateSiteSettings(localAll[key]);
@@ -642,18 +649,39 @@ function copiesForKey(
     syncParsed,
     localParsed,
     merged: mergeBehaviorOverrides(
+      appliedOverrides(syncParsed, syncAll[key], merged),
+      appliedOverrides(localParsed, localAll[key], merged),
+    ),
+    rawMerged: mergeBehaviorOverrides(
       readyRecord(syncParsed)?.overrides ?? {},
       readyRecord(localParsed)?.overrides ?? {},
     ),
   };
 }
 
-function tombstoneMergedSite(merged: BehaviorOverrides, now: number): SiteSettingsV1 | null {
-  const overrides = tombstoneExistingSiteFields(merged, now);
+function generationFromStores(
+  syncAll: Record<string, unknown>,
+  localAll: Record<string, unknown>,
+): {
+  localGeneration: ControlMetadataParse<SiteGenerationRecord>;
+  syncGeneration: ControlMetadataParse<SiteGenerationRecord>;
+  merged: MergedGeneration;
+} {
+  const localGeneration = parseSiteGenerationRecord(localAll[SITE_GENERATION_KEY]);
+  const syncGeneration = parseSiteGenerationRecord(syncAll[SITE_GENERATION_KEY]);
+  return {
+    localGeneration,
+    syncGeneration,
+    merged: mergeGenerationEpochs(localGeneration, syncGeneration),
+  };
+}
+
+function tombstoneMergedSite(merged: BehaviorOverrides, at: number): SiteSettingsV1 | null {
+  const overrides = tombstoneExistingSiteFields(merged, at);
   if (!hasSemanticOverrides(overrides)) {
     return null;
   }
-  return { schemaVersion: 1, overrides, lastUsedAt: now };
+  return { schemaVersion: 1, overrides, lastUsedAt: at };
 }
 
 export async function readSiteMembership(
@@ -667,8 +695,12 @@ export async function readSiteMembership(
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
     const { sync, local } = stores(deps);
     const storageKey = getSiteStorageKey({ supported: true, hostname: normalized });
-    const [syncAll, localAll] = await Promise.all([sync.get(storageKey), local.get(storageKey)]);
-    return hasValueOverrides(copiesForKey(syncAll, localAll, storageKey).merged);
+    const [syncAll, localAll] = await Promise.all([
+      sync.get([storageKey, SITE_GENERATION_KEY]),
+      local.get([storageKey, SITE_GENERATION_KEY]),
+    ]);
+    const generation = generationFromStores(syncAll, localAll);
+    return hasValueOverrides(copiesForKey(syncAll, localAll, storageKey, generation.merged).merged);
   });
 }
 
@@ -676,6 +708,7 @@ export async function listCustomSiteHostnames(deps: SiteSettingsDeps = {}): Prom
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
     const { sync, local } = stores(deps);
     const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
+    const generation = generationFromStores(syncAll, localAll);
     const hostnames = new Set<string>();
     const keys = new Set([...Object.keys(syncAll), ...Object.keys(localAll)]);
     for (const key of keys) {
@@ -683,7 +716,7 @@ export async function listCustomSiteHostnames(deps: SiteSettingsDeps = {}): Prom
       if (!hostname || !normalizeSiteHostname(hostname)) {
         continue;
       }
-      if (hasValueOverrides(copiesForKey(syncAll, localAll, key).merged)) {
+      if (hasValueOverrides(copiesForKey(syncAll, localAll, key, generation.merged).merged)) {
         hostnames.add(hostname);
       }
     }
@@ -703,70 +736,76 @@ export async function deleteSiteSettings(
     const { sync, local, now } = stores(deps);
     const at = now();
     const storageKey = getSiteStorageKey({ supported: true, hostname: normalized });
-    const [syncAll, localAll] = await Promise.all([sync.get(storageKey), local.get(storageKey)]);
-    const copies = copiesForKey(syncAll, localAll, storageKey);
+    const [syncAll, localAll] = await Promise.all([
+      sync.get([storageKey, SITE_GENERATION_KEY]),
+      local.get([storageKey, SITE_GENERATION_KEY, SITE_HLC_KEY, SITE_OUTBOX_KEY]),
+    ]);
+    const generation = generationFromStores(syncAll, localAll);
+    const copies = copiesForKey(syncAll, localAll, storageKey, generation.merged);
     assertCanDestroySite(copies.syncParsed, copies.localParsed);
-    const record = tombstoneMergedSite(copies.merged, at);
+    if (!hasSemanticOverrides(copies.rawMerged)) {
+      return;
+    }
+    assertKnownGeneration(generation.merged);
+    const siteClock = parseHybridClockRecord(localAll[SITE_HLC_KEY]);
+    const siteOutbox = parseSiteReplicaOutbox(localAll[SITE_OUTBOX_KEY]);
+    if (siteClock.status === 'corrupt') {
+      console.warn('Failed to parse site hybrid clock', localAll[SITE_HLC_KEY]);
+    }
+    if (siteOutbox.status === 'corrupt') {
+      console.warn('Failed to parse site replica outbox', localAll[SITE_OUTBOX_KEY]);
+    }
+    assertHybridClockUsable(siteClock);
+    let outbox = siteOutbox;
+    if (outbox.status === 'corrupt') {
+      await recoverCorruptSiteOutbox(
+        sync,
+        local,
+        at,
+        generation.merged,
+        generation.localGeneration,
+        generation.syncGeneration,
+      );
+      outbox = { status: 'absent' };
+    }
+    const issued = issueHybridTimestamp(
+      siteClock,
+      at,
+      observedHlcTimestamps(
+        readyRecord(copies.syncParsed),
+        readyRecord(copies.localParsed),
+        generation.localGeneration,
+        generation.syncGeneration,
+      ),
+    );
+    const record = tombstoneMergedSite(copies.rawMerged, issued.timestamp);
     if (!record) {
       return;
     }
-    await writePersistedSides(
-      sync,
-      local,
-      storageKey,
-      record,
-      copies.syncParsed,
-      copies.localParsed,
-      readyExtras(copies.syncParsed),
-      readyExtras(copies.localParsed),
-      at,
+    record.generation = generation.merged.epoch;
+    record.lastUsedAt = at;
+    const localItems: Record<string, unknown> = {
+      [storageKey]: serializeSiteRecord(
+        record,
+        extrasForDestination('local', readyExtras(copies.syncParsed), readyExtras(copies.localParsed)),
+      ),
+      [SITE_HLC_KEY]: issued.record,
+    };
+    const generationRecord = generationWrite(
+      generation.localGeneration,
+      generation.merged.epoch,
+      issued.timestamp,
     );
+    if (generationRecord) {
+      localItems[SITE_GENERATION_KEY] = generationRecord;
+    }
+    if (!isUnsupportedCopy(copies.syncParsed)) {
+      localItems[SITE_OUTBOX_KEY] = serializeSiteOutbox(
+        addPublishSite(usableSiteOutbox(outbox), storageKey),
+      );
+    }
+    await commitLocalThenReplay(local, sync, localItems, at);
   });
-}
-
-async function writeSyncSiteBatchUnlocked(
-  sync: DurableSettingsStore,
-  records: ReadonlyArray<{ key: string; record: SiteSettingsV1; extras: OpaqueFields }>,
-  now: number,
-): Promise<void> {
-  if (records.length === 0) {
-    return;
-  }
-
-  const apply = async (): Promise<void> => {
-    const items: Record<string, unknown> = {};
-    const removals: string[] = [];
-    for (const { key, record, extras } of records) {
-      const eligible = projectSyncEligibleSite(record, extras, now);
-      if (!eligible) {
-        removals.push(key);
-        continue;
-      }
-      items[key] = serializeSiteRecord(eligible.record, eligible.extras);
-    }
-    if (Object.keys(items).length > 0) {
-      await sync.set(items);
-    }
-    if (removals.length > 0) {
-      await sync.remove(removals);
-    }
-  };
-
-  try {
-    await apply();
-  } catch (error) {
-    if (!isCapacityError(error) || isWriteRateError(error)) {
-      throw error;
-    }
-    await reconcileSyncHotSetUnlocked(sync, now);
-    await apply();
-  }
-
-  try {
-    await reconcileSyncHotSetUnlocked(sync, now);
-  } catch {
-    // Post-publication maintenance must not fail a successful Sync write.
-  }
 }
 
 export async function deleteAllSiteSettings(
@@ -776,26 +815,59 @@ export async function deleteAllSiteSettings(
     const { sync, local, now } = stores(deps);
     const at = now();
     const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
+    const generation = generationFromStores(syncAll, localAll);
+    assertKnownGeneration(generation.merged);
+    const siteClock = parseHybridClockRecord(localAll[SITE_HLC_KEY]);
+    const siteOutbox = parseSiteReplicaOutbox(localAll[SITE_OUTBOX_KEY]);
+    if (siteClock.status === 'corrupt') {
+      console.warn('Failed to parse site hybrid clock', localAll[SITE_HLC_KEY]);
+    }
+    if (siteOutbox.status === 'corrupt') {
+      console.warn('Failed to parse site replica outbox', localAll[SITE_OUTBOX_KEY]);
+    }
+    assertHybridClockUsable(siteClock);
+    let outbox = siteOutbox;
+    if (outbox.status === 'corrupt') {
+      await recoverCorruptSiteOutbox(
+        sync,
+        local,
+        at,
+        generation.merged,
+        generation.localGeneration,
+        generation.syncGeneration,
+      );
+      outbox = { status: 'absent' };
+    }
+    const nextEpoch = checkedIncrement(generation.merged.epoch);
+    const issued = issueHybridTimestamp(
+      siteClock,
+      at,
+      observedHlcTimestamps(null, null, generation.localGeneration, generation.syncGeneration),
+    );
     const keys = [
       ...new Set(
-        [...Object.keys(syncAll), ...Object.keys(localAll)].filter((key) =>
-          key.startsWith('site:'),
-        ),
+        [...Object.keys(syncAll), ...Object.keys(localAll)].filter((key) => key.startsWith('site:')),
       ),
     ];
-    const localItems: Record<string, unknown> = {};
-    const syncRecords: { key: string; record: SiteSettingsV1; extras: OpaqueFields }[] = [];
+    const localItems: Record<string, unknown> = {
+      [SITE_HLC_KEY]: issued.record,
+      [SITE_GENERATION_KEY]: serializeSiteGeneration(nextEpoch, issued.timestamp),
+    };
+    const resetKeys: string[] = [];
     let skippedRecordCount = 0;
     for (const key of keys) {
-      const copies = copiesForKey(syncAll, localAll, key);
+      const copies = copiesForKey(syncAll, localAll, key, generation.merged);
       if (cannotSafelyDestroy(copies.syncParsed) || cannotSafelyDestroy(copies.localParsed)) {
         skippedRecordCount += 1;
         continue;
       }
-      const record = tombstoneMergedSite(copies.merged, at);
+      resetKeys.push(key);
+      const record = tombstoneMergedSite(copies.rawMerged, issued.timestamp);
       if (!record) {
         continue;
       }
+      record.generation = nextEpoch;
+      record.lastUsedAt = at;
       localItems[key] = serializeSiteRecord(
         record,
         extrasForDestination(
@@ -804,22 +876,11 @@ export async function deleteAllSiteSettings(
           readyExtras(copies.localParsed),
         ),
       );
-      if (Object.prototype.hasOwnProperty.call(syncAll, key)) {
-        syncRecords.push({
-          key,
-          record,
-          extras: extrasForDestination(
-            'sync',
-            readyExtras(copies.syncParsed),
-            readyExtras(copies.localParsed),
-          ),
-        });
-      }
     }
-    if (Object.keys(localItems).length > 0) {
-      await local.set(localItems);
-    }
-    await writeSyncSiteBatchUnlocked(sync, syncRecords, at);
+    localItems[SITE_OUTBOX_KEY] = serializeSiteOutbox(
+      applyResetAllToOutbox(usableSiteOutbox(outbox), nextEpoch, resetKeys),
+    );
+    await commitLocalThenReplay(local, sync, localItems, at);
     return { skippedRecordCount };
   });
 }

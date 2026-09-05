@@ -167,13 +167,13 @@ describe('behavior settings API', () => {
       },
       extensionSender(),
       {
-        local: memoryDurable(),
-        sync: {
+        local: {
           ...memoryDurable(),
           async set() {
             throw new Error('quota');
           },
         },
+        sync: memoryDurable(),
         listTabIds,
       },
     );
@@ -183,12 +183,15 @@ describe('behavior settings API', () => {
 
   it('returns ok with snapshotError when persist succeeds but refresh fails', async () => {
     const local = memoryDurable();
-    let reads = 0;
+    let persistCommitted = false;
     const snapshotLocal = {
       ...local,
+      async set(items: Record<string, unknown>) {
+        await local.set(items);
+        persistCommitted = true;
+      },
       async get(keys?: string | string[] | Record<string, unknown> | null) {
-        reads += 1;
-        if (reads > 1) {
+        if (persistCommitted) {
           throw new Error('refresh failed');
         }
         return local.get(keys);

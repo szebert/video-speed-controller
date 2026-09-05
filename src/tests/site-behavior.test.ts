@@ -16,6 +16,7 @@ import {
   resolveSiteBehavior,
   toEffectiveBehavior,
   toSyncEligibleSiteRecord,
+  isOverride,
   isOverlayPosition,
   OVERLAY_POSITION,
   SITE_INHERIT_SYNC_RETENTION_MS,
@@ -231,6 +232,15 @@ describe('overlay position grid', () => {
     expect(overlayPositionFromGrid(0, 0)).toBe(0);
     expect(overlayPositionFromGrid(1, 1)).toBe(4);
     expect(overlayPositionFromGrid(2, 2)).toBe(8);
+  });
+
+  it('rejects a poison updatedAt so it cannot enter the logical clock', () => {
+    const isUnknown = (value: unknown): value is unknown => value !== undefined;
+    expect(isOverride({ kind: 'inherit', updatedAt: Number.MAX_SAFE_INTEGER }, isUnknown)).toBe(
+      false,
+    );
+    expect(isOverride({ kind: 'inherit', updatedAt: -1 }, isUnknown)).toBe(false);
+    expect(isOverride({ kind: 'inherit', updatedAt: 10 }, isUnknown)).toBe(true);
   });
 
   it('accepts only integer codes 0 through 8', () => {

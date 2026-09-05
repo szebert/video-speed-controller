@@ -25,6 +25,7 @@ import {
   type EditableBehaviorField,
   type NumberBehaviorField,
 } from './behavior-fields';
+import { isLogicalValue } from './logical-value';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const SITE_INHERIT_SYNC_RETENTION_MS = 30 * DAY_MS;
@@ -125,6 +126,7 @@ export type SiteSettingsV1 = {
   schemaVersion: 1;
   overrides: BehaviorOverrides;
   lastUsedAt: number;
+  generation?: number;
 };
 
 export type GlobalBehaviorSettingsV1 = {
@@ -170,7 +172,7 @@ export function isOverride<T>(
     return false;
   }
   const record = value as { kind?: unknown; value?: unknown; updatedAt?: unknown };
-  if (!isFiniteTimestamp(record.updatedAt)) {
+  if (!isLogicalValue(record.updatedAt)) {
     return false;
   }
   if (record.kind === 'inherit') {
@@ -242,7 +244,12 @@ export function toSyncEligibleSiteRecord(
   if (!hasSemanticOverrides(overrides)) {
     return null;
   }
-  return { schemaVersion: 1, overrides, lastUsedAt: record.lastUsedAt };
+  return {
+    schemaVersion: 1,
+    overrides,
+    lastUsedAt: record.lastUsedAt,
+    ...(record.generation !== undefined ? { generation: record.generation } : {}),
+  };
 }
 
 export function overridesEqual<T>(left: Override<T>, right: Override<T>): boolean {

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Equal } from '../types/equal';
 import { hasOpaqueContent, pickUnknownKeys, type OpaqueFields } from './opaque-fields';
 import { BEHAVIOR_FIELDS, type BehaviorField } from './behavior-fields';
+import { isLogicalValue } from './logical-value';
 import {
   hasSemanticOverrides,
   isFiniteTimestamp,
@@ -29,6 +30,8 @@ type BehaviorValueSchemaMap = {
 
 // Storage salvage (regular Zod). Stricter than RPC/Mini (finite numbers,
 // integer delay). Cannot be imported from protocol/content or the content graph.
+export const LogicalValueSchema = z.number().refine(isLogicalValue);
+
 export const behaviorValueSchemas = {
   speed: z.number().finite(),
   speedMin: z.number().finite(),
@@ -48,19 +51,20 @@ true satisfies Equal<
   { [K in BehaviorField]: BehaviorFieldValue<K> }
 >;
 
-const SITE_ENVELOPE_KEYS = ['schemaVersion', 'overrides', 'lastUsedAt'] as const;
+const SITE_ENVELOPE_KEYS = ['schemaVersion', 'overrides', 'lastUsedAt', 'generation'] as const;
+const SITE_REQUIRED_KEYS = ['schemaVersion', 'overrides', 'lastUsedAt'] as const;
 const GLOBAL_ENVELOPE_KEYS = ['schemaVersion', 'overrides'] as const;
 
 function overrideSchema<T extends z.ZodType>(valueSchema: T) {
   return z.union([
     z.strictObject({
       kind: z.literal('inherit'),
-      updatedAt: z.number().finite(),
+      updatedAt: LogicalValueSchema,
     }),
     z.strictObject({
       kind: z.literal('value'),
       value: valueSchema,
-      updatedAt: z.number().finite(),
+      updatedAt: LogicalValueSchema,
     }),
   ]);
 }
@@ -118,7 +122,7 @@ export function parseReadySiteSettings(
     return null;
   }
   const raw = value as Record<string, unknown>;
-  if (!hasRequiredKeys(raw, SITE_ENVELOPE_KEYS) || raw.schemaVersion !== 1) {
+  if (!hasRequiredKeys(raw, SITE_REQUIRED_KEYS) || raw.schemaVersion !== 1) {
     return null;
   }
   if (!isFiniteTimestamp(raw.lastUsedAt)) {
@@ -132,17 +136,23 @@ export function parseReadySiteSettings(
     record: pickUnknownKeys(raw, SITE_ENVELOPE_KEYS),
     overrides: parsedOverrides.extras,
   };
+  const record: SiteSettingsV1 = {
+    schemaVersion: 1,
+    overrides: parsedOverrides.overrides,
+    lastUsedAt: raw.lastUsedAt,
+  };
+  if (Object.prototype.hasOwnProperty.call(raw, 'generation')) {
+    const generation = LogicalValueSchema.safeParse(raw.generation);
+    if (generation.success) {
+      record.generation = generation.data;
+    } else {
+      extras.record.generation = raw.generation;
+    }
+  }
   if (!hasSemanticOverrides(parsedOverrides.overrides) && !hasOpaqueContent(extras)) {
     return null;
   }
-  return {
-    record: {
-      schemaVersion: 1,
-      overrides: parsedOverrides.overrides,
-      lastUsedAt: raw.lastUsedAt,
-    },
-    extras,
-  };
+  return { record, extras };
 }
 
 export function parseSiteSettings(value: unknown): SiteSettingsV1 | null {

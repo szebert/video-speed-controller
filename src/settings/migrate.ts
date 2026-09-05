@@ -104,7 +104,7 @@ export function serializeSiteRecord(
   record: SiteSettingsV1,
   extras: OpaqueFields,
 ): Record<string, unknown> {
-  return {
+  const serialized: Record<string, unknown> = {
     ...extras.record,
     schemaVersion: 1,
     lastUsedAt: record.lastUsedAt,
@@ -113,6 +113,10 @@ export function serializeSiteRecord(
       ...record.overrides,
     },
   };
+  if (record.generation !== undefined) {
+    serialized.generation = record.generation;
+  }
+  return serialized;
 }
 
 export function serializeGlobalRecord(

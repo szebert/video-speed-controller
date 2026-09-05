@@ -174,9 +174,14 @@ describe('global behavior defaults', () => {
             return Promise.reject('quota');
           },
         },
-        local: memoryDurable(),
+        local: {
+          ...memoryDurable(),
+          async set() {
+            return Promise.reject('quota');
+          },
+        },
         now: () => 1,
       }),
-    ).rejects.toThrow(/Failed to persist global behavior/);
+    ).rejects.toThrow(/quota/);
   });
 });

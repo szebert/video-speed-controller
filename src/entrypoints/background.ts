@@ -17,6 +17,8 @@ import {
   resetGlobalBehaviorSettings,
   setBehaviorSetting,
 } from '../background/behavior-settings';
+import { reconcilePendingGlobalReplicas } from '../storage/behavior-defaults';
+import { reconcilePendingSiteReplicas } from '../storage/site-settings';
 import { enqueueTabMutation } from '../background/tab-mutation-queue';
 import { authorizeBackgroundInbound } from '../background/authorize-inbound';
 import { parseBackgroundInbound } from '../protocol/schemas/background-inbound';
@@ -238,5 +240,11 @@ export default defineBackground(() => {
 
   void restrictStorageAccess().catch(() => {
     // Storage hardening must not crash or disable the worker.
+  });
+  void reconcilePendingSiteReplicas().catch(() => {
+    // Worker-load outbox replay is best-effort.
+  });
+  void reconcilePendingGlobalReplicas().catch(() => {
+    // Worker-load outbox replay is best-effort.
   });
 });
