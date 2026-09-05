@@ -288,8 +288,7 @@ async function maybeRepairAndTouchSite(loaded: LoadedSite, touchUsage: boolean):
   const localLastUsedAt = touchUsage
     ? now
     : (localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now);
-  const generation =
-    mergedGeneration.status === 'known' ? mergedGeneration.epoch : undefined;
+  const generation = mergedGeneration.status === 'known' ? mergedGeneration.epoch : undefined;
   const nextLocal = withReadGeneration(
     {
       schemaVersion: 1,
@@ -787,7 +786,11 @@ export async function deleteSiteSettings(
     const localItems: Record<string, unknown> = {
       [storageKey]: serializeSiteRecord(
         record,
-        extrasForDestination('local', readyExtras(copies.syncParsed), readyExtras(copies.localParsed)),
+        extrasForDestination(
+          'local',
+          readyExtras(copies.syncParsed),
+          readyExtras(copies.localParsed),
+        ),
       ),
       [SITE_HLC_KEY]: issued.record,
     };
@@ -846,7 +849,9 @@ export async function deleteAllSiteSettings(
     );
     const keys = [
       ...new Set(
-        [...Object.keys(syncAll), ...Object.keys(localAll)].filter((key) => key.startsWith('site:')),
+        [...Object.keys(syncAll), ...Object.keys(localAll)].filter((key) =>
+          key.startsWith('site:'),
+        ),
       ),
     ];
     const localItems: Record<string, unknown> = {

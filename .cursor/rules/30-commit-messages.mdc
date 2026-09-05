@@ -6,6 +6,9 @@ alwaysApply: true
 # Commit messages
 
 Use `type(scope): summary` to match repository history. Only commit when asked.
+Do not create a commit until `pnpm format:check` and `pnpm lint` have been run
+against the to-be-committed tree and passed. Also run `pnpm compile` and the
+affected unit tests when types or behavior changed. These are CI gates.
 
 - **type:** `feat`, `fix`, `test`, or `chore`
 - **scope:** the area that changed (`extension`, `e2e`, `unit`, `ci`, `package`, `tooling`)

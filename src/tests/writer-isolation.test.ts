@@ -61,7 +61,10 @@ function namedImports(source: string): string[] {
     /(?:^|\n)\s*import(?:\s+type)?\s+\{([^}]+)\}\s+from\s+['"][^'"]+['"]/g,
   )) {
     for (const part of match[1]?.split(',') ?? []) {
-      const name = part.trim().split(/\s+as\s+/)[0]?.trim();
+      const name = part
+        .trim()
+        .split(/\s+as\s+/)[0]
+        ?.trim();
       if (name) {
         names.push(name);
       }
@@ -141,6 +144,8 @@ describe('durable writer isolation', () => {
     }
     expect(persistViolations).toEqual([]);
     expect(mutatorViolations).toEqual([]);
-    expect([...scanned].map(srcPath)).toEqual(expect.arrayContaining(['components/theme-provider.tsx']));
+    expect([...scanned].map(srcPath)).toEqual(
+      expect.arrayContaining(['components/theme-provider.tsx']),
+    );
   });
 });

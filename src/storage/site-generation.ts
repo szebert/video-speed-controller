@@ -4,10 +4,7 @@ import { z } from 'zod';
 import { LogicalValueSchema } from '../settings/behavior-schema';
 import { cannotSafelyDestroy } from '../settings/destroy-policy';
 import type { SettingsParseResult } from '../settings/migrate';
-import {
-  parseSchemaVersionedControl,
-  type ControlMetadataParse,
-} from './control-metadata';
+import { parseSchemaVersionedControl, type ControlMetadataParse } from './control-metadata';
 
 export const SITE_GENERATION_KEY = 'meta:site-generation';
 
@@ -20,9 +17,7 @@ export type SiteGenerationRecord = {
 };
 
 export type ParsedGeneration =
-  | { status: 'legacy'; value: 0 }
-  | { status: 'valid'; value: number }
-  | { status: 'unknown' };
+  { status: 'legacy'; value: 0 } | { status: 'valid'; value: number } | { status: 'unknown' };
 
 export type MergedGeneration = { status: 'known'; epoch: number } | { status: 'unknown' };
 
@@ -83,9 +78,7 @@ export function assertKnownGeneration(
   }
 }
 
-export function knownEpochOf(
-  parsed: ControlMetadataParse<SiteGenerationRecord>,
-): number | null {
+export function knownEpochOf(parsed: ControlMetadataParse<SiteGenerationRecord>): number | null {
   if (parsed.status === 'absent') {
     return 0;
   }
@@ -131,10 +124,7 @@ export function shouldApplySiteCopy<T>(
   return siteGenerationEligibility(parseSiteRecordGeneration(raw), merged).status === 'eligible';
 }
 
-export function isFutureOrUnknownGeneration(
-  raw: unknown,
-  merged: MergedGeneration,
-): boolean {
+export function isFutureOrUnknownGeneration(raw: unknown, merged: MergedGeneration): boolean {
   const generation = parseSiteRecordGeneration(raw);
   if (generation.status === 'unknown') {
     return true;
@@ -147,10 +137,7 @@ export function isOldGenerationCopy(raw: unknown, epoch: number): boolean {
   return generation.status !== 'unknown' && generation.value < epoch;
 }
 
-export function serializeSiteGeneration(
-  epoch: number,
-  updatedAt?: number,
-): SiteGenerationRecord {
+export function serializeSiteGeneration(epoch: number, updatedAt?: number): SiteGenerationRecord {
   return updatedAt === undefined
     ? { schemaVersion: 1, epoch }
     : { schemaVersion: 1, epoch, updatedAt };

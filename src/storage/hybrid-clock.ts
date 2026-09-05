@@ -4,10 +4,7 @@ import { z } from 'zod';
 import { LogicalValueSchema } from '../settings/behavior-schema';
 import { checkedIncrement, isLogicalValue } from '../settings/logical-value';
 import { listOverrides, type BehaviorOverrides } from '../settings/site-behavior';
-import {
-  parseSchemaVersionedControl,
-  type ControlMetadataParse,
-} from './control-metadata';
+import { parseSchemaVersionedControl, type ControlMetadataParse } from './control-metadata';
 
 export const SITE_HLC_KEY = 'meta:hlc:site';
 export const GLOBAL_HLC_KEY = 'meta:hlc:global';

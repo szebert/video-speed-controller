@@ -19,10 +19,7 @@ import {
   hasValueOverrides,
   type SiteSettingsV1,
 } from '../settings/site-behavior';
-import {
-  estimateStorageEntryBytes,
-  type DurableSettingsStore,
-} from './durable-store';
+import { estimateStorageEntryBytes, type DurableSettingsStore } from './durable-store';
 import {
   SITE_GENERATION_KEY,
   generationUpdatedAt,
@@ -150,8 +147,7 @@ export async function repairGenerationUpward(
   if (merged.status !== 'known') {
     return;
   }
-  const updatedAt =
-    generationUpdatedAt(localGeneration) ?? generationUpdatedAt(syncGeneration);
+  const updatedAt = generationUpdatedAt(localGeneration) ?? generationUpdatedAt(syncGeneration);
   const record = serializeSiteGeneration(merged.epoch, updatedAt);
   if (replicaNeedsGenerationRepair(localGeneration, merged.epoch)) {
     try {
@@ -174,7 +170,9 @@ export async function tryPublishCommittedGeneration(
   epoch: number,
   updatedAt?: number,
 ): Promise<boolean> {
-  const current = parseSiteGenerationRecord((await sync.get(SITE_GENERATION_KEY))[SITE_GENERATION_KEY]);
+  const current = parseSiteGenerationRecord(
+    (await sync.get(SITE_GENERATION_KEY))[SITE_GENERATION_KEY],
+  );
   if (current.status === 'unsupported' || current.status === 'corrupt') {
     return false;
   }
@@ -208,11 +206,7 @@ export async function cleanupOldGenerationSyncSites(
   }
 }
 
-function isSoftProtected(
-  entry: RawSiteEntry,
-  now: number,
-  epoch: MergedGeneration,
-): boolean {
+function isSoftProtected(entry: RawSiteEntry, now: number, epoch: MergedGeneration): boolean {
   if (entry.parsed.status === 'unsupported') {
     return true;
   }

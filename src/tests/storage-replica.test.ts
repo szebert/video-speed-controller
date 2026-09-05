@@ -302,7 +302,10 @@ describe('storage replica hardening', () => {
     deps.sync.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 6 };
     deps.sync.data[YOUTUBE_KEY] = siteRecord(2, 20, 7);
     await expect(readSiteSpeed(YOUTUBE, deps)).resolves.toBe(1);
-    expect(deps.sync.data[YOUTUBE_KEY]).toMatchObject({ generation: 7, overrides: { speed: { value: 2 } } });
+    expect(deps.sync.data[YOUTUBE_KEY]).toMatchObject({
+      generation: 7,
+      overrides: { speed: { value: 2 } },
+    });
     deps.local.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 7 };
     deps.sync.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 7 };
     await expect(readSiteSpeed(YOUTUBE, deps)).resolves.toBe(2);
@@ -435,7 +438,9 @@ describe('storage replica hardening', () => {
 
     const dirty = pair(50);
     dirty.local.data[SITE_OUTBOX_KEY] = { schemaVersion: 2, publishSites: [YOUTUBE_KEY] };
-    await expect(persistSiteSpeed(YOUTUBE, 1.25, dirty)).rejects.toThrow(/outbox metadata is unsupported/i);
+    await expect(persistSiteSpeed(YOUTUBE, 1.25, dirty)).rejects.toThrow(
+      /outbox metadata is unsupported/i,
+    );
     expect(dirty.local.data[SITE_OUTBOX_KEY]).toEqual({
       schemaVersion: 2,
       publishSites: [YOUTUBE_KEY],
@@ -445,7 +450,9 @@ describe('storage replica hardening', () => {
   it('does not replace unsupported HLC metadata or issue a lower timestamp', async () => {
     const deps = pair(50);
     deps.local.data[SITE_HLC_KEY] = { schemaVersion: 2, lastIssued: 999 };
-    await expect(persistSiteSpeed(YOUTUBE, 1.25, deps)).rejects.toThrow(/clock metadata is unusable/i);
+    await expect(persistSiteSpeed(YOUTUBE, 1.25, deps)).rejects.toThrow(
+      /clock metadata is unusable/i,
+    );
     expect(deps.local.data[SITE_HLC_KEY]).toEqual({ schemaVersion: 2, lastIssued: 999 });
     expect(deps.local.data[YOUTUBE_KEY]).toBeUndefined();
   });
@@ -518,7 +525,10 @@ describe('storage replica hardening', () => {
     deps.local.data[YOUTUBE_KEY] = siteRecord(2, 20, 7);
     const resolved = await resolveSiteBehaviorForUrl(YOUTUBE, { ...deps, touchUsage: false });
     expect(resolved?.speed).toEqual({ value: 1, source: 'built-in' });
-    expect(deps.local.data[YOUTUBE_KEY]).toMatchObject({ generation: 7, overrides: { speed: { value: 2 } } });
+    expect(deps.local.data[YOUTUBE_KEY]).toMatchObject({
+      generation: 7,
+      overrides: { speed: { value: 2 } },
+    });
   });
 
   it('retires a superseded pending resetAll without publishing the old epoch', async () => {

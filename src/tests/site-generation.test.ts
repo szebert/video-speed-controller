@@ -57,9 +57,11 @@ describe('site generation metadata', () => {
     expect(mergeGenerationEpochs({ status: 'corrupt' }, { status: 'absent' })).toEqual({
       status: 'unknown',
     });
-    expect(parseSiteGenerationRecord({ schemaVersion: 1, epoch: Number.MAX_SAFE_INTEGER })).toEqual({
-      status: 'corrupt',
-    });
+    expect(parseSiteGenerationRecord({ schemaVersion: 1, epoch: Number.MAX_SAFE_INTEGER })).toEqual(
+      {
+        status: 'corrupt',
+      },
+    );
     expect(parseSiteGenerationRecord({ schemaVersion: 2, epoch: 1 })).toEqual({
       status: 'unsupported',
     });
@@ -118,9 +120,9 @@ describe('site record generation', () => {
     expect(parsed?.extras.record.generation).toBe('nope');
     expect(parseSiteRecordGeneration(raw).status).toBe('unknown');
     expect(migrateSiteSettings(raw).status).toBe('ready');
-    expect(
-      shouldApplySiteCopy(migrateSiteSettings(raw), raw, { status: 'known', epoch: 0 }),
-    ).toBe(false);
+    expect(shouldApplySiteCopy(migrateSiteSettings(raw), raw, { status: 'known', epoch: 0 })).toBe(
+      false,
+    );
   });
 
   it('applies only generation-eligible copies', () => {
@@ -130,12 +132,16 @@ describe('site record generation', () => {
       generation: 6,
       overrides: { speed: { kind: 'value', value: 2, updatedAt: 1e12 } },
     });
-    expect(siteGenerationEligibility({ status: 'valid', value: 6 }, { status: 'known', epoch: 7 })).toEqual(
-      { status: 'stale', generation: 6 },
+    expect(
+      siteGenerationEligibility({ status: 'valid', value: 6 }, { status: 'known', epoch: 7 }),
+    ).toEqual({ status: 'stale', generation: 6 });
+    expect(shouldApplySiteCopy(ready, { generation: 6 }, { status: 'known', epoch: 7 })).toBe(
+      false,
     );
-    expect(shouldApplySiteCopy(ready, { generation: 6 }, { status: 'known', epoch: 7 })).toBe(false);
     expect(shouldApplySiteCopy(ready, { generation: 7 }, { status: 'known', epoch: 7 })).toBe(true);
-    expect(shouldApplySiteCopy(ready, { generation: 8 }, { status: 'known', epoch: 7 })).toBe(false);
+    expect(shouldApplySiteCopy(ready, { generation: 8 }, { status: 'known', epoch: 7 })).toBe(
+      false,
+    );
     expect(shouldApplySiteCopy(ready, { generation: 7 }, { status: 'unknown' })).toBe(false);
   });
 });

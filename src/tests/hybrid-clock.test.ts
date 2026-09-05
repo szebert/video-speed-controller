@@ -37,17 +37,19 @@ describe('hybrid clock', () => {
   it('treats absent metadata as a fresh clock and blocks corrupt or unsupported records', () => {
     expect(parseHybridClockRecord(undefined).status).toBe('absent');
     expect(issueHybridTimestamp({ status: 'absent' }, 50).timestamp).toBe(50);
-    expect(parseHybridClockRecord({ schemaVersion: 1, lastIssued: Number.MAX_SAFE_INTEGER })).toEqual(
-      { status: 'corrupt' },
-    );
+    expect(
+      parseHybridClockRecord({ schemaVersion: 1, lastIssued: Number.MAX_SAFE_INTEGER }),
+    ).toEqual({ status: 'corrupt' });
     expect(parseHybridClockRecord({ schemaVersion: 2, lastIssued: 10 })).toEqual({
       status: 'unsupported',
     });
     expect(() => issueHybridTimestamp({ status: 'corrupt' }, 50)).toThrow(HYBRID_CLOCK_UNUSABLE);
-    expect(() =>
-      issueHybridTimestamp({ status: 'unsupported' }, 50),
-    ).toThrow(HYBRID_CLOCK_UNUSABLE);
-    expect(() => observeHybridClock({ status: 'unsupported' }, [10])).toThrow(HYBRID_CLOCK_UNUSABLE);
+    expect(() => issueHybridTimestamp({ status: 'unsupported' }, 50)).toThrow(
+      HYBRID_CLOCK_UNUSABLE,
+    );
+    expect(() => observeHybridClock({ status: 'unsupported' }, [10])).toThrow(
+      HYBRID_CLOCK_UNUSABLE,
+    );
   });
 
   it('does not reset a corrupt lastIssued to 0', () => {

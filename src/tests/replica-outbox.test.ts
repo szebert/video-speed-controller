@@ -49,15 +49,15 @@ describe('replica outbox parsers', () => {
 
 describe('replica outbox replay decisions', () => {
   it('applies the monotonic three-way rule to pending Reset All', () => {
-    expect(decideResetAllReplay({ epoch: 7, cleanupPending: true }, { status: 'known', epoch: 8 })).toBe(
-      'superseded',
-    );
-    expect(decideResetAllReplay({ epoch: 8, cleanupPending: true }, { status: 'known', epoch: 8 })).toBe(
-      'active',
-    );
-    expect(decideResetAllReplay({ epoch: 8, cleanupPending: true }, { status: 'known', epoch: 7 })).toBe(
-      'pending',
-    );
+    expect(
+      decideResetAllReplay({ epoch: 7, cleanupPending: true }, { status: 'known', epoch: 8 }),
+    ).toBe('superseded');
+    expect(
+      decideResetAllReplay({ epoch: 8, cleanupPending: true }, { status: 'known', epoch: 8 }),
+    ).toBe('active');
+    expect(
+      decideResetAllReplay({ epoch: 8, cleanupPending: true }, { status: 'known', epoch: 7 }),
+    ).toBe('pending');
     expect(decideResetAllReplay({ epoch: 8, cleanupPending: true }, { status: 'unknown' })).toBe(
       'pending',
     );

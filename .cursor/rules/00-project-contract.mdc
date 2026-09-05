@@ -47,10 +47,15 @@ tests, and established implementation decisions.
 ## Verification
 
 - Add or update tests when behavior changes and testing is appropriate.
-- Run the relevant available checks after making changes.
+- After making changes, run the local checks CI also runs for that work.
+  `pnpm format:check` and `pnpm lint` are always in that set. Also run
+  `pnpm compile` and the affected `pnpm test` files when types or behavior
+  changed. Do not skip `format:check` because a subset of files "looks fine".
+- Do not create a commit until those required checks have been run against
+  the to-be-committed tree and passed.
 - Fix implementation-caused failures rather than weakening tests.
-- Never claim a test, build, lint, typecheck, or manual verification passed
-  unless it was actually performed successfully.
+- Never claim a test, build, lint, typecheck, format, or manual verification
+  passed unless it was actually performed successfully.
 - Clearly state anything that could not be verified.
 
 ## Safety

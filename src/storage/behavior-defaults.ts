@@ -393,8 +393,14 @@ export async function resetGlobalBehaviorOverrides(
       schemaVersion: 1,
       overrides: inheritAllEditableFields(issued.timestamp),
     };
-    await persistGlobalRecord(sync, local, next, copies.syncParsed, copies.localParsed, issued.record);
+    await persistGlobalRecord(
+      sync,
+      local,
+      next,
+      copies.syncParsed,
+      copies.localParsed,
+      issued.record,
+    );
     return 'reset';
   });
 }
-

@@ -2,10 +2,7 @@
 
 import { z } from 'zod';
 import { LogicalValueSchema } from '../settings/behavior-schema';
-import {
-  parseSchemaVersionedControl,
-  type ControlMetadataParse,
-} from './control-metadata';
+import { parseSchemaVersionedControl, type ControlMetadataParse } from './control-metadata';
 import type { MergedGeneration, ParsedGeneration } from './site-generation';
 
 export const SITE_OUTBOX_KEY = 'meta:dirty:sites';
