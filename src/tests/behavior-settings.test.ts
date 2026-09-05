@@ -298,6 +298,76 @@ describe('behavior settings API', () => {
     expect(deps.local.data['site:www.youtube.com']).toMatchObject({
       overrides: { speed: { kind: 'inherit' } },
     });
+    expect(response.resetAll).toEqual({ partial: false, skippedNewerVersionCount: 0 });
+  });
+
+  it('resets V1 sites when global is a newer schema and reports a partial Reset All', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
+    deps.sync.data['defaults:site-behavior'] = { schemaVersion: 2, overrides: { extra: true } };
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
+    const response = await resetAllBehaviorSettings(
+      { type: 'RESET_ALL_BEHAVIOR' },
+      extensionSender(),
+      deps,
+    );
+    expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('expected success');
+    }
+    expect(response.resetAll).toEqual({ partial: true, skippedNewerVersionCount: 1 });
+    expect(deps.sync.data['defaults:site-behavior']).toEqual({
+      schemaVersion: 2,
+      overrides: { extra: true },
+    });
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit' } },
+    });
+    expect(deps.local.data['site:vimeo.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit' } },
+    });
+  });
+
+  it('rejects an entire changes batch when any change is invalid', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        changes: [
+          { kind: 'value', field: 'speed', value: 1.5 },
+          { kind: 'value', field: 'overlayPosition', value: 99 },
+        ],
+      } as Parameters<typeof setBehaviorSetting>[0],
+      extensionSender(),
+      deps,
+    );
+    expect(response).toEqual({ ok: false, error: 'Invalid change' });
+    expect(deps.local.data).toEqual({});
+    expect(deps.sync.data).toEqual({});
+  });
+
+  it('applies duplicate fields last-wins in one persist', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        changes: [
+          { kind: 'value', field: 'speed', value: 1.25 },
+          { kind: 'value', field: 'overlayVisible', value: false },
+          { kind: 'value', field: 'speed', value: 2 },
+        ],
+      },
+      extensionSender(),
+      deps,
+    );
+    expect(response.ok).toBe(true);
+    if (!response.ok || !response.state) {
+      throw new Error('expected a snapshot');
+    }
+    expect(response.state.global.speed).toEqual({ value: 2, source: 'global' });
+    expect(response.state.global.overlayVisible).toEqual({ value: false, source: 'global' });
   });
 
   it('returns a site membership delta after a site SET', async () => {

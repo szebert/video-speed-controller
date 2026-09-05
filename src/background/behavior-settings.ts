@@ -16,10 +16,11 @@ import {
   canonicalizeBehaviorSettingChange,
   resolveSiteBehavior,
   toEditableResolvedBehavior,
+  type BehaviorSettingChange,
 } from '../settings/site-behavior';
 import { normalizeSiteHostname, siteResolutionUrl } from '../settings/site-hostname';
 import {
-  persistGlobalBehaviorChange,
+  persistGlobalBehaviorChanges,
   readGlobalBehaviorOverrides,
   resetGlobalBehaviorOverrides,
   type BehaviorDefaultsDeps,
@@ -28,15 +29,16 @@ import {
   deleteAllSiteSettings,
   deleteSiteSettings,
   listCustomSiteHostnames,
-  persistSiteBehaviorChange,
+  persistSiteBehaviorChanges,
   readSiteMembership,
   resolveSiteBehaviorForUrl,
   type SiteSettingsDeps,
 } from '../storage/site-settings';
+import { resetAllResult, type ResetAllResult } from '../settings/migrate';
 import { isExtensionPageSender } from './extension-page-sender';
 import {
   reapplyBehaviorSettings,
-  reapplyModeForField,
+  reapplyModeForFields,
   type ReapplyBehaviorRequest,
   type ReapplyBehaviorSettingsDeps,
 } from './reapply-behavior-settings';
@@ -103,6 +105,7 @@ async function afterPersist(
   request: ReapplyBehaviorRequest,
   deps: BehaviorSettingsDeps,
   membershipHostname: string | null = null,
+  resetAll?: ResetAllResult,
 ): Promise<SetBehaviorSettingResponse> {
   const reapply = await reapplyBehaviorSettings(request, deps);
   const siteMembership = membershipHostname
@@ -115,6 +118,7 @@ async function afterPersist(
       state,
       ...reapply,
       ...(siteMembership ? { siteMembership } : {}),
+      ...(resetAll ? { resetAll } : {}),
     };
   } catch (error) {
     return {
@@ -122,6 +126,7 @@ async function afterPersist(
       snapshotError: errorMessage(error, 'Failed to refresh settings'),
       ...reapply,
       ...(siteMembership ? { siteMembership } : {}),
+      ...(resetAll ? { resetAll } : {}),
     };
   }
 }
@@ -159,6 +164,21 @@ export async function getCustomSites(
   }
 }
 
+function requestedBehaviorChanges(
+  message: SetBehaviorSettingRequest,
+): BehaviorSettingChange[] | null {
+  const raw = message.changes ?? (message.change ? [message.change] : []);
+  const canonical: BehaviorSettingChange[] = [];
+  for (const change of raw) {
+    const next = canonicalizeBehaviorSettingChange(change);
+    if (!next) {
+      return null;
+    }
+    canonical.push(next);
+  }
+  return canonical.length > 0 ? canonical : null;
+}
+
 export async function setBehaviorSetting(
   message: SetBehaviorSettingRequest,
   sender: chrome.runtime.MessageSender,
@@ -168,8 +188,8 @@ export async function setBehaviorSetting(
     return { ok: false, error: 'Unauthorized' };
   }
 
-  const change = canonicalizeBehaviorSettingChange(message.change);
-  if (!change) {
+  const changes = requestedBehaviorChanges(message);
+  if (!changes) {
     return { ok: false, error: 'Invalid change' };
   }
 
@@ -188,9 +208,9 @@ export async function setBehaviorSetting(
 
   try {
     if (message.scope.kind === 'global') {
-      await persistGlobalBehaviorChange(change, deps);
+      await persistGlobalBehaviorChanges(changes, deps);
     } else {
-      await persistSiteBehaviorChange(siteResolutionUrl(persistHostname!), change, deps);
+      await persistSiteBehaviorChanges(siteResolutionUrl(persistHostname!), changes, deps);
     }
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to persist setting') };
@@ -201,7 +221,7 @@ export async function setBehaviorSetting(
     snapshot.hostname,
     {
       scope: scope === 'global' ? { kind: 'global' } : { kind: 'site', hostname: persistHostname! },
-      mode: reapplyModeForField(scope, change.field),
+      mode: reapplyModeForFields(scope, changes),
     },
     deps,
     persistHostname,
@@ -282,11 +302,19 @@ export async function resetAllBehaviorSettings(
   }
 
   try {
-    await resetGlobalBehaviorOverrides(deps);
-    await deleteAllSiteSettings(deps);
+    const globalOutcome = await resetGlobalBehaviorOverrides(deps, { ifUnsupported: 'skip' });
+    const sites = await deleteAllSiteSettings(deps);
+    const resetAll = resetAllResult(
+      (globalOutcome === 'skipped' ? 1 : 0) + sites.skippedNewerVersionCount,
+    );
+    return afterPersist(
+      snapshot.hostname,
+      { scope: { kind: 'all' }, mode: 'resolve-target' },
+      deps,
+      null,
+      resetAll,
+    );
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to reset settings') };
   }
-
-  return afterPersist(snapshot.hostname, { scope: { kind: 'all' }, mode: 'resolve-target' }, deps);
 }

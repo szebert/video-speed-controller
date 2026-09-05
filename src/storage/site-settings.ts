@@ -24,10 +24,8 @@ import {
   SYNC_TARGET_MAX_SITE_ITEMS,
   behaviorOverridesEqual,
   mergeBehaviorOverrides,
-  parseSiteSettings,
   resolveSiteBehavior,
   toEffectiveBehavior,
-  toSyncEligibleSiteRecord,
   hasSemanticOverrides,
   hasSyncRetainedInherit,
   withSpeedInherit,
@@ -38,6 +36,19 @@ import {
   type BehaviorOverrides,
   type SiteSettingsV1,
 } from '../settings/site-behavior';
+import {
+  SETTINGS_CREATED_BY_NEWER_VERSION,
+  extrasForDestination,
+  emptyOpaqueFields,
+  migrateSiteSettings,
+  projectSyncEligibleSite,
+  resetAllResult,
+  serializeSiteRecord,
+  serializedRecordsEqual,
+  type OpaqueFields,
+  type ResetAllResult,
+  type SettingsParseResult,
+} from '../settings/migrate';
 import { normalizeSiteHostname } from '../settings/site-hostname';
 import { readGlobalBehaviorOverrides } from './behavior-defaults';
 import {
@@ -90,18 +101,52 @@ export function isWriteRateError(error: unknown): boolean {
   return /MAX_WRITE_OPERATIONS/i.test(message);
 }
 
-async function readParsedSite(
-  store: DurableSettingsStore,
-  storageKey: string,
-): Promise<SiteSettingsV1 | null> {
-  const result = await store.get(storageKey);
-  return parseSiteSettings(result[storageKey]);
+function readyExtras(parsed: SettingsParseResult<SiteSettingsV1>): OpaqueFields {
+  return parsed.status === 'ready' ? parsed.extras : emptyOpaqueFields();
+}
+
+function readyRecord(parsed: SettingsParseResult<SiteSettingsV1>): SiteSettingsV1 | null {
+  return parsed.status === 'ready' ? parsed.record : null;
+}
+
+function isUnsupportedCopy(parsed: SettingsParseResult<SiteSettingsV1>): boolean {
+  return parsed.status === 'unsupported';
+}
+
+function siteKnownAndExtrasEqual(
+  left: SiteSettingsV1,
+  leftExtras: OpaqueFields,
+  right: SiteSettingsV1,
+  rightExtras: OpaqueFields,
+): boolean {
+  return (
+    behaviorOverridesEqual(left.overrides, right.overrides) &&
+    serializedRecordsEqual(leftExtras, rightExtras)
+  );
+}
+
+function assertCanPersistSite(
+  syncParsed: SettingsParseResult<SiteSettingsV1>,
+  localParsed: SettingsParseResult<SiteSettingsV1>,
+): void {
+  if (isUnsupportedCopy(syncParsed) && isUnsupportedCopy(localParsed)) {
+    throw new Error(SETTINGS_CREATED_BY_NEWER_VERSION);
+  }
+}
+
+function assertCanDestroySite(
+  syncParsed: SettingsParseResult<SiteSettingsV1>,
+  localParsed: SettingsParseResult<SiteSettingsV1>,
+): void {
+  if (isUnsupportedCopy(syncParsed) || isUnsupportedCopy(localParsed)) {
+    throw new Error(SETTINGS_CREATED_BY_NEWER_VERSION);
+  }
 }
 
 type RawSiteEntry = {
   key: string;
   raw: unknown;
-  record: SiteSettingsV1 | null;
+  parsed: SettingsParseResult<SiteSettingsV1>;
 };
 
 async function listRawSiteEntries(sync: DurableSettingsStore): Promise<RawSiteEntry[]> {
@@ -111,7 +156,7 @@ async function listRawSiteEntries(sync: DurableSettingsStore): Promise<RawSiteEn
     if (!key.startsWith('site:')) {
       continue;
     }
-    entries.push({ key, raw: value, record: parseSiteSettings(value) });
+    entries.push({ key, raw: value, parsed: migrateSiteSettings(value) });
   }
   return entries;
 }
@@ -145,7 +190,7 @@ async function reconcileSyncHotSetUnlocked(
   }
 
   for (const entry of entries) {
-    if (!entry.record) {
+    if (entry.parsed.status === 'invalid') {
       await sync.remove(entry.key);
     }
   }
@@ -155,16 +200,17 @@ async function reconcileSyncHotSetUnlocked(
   }
 
   for (const entry of entries) {
-    if (!entry.record) {
+    if (entry.parsed.status !== 'ready') {
       continue;
     }
-    const projected = toSyncEligibleSiteRecord(entry.record, now);
+    const projected = projectSyncEligibleSite(entry.parsed.record, entry.parsed.extras, now);
     if (!projected) {
       await sync.remove(entry.key);
       continue;
     }
-    if (!behaviorOverridesEqual(projected.overrides, entry.record.overrides)) {
-      await sync.set({ [entry.key]: projected });
+    const expected = serializeSiteRecord(projected.record, projected.extras);
+    if (!serializedRecordsEqual(entry.raw, expected)) {
+      await sync.set({ [entry.key]: expected });
     }
   }
   entries = await listRawSiteEntries(sync);
@@ -177,12 +223,18 @@ async function reconcileSyncHotSetUnlocked(
       if (options?.protectedKey && entry.key === options.protectedKey) {
         return false;
       }
-      if (!entry.record) {
+      if (entry.parsed.status === 'unsupported') {
+        return false;
+      }
+      if (entry.parsed.status !== 'ready') {
         return true;
       }
-      return !hasSyncRetainedInherit(entry.record.overrides, now);
+      return !hasSyncRetainedInherit(entry.parsed.record.overrides, now);
     })
-    .sort((left, right) => (left.record?.lastUsedAt ?? 0) - (right.record?.lastUsedAt ?? 0));
+    .sort(
+      (left, right) =>
+        (readyRecord(left.parsed)?.lastUsedAt ?? 0) - (readyRecord(right.parsed)?.lastUsedAt ?? 0),
+    );
 
   for (const candidate of evictable) {
     if (!isOverTarget(entries.length, await measureSiteBytes(sync, entries))) {
@@ -207,14 +259,15 @@ async function writeSyncEligibleUnlocked(
   sync: DurableSettingsStore,
   storageKey: string,
   record: SiteSettingsV1,
+  extras: OpaqueFields,
   now: number,
 ): Promise<'set' | 'removed'> {
-  const eligible = toSyncEligibleSiteRecord(record, now);
+  const eligible = projectSyncEligibleSite(record, extras, now);
   if (!eligible) {
     await sync.remove(storageKey);
     return 'removed';
   }
-  await sync.set({ [storageKey]: eligible });
+  await sync.set({ [storageKey]: serializeSiteRecord(eligible.record, eligible.extras) });
   return 'set';
 }
 
@@ -222,10 +275,11 @@ async function publishSyncSite(
   sync: DurableSettingsStore,
   storageKey: string,
   record: SiteSettingsV1,
+  extras: OpaqueFields,
   now: number,
 ): Promise<void> {
   const write = (): Promise<'set' | 'removed'> =>
-    writeSyncEligibleUnlocked(sync, storageKey, record, now);
+    writeSyncEligibleUnlocked(sync, storageKey, record, extras, now);
 
   let result: 'set' | 'removed';
   try {
@@ -247,16 +301,42 @@ async function publishSyncSite(
   }
 }
 
+type LoadedSite = {
+  storageKey: string;
+  syncParsed: SettingsParseResult<SiteSettingsV1>;
+  localParsed: SettingsParseResult<SiteSettingsV1>;
+  syncRecord: SiteSettingsV1 | null;
+  localRecord: SiteSettingsV1 | null;
+  syncExtras: OpaqueFields;
+  localExtras: OpaqueFields;
+  mergedOverrides: BehaviorOverrides;
+  globalOverrides: BehaviorOverrides;
+  now: number;
+  sync: DurableSettingsStore;
+  local: DurableSettingsStore;
+};
+
 async function maybeRepairAndTouchSite(
-  sync: DurableSettingsStore,
-  local: DurableSettingsStore,
-  storageKey: string,
-  syncRecord: SiteSettingsV1 | null,
-  localRecord: SiteSettingsV1 | null,
-  mergedOverrides: BehaviorOverrides,
-  now: number,
+  loaded: LoadedSite,
   touchUsage: boolean,
 ): Promise<void> {
+  const {
+    sync,
+    local,
+    storageKey,
+    syncParsed,
+    localParsed,
+    syncRecord,
+    localRecord,
+    syncExtras,
+    localExtras,
+    mergedOverrides,
+    now,
+  } = loaded;
+
+  if (isUnsupportedCopy(syncParsed) && isUnsupportedCopy(localParsed)) {
+    return;
+  }
   if (!localRecord && !syncRecord && !hasSemanticOverrides(mergedOverrides)) {
     return;
   }
@@ -264,36 +344,56 @@ async function maybeRepairAndTouchSite(
   const localLastUsedAt = touchUsage
     ? now
     : (localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now);
-  const shouldWriteLocal =
-    Boolean(localRecord || hasSemanticOverrides(mergedOverrides) || (touchUsage && syncRecord)) &&
-    (!localRecord ||
-      !behaviorOverridesEqual(localRecord.overrides, mergedOverrides) ||
-      (touchUsage && now - localRecord.lastUsedAt >= LOCAL_LRU_THROTTLE_MS));
-
-  if (shouldWriteLocal) {
-    try {
-      await local.set({
-        [storageKey]: {
-          schemaVersion: 1,
-          overrides: mergedOverrides,
-          lastUsedAt: localLastUsedAt,
-        },
-      });
-    } catch {
-      // Local repair must not change the resolved value.
-    }
-  }
-
   const canonical: SiteSettingsV1 = {
     schemaVersion: 1,
     overrides: mergedOverrides,
     lastUsedAt: touchUsage ? now : (localRecord?.lastUsedAt ?? syncRecord?.lastUsedAt ?? now),
   };
-  const syncEligible = toSyncEligibleSiteRecord(canonical, now);
-  const syncComparable = syncRecord ? toSyncEligibleSiteRecord(syncRecord, now) : null;
+
+  if (!isUnsupportedCopy(localParsed)) {
+    const destExtras = extrasForDestination('local', syncExtras, localExtras);
+    const shouldWriteLocal =
+      Boolean(localRecord || hasSemanticOverrides(mergedOverrides) || (touchUsage && syncRecord)) &&
+      (!localRecord ||
+        !siteKnownAndExtrasEqual(
+          localRecord,
+          localExtras,
+          { schemaVersion: 1, overrides: mergedOverrides, lastUsedAt: localLastUsedAt },
+          destExtras,
+        ) ||
+        (touchUsage && now - localRecord.lastUsedAt >= LOCAL_LRU_THROTTLE_MS));
+    if (shouldWriteLocal) {
+      try {
+        await local.set({
+          [storageKey]: serializeSiteRecord(
+            { schemaVersion: 1, overrides: mergedOverrides, lastUsedAt: localLastUsedAt },
+            destExtras,
+          ),
+        });
+      } catch {
+        // Local repair must not change the resolved value.
+      }
+    }
+  }
+
+  if (isUnsupportedCopy(syncParsed)) {
+    return;
+  }
+
+  const syncDestExtras = extrasForDestination('sync', syncExtras, localExtras);
+  const expectedEligible = projectSyncEligibleSite(canonical, syncDestExtras, now);
+  const currentEligible = syncRecord
+    ? projectSyncEligibleSite(syncRecord, syncExtras, now)
+    : null;
   const syncNeedsRepair =
-    Boolean(syncEligible) &&
-    (!syncComparable || !behaviorOverridesEqual(syncComparable.overrides, syncEligible!.overrides));
+    Boolean(expectedEligible) &&
+    (!currentEligible ||
+      !siteKnownAndExtrasEqual(
+        currentEligible.record,
+        currentEligible.extras,
+        expectedEligible!.record,
+        expectedEligible!.extras,
+      ));
   const syncNeedsTouch =
     touchUsage && syncRecord != null && now - syncRecord.lastUsedAt >= SYNC_LRU_STALE_MS;
 
@@ -303,7 +403,7 @@ async function maybeRepairAndTouchSite(
       return;
     }
     try {
-      await publishSyncSite(sync, storageKey, canonical, now);
+      await publishSyncSite(sync, storageKey, canonical, syncDestExtras, now);
       siteRepairFailedAt.delete(storageKey);
     } catch {
       siteRepairFailedAt.set(storageKey, now);
@@ -317,6 +417,7 @@ async function maybeRepairAndTouchSite(
         sync,
         storageKey,
         { schemaVersion: 1, overrides: mergedOverrides, lastUsedAt: now },
+        syncDestExtras,
         now,
       );
     } catch {
@@ -325,19 +426,7 @@ async function maybeRepairAndTouchSite(
   }
 }
 
-async function loadMergedSite(
-  url: string,
-  deps: SiteSettingsDeps,
-): Promise<{
-  storageKey: string;
-  syncRecord: SiteSettingsV1 | null;
-  localRecord: SiteSettingsV1 | null;
-  mergedOverrides: BehaviorOverrides;
-  globalOverrides: BehaviorOverrides;
-  now: number;
-  sync: DurableSettingsStore;
-  local: DurableSettingsStore;
-} | null> {
+async function loadMergedSite(url: string, deps: SiteSettingsDeps): Promise<LoadedSite | null> {
   const siteKey = getSiteKey(url);
   if (!siteKey.supported) {
     return null;
@@ -345,20 +434,24 @@ async function loadMergedSite(
   const { sync, local, now } = stores(deps);
   const at = now();
   const storageKey = getSiteStorageKey(siteKey);
-  const [syncRecord, localRecord, globalOverrides] = await Promise.all([
-    readParsedSite(sync, storageKey),
-    readParsedSite(local, storageKey),
+  const [syncAll, localAll, globalOverrides] = await Promise.all([
+    sync.get(storageKey),
+    local.get(storageKey),
     readGlobalBehaviorOverrides({ sync, local, now }),
   ]);
-  const mergedOverrides = mergeBehaviorOverrides(
-    syncRecord?.overrides ?? {},
-    localRecord?.overrides ?? {},
-  );
+  const syncParsed = migrateSiteSettings(syncAll[storageKey]);
+  const localParsed = migrateSiteSettings(localAll[storageKey]);
+  const syncRecord = readyRecord(syncParsed);
+  const localRecord = readyRecord(localParsed);
   return {
     storageKey,
+    syncParsed,
+    localParsed,
     syncRecord,
     localRecord,
-    mergedOverrides,
+    syncExtras: readyExtras(syncParsed),
+    localExtras: readyExtras(localParsed),
+    mergedOverrides: mergeBehaviorOverrides(syncRecord?.overrides ?? {}, localRecord?.overrides ?? {}),
     globalOverrides,
     now: at,
     sync,
@@ -375,16 +468,7 @@ export async function resolveSiteBehaviorForUrl(
     if (!loaded) {
       return null;
     }
-    await maybeRepairAndTouchSite(
-      loaded.sync,
-      loaded.local,
-      loaded.storageKey,
-      loaded.syncRecord,
-      loaded.localRecord,
-      loaded.mergedOverrides,
-      loaded.now,
-      Boolean(deps.touchUsage),
-    );
+    await maybeRepairAndTouchSite(loaded, Boolean(deps.touchUsage));
     return resolveSiteBehavior(loaded.globalOverrides, loaded.mergedOverrides);
   });
 }
@@ -411,6 +495,58 @@ export async function resolveSpeedAfterSiteInherit(
   });
 }
 
+async function writePersistedSides(
+  sync: DurableSettingsStore,
+  local: DurableSettingsStore,
+  storageKey: string,
+  record: SiteSettingsV1,
+  syncParsed: SettingsParseResult<SiteSettingsV1>,
+  localParsed: SettingsParseResult<SiteSettingsV1>,
+  syncExtras: OpaqueFields,
+  localExtras: OpaqueFields,
+  now: number,
+): Promise<void> {
+  assertCanPersistSite(syncParsed, localParsed);
+  const writes: Promise<unknown>[] = [];
+  if (!isUnsupportedCopy(localParsed)) {
+    writes.push(
+      local
+        .set({
+          [storageKey]: serializeSiteRecord(
+            record,
+            extrasForDestination('local', syncExtras, localExtras),
+          ),
+        })
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        ),
+    );
+  }
+  if (!isUnsupportedCopy(syncParsed)) {
+    writes.push(
+      publishSyncSite(
+        sync,
+        storageKey,
+        record,
+        extrasForDestination('sync', syncExtras, localExtras),
+        now,
+      ).then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+    );
+  }
+  const results = await Promise.all(writes);
+  const failure = results.find((result) => result != null);
+  if (failure instanceof Error) {
+    throw failure;
+  }
+  if (failure) {
+    throw new Error('Failed to persist site settings');
+  }
+}
+
 async function persistMutatedSite(
   url: string,
   mutate: (current: BehaviorOverrides, now: number) => BehaviorOverrides,
@@ -421,31 +557,41 @@ async function persistMutatedSite(
     if (!loaded) {
       throw new Error('Cannot persist siteSpeed for an unsupported page');
     }
-    const nextOverrides = mutate(loaded.mergedOverrides, loaded.now);
     const record: SiteSettingsV1 = {
       schemaVersion: 1,
-      overrides: nextOverrides,
+      overrides: mutate(loaded.mergedOverrides, loaded.now),
       lastUsedAt: loaded.now,
     };
-
-    const [localResult, syncResult] = await Promise.all([
-      loaded.local.set({ [loaded.storageKey]: record }).then(
-        () => undefined,
-        (error: unknown) => error,
-      ),
-      publishSyncSite(loaded.sync, loaded.storageKey, record, loaded.now).then(
-        () => undefined,
-        (error: unknown) => error,
-      ),
-    ]);
-    const failure = localResult ?? syncResult;
-    if (failure instanceof Error) {
-      throw failure;
-    }
-    if (failure) {
-      throw new Error('Failed to persist siteSpeed');
-    }
+    await writePersistedSides(
+      loaded.sync,
+      loaded.local,
+      loaded.storageKey,
+      record,
+      loaded.syncParsed,
+      loaded.localParsed,
+      loaded.syncExtras,
+      loaded.localExtras,
+      loaded.now,
+    );
   });
+}
+
+export async function persistSiteBehaviorChanges(
+  url: string,
+  changes: readonly BehaviorSettingChange[],
+  deps: SiteSettingsDeps = {},
+): Promise<void> {
+  await persistMutatedSite(
+    url,
+    (current, now) => {
+      let next = current;
+      for (const change of changes) {
+        next = applyBehaviorSettingChange(next, change, now);
+      }
+      return next;
+    },
+    deps,
+  );
 }
 
 export async function persistSiteBehaviorChange(
@@ -453,11 +599,7 @@ export async function persistSiteBehaviorChange(
   change: BehaviorSettingChange,
   deps: SiteSettingsDeps = {},
 ): Promise<void> {
-  await persistMutatedSite(
-    url,
-    (current, now) => applyBehaviorSettingChange(current, change, now),
-    deps,
-  );
+  await persistSiteBehaviorChanges(url, [change], deps);
 }
 
 export async function persistSiteSpeed(
@@ -478,41 +620,25 @@ export async function persistSiteSpeedInherit(
   await persistSiteBehaviorChange(url, { kind: 'inherit', field: 'speed' }, deps);
 }
 
-function mergedOverridesForKey(
+function copiesForKey(
   syncAll: Record<string, unknown>,
   localAll: Record<string, unknown>,
   key: string,
-): BehaviorOverrides {
-  return mergeBehaviorOverrides(
-    parseSiteSettings(syncAll[key])?.overrides ?? {},
-    parseSiteSettings(localAll[key])?.overrides ?? {},
-  );
-}
-
-async function writeSiteRecordUnlocked(
-  sync: DurableSettingsStore,
-  local: DurableSettingsStore,
-  storageKey: string,
-  record: SiteSettingsV1,
-  now: number,
-): Promise<void> {
-  const [localResult, syncResult] = await Promise.all([
-    local.set({ [storageKey]: record }).then(
-      () => undefined,
-      (error: unknown) => error,
+): {
+  syncParsed: SettingsParseResult<SiteSettingsV1>;
+  localParsed: SettingsParseResult<SiteSettingsV1>;
+  merged: BehaviorOverrides;
+} {
+  const syncParsed = migrateSiteSettings(syncAll[key]);
+  const localParsed = migrateSiteSettings(localAll[key]);
+  return {
+    syncParsed,
+    localParsed,
+    merged: mergeBehaviorOverrides(
+      readyRecord(syncParsed)?.overrides ?? {},
+      readyRecord(localParsed)?.overrides ?? {},
     ),
-    publishSyncSite(sync, storageKey, record, now).then(
-      () => undefined,
-      (error: unknown) => error,
-    ),
-  ]);
-  const failure = localResult ?? syncResult;
-  if (failure instanceof Error) {
-    throw failure;
-  }
-  if (failure) {
-    throw new Error('Failed to persist site settings');
-  }
+  };
 }
 
 function tombstoneMergedSite(merged: BehaviorOverrides, now: number): SiteSettingsV1 | null {
@@ -535,7 +661,7 @@ export async function readSiteMembership(
     const { sync, local } = stores(deps);
     const storageKey = getSiteStorageKey({ supported: true, hostname: normalized });
     const [syncAll, localAll] = await Promise.all([sync.get(storageKey), local.get(storageKey)]);
-    return hasValueOverrides(mergedOverridesForKey(syncAll, localAll, storageKey));
+    return hasValueOverrides(copiesForKey(syncAll, localAll, storageKey).merged);
   });
 }
 
@@ -550,8 +676,7 @@ export async function listCustomSiteHostnames(deps: SiteSettingsDeps = {}): Prom
       if (!hostname || !normalizeSiteHostname(hostname)) {
         continue;
       }
-      const merged = mergedOverridesForKey(syncAll, localAll, key);
-      if (hasValueOverrides(merged)) {
+      if (hasValueOverrides(copiesForKey(syncAll, localAll, key).merged)) {
         hostnames.add(hostname);
       }
     }
@@ -572,17 +697,29 @@ export async function deleteSiteSettings(
     const at = now();
     const storageKey = getSiteStorageKey({ supported: true, hostname: normalized });
     const [syncAll, localAll] = await Promise.all([sync.get(storageKey), local.get(storageKey)]);
-    const record = tombstoneMergedSite(mergedOverridesForKey(syncAll, localAll, storageKey), at);
+    const copies = copiesForKey(syncAll, localAll, storageKey);
+    assertCanDestroySite(copies.syncParsed, copies.localParsed);
+    const record = tombstoneMergedSite(copies.merged, at);
     if (!record) {
       return;
     }
-    await writeSiteRecordUnlocked(sync, local, storageKey, record, at);
+    await writePersistedSides(
+      sync,
+      local,
+      storageKey,
+      record,
+      copies.syncParsed,
+      copies.localParsed,
+      readyExtras(copies.syncParsed),
+      readyExtras(copies.localParsed),
+      at,
+    );
   });
 }
 
 async function writeSyncSiteBatchUnlocked(
   sync: DurableSettingsStore,
-  records: ReadonlyArray<{ key: string; record: SiteSettingsV1 }>,
+  records: ReadonlyArray<{ key: string; record: SiteSettingsV1; extras: OpaqueFields }>,
   now: number,
 ): Promise<void> {
   if (records.length === 0) {
@@ -590,15 +727,15 @@ async function writeSyncSiteBatchUnlocked(
   }
 
   const apply = async (): Promise<void> => {
-    const items: Record<string, SiteSettingsV1> = {};
+    const items: Record<string, unknown> = {};
     const removals: string[] = [];
-    for (const { key, record } of records) {
-      const eligible = toSyncEligibleSiteRecord(record, now);
+    for (const { key, record, extras } of records) {
+      const eligible = projectSyncEligibleSite(record, extras, now);
       if (!eligible) {
         removals.push(key);
         continue;
       }
-      items[key] = eligible;
+      items[key] = serializeSiteRecord(eligible.record, eligible.extras);
     }
     if (Object.keys(items).length > 0) {
       await sync.set(items);
@@ -625,7 +762,7 @@ async function writeSyncSiteBatchUnlocked(
   }
 }
 
-export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promise<void> {
+export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promise<ResetAllResult> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
     const { sync, local, now } = stores(deps);
     const at = now();
@@ -637,21 +774,39 @@ export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promis
         ),
       ),
     ];
-    const localItems: Record<string, SiteSettingsV1> = {};
-    const syncRecords: { key: string; record: SiteSettingsV1 }[] = [];
+    const localItems: Record<string, unknown> = {};
+    const syncRecords: { key: string; record: SiteSettingsV1; extras: OpaqueFields }[] = [];
+    let skippedNewerVersionCount = 0;
     for (const key of keys) {
-      const record = tombstoneMergedSite(mergedOverridesForKey(syncAll, localAll, key), at);
+      const copies = copiesForKey(syncAll, localAll, key);
+      if (isUnsupportedCopy(copies.syncParsed) || isUnsupportedCopy(copies.localParsed)) {
+        skippedNewerVersionCount += 1;
+        continue;
+      }
+      const record = tombstoneMergedSite(copies.merged, at);
       if (!record) {
         continue;
       }
-      localItems[key] = record;
+      localItems[key] = serializeSiteRecord(
+        record,
+        extrasForDestination('local', readyExtras(copies.syncParsed), readyExtras(copies.localParsed)),
+      );
       if (Object.prototype.hasOwnProperty.call(syncAll, key)) {
-        syncRecords.push({ key, record });
+        syncRecords.push({
+          key,
+          record,
+          extras: extrasForDestination(
+            'sync',
+            readyExtras(copies.syncParsed),
+            readyExtras(copies.localParsed),
+          ),
+        });
       }
     }
     if (Object.keys(localItems).length > 0) {
       await local.set(localItems);
     }
     await writeSyncSiteBatchUnlocked(sync, syncRecords, at);
+    return resetAllResult(skippedNewerVersionCount);
   });
 }

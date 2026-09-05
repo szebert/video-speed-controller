@@ -15,6 +15,11 @@ import {
   speedPolicyFrom,
   type SpeedPolicy,
 } from '../core/speed';
+import {
+  hasOpaqueContent,
+  pickUnknownKeys,
+  type OpaqueFields,
+} from './opaque-fields';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const SITE_INHERIT_SYNC_RETENTION_MS = 30 * DAY_MS;
@@ -219,155 +224,133 @@ export function hasHotkeyEntries(overrides: BehaviorOverrides): boolean {
   return Object.keys(hotkeys).length > 0;
 }
 
-const BEHAVIOR_OVERRIDE_KEYS = new Set([
-  'speed',
-  'speedMin',
-  'speedMax',
-  'speedTick',
-  'overlayVisible',
-  'overlayPosition',
-  'overlayPositionButton',
-  'overlaySettingsButton',
-  'overlayAutoHide',
-  'overlayHoverHold',
-  'overlayAutoHideDelayMs',
-  'hotkeys',
-]);
+const SITE_ENVELOPE_KEYS = ['schemaVersion', 'overrides', 'lastUsedAt'] as const;
+const GLOBAL_ENVELOPE_KEYS = ['schemaVersion', 'overrides'] as const;
 
-export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null {
+type ScalarOverrideKey = Exclude<keyof BehaviorOverrides, 'hotkeys'>;
+
+const SCALAR_OVERRIDE_PARSERS: readonly {
+  key: ScalarOverrideKey;
+  isValue: (value: unknown) => boolean;
+}[] = [
+  { key: 'speed', isValue: isFiniteNumber },
+  { key: 'speedMin', isValue: isFiniteNumber },
+  { key: 'speedMax', isValue: isFiniteNumber },
+  { key: 'speedTick', isValue: isFiniteNumber },
+  { key: 'overlayVisible', isValue: isBoolean },
+  { key: 'overlayPosition', isValue: isOverlayPosition },
+  { key: 'overlayPositionButton', isValue: isBoolean },
+  { key: 'overlaySettingsButton', isValue: isBoolean },
+  { key: 'overlayAutoHide', isValue: isBoolean },
+  { key: 'overlayHoverHold', isValue: isBoolean },
+  { key: 'overlayAutoHideDelayMs', isValue: isNonNegativeIntegerMs },
+];
+
+export function parseBehaviorOverrideMap(value: unknown): {
+  overrides: BehaviorOverrides;
+  extras: Record<string, unknown>;
+} | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
   const raw = value as Record<string, unknown>;
-  if (Object.keys(raw).some((key) => !BEHAVIOR_OVERRIDE_KEYS.has(key))) {
+  const overrides: BehaviorOverrides = {};
+  const extras: Record<string, unknown> = {};
+
+  for (const [key, field] of Object.entries(raw)) {
+    if (key === 'hotkeys') {
+      if (!field || typeof field !== 'object' || Array.isArray(field)) {
+        continue;
+      }
+      if (Object.keys(field).length > 0) {
+        extras.hotkeys = field;
+      }
+      continue;
+    }
+    const parser = SCALAR_OVERRIDE_PARSERS.find((entry) => entry.key === key);
+    if (!parser) {
+      extras[key] = field;
+      continue;
+    }
+    if (isOverride(field, parser.isValue as (candidate: unknown) => candidate is never)) {
+      Object.assign(overrides, { [key]: field });
+    }
+  }
+
+  return { overrides, extras };
+}
+
+export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null {
+  return parseBehaviorOverrideMap(value)?.overrides ?? null;
+}
+
+function hasRequiredKeys(value: object, keys: readonly string[]): boolean {
+  return keys.every((key) => key in value);
+}
+
+export function parseReadySiteSettings(
+  value: unknown,
+): { record: SiteSettingsV1; extras: OpaqueFields } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
-  const overrides: BehaviorOverrides = {};
-
-  if ('speed' in raw) {
-    if (!isOverride(raw.speed, isFiniteNumber)) {
-      return null;
-    }
-    overrides.speed = raw.speed;
+  const raw = value as Record<string, unknown>;
+  if (!hasRequiredKeys(raw, SITE_ENVELOPE_KEYS) || raw.schemaVersion !== 1) {
+    return null;
   }
-  if ('speedMin' in raw) {
-    if (!isOverride(raw.speedMin, isFiniteNumber)) {
-      return null;
-    }
-    overrides.speedMin = raw.speedMin;
+  if (!isFiniteTimestamp(raw.lastUsedAt)) {
+    return null;
   }
-  if ('speedMax' in raw) {
-    if (!isOverride(raw.speedMax, isFiniteNumber)) {
-      return null;
-    }
-    overrides.speedMax = raw.speedMax;
+  const parsedOverrides = parseBehaviorOverrideMap(raw.overrides);
+  if (!parsedOverrides) {
+    return null;
   }
-  if ('speedTick' in raw) {
-    if (!isOverride(raw.speedTick, isFiniteNumber)) {
-      return null;
-    }
-    overrides.speedTick = raw.speedTick;
+  const extras: OpaqueFields = {
+    record: pickUnknownKeys(raw, SITE_ENVELOPE_KEYS),
+    overrides: parsedOverrides.extras,
+  };
+  if (!hasSemanticOverrides(parsedOverrides.overrides) && !hasOpaqueContent(extras)) {
+    return null;
   }
-  if ('overlayVisible' in raw) {
-    if (!isOverride(raw.overlayVisible, isBoolean)) {
-      return null;
-    }
-    overrides.overlayVisible = raw.overlayVisible;
-  }
-  if ('overlayPosition' in raw) {
-    if (!isOverride(raw.overlayPosition, isOverlayPosition)) {
-      return null;
-    }
-    overrides.overlayPosition = raw.overlayPosition;
-  }
-  if ('overlayPositionButton' in raw) {
-    if (!isOverride(raw.overlayPositionButton, isBoolean)) {
-      return null;
-    }
-    overrides.overlayPositionButton = raw.overlayPositionButton;
-  }
-  if ('overlaySettingsButton' in raw) {
-    if (!isOverride(raw.overlaySettingsButton, isBoolean)) {
-      return null;
-    }
-    overrides.overlaySettingsButton = raw.overlaySettingsButton;
-  }
-  if ('overlayAutoHide' in raw) {
-    if (!isOverride(raw.overlayAutoHide, isBoolean)) {
-      return null;
-    }
-    overrides.overlayAutoHide = raw.overlayAutoHide;
-  }
-  if ('overlayHoverHold' in raw) {
-    if (!isOverride(raw.overlayHoverHold, isBoolean)) {
-      return null;
-    }
-    overrides.overlayHoverHold = raw.overlayHoverHold;
-  }
-  if ('overlayAutoHideDelayMs' in raw) {
-    if (!isOverride(raw.overlayAutoHideDelayMs, isNonNegativeIntegerMs)) {
-      return null;
-    }
-    overrides.overlayAutoHideDelayMs = raw.overlayAutoHideDelayMs;
-  }
-  if ('hotkeys' in raw) {
-    if (!raw.hotkeys || typeof raw.hotkeys !== 'object' || Array.isArray(raw.hotkeys)) {
-      return null;
-    }
-    const keys = Object.keys(raw.hotkeys);
-    if (keys.length > 0) {
-      return null;
-    }
-    overrides.hotkeys = {};
-  }
-
-  return overrides;
+  return {
+    record: {
+      schemaVersion: 1,
+      overrides: parsedOverrides.overrides,
+      lastUsedAt: raw.lastUsedAt,
+    },
+    extras,
+  };
 }
 
 export function parseSiteSettings(value: unknown): SiteSettingsV1 | null {
+  return parseReadySiteSettings(value)?.record ?? null;
+}
+
+export function parseReadyGlobalBehaviorSettings(
+  value: unknown,
+): { record: GlobalBehaviorSettingsV1; extras: OpaqueFields } | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
-  const record = value as {
-    schemaVersion?: unknown;
-    overrides?: unknown;
-    lastUsedAt?: unknown;
+  const raw = value as Record<string, unknown>;
+  if (!hasRequiredKeys(raw, GLOBAL_ENVELOPE_KEYS) || raw.schemaVersion !== 1) {
+    return null;
+  }
+  const parsedOverrides = parseBehaviorOverrideMap(raw.overrides);
+  if (!parsedOverrides) {
+    return null;
+  }
+  return {
+    record: { schemaVersion: 1, overrides: parsedOverrides.overrides },
+    extras: {
+      record: pickUnknownKeys(raw, GLOBAL_ENVELOPE_KEYS),
+      overrides: parsedOverrides.extras,
+    },
   };
-  if (!hasExactKeys(record, ['schemaVersion', 'overrides', 'lastUsedAt'])) {
-    return null;
-  }
-  if (record.schemaVersion !== 1) {
-    return null;
-  }
-  const overrides = parseBehaviorOverrides(record.overrides);
-  if (!overrides || !isFiniteTimestamp(record.lastUsedAt)) {
-    return null;
-  }
-  if (hasHotkeyEntries(overrides) || !hasSemanticOverrides(overrides)) {
-    return null;
-  }
-  return { schemaVersion: 1, overrides, lastUsedAt: record.lastUsedAt };
 }
 
 export function parseGlobalBehaviorSettings(value: unknown): GlobalBehaviorSettingsV1 | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-  const record = value as { schemaVersion?: unknown; overrides?: unknown };
-  if (!hasExactKeys(record, ['schemaVersion', 'overrides'])) {
-    return null;
-  }
-  if (record.schemaVersion !== 1) {
-    return null;
-  }
-  const overrides = parseBehaviorOverrides(record.overrides);
-  if (!overrides) {
-    return null;
-  }
-  if (hasHotkeyEntries(overrides)) {
-    return null;
-  }
-  return { schemaVersion: 1, overrides };
+  return parseReadyGlobalBehaviorSettings(value)?.record ?? null;
 }
 
 export function listOverrides(overrides: BehaviorOverrides): Override<unknown>[] {

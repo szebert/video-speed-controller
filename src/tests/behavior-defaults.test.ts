@@ -102,6 +102,39 @@ describe('global behavior defaults', () => {
     expect(sync.data['defaults:site-behavior']).toMatchObject({ overrides });
   });
 
+  it('does not reset when any global copy is a newer schema', async () => {
+    const sync = memoryDurable({
+      'defaults:site-behavior': { schemaVersion: 2, overrides: { extra: true } },
+    });
+    const local = memoryDurable({
+      'defaults:site-behavior': {
+        schemaVersion: 1,
+        overrides: { speed: { kind: 'value', value: 1.5, updatedAt: 1 } },
+      },
+    });
+    await expect(resetGlobalBehaviorOverrides({ sync, local, now: () => 9 })).rejects.toThrow(
+      /newer version/i,
+    );
+    expect(sync.data['defaults:site-behavior']).toEqual({
+      schemaVersion: 2,
+      overrides: { extra: true },
+    });
+  });
+
+  it('skips an unsupported global record during Reset All without aborting', async () => {
+    const sync = memoryDurable({
+      'defaults:site-behavior': { schemaVersion: 2, overrides: { extra: true } },
+    });
+    const local = memoryDurable();
+    await expect(
+      resetGlobalBehaviorOverrides({ sync, local, now: () => 9 }, { ifUnsupported: 'skip' }),
+    ).resolves.toBe('skipped');
+    expect(sync.data['defaults:site-behavior']).toEqual({
+      schemaVersion: 2,
+      overrides: { extra: true },
+    });
+  });
+
   it('treats a non-Error rejection as a persistence failure', async () => {
     await expect(
       persistGlobalBehaviorOverrides((current) => current, {

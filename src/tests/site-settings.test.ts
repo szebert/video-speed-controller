@@ -925,4 +925,130 @@ describe('site settings storage', () => {
     await deleteAllSiteSettings({ ...deps, sync, now: () => 200 });
     expect(fullReads).toBe(2);
   });
+
+  it('preserves unknown override fields across persist and does not flap-repair differing extras', async () => {
+    const deps = pair(50);
+    deps.sync.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 10,
+      overrides: {
+        speed: { kind: 'value', value: 1.5, updatedAt: 10 },
+        seekInterval: { kind: 'value', value: 'A', updatedAt: 10 },
+      },
+    };
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 10,
+      overrides: {
+        speed: { kind: 'value', value: 1.5, updatedAt: 10 },
+        seekInterval: { kind: 'value', value: 'B', updatedAt: 10 },
+      },
+    };
+    await expect(readSiteSpeed('https://www.youtube.com/watch', deps)).resolves.toBe(1.5);
+    expect(
+      (deps.sync.data['site:www.youtube.com'] as { overrides: Record<string, unknown> }).overrides
+        .seekInterval,
+    ).toEqual({ kind: 'value', value: 'A', updatedAt: 10 });
+    expect(
+      (deps.local.data['site:www.youtube.com'] as { overrides: Record<string, unknown> }).overrides
+        .seekInterval,
+    ).toEqual({ kind: 'value', value: 'B', updatedAt: 10 });
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.75, { ...deps, now: () => 80 });
+    expect(deps.sync.data['site:www.youtube.com']).toMatchObject({
+      overrides: {
+        speed: { kind: 'value', value: 1.75, updatedAt: 80 },
+        seekInterval: { kind: 'value', value: 'A', updatedAt: 10 },
+      },
+    });
+  });
+
+  it('uses Local when Sync is a newer schema and does not rewrite Sync', async () => {
+    const deps = pair();
+    const syncRecord = {
+      schemaVersion: 2,
+      lastUsedAt: 10,
+      overrides: { speed: { kind: 'value', value: 3, updatedAt: 10 } },
+    };
+    deps.sync.data['site:www.youtube.com'] = syncRecord;
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 10,
+      overrides: { speed: { kind: 'value', value: 1.25, updatedAt: 10 } },
+    };
+    await expect(readSiteSpeed('https://www.youtube.com/watch', deps)).resolves.toBe(1.25);
+    expect(deps.sync.data['site:www.youtube.com']).toEqual(syncRecord);
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.75, { ...deps, now: () => 40 });
+    expect(deps.sync.data['site:www.youtube.com']).toEqual(syncRecord);
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { kind: 'value', value: 1.75, updatedAt: 40 } },
+    });
+  });
+
+  it('refuses to persist when both copies are a newer schema', async () => {
+    const deps = pair();
+    const record = { schemaVersion: 2, lastUsedAt: 1, overrides: {} };
+    deps.sync.data['site:www.youtube.com'] = record;
+    deps.local.data['site:www.youtube.com'] = { ...record };
+    await expect(persistSiteSpeed('https://www.youtube.com/watch', 1.5, deps)).rejects.toThrow(
+      /newer version/i,
+    );
+    expect(deps.sync.data['site:www.youtube.com']).toEqual(record);
+    expect(deps.local.data['site:www.youtube.com']).toEqual(record);
+  });
+
+  it('fails delete when any copy is a newer schema', async () => {
+    const deps = pair();
+    const syncRecord = { schemaVersion: 2, lastUsedAt: 1, overrides: {} };
+    deps.sync.data['site:www.youtube.com'] = syncRecord;
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 1 } },
+    };
+    await expect(deleteSiteSettings('www.youtube.com', deps)).rejects.toThrow(/newer version/i);
+    expect(deps.sync.data['site:www.youtube.com']).toEqual(syncRecord);
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: { speed: { value: 2 } },
+    });
+  });
+
+  it('skips a mixed-version site during Reset All and counts one logical record', async () => {
+    const deps = pair(50);
+    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
+    const youtubeSync = { schemaVersion: 2, lastUsedAt: 1, overrides: { extra: true } };
+    const youtubeLocal = {
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: { speed: { kind: 'value' as const, value: 2, updatedAt: 1 } },
+    };
+    deps.sync.data['site:www.youtube.com'] = youtubeSync;
+    deps.local.data['site:www.youtube.com'] = youtubeLocal;
+    const result = await deleteAllSiteSettings({ ...deps, now: () => 200 });
+    expect(result).toEqual({ partial: true, skippedNewerVersionCount: 1 });
+    expect(deps.sync.data['site:www.youtube.com']).toEqual(youtubeSync);
+    expect(deps.local.data['site:www.youtube.com']).toEqual(youtubeLocal);
+    expect(deps.local.data['site:vimeo.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+  });
+
+  it('does not evict unsupported schema records as corrupt', async () => {
+    const sync = memoryDurable();
+    for (let index = 0; index < SYNC_TARGET_MAX_SITE_ITEMS - 1; index += 1) {
+      sync.data[`site:keep-${index}.example`] = {
+        schemaVersion: 1,
+        lastUsedAt: index,
+        overrides: { speed: { kind: 'value', value: 1.25, updatedAt: 1 } },
+      };
+    }
+    sync.data['site:future.example'] = { schemaVersion: 2, lastUsedAt: 1, overrides: {} };
+    sync.data['site:old.example'] = { schemaVersion: 1, speed: 3.25 };
+    await reconcileSyncHotSet(sync, 10);
+    expect(sync.data['site:future.example']).toEqual({
+      schemaVersion: 2,
+      lastUsedAt: 1,
+      overrides: {},
+    });
+    expect(sync.data['site:old.example']).toBeUndefined();
+  });
 });

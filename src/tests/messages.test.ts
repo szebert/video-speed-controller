@@ -151,6 +151,24 @@ describe('isExtensionRequest', () => {
         change: { kind: 'value', field: 'speedTick', value: 0.05 },
       }),
     ).toBe(true);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        changes: [
+          { kind: 'value', field: 'speed', value: 1.25 },
+          { kind: 'value', field: 'overlayVisible', value: false },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionRequest({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'speed', value: 1.25 },
+        changes: [{ kind: 'value', field: 'speed', value: 1.5 }],
+      }),
+    ).toBe(false);
     expect(isExtensionRequest({ type: 'DELETE_SITE_SETTINGS', hostname: 'example.com' })).toBe(
       true,
     );

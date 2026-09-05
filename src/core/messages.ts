@@ -10,6 +10,7 @@ import {
   type EditableResolvedBehavior,
   type OverlayPosition,
 } from '../settings/site-behavior';
+import type { ResetAllResult } from '../settings/migrate';
 import { isAppliedTabBehavior, type AppliedTabBehavior } from './applied-tab-behavior';
 
 export type GetPopupStateRequest = {
@@ -83,7 +84,8 @@ export type GetCustomSitesRequest = {
 export type SetBehaviorSettingRequest = {
   type: 'SET_BEHAVIOR_SETTING';
   scope: BehaviorSettingsScope;
-  change: BehaviorSettingChange;
+  change?: BehaviorSettingChange;
+  changes?: BehaviorSettingChange[];
   snapshotHostname?: string;
 };
 
@@ -196,12 +198,14 @@ export type SetBehaviorSettingResponse =
       state: BehaviorSettingsSnapshot;
       snapshotError?: never;
       siteMembership?: SiteMembershipUpdate;
+      resetAll?: ResetAllResult;
     } & ReapplyResult)
   | ({
       ok: true;
       state?: never;
       snapshotError: string;
       siteMembership?: SiteMembershipUpdate;
+      resetAll?: ResetAllResult;
     } & ReapplyResult)
   | { ok: false; error: string };
 
@@ -292,21 +296,31 @@ function isResetBehaviorRequest(value: object): boolean {
   return isOptionalSnapshotHostname(value, ['type']);
 }
 
+function isBehaviorSettingChangeList(value: unknown): value is BehaviorSettingChange[] {
+  return Array.isArray(value) && value.length > 0 && value.every((entry) => isBehaviorSettingChange(entry));
+}
+
 function isSetBehaviorSettingRequest(value: object): value is SetBehaviorSettingRequest {
   const record = value as {
     scope?: unknown;
     change?: unknown;
+    changes?: unknown;
     snapshotHostname?: unknown;
   };
-  if (!isBehaviorSettingsScope(record.scope) || !isBehaviorSettingChange(record.change)) {
+  if (!isBehaviorSettingsScope(record.scope)) {
     return false;
   }
-  if (hasExactKeys(value, ['type', 'scope', 'change'])) {
+  const hasChange = isBehaviorSettingChange(record.change);
+  const hasChanges = isBehaviorSettingChangeList(record.changes);
+  if (hasChange === hasChanges) {
+    return false;
+  }
+  const required = hasChange ? (['type', 'scope', 'change'] as const) : (['type', 'scope', 'changes'] as const);
+  if (hasExactKeys(value, required)) {
     return true;
   }
   return (
-    hasExactKeys(value, ['type', 'scope', 'change', 'snapshotHostname']) &&
-    typeof record.snapshotHostname === 'string'
+    hasExactKeys(value, [...required, 'snapshotHostname']) && typeof record.snapshotHostname === 'string'
   );
 }
 

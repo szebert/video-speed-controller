@@ -54,6 +54,27 @@ export function reapplyModeForField(
   return 'preserve-target';
 }
 
+const REAPPLY_MODE_RANK: Record<ReapplyMode, number> = {
+  none: 0,
+  'preserve-target': 1,
+  'revalidate-target': 2,
+  'resolve-target': 3,
+};
+
+export function reapplyModeForFields(
+  scope: 'global' | 'site',
+  changes: readonly { field: EditableBehaviorField }[],
+): ReapplyMode {
+  let best: ReapplyMode = 'none';
+  for (const change of changes) {
+    const mode = reapplyModeForField(scope, change.field);
+    if (REAPPLY_MODE_RANK[mode] > REAPPLY_MODE_RANK[best]) {
+      best = mode;
+    }
+  }
+  return best;
+}
+
 type TabOutcome = 'applied' | 'skipped' | 'failed';
 
 function failureMessage(error: unknown): string {

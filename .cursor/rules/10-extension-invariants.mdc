@@ -21,6 +21,10 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
 - Keep durable user preference, current tab behavior, and Chrome-managed permission state conceptually separate.
 - Do not make storage writes part of the critical playback path.
 - Do not let frame- or media-local behavior silently mutate tab-wide or persisted user intent.
+- Persist unknown envelope and override-map fields; drop only malformed known fields.
+- Extra keys inside a known Override object fail that field. Changing an existing field's representation requires a schemaVersion bump and a migrator.
+- Never rewrite, repair, evict-as-corrupt, or downgrade a settings record whose schemaVersion this build does not support.
+- Destructive reset/delete of one logical record fails closed if any authoritative copy is unsupported.
 
 ## Frames and content scripts
 

@@ -166,7 +166,7 @@ describe('field merge primitive', () => {
     ).toEqual({ kind: 'value', value: 1.5, updatedAt: 200 });
   });
 
-  it('merges hotkey actions independently without treating a persisted binding as valid V1', () => {
+  it('merges hotkey actions independently without treating a persisted binding as a known V1 field', () => {
     const increase = mergeOverrideField<unknown>(
       { kind: 'value', value: null, updatedAt: 5 },
       { kind: 'inherit', updatedAt: 8 },
@@ -180,7 +180,7 @@ describe('field merge primitive', () => {
           hotkeys: { increaseSpeed: { kind: 'value', value: { code: 'KeyD' }, updatedAt: 1 } },
         },
       }),
-    ).toBeNull();
+    ).toEqual({ schemaVersion: 1, lastUsedAt: 1, overrides: {} });
   });
 });
 
@@ -241,8 +241,8 @@ describe('overlay position grid', () => {
   });
 });
 
-describe('strict V1 parsers', () => {
-  it('rejects unknown keys leftover inherit values and empty site records', () => {
+describe('forward-compatible V1 parsers', () => {
+  it('preserves unknown keys, salvages malformed known fields, and rejects empty site records', () => {
     expect(
       parseSiteSettings({
         schemaVersion: 1,
@@ -250,16 +250,20 @@ describe('strict V1 parsers', () => {
         overrides: { speed: { kind: 'value', value: 1.5, updatedAt: 1 } },
         extra: true,
       }),
-    ).toBeNull();
+    ).toEqual({
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: { speed: { kind: 'value', value: 1.5, updatedAt: 1 } },
+    });
     expect(
       parseBehaviorOverrides({
         speed: { kind: 'value', value: 1.5, updatedAt: 1 },
         overlayPositon: { kind: 'inherit', updatedAt: 1 },
       }),
-    ).toBeNull();
-    expect(
-      parseBehaviorOverrides({ speed: { kind: 'inherit', updatedAt: 1, value: 1.5 } }),
-    ).toBeNull();
+    ).toEqual({ speed: { kind: 'value', value: 1.5, updatedAt: 1 } });
+    expect(parseBehaviorOverrides({ speed: { kind: 'inherit', updatedAt: 1, value: 1.5 } })).toEqual(
+      {},
+    );
     expect(
       parseSiteSettings({
         schemaVersion: 1,
@@ -283,12 +287,12 @@ describe('strict V1 parsers', () => {
       parseBehaviorOverrides({
         overlayAutoHideDelayMs: { kind: 'value', value: 2000.5, updatedAt: 1 },
       }),
-    ).toBeNull();
+    ).toEqual({});
     expect(
       parseBehaviorOverrides({
         overlayAutoHideDelayMs: { kind: 'value', value: -1, updatedAt: 1 },
       }),
-    ).toBeNull();
+    ).toEqual({});
     expect(
       parseBehaviorOverrides({
         overlayAutoHideDelayMs: { kind: 'value', value: 2500, updatedAt: 1 },
