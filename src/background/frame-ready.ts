@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { builtInAppliedTabBehavior, type AppliedTabBehavior } from '../core/applied-tab-behavior';
-import type { FrameReadyResponse } from '../protocol/schemas/content-background';
+import type { FrameReadyResponse } from '../protocol/content/content-background';
 import { getSiteKey } from '../storage/site-key';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { readAppliedTabBehavior, type AppliedBehaviorReader } from './applied-behavior';

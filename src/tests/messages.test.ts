@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
-import { parseBackgroundToContent } from '../protocol/content-codec/background-content';
-import {
-  intentOutcomeFailureMessage,
-  parseIntentOutcome,
-} from '../protocol/content-codec/content-responses';
+import { parseBackgroundToContent } from '../protocol/content/background-content';
 import { inboundChannel, parseBackgroundInbound } from '../protocol/schemas/background-inbound';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -184,26 +180,5 @@ describe('parseBackgroundToContent', () => {
       null,
     );
     expect(parseBackgroundToContent({ type: 'ADJUST_SPEED', direction: 1 })).toBe(null);
-  });
-});
-
-describe('parseIntentOutcome', () => {
-  it('reports resolved application failures and rejects unknown objects', () => {
-    expect(parseIntentOutcome({ ok: false, error: 'Missing tab' })).toEqual({
-      ok: false,
-      error: 'Missing tab',
-    });
-    expect(parseIntentOutcome({ ok: false })).toEqual({ ok: false, error: 'Request failed' });
-    expect(
-      intentOutcomeFailureMessage({
-        ok: true,
-        reapplyError: 'Failed to apply overlay position',
-      }),
-    ).toBe('Failed to apply overlay position');
-    expect(intentOutcomeFailureMessage({ ok: true, persistError: 'quota' })).toBe('quota');
-    expect(intentOutcomeFailureMessage({ ok: true })).toBeNull();
-    expect(parseIntentOutcome({ ok: true, targetSpeed: 1.25 })).toEqual({ ok: true });
-    expect(parseIntentOutcome(undefined)).toBeNull();
-    expect(parseIntentOutcome({ bananas: 123 })).toBeNull();
   });
 });

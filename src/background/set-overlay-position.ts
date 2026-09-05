@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import type { SetOverlayPositionResponse } from '../protocol/schemas/content-background';
+import type { SetOverlayPositionResponse } from '../protocol/content/content-background';
 import { isOverlayPosition, type OverlayPosition } from '../settings/site-behavior';
 import { persistSiteBehaviorChange, type SiteSettingsDeps } from '../storage/site-settings';
 import { getSiteKey } from '../storage/site-key';

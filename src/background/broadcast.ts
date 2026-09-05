@@ -5,7 +5,7 @@ import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type {
   ApplyTabBehaviorRequest,
   ReconcileAccessRequest,
-} from '../protocol/types/background-content';
+} from '../protocol/content/background-content';
 
 export type TabMessenger = {
   query: (queryInfo: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>;

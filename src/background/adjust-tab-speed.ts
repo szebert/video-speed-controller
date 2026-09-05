@@ -2,7 +2,7 @@
 
 import { adjustSpeed, DEFAULT_SPEED_POLICY, type SpeedPolicy } from '../core/speed';
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
-import type { SetSpeedResponse } from '../protocol/schemas/popup-background';
+import type { AdjustSpeedResponse } from '../protocol/content/content-background';
 import { getSiteKey } from '../storage/site-key';
 import { getTabState, type TabStateStore } from '../storage/tab-state';
 import { readAppliedTabBehavior, type AppliedBehaviorReader } from './applied-behavior';
@@ -41,7 +41,7 @@ export async function adjustTabSpeed(
   sender: chrome.runtime.MessageSender,
   direction: -1 | 1,
   deps: AdjustTabSpeedDeps = {},
-): Promise<SetSpeedResponse> {
+): Promise<AdjustSpeedResponse> {
   const resolved = await resolveSenderTabUrl(
     sender,
     deps.readTab ?? ((tabId) => chrome.tabs.get(tabId)),

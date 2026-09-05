@@ -7,57 +7,47 @@ import {
   type HostPattern,
 } from '../access/site-access';
 import { destroyEngine, startEngine } from '../core/video-speed-engine';
-import { parseBackgroundToContent } from '../protocol/content-codec/background-content';
-import {
-  intentOutcomeFailureMessage,
-  parseIntentOutcome,
-} from '../protocol/content-codec/content-responses';
+import { parseBackgroundToContent } from '../protocol/content/background-content';
+import { contentFailureMessage, sendContentRequest } from '../protocol/content/client';
+import type { ContentToBackgroundRequest } from '../protocol/content/content-background';
 import type { OverlayActions } from '../overlay/types';
-import type { OverlayPosition } from '../settings/site-behavior';
 
 async function sendOverlayIntent(
-  message:
-    | { type: 'ADJUST_SPEED'; direction: -1 | 1 }
-    | { type: 'SET_OVERLAY_POSITION'; position: OverlayPosition }
-    | { type: 'OPEN_OPTIONS_PAGE' },
-  label: string,
+  request: Extract<
+    ContentToBackgroundRequest,
+    { type: 'ADJUST_SPEED' | 'SET_OVERLAY_POSITION' | 'OPEN_OPTIONS_PAGE' }
+  >,
 ): Promise<void> {
   try {
-    const outcome = parseIntentOutcome(await chrome.runtime.sendMessage(message));
-    if (!outcome) {
-      console.warn(`${label} failed`, 'Invalid response');
+    const response = await sendContentRequest(request);
+    if (!response) {
+      console.warn(`${request.type} failed`, 'Invalid response');
       return;
     }
-    const failure = intentOutcomeFailureMessage(outcome);
+    const failure = contentFailureMessage(response);
     if (failure) {
-      console.warn(`${label} failed`, failure);
+      console.warn(`${request.type} failed`, failure);
     }
   } catch (error) {
-    console.warn(`${label} failed`, error);
+    console.warn(`${request.type} failed`, error);
   }
 }
 
 const overlayActions: OverlayActions = {
   adjustSpeed(direction) {
-    void sendOverlayIntent(
-      {
-        type: 'ADJUST_SPEED',
-        direction,
-      },
-      'ADJUST_SPEED',
-    );
+    void sendOverlayIntent({
+      type: 'ADJUST_SPEED',
+      direction,
+    });
   },
   setOverlayPosition(position) {
-    void sendOverlayIntent(
-      {
-        type: 'SET_OVERLAY_POSITION',
-        position,
-      },
-      'SET_OVERLAY_POSITION',
-    );
+    void sendOverlayIntent({
+      type: 'SET_OVERLAY_POSITION',
+      position,
+    });
   },
   openSettings() {
-    void sendOverlayIntent({ type: 'OPEN_OPTIONS_PAGE' }, 'OPEN_OPTIONS_PAGE');
+    void sendOverlayIntent({ type: 'OPEN_OPTIONS_PAGE' });
   },
 };
 
@@ -86,7 +76,7 @@ function reconcileAccess(allowedHostPatterns: HostPattern[]): void {
   }
   const destroyed = destroyEngine();
   if (destroyed && isTopFrame()) {
-    void chrome.runtime.sendMessage({ type: 'TOP_FRAME_DESTROYED' }).catch((error) => {
+    void sendContentRequest({ type: 'TOP_FRAME_DESTROYED' }).catch((error) => {
       console.warn('TOP_FRAME_DESTROYED failed', error);
     });
   }
@@ -132,8 +122,8 @@ export default defineContentScript({
       });
     }
 
-    chrome.runtime.sendMessage({ type: 'FRAME_READY' }, () => {
-      void chrome.runtime.lastError;
+    void sendContentRequest({ type: 'FRAME_READY' }).catch((error) => {
+      console.warn('FRAME_READY failed', error);
     });
   },
 });

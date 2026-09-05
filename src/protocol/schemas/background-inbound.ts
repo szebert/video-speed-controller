@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { CONTENT_TO_BACKGROUND } from './content-background';
+import { CONTENT_TO_BACKGROUND } from '../content/content-background';
 import { OPTIONS_TO_BACKGROUND } from './options-background';
 import { POPUP_TO_BACKGROUND } from './popup-background';
 

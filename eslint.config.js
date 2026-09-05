@@ -51,9 +51,41 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/entrypoints/content.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'zod',
+              message: 'Content must not import regular Zod.',
+              allowTypeImports: false,
+            },
+            {
+              name: 'zod/mini',
+              message: 'Import Zod Mini only through protocol/content.',
+              allowTypeImports: false,
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                '**/behavior-schema',
+                '**/behavior-schema.*',
+                '**/protocol/schemas',
+                '**/protocol/schemas/**',
+              ],
+              message: 'Content may import protocol/content, not privileged schemas.',
+              allowTypeImports: false,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: [
-      'src/entrypoints/content.ts',
-      'src/protocol/content-codec/**/*.{ts,tsx}',
       'src/settings/site-behavior.ts',
       'src/core/applied-tab-behavior.ts',
       'src/core/video-speed-engine.ts',
@@ -71,12 +103,43 @@ export default tseslint.config(
           paths: [
             {
               name: 'zod',
-              message: 'Content, overlay, and playback must stay Zod-free.',
+              message: 'Overlay and playback must stay Zod-free.',
               allowTypeImports: false,
             },
             {
               name: 'zod/mini',
-              message: 'Content, overlay, and playback must stay Zod-free.',
+              message: 'Overlay and playback must stay Zod-free.',
+              allowTypeImports: false,
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                '**/behavior-schema',
+                '**/behavior-schema.*',
+                '**/protocol/schemas',
+                '**/protocol/schemas/**',
+                '**/protocol/content',
+                '**/protocol/content/**',
+              ],
+              message: 'Overlay and playback must not import protocol or Zod schemas.',
+              allowTypeImports: false,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/protocol/content/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'zod',
+              message: 'Content protocol may import zod/mini only.',
               allowTypeImports: false,
             },
           ],
@@ -88,7 +151,7 @@ export default tseslint.config(
                 '**/protocol/schemas',
                 '**/protocol/schemas/**',
               ],
-              message: 'Content may import only protocol/types and protocol/content-codec.',
+              message: 'Content protocol must not import privileged schemas.',
               allowTypeImports: false,
             },
           ],

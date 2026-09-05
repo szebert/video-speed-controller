@@ -18,11 +18,19 @@ const CONTENT_GRAPH_FILES = [
   'core/speed.ts',
 ];
 
-const FORBIDDEN = [
+const FORBIDDEN_CONTENT_GRAPH = [
   /^(?:zod|zod\/mini)$/,
   /(?:^|\/)behavior-schema(?:\.ts)?$/,
   /(?:^|\/)protocol\/schemas(?:\/|$)/,
 ];
+
+const FORBIDDEN_PROTOCOL_CONTENT = [
+  /^zod$/,
+  /(?:^|\/)behavior-schema(?:\.ts)?$/,
+  /(?:^|\/)protocol\/schemas(?:\/|$)/,
+];
+
+const FORBIDDEN_OVERLAY = [/(?:^|\/)protocol\/content(?:\/|$)/];
 
 function walkTsFiles(directory: string): string[] {
   const found: string[] = [];
@@ -51,17 +59,43 @@ function importSpecifiers(source: string): string[] {
 }
 
 describe('content import isolation', () => {
-  it('keeps Zod and privileged schemas out of the content graph', () => {
+  it('keeps regular Zod and privileged schemas out of the content graph', () => {
     const files = [
       ...CONTENT_GRAPH_FILES.map((file) => join(SRC, file)),
-      ...walkTsFiles(join(SRC, 'protocol/content-codec')),
       ...walkTsFiles(join(SRC, 'overlay')),
     ];
     const violations: string[] = [];
     for (const file of files) {
       const specifiers = importSpecifiers(readFileSync(file, 'utf8'));
       for (const specifier of specifiers) {
-        if (FORBIDDEN.some((pattern) => pattern.test(specifier))) {
+        if (FORBIDDEN_CONTENT_GRAPH.some((pattern) => pattern.test(specifier))) {
+          violations.push(`${relative(SRC, file)} imports ${specifier}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('allows zod/mini only under protocol/content', () => {
+    const violations: string[] = [];
+    for (const file of walkTsFiles(join(SRC, 'protocol/content'))) {
+      const specifiers = importSpecifiers(readFileSync(file, 'utf8'));
+      for (const specifier of specifiers) {
+        if (FORBIDDEN_PROTOCOL_CONTENT.some((pattern) => pattern.test(specifier))) {
+          violations.push(`${relative(SRC, file)} imports ${specifier}`);
+        }
+      }
+    }
+    const overlayAndEngine = [
+      ...CONTENT_GRAPH_FILES.filter((file) => file !== 'entrypoints/content.ts').map((file) =>
+        join(SRC, file),
+      ),
+      ...walkTsFiles(join(SRC, 'overlay')),
+    ];
+    for (const file of overlayAndEngine) {
+      const specifiers = importSpecifiers(readFileSync(file, 'utf8'));
+      for (const specifier of specifiers) {
+        if (FORBIDDEN_OVERLAY.some((pattern) => pattern.test(specifier))) {
           violations.push(`${relative(SRC, file)} imports ${specifier}`);
         }
       }

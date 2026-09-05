@@ -1,44 +1,52 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { z } from 'zod';
-import type {
-  AdjustSpeedRequest,
-  FrameReadyRequest,
-  OpenOptionsPageRequest,
-  SetOverlayPositionRequest,
-  TopFrameDestroyedRequest,
-} from '../types/content-background';
-import { OverlayPositionSchema } from './shared';
-import { SetSpeedResponseSchema } from './popup-background';
+import * as z from 'zod/mini';
+
+export const OverlayPositionSchema = z.literal([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
 export const AdjustSpeedRequestSchema = z.object({
   type: z.literal('ADJUST_SPEED'),
-  direction: z.union([z.literal(-1), z.literal(1)]),
-}) satisfies z.ZodType<AdjustSpeedRequest>;
+  direction: z.literal([-1, 1]),
+});
 
 export const SetOverlayPositionRequestSchema = z.object({
   type: z.literal('SET_OVERLAY_POSITION'),
   position: OverlayPositionSchema,
-}) satisfies z.ZodType<SetOverlayPositionRequest>;
+});
 
 export const OpenOptionsPageRequestSchema = z.object({
   type: z.literal('OPEN_OPTIONS_PAGE'),
-}) satisfies z.ZodType<OpenOptionsPageRequest>;
+});
 
 export const FrameReadyRequestSchema = z.object({
   type: z.literal('FRAME_READY'),
-}) satisfies z.ZodType<FrameReadyRequest>;
+});
 
 export const TopFrameDestroyedRequestSchema = z.object({
   type: z.literal('TOP_FRAME_DESTROYED'),
-}) satisfies z.ZodType<TopFrameDestroyedRequest>;
+});
+
+export const AdjustSpeedResponseSchema = z.union([
+  z.object({
+    ok: z.literal(true),
+    targetSpeed: z.number(),
+    persistError: z.optional(z.string()),
+  }),
+  z.object({
+    ok: z.literal(false),
+    error: z.string(),
+  }),
+]);
 
 export const SetOverlayPositionResponseSchema = z.union([
   z.object({
     ok: z.literal(true),
-    reapplyError: z.string().optional(),
+    reapplyError: z.optional(z.string()),
   }),
-  z.object({ ok: z.literal(false), error: z.string() }),
+  z.object({
+    ok: z.literal(false),
+    error: z.string(),
+  }),
 ]);
 
 export const OpenOptionsPageResponseSchema = z.union([
@@ -51,10 +59,12 @@ export const FrameReadyResponseSchema = z.union([
   z.object({ action: z.literal('dormant') }),
 ]);
 
-export const TopFrameDestroyedResponseSchema = z.object({ ok: z.literal(true) });
+export const TopFrameDestroyedResponseSchema = z.object({
+  ok: z.literal(true),
+});
 
 export const CONTENT_TO_BACKGROUND = {
-  ADJUST_SPEED: { request: AdjustSpeedRequestSchema, response: SetSpeedResponseSchema },
+  ADJUST_SPEED: { request: AdjustSpeedRequestSchema, response: AdjustSpeedResponseSchema },
   SET_OVERLAY_POSITION: {
     request: SetOverlayPositionRequestSchema,
     response: SetOverlayPositionResponseSchema,
@@ -70,5 +80,16 @@ export const CONTENT_TO_BACKGROUND = {
   },
 } as const;
 
+export type AdjustSpeedRequest = z.infer<typeof AdjustSpeedRequestSchema>;
+export type SetOverlayPositionRequest = z.infer<typeof SetOverlayPositionRequestSchema>;
+export type OpenOptionsPageRequest = z.infer<typeof OpenOptionsPageRequestSchema>;
+export type FrameReadyRequest = z.infer<typeof FrameReadyRequestSchema>;
+export type TopFrameDestroyedRequest = z.infer<typeof TopFrameDestroyedRequestSchema>;
+export type AdjustSpeedResponse = z.infer<typeof AdjustSpeedResponseSchema>;
 export type SetOverlayPositionResponse = z.infer<typeof SetOverlayPositionResponseSchema>;
+export type OpenOptionsPageResponse = z.infer<typeof OpenOptionsPageResponseSchema>;
 export type FrameReadyResponse = z.infer<typeof FrameReadyResponseSchema>;
+export type TopFrameDestroyedResponse = z.infer<typeof TopFrameDestroyedResponseSchema>;
+export type ContentToBackgroundRequest = z.infer<
+  (typeof CONTENT_TO_BACKGROUND)[keyof typeof CONTENT_TO_BACKGROUND]['request']
+>;
