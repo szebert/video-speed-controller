@@ -19,7 +19,7 @@ import {
 } from '../background/behavior-settings';
 import { enqueueTabMutation } from '../background/tab-mutation-queue';
 import { authorizeBackgroundInbound } from '../background/authorize-inbound';
-import { inboundChannel, parseBackgroundInbound } from '../protocol/schemas/background-inbound';
+import { parseBackgroundInbound } from '../protocol/schemas/background-inbound';
 import { restrictStorageAccess } from '../storage/restrict-access';
 import { clearTabState } from '../storage/tab-state';
 
@@ -67,11 +67,7 @@ export default defineBackground(() => {
     if (!inbound) {
       return false;
     }
-    const authorization = authorizeBackgroundInbound(
-      inboundChannel(inbound.type),
-      inbound.type,
-      sender,
-    );
+    const authorization = authorizeBackgroundInbound(inbound.channel, inbound.request.type, sender);
     if (authorization === 'ignore') {
       return false;
     }
@@ -79,7 +75,7 @@ export default defineBackground(() => {
       sendResponse({ ok: false, error: 'Unauthorized' });
       return false;
     }
-    const request = inbound;
+    const request = inbound.request;
 
     if (request.type === 'GET_POPUP_STATE') {
       void getPopupState(request.tabId, request.url).then(

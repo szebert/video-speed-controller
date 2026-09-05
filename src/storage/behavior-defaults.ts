@@ -11,9 +11,9 @@ import {
   type BehaviorSettingChange,
   type GlobalBehaviorSettingsV1,
 } from '../settings/site-behavior';
+import { cannotSafelyDestroy } from '../settings/destroy-policy';
 import {
   SETTINGS_CREATED_BY_NEWER_VERSION,
-  cannotSafelyDestroy,
   emptyOpaqueFields,
   extrasForDestination,
   hasOpaqueContent,

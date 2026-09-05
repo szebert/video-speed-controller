@@ -318,6 +318,21 @@ describe('forward-compatible V1 parsers', () => {
     });
     expect(
       parseBehaviorOverrides({
+        overlayAutoHideDelayMs: {
+          kind: 'value',
+          value: Number.MAX_SAFE_INTEGER + 1,
+          updatedAt: 1,
+        },
+      }),
+    ).toEqual({
+      overlayAutoHideDelayMs: {
+        kind: 'value',
+        value: Number.MAX_SAFE_INTEGER + 1,
+        updatedAt: 1,
+      },
+    });
+    expect(
+      parseBehaviorOverrides({
         overlayPositionButton: { kind: 'value', value: false, updatedAt: 1 },
         overlaySettingsButton: { kind: 'value', value: true, updatedAt: 2 },
         overlayHoverHold: { kind: 'value', value: false, updatedAt: 3 },

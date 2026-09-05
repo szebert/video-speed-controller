@@ -36,9 +36,9 @@ import {
   type BehaviorOverrides,
   type SiteSettingsV1,
 } from '../settings/site-behavior';
+import { cannotSafelyDestroy } from '../settings/destroy-policy';
 import {
   SETTINGS_CREATED_BY_NEWER_VERSION,
-  cannotSafelyDestroy,
   hasOpaqueContent,
   extrasForDestination,
   emptyOpaqueFields,

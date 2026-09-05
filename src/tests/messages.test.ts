@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { parseBackgroundToContent } from '../protocol/content/background-content';
-import { inboundChannel, parseBackgroundInbound } from '../protocol/schemas/background-inbound';
+import { CONTENT_TO_BACKGROUND } from '../protocol/content/content-background';
+import { parseBackgroundInbound } from '../protocol/schemas/background-inbound';
+import { OPTIONS_TO_BACKGROUND } from '../protocol/schemas/options-background';
+import { POPUP_TO_BACKGROUND } from '../protocol/schemas/popup-background';
 import { tabBehavior } from './tab-behavior-fixture';
 
 function accepted(value: unknown): boolean {
@@ -57,8 +60,11 @@ describe('parseBackgroundInbound', () => {
         change: { kind: 'value', field: 'speed', value: 1.5 },
       }),
     ).toMatchObject({
-      type: 'SET_BEHAVIOR_SETTING',
-      scope: { kind: 'global' },
+      channel: 'options',
+      request: {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+      },
     });
     expect(
       accepted({
@@ -75,7 +81,7 @@ describe('parseBackgroundInbound', () => {
         change: { kind: 'inherit', field: 'overlayPosition', value: 8 },
       }),
     ).toMatchObject({
-      change: { kind: 'inherit', field: 'overlayPosition' },
+      request: { change: { kind: 'inherit', field: 'overlayPosition' } },
     });
     expect(
       accepted({
@@ -144,11 +150,32 @@ describe('parseBackgroundInbound', () => {
     expect(accepted({ type: 'APPLY_TAB_BEHAVIOR', behavior: tabBehavior(1.5) })).toBe(false);
   });
 
-  it('classifies inbound types by channel', () => {
-    expect(inboundChannel('GET_POPUP_STATE')).toBe('popup');
-    expect(inboundChannel('SET_BEHAVIOR_SETTING')).toBe('options');
-    expect(inboundChannel('ADJUST_SPEED')).toBe('content');
-    expect(inboundChannel('APPLY_TAB_BEHAVIOR')).toBeNull();
+  it('returns the catalog channel with the parsed request', () => {
+    expect(
+      parseBackgroundInbound({ type: 'GET_POPUP_STATE', tabId: 1, url: 'https://a.example' }),
+    ).toMatchObject({ channel: 'popup' });
+    expect(
+      parseBackgroundInbound({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'speed', value: 1.5 },
+      }),
+    ).toMatchObject({ channel: 'options' });
+    expect(parseBackgroundInbound({ type: 'ADJUST_SPEED', direction: 1 })).toMatchObject({
+      channel: 'content',
+    });
+    expect(parseBackgroundInbound({ type: 'APPLY_TAB_BEHAVIOR', behavior: tabBehavior(1.5) })).toBe(
+      null,
+    );
+  });
+
+  it('keeps popup, options, and content endpoint names pairwise disjoint', () => {
+    const popup = new Set(Object.keys(POPUP_TO_BACKGROUND));
+    const options = new Set(Object.keys(OPTIONS_TO_BACKGROUND));
+    const content = new Set(Object.keys(CONTENT_TO_BACKGROUND));
+    expect([...popup].filter((key) => options.has(key))).toEqual([]);
+    expect([...popup].filter((key) => content.has(key))).toEqual([]);
+    expect([...options].filter((key) => content.has(key))).toEqual([]);
   });
 });
 

@@ -18,6 +18,10 @@ export function hasOpaqueContent(extras: OpaqueFields): boolean {
   return Object.keys(extras.record).length > 0 || Object.keys(extras.overrides).length > 0;
 }
 
+export function hasOpaqueOverrideExtras(extras: OpaqueFields): boolean {
+  return Object.keys(extras.overrides).length > 0;
+}
+
 export function mergeOpaqueFields(lower: OpaqueFields, higher: OpaqueFields): OpaqueFields {
   return {
     record: { ...lower.record, ...higher.record },

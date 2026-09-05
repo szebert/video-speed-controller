@@ -11,6 +11,11 @@ import {
   type SiteSettingsV1,
 } from './site-behavior';
 
+const StoredDelaySchema = z
+  .number()
+  .refine(Number.isInteger)
+  .refine((value) => value >= 0);
+
 export const behaviorValueSchemas = {
   speed: z.number().finite(),
   speedMin: z.number().finite(),
@@ -22,7 +27,7 @@ export const behaviorValueSchemas = {
   overlaySettingsButton: z.boolean(),
   overlayAutoHide: z.boolean(),
   overlayHoverHold: z.boolean(),
-  overlayAutoHideDelayMs: z.number().int().nonnegative(),
+  overlayAutoHideDelayMs: StoredDelaySchema,
 } satisfies Record<BehaviorField, z.ZodType>;
 
 // prettier-ignore

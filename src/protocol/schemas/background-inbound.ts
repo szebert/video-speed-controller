@@ -11,6 +11,7 @@ export const BACKGROUND_INBOUND = {
 } as const;
 
 export type BackgroundInboundType = keyof typeof BACKGROUND_INBOUND;
+export type InboundChannel = 'popup' | 'options' | 'content';
 
 export type BackgroundInboundRequest = {
   [K in BackgroundInboundType]: { type: K } & ReturnType<
@@ -18,31 +19,36 @@ export type BackgroundInboundRequest = {
   >;
 }[BackgroundInboundType];
 
-const POPUP_TYPES = new Set<string>(Object.keys(POPUP_TO_BACKGROUND));
-const OPTIONS_TYPES = new Set<string>(Object.keys(OPTIONS_TO_BACKGROUND));
-const CONTENT_TYPES = new Set<string>(Object.keys(CONTENT_TO_BACKGROUND));
+export type ParsedBackgroundInbound = {
+  channel: InboundChannel;
+  request: BackgroundInboundRequest;
+};
 
-export function inboundChannel(type: string): 'popup' | 'options' | 'content' | null {
-  if (POPUP_TYPES.has(type)) {
+function inboundChannelOf(type: string): InboundChannel | null {
+  if (Object.prototype.hasOwnProperty.call(POPUP_TO_BACKGROUND, type)) {
     return 'popup';
   }
-  if (OPTIONS_TYPES.has(type)) {
+  if (Object.prototype.hasOwnProperty.call(OPTIONS_TO_BACKGROUND, type)) {
     return 'options';
   }
-  if (CONTENT_TYPES.has(type)) {
+  if (Object.prototype.hasOwnProperty.call(CONTENT_TO_BACKGROUND, type)) {
     return 'content';
   }
   return null;
 }
 
-export function parseBackgroundInbound(value: unknown): BackgroundInboundRequest | null {
+export function parseBackgroundInbound(value: unknown): ParsedBackgroundInbound | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
   const type = (value as { type?: unknown }).type;
-  if (typeof type !== 'string' || !(type in BACKGROUND_INBOUND)) {
+  if (typeof type !== 'string') {
+    return null;
+  }
+  const channel = inboundChannelOf(type);
+  if (!channel || !(type in BACKGROUND_INBOUND)) {
     return null;
   }
   const parsed = BACKGROUND_INBOUND[type as BackgroundInboundType].request.safeParse(value);
-  return parsed.success ? (parsed.data as BackgroundInboundRequest) : null;
+  return parsed.success ? { channel, request: parsed.data as BackgroundInboundRequest } : null;
 }

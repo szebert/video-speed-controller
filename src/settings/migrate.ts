@@ -64,17 +64,6 @@ export function detectVersion(value: unknown): number | null {
   return null;
 }
 
-export function hasOpaqueOverrideExtras(extras: OpaqueFields): boolean {
-  return Object.keys(extras.overrides).length > 0;
-}
-
-export function cannotSafelyDestroy<T>(parsed: SettingsParseResult<T>): boolean {
-  return (
-    parsed.status === 'unsupported' ||
-    (parsed.status === 'ready' && hasOpaqueOverrideExtras(parsed.extras))
-  );
-}
-
 export function migrateByDetectedVersion<T>(
   value: unknown,
   parseV1: (value: unknown) => { record: T; extras: OpaqueFields } | null,

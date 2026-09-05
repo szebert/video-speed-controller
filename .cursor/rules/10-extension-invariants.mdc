@@ -36,8 +36,10 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
 ## Messaging
 
 - Parse incoming `unknown` at every runtime boundary. Privileged receivers
-  (background inbound, options/popup responses, storage) use regular Zod.
-  Content uses handwritten codecs in `protocol/content-codec`.
+  (options/popup responses, storage) use regular Zod. Content-channel
+  requests and background→content messages use Zod Mini in
+  `protocol/content/**`. Background inbound parses content requests with
+  those same Mini schemas and returns `{ channel, request }`.
 - Keep RPC channel-bounded. Do not restore a global request union or
   `src/core/messages.ts`.
 - RPC schemas validate known fields and do not repair them: no `z.coerce`,
@@ -47,11 +49,14 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
   service-worker update.
 - Authorize by sender class after parse: options and popup inbound require an
   extension-page sender (`Unauthorized` or ignore `GET_POPUP_STATE`). Content
-  inbound uses the existing tab checks. Do not match `options.html` vs
-  `popup.html`.
-- No Zod of any kind in `content.js`, including `import type` from files that
-  runtime-import Zod. Content may import only `protocol/types/*` and
-  `protocol/content-codec/*`.
+  inbound requires `sender.tab.id` or is ignored. Do not match
+  `options.html` vs `popup.html`.
+- Regular Zod stays out of `content.js`, including `import type` from files
+  that runtime-import regular Zod. Content may import `protocol/content/*`
+  (Mini only). Overlay, playback, and engine import neither Zod variant.
+- `sendContentRequest()` does not runtime-parse requests it constructs;
+  only the receiver parses inbound requests. It only runtime-parses the
+  unknown response.
 - No Zod on `timeupdate`, overlay render, or playback math.
 
 ## Media behavior
