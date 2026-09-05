@@ -20,6 +20,7 @@ function moduleSpecifiers(source: string): string[] {
   const patterns = [
     /(?:^|\n)\s*import(?:\s+type)?(?:\s+[\s\S]*?\s+from\s+|\s+)['"]([^'"]+)['"]/g,
     /(?:^|\n)\s*export(?:\s+type)?\s+(?:\*(?:\s+as\s+\w+)?\s+from\s+|\{[\s\S]*?\}\s+from\s+)['"]([^'"]+)['"]/g,
+    /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g,
   ];
   for (const pattern of patterns) {
     for (const match of source.matchAll(pattern)) {
@@ -83,6 +84,13 @@ function isContentEntrypoint(file: string): boolean {
   return srcPath(file) === 'entrypoints/content.ts';
 }
 
+function isForbiddenZod(file: string, specifier: string): boolean {
+  if (specifier === 'zod/mini') {
+    return !isProtocolContent(file);
+  }
+  return specifier === 'zod' || specifier.startsWith('zod/');
+}
+
 const CONTENT_GRAPH = walkFrom(CONTENT_ENTRY);
 
 describe('content import isolation', () => {
@@ -100,13 +108,13 @@ describe('content import isolation', () => {
     for (const [file, specifiers] of CONTENT_GRAPH) {
       const path = srcPath(file);
       for (const specifier of specifiers) {
-        if (specifier === 'zod' || /(?:^|\/)behavior-schema(?:\.ts)?$/.test(specifier)) {
+        if (
+          isForbiddenZod(file, specifier) ||
+          /(?:^|\/)behavior-schema(?:\.ts)?$/.test(specifier)
+        ) {
           violations.push(`${path} imports ${specifier}`);
         }
         if (/(?:^|\/)protocol\/schemas(?:\/|$)/.test(specifier)) {
-          violations.push(`${path} imports ${specifier}`);
-        }
-        if (specifier === 'zod/mini' && !isProtocolContent(file)) {
           violations.push(`${path} imports ${specifier}`);
         }
         if (

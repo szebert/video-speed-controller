@@ -70,6 +70,11 @@ export default tseslint.config(
           ],
           patterns: [
             {
+              group: ['zod/*', 'zod/**'],
+              message: 'Content must not import regular Zod.',
+              allowTypeImports: false,
+            },
+            {
               group: [
                 '**/behavior-schema',
                 '**/behavior-schema.*',
@@ -116,6 +121,11 @@ export default tseslint.config(
           ],
           patterns: [
             {
+              group: ['zod/*', 'zod/**'],
+              message: 'Overlay and playback must stay Zod-free.',
+              allowTypeImports: false,
+            },
+            {
               group: [
                 '**/behavior-schema',
                 '**/behavior-schema.*',
@@ -146,6 +156,11 @@ export default tseslint.config(
             },
           ],
           patterns: [
+            {
+              group: ['zod/v*', 'zod/v*/**', 'zod/locales', 'zod/locales/**', 'zod/compile'],
+              message: 'Content protocol may import zod/mini only.',
+              allowTypeImports: false,
+            },
             {
               group: [
                 '**/behavior-schema',

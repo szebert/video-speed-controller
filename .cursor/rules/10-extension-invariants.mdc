@@ -52,8 +52,10 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
   inbound requires `sender.tab.id` or is ignored. Do not match
   `options.html` vs `popup.html`.
 - Regular Zod stays out of `content.js`, including `import type` from files
-  that runtime-import regular Zod. Content may import `protocol/content/*`
-  (Mini only). Overlay, playback, and engine import neither Zod variant.
+  that runtime-import regular Zod, and including `zod/*` entrypoints other
+  than `zod/mini` under `protocol/content/**`. Content may import
+  `protocol/content/*` (Mini only). Overlay, playback, and engine import
+  neither Zod variant.
 - Do not merge Mini schemas, regular Zod RPC/storage schemas, or the
   handwritten session `isAppliedTabBehavior` guard. Those copies are the
   isolation wall. Domain types may derive from `BEHAVIOR_FIELDS`.

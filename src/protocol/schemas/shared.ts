@@ -17,16 +17,8 @@ import type {
 // Options/popup RPC (regular Zod). Field lists stay here because this module
 // cannot be imported by protocol/content or overlay. Mini twins: OverlayPosition
 // and AppliedTabBehavior schemas under protocol/content.
-export const OverlayPositionSchema = z.union([
-  z.literal(0),
-  z.literal(1),
-  z.literal(2),
-  z.literal(3),
-  z.literal(4),
-  z.literal(5),
-  z.literal(6),
-  z.literal(7),
-  z.literal(8),
+export const OverlayPositionSchema = z.literal([
+  0, 1, 2, 3, 4, 5, 6, 7, 8,
 ]) satisfies z.ZodType<OverlayPosition>;
 
 export const EditableBehaviorFieldSchema = z.enum(EDITABLE_BEHAVIOR_FIELDS);
