@@ -1471,24 +1471,26 @@ describe('Options page', () => {
   });
 
   it('flushes a trailing speed change when the options page is hidden', async () => {
-    sendMessage.mockImplementation(async (message: { type?: string; change?: { field?: string; value?: number } }) => {
-      if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: [] };
-      }
-      const state = snapshot();
-      if (message.type === 'SET_BEHAVIOR_SETTING' && message.change?.field === 'speed') {
-        state.global.speed = { value: message.change.value ?? 1, source: 'global' };
-      }
-      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
-        return getOk(state);
-      }
-      return {
-        ok: true,
-        state,
-        reappliedTabs: 0,
-        reapplyFailures: 0,
-      };
-    });
+    sendMessage.mockImplementation(
+      async (message: { type?: string; change?: { field?: string; value?: number } }) => {
+        if (message.type === 'GET_CUSTOM_SITES') {
+          return { ok: true, customSites: [] };
+        }
+        const state = snapshot();
+        if (message.type === 'SET_BEHAVIOR_SETTING' && message.change?.field === 'speed') {
+          state.global.speed = { value: message.change.value ?? 1, source: 'global' };
+        }
+        if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+          return getOk(state);
+        }
+        return {
+          ok: true,
+          state,
+          reappliedTabs: 0,
+          reapplyFailures: 0,
+        };
+      },
+    );
     await renderApp();
     const faster = container.querySelector('[aria-label="Faster"]');
     await act(async () => {

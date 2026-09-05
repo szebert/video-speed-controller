@@ -297,7 +297,11 @@ function isResetBehaviorRequest(value: object): boolean {
 }
 
 function isBehaviorSettingChangeList(value: unknown): value is BehaviorSettingChange[] {
-  return Array.isArray(value) && value.length > 0 && value.every((entry) => isBehaviorSettingChange(entry));
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((entry) => isBehaviorSettingChange(entry))
+  );
 }
 
 function isSetBehaviorSettingRequest(value: object): value is SetBehaviorSettingRequest {
@@ -315,12 +319,15 @@ function isSetBehaviorSettingRequest(value: object): value is SetBehaviorSetting
   if (hasChange === hasChanges) {
     return false;
   }
-  const required = hasChange ? (['type', 'scope', 'change'] as const) : (['type', 'scope', 'changes'] as const);
+  const required = hasChange
+    ? (['type', 'scope', 'change'] as const)
+    : (['type', 'scope', 'changes'] as const);
   if (hasExactKeys(value, required)) {
     return true;
   }
   return (
-    hasExactKeys(value, [...required, 'snapshotHostname']) && typeof record.snapshotHostname === 'string'
+    hasExactKeys(value, [...required, 'snapshotHostname']) &&
+    typeof record.snapshotHostname === 'string'
   );
 }
 

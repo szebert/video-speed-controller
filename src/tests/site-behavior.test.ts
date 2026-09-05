@@ -261,9 +261,9 @@ describe('forward-compatible V1 parsers', () => {
         overlayPositon: { kind: 'inherit', updatedAt: 1 },
       }),
     ).toEqual({ speed: { kind: 'value', value: 1.5, updatedAt: 1 } });
-    expect(parseBehaviorOverrides({ speed: { kind: 'inherit', updatedAt: 1, value: 1.5 } })).toEqual(
-      {},
-    );
+    expect(
+      parseBehaviorOverrides({ speed: { kind: 'inherit', updatedAt: 1, value: 1.5 } }),
+    ).toEqual({});
     expect(
       parseSiteSettings({
         schemaVersion: 1,

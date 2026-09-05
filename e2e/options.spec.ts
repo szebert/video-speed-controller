@@ -247,8 +247,7 @@ test('hiding the options page flushes a trailing speed change', async ({
           chrome.storage.sync.get(key),
         ]);
         const record = (sync[key] ?? local[key]) as
-          | { overrides?: { speed?: { value?: number } } }
-          | undefined;
+          { overrides?: { speed?: { value?: number } } } | undefined;
         return record?.overrides?.speed?.value ?? null;
       }),
     )

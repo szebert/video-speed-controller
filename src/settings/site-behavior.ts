@@ -15,11 +15,7 @@ import {
   speedPolicyFrom,
   type SpeedPolicy,
 } from '../core/speed';
-import {
-  hasOpaqueContent,
-  pickUnknownKeys,
-  type OpaqueFields,
-} from './opaque-fields';
+import { hasOpaqueContent, pickUnknownKeys, type OpaqueFields } from './opaque-fields';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const SITE_INHERIT_SYNC_RETENTION_MS = 30 * DAY_MS;

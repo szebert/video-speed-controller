@@ -59,7 +59,11 @@ export function detectVersion(value: unknown): number | null {
     return null;
   }
   const schemaVersion = (value as { schemaVersion?: unknown }).schemaVersion;
-  if (typeof schemaVersion === 'number' && Number.isSafeInteger(schemaVersion) && schemaVersion >= 1) {
+  if (
+    typeof schemaVersion === 'number' &&
+    Number.isSafeInteger(schemaVersion) &&
+    schemaVersion >= 1
+  ) {
     return schemaVersion;
   }
   return null;

@@ -109,12 +109,12 @@ describe('ResetAllResult', () => {
 
 describe('reapplyModeForFields', () => {
   it('uses the strongest mode in the batch', () => {
-    expect(
-      reapplyModeForFields('site', [{ field: 'speed' }, { field: 'overlayVisible' }]),
-    ).toBe('resolve-target');
-    expect(
-      reapplyModeForFields('site', [{ field: 'speedMax' }, { field: 'overlayVisible' }]),
-    ).toBe('revalidate-target');
+    expect(reapplyModeForFields('site', [{ field: 'speed' }, { field: 'overlayVisible' }])).toBe(
+      'resolve-target',
+    );
+    expect(reapplyModeForFields('site', [{ field: 'speedMax' }, { field: 'overlayVisible' }])).toBe(
+      'revalidate-target',
+    );
     expect(
       reapplyModeForFields('site', [{ field: 'overlayPosition' }, { field: 'overlayVisible' }]),
     ).toBe('preserve-target');

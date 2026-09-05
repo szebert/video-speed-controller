@@ -63,7 +63,10 @@ export function parseThemeRecord(
   return { schemaVersion: 1, preference: parsed.record.preference };
 }
 
-function serializeThemeRecord(record: ThemeRecordV1, extras: OpaqueFields): Record<string, unknown> {
+function serializeThemeRecord(
+  record: ThemeRecordV1,
+  extras: OpaqueFields,
+): Record<string, unknown> {
   const serialized: Record<string, unknown> = {
     ...extras.record,
     schemaVersion: 1,

@@ -316,10 +316,7 @@ type LoadedSite = {
   local: DurableSettingsStore;
 };
 
-async function maybeRepairAndTouchSite(
-  loaded: LoadedSite,
-  touchUsage: boolean,
-): Promise<void> {
+async function maybeRepairAndTouchSite(loaded: LoadedSite, touchUsage: boolean): Promise<void> {
   const {
     sync,
     local,
@@ -382,9 +379,7 @@ async function maybeRepairAndTouchSite(
 
   const syncDestExtras = extrasForDestination('sync', syncExtras, localExtras);
   const expectedEligible = projectSyncEligibleSite(canonical, syncDestExtras, now);
-  const currentEligible = syncRecord
-    ? projectSyncEligibleSite(syncRecord, syncExtras, now)
-    : null;
+  const currentEligible = syncRecord ? projectSyncEligibleSite(syncRecord, syncExtras, now) : null;
   const syncNeedsRepair =
     Boolean(expectedEligible) &&
     (!currentEligible ||
@@ -451,7 +446,10 @@ async function loadMergedSite(url: string, deps: SiteSettingsDeps): Promise<Load
     localRecord,
     syncExtras: readyExtras(syncParsed),
     localExtras: readyExtras(localParsed),
-    mergedOverrides: mergeBehaviorOverrides(syncRecord?.overrides ?? {}, localRecord?.overrides ?? {}),
+    mergedOverrides: mergeBehaviorOverrides(
+      syncRecord?.overrides ?? {},
+      localRecord?.overrides ?? {},
+    ),
     globalOverrides,
     now: at,
     sync,
@@ -789,7 +787,11 @@ export async function deleteAllSiteSettings(deps: SiteSettingsDeps = {}): Promis
       }
       localItems[key] = serializeSiteRecord(
         record,
-        extrasForDestination('local', readyExtras(copies.syncParsed), readyExtras(copies.localParsed)),
+        extrasForDestination(
+          'local',
+          readyExtras(copies.syncParsed),
+          readyExtras(copies.localParsed),
+        ),
       );
       if (Object.prototype.hasOwnProperty.call(syncAll, key)) {
         syncRecords.push({
