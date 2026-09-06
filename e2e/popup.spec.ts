@@ -314,6 +314,49 @@ test('opening the position picker keeps the overlay visible until it closes', as
     .toBe('hidden');
 });
 
+test('keyboard Move and position cell close the picker and resume auto-hide', async ({
+  site,
+  openExtensionPopup,
+}) => {
+  const popup = await openExtensionPopup();
+  await applyOverlayEngine(popup, site);
+  await site.locator('#v1').hover();
+  const overlay = site.locator('osvsc-overlay').first();
+  const move = overlay.getByRole('button', { name: 'Move overlay' });
+  await expect(move).toBeVisible();
+  await move.focus();
+  await move.press('Enter');
+  await expect
+    .poll(async () =>
+      site.evaluate(
+        () =>
+          document.querySelector('osvsc-overlay')?.shadowRoot?.querySelector('.position-picker') !=
+          null,
+      ),
+    )
+    .toBe(true);
+
+  const cell = overlay.getByRole('button', { name: 'Bottom right' });
+  await cell.focus();
+  await cell.press('Enter');
+  await expect
+    .poll(async () =>
+      site.evaluate(
+        () =>
+          document.querySelector('osvsc-overlay')?.shadowRoot?.querySelector('.position-picker') ==
+          null,
+      ),
+    )
+    .toBe(true);
+
+  await site.mouse.move(0, 0);
+  await expect
+    .poll(async () => overlay.evaluate((host) => (host as HTMLElement).style.visibility), {
+      timeout: 5_000,
+    })
+    .toBe('hidden');
+});
+
 test('slider keyboard changes site speed', async ({ site, openExtensionPopup }) => {
   const popup = await openExtensionPopup();
   const slider = popup.getByRole('slider', { name: 'Site speed' });

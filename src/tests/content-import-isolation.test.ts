@@ -117,7 +117,7 @@ describe('content import isolation', () => {
     expect(files).not.toContain('protocol/schemas/shared.ts');
   });
 
-  it('keeps regular Zod and privileged schemas out of the content graph', () => {
+  it('keeps forbidden runtime dependencies out of the content graph', () => {
     const violations: string[] = [];
     for (const [file, specifiers] of CONTENT_GRAPH) {
       const path = srcPath(file);

@@ -14,11 +14,6 @@ export const OVERLAY_INSET_PX = 8;
 export const OVERLAY_MIN_SIZE_PX = 2;
 export const OVERLAY_Z_INDEX = '2147483647';
 
-type Visibility = {
-  visible: boolean;
-  rect?: DOMRect;
-};
-
 export class VideoOverlay {
   readonly host: HTMLElement;
   private readonly view: OverlayView;
@@ -112,16 +107,16 @@ export class VideoOverlay {
   }
 
   layout(): void {
-    const next = this.evaluateVisibility();
+    const rect = this.evaluateVisibility();
+    const visible = rect != null;
     const wasVisible = this.host.style.visibility !== 'hidden';
-    this.host.style.setProperty('visibility', next.visible ? 'visible' : 'hidden', 'important');
-    if (wasVisible !== next.visible) {
-      this.syncView(next.visible);
+    this.host.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
+    if (wasVisible !== visible) {
+      this.syncView(visible);
     }
-    if (!next.visible || !this.behavior || !next.rect) {
+    if (!visible || !this.behavior) {
       return;
     }
-    const rect = next.rect;
     const { row, column } = overlayPositionToGrid(this.behavior.overlayPosition);
     const x =
       column === 0
@@ -154,7 +149,7 @@ export class VideoOverlay {
     this.host.remove();
   }
 
-  private syncView(visible = this.evaluateVisibility().visible): void {
+  private syncView(visible = this.evaluateVisibility() != null): void {
     if (!this.behavior) {
       return;
     }
@@ -193,7 +188,7 @@ export class VideoOverlay {
     );
   }
 
-  private evaluateVisibility(): Visibility {
+  private evaluateVisibility(): DOMRect | null {
     if (
       this.behavior == null ||
       !this.controlled ||
@@ -201,13 +196,13 @@ export class VideoOverlay {
       (this.behavior.overlayAutoHide && this.autoHideExpired) ||
       !this.video.isConnected
     ) {
-      return { visible: false };
+      return null;
     }
     const rect = this.video.getBoundingClientRect();
     if (rect.width < OVERLAY_MIN_SIZE_PX || rect.height < OVERLAY_MIN_SIZE_PX) {
-      return { visible: false };
+      return null;
     }
-    return { visible: true, rect };
+    return rect;
   }
 
   private setInteractive(active: boolean): void {

@@ -151,7 +151,7 @@ export class OverlayView {
       this.setPickerOpen(false);
     } else if (!state.behavior.overlayPositionButton) {
       this.setPickerOpen(false);
-    } else if (state.visible && this.element.matches(':hover')) {
+    } else if (this.element.matches(':hover')) {
       this.pointerWithin = true;
     }
 

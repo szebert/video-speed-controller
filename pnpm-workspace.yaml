@@ -1,2 +1,6 @@
 allowBuilds:
   esbuild: true
+publicHoistPattern:
+  - '*react-aria*'
+  - '*react-stately*'
+  - '@react-types/*'

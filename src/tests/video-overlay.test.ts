@@ -59,6 +59,34 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('hidden');
   });
 
+  it('reads the video rect once when layout shows the overlay', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => undefined);
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    overlay.setControlled(true);
+    const getRect = vi.spyOn(video, 'getBoundingClientRect');
+    overlay.layout();
+    expect(getRect).toHaveBeenCalledTimes(1);
+    expect(overlay.host.style.visibility).toBe('visible');
+  });
+
+  it('does not read the video rect when a cheap hide condition already applies', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => undefined);
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    const getRect = vi.spyOn(video, 'getBoundingClientRect');
+    overlay.layout();
+    expect(getRect).not.toHaveBeenCalled();
+    expect(overlay.host.style.visibility).toBe('hidden');
+
+    overlay.setControlled(true);
+    overlay.setBehavior(tabBehavior(1.25, { overlayVisible: false, overlayAutoHide: false }));
+    getRect.mockClear();
+    overlay.layout();
+    expect(getRect).not.toHaveBeenCalled();
+    expect(overlay.host.style.visibility).toBe('hidden');
+  });
+
   it('places badges with grid anchors and transforms', () => {
     const video = sizedVideo({ left: 10, top: 20, width: 200, height: 100 });
     const overlay = new VideoOverlay(video, () => overlay.layout());
