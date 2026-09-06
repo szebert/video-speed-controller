@@ -93,6 +93,7 @@ import {
 import {
   isCapacityError,
   isWriteRateError,
+  mustPreserveSyncCopy,
   publishSyncSite,
   reconcileSyncHotSetUnlocked,
   recoverCorruptSiteOutbox,
@@ -327,10 +328,10 @@ async function maybeRepairAndTouchSite(loaded: LoadedSite, touchUsage: boolean):
     }
   }
 
-  if (isUnsupportedCopy(syncParsed)) {
-    return;
-  }
-  if (mergedGeneration.status === 'unknown') {
+  if (
+    mustPreserveSyncCopy(syncParsed, syncRaw, mergedGeneration) ||
+    mergedGeneration.status === 'unknown'
+  ) {
     return;
   }
 

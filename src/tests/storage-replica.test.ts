@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SYNC_TARGET_MAX_SITE_ITEMS } from '../settings/site-behavior';
+import {
+  SITE_INHERIT_SYNC_RETENTION_MS,
+  SYNC_TARGET_MAX_SITE_ITEMS,
+} from '../settings/site-behavior';
 import {
   persistGlobalBehaviorChange,
   reconcilePendingGlobalReplicas,
@@ -660,6 +663,36 @@ describe('storage replica hardening', () => {
       generation: 6,
       overrides: { speed: { value: 1.5, updatedAt: 100 } },
     });
+    expect(deps.local.data[SITE_OUTBOX_KEY]).toMatchObject({ publishSites: [YOUTUBE_KEY] });
+  });
+
+  it('does not repair-down a future Sync site when Local is eligible at the observed epoch', async () => {
+    const deps = pair(50);
+    deps.local.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 6 };
+    deps.sync.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 6 };
+    deps.local.data[YOUTUBE_KEY] = siteRecord(1.5, 100, 6);
+    deps.sync.data[YOUTUBE_KEY] = siteRecord(2, 200, 7);
+    await expect(readSiteSpeed(YOUTUBE, deps)).resolves.toBe(1.5);
+    expect(deps.sync.data[YOUTUBE_KEY]).toMatchObject({
+      generation: 7,
+      overrides: { speed: { value: 2, updatedAt: 200 } },
+    });
+    expect(deps.local.data[YOUTUBE_KEY]).toMatchObject({
+      generation: 6,
+      overrides: { speed: { value: 1.5, updatedAt: 100 } },
+    });
+  });
+
+  it('does not prune a future inherit tombstone during soft hot-set projection', async () => {
+    const now = SITE_INHERIT_SYNC_RETENTION_MS + 50_000;
+    const sync = memoryDurable();
+    for (let index = 0; index < SYNC_TARGET_MAX_SITE_ITEMS; index += 1) {
+      sync.data[`site:keep-${index}.example`] = siteRecord(1.25, now, 6);
+    }
+    sync.data['site:future-inherit.example'] = inheritRecord(1, 7);
+    sync.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 6 };
+    await reconcileSyncHotSet(sync, now);
+    expect(sync.data['site:future-inherit.example']).toEqual(inheritRecord(1, 7));
   });
 
   it('does not downgrade or delete an unsupported Sync site during replay', async () => {
@@ -673,6 +706,7 @@ describe('storage replica hardening', () => {
       lastUsedAt: 1,
       overrides: { extra: true },
     });
+    expect(deps.local.data[SITE_OUTBOX_KEY]).toMatchObject({ publishSites: [YOUTUBE_KEY] });
 
     const missingLocal = pair(50);
     missingLocal.local.data[SITE_OUTBOX_KEY] = { schemaVersion: 1, publishSites: [YOUTUBE_KEY] };
@@ -686,6 +720,9 @@ describe('storage replica hardening', () => {
       schemaVersion: 2,
       lastUsedAt: 1,
       overrides: { extra: true },
+    });
+    expect(missingLocal.local.data[SITE_OUTBOX_KEY]).toMatchObject({
+      publishSites: [YOUTUBE_KEY],
     });
   });
 

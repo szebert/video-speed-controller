@@ -288,6 +288,9 @@ export async function reconcileSyncHotSetUnlocked(
     if (entry.parsed.status !== 'ready') {
       continue;
     }
+    if (isFutureOrUnknownGeneration(entry.raw, epoch)) {
+      continue;
+    }
     const projected = projectSyncEligibleSite(entry.parsed.record, entry.parsed.extras, now);
     if (!projected) {
       await sync.remove(entry.key);
@@ -416,7 +419,7 @@ function appliedOverrides(
   return shouldApplySiteCopy(parsed, raw, epoch) ? (readyRecord(parsed)?.overrides ?? {}) : {};
 }
 
-function mustPreserveSyncCopy(
+export function mustPreserveSyncCopy(
   syncParsed: SettingsParseResult<SiteSettingsV1>,
   syncRaw: unknown,
   epoch: MergedGeneration,
@@ -452,13 +455,15 @@ function mergedReplayGeneration(
   return localRecord?.generation ?? syncRecord?.generation;
 }
 
+export type ReplayPublishResult = 'completed' | 'blocked';
+
 async function replayPublishSite(
   sync: DurableSettingsStore,
   local: DurableSettingsStore,
   storageKey: string,
   now: number,
   epoch: MergedGeneration,
-): Promise<void> {
+): Promise<ReplayPublishResult> {
   const [localRaw, syncRaw] = await Promise.all([
     local.get(storageKey).then((all) => all[storageKey]),
     sync.get(storageKey).then((all) => all[storageKey]),
@@ -466,7 +471,7 @@ async function replayPublishSite(
   const localParsed = migrateSiteSettings(localRaw);
   const syncParsed = migrateSiteSettings(syncRaw);
   if (mustPreserveSyncCopy(syncParsed, syncRaw, epoch)) {
-    return;
+    return 'blocked';
   }
   if (isUnsupportedCopy(localParsed)) {
     throw new Error(SETTINGS_CREATED_BY_NEWER_VERSION);
@@ -478,12 +483,12 @@ async function replayPublishSite(
     syncParsed.status === 'ready' && shouldApplySiteCopy(syncParsed, syncRaw, epoch);
   if (!localEligible) {
     if (cannotSafelyDestroy(syncParsed)) {
-      return;
+      return 'completed';
     }
     if (epoch.status === 'known' && syncRaw != null && isOldGenerationCopy(syncRaw, epoch.epoch)) {
       await sync.remove(storageKey);
     }
-    return;
+    return 'completed';
   }
 
   const localRecord = readyRecord(localParsed);
@@ -532,6 +537,7 @@ async function replayPublishSite(
     now,
     epoch,
   );
+  return 'completed';
 }
 
 export async function recoverCorruptSiteOutbox(
@@ -680,7 +686,9 @@ export async function replaySiteOutboxUnlocked(
       syncEpoch = mergedAfter.epoch;
     }
     try {
-      await replayPublishSite(sync, local, key, now, mergedAfter);
+      if ((await replayPublishSite(sync, local, key, now, mergedAfter)) === 'blocked') {
+        remaining.push(key);
+      }
     } catch {
       remaining.push(key);
       continue;
