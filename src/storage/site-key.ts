@@ -40,3 +40,7 @@ export function hostnameFromSiteStorageKey(key: string): string | null {
   }
   return key.slice('site:'.length);
 }
+
+export function isSiteStorageKey(key: string): boolean {
+  return hostnameFromSiteStorageKey(key) != null;
+}

@@ -115,12 +115,34 @@ async function replayGlobalOutboxUnlocked(
   try {
     const record: GlobalBehaviorSettingsV1 = {
       schemaVersion: 1,
-      overrides: readyRecord(localParsed)?.overrides ?? {},
+      overrides: mergeBehaviorOverrides(
+        readyRecord(syncParsed)?.overrides ?? {},
+        readyRecord(localParsed)?.overrides ?? {},
+      ),
     };
+    const syncExtras = readyExtras(syncParsed);
+    const localExtras = readyExtras(localParsed);
+    if (!isUnsupportedCopy(localParsed)) {
+      const expectedLocal = serializeGlobalRecord(
+        record,
+        extrasForDestination('local', syncExtras, localExtras),
+      );
+      const currentLocal =
+        localParsed.status === 'ready'
+          ? serializeGlobalRecord(localParsed.record, localParsed.extras)
+          : undefined;
+      if (!serializedRecordsEqual(currentLocal, expectedLocal)) {
+        try {
+          await local.set({ [GLOBAL_BEHAVIOR_KEY]: expectedLocal });
+        } catch {
+          // Keep the outbox until Sync accepts the merged winner.
+        }
+      }
+    }
     await sync.set({
       [GLOBAL_BEHAVIOR_KEY]: serializeGlobalRecord(
         record,
-        extrasForDestination('sync', readyExtras(syncParsed), readyExtras(localParsed)),
+        extrasForDestination('sync', syncExtras, localExtras),
       ),
     });
     try {

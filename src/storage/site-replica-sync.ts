@@ -17,6 +17,8 @@ import {
   SYNC_TARGET_MAX_SITE_ITEMS,
   hasSyncRetainedInherit,
   hasValueOverrides,
+  mergeBehaviorOverrides,
+  type BehaviorOverrides,
   type SiteSettingsV1,
 } from '../settings/site-behavior';
 import { estimateStorageEntryBytes, type DurableSettingsStore } from './durable-store';
@@ -33,6 +35,7 @@ import {
   serializeSiteGeneration,
   shouldApplySiteCopy,
   type MergedGeneration,
+  type ParsedGeneration,
   type SiteGenerationRecord,
 } from './site-generation';
 import type { ControlMetadataParse } from './control-metadata';
@@ -405,7 +408,51 @@ export async function publishSyncSite(
   }
 }
 
-async function publishSiteFromLocal(
+function appliedOverrides(
+  parsed: SettingsParseResult<SiteSettingsV1>,
+  raw: unknown,
+  epoch: MergedGeneration,
+): BehaviorOverrides {
+  return shouldApplySiteCopy(parsed, raw, epoch) ? (readyRecord(parsed)?.overrides ?? {}) : {};
+}
+
+function mustPreserveSyncCopy(
+  syncParsed: SettingsParseResult<SiteSettingsV1>,
+  syncRaw: unknown,
+  epoch: MergedGeneration,
+): boolean {
+  return (
+    syncRaw != null &&
+    (isUnsupportedCopy(syncParsed) || isFutureOrUnknownGeneration(syncRaw, epoch))
+  );
+}
+
+function generationAtEpoch(parsed: ParsedGeneration, epoch: number): boolean {
+  return parsed.status !== 'unknown' && parsed.value === epoch;
+}
+
+function mergedReplayGeneration(
+  localRaw: unknown,
+  syncRaw: unknown,
+  localRecord: SiteSettingsV1 | null,
+  syncRecord: SiteSettingsV1 | null,
+  localEligible: boolean,
+  syncEligible: boolean,
+  epoch: MergedGeneration,
+): number | undefined {
+  if (epoch.status !== 'known') {
+    return localRecord?.generation ?? syncRecord?.generation;
+  }
+  if (
+    (localEligible && generationAtEpoch(parseSiteRecordGeneration(localRaw), epoch.epoch)) ||
+    (syncEligible && generationAtEpoch(parseSiteRecordGeneration(syncRaw), epoch.epoch))
+  ) {
+    return epoch.epoch;
+  }
+  return localRecord?.generation ?? syncRecord?.generation;
+}
+
+async function replayPublishSite(
   sync: DurableSettingsStore,
   local: DurableSettingsStore,
   storageKey: string,
@@ -418,18 +465,70 @@ async function publishSiteFromLocal(
   ]);
   const localParsed = migrateSiteSettings(localRaw);
   const syncParsed = migrateSiteSettings(syncRaw);
+  if (mustPreserveSyncCopy(syncParsed, syncRaw, epoch)) {
+    return;
+  }
   if (isUnsupportedCopy(localParsed)) {
     throw new Error(SETTINGS_CREATED_BY_NEWER_VERSION);
   }
-  if (localParsed.status !== 'ready') {
-    await sync.remove(storageKey);
+
+  const localEligible =
+    localParsed.status === 'ready' && shouldApplySiteCopy(localParsed, localRaw, epoch);
+  const syncEligible =
+    syncParsed.status === 'ready' && shouldApplySiteCopy(syncParsed, syncRaw, epoch);
+  if (!localEligible) {
+    if (cannotSafelyDestroy(syncParsed)) {
+      return;
+    }
+    if (epoch.status === 'known' && syncRaw != null && isOldGenerationCopy(syncRaw, epoch.epoch)) {
+      await sync.remove(storageKey);
+    }
     return;
+  }
+
+  const localRecord = readyRecord(localParsed);
+  const syncRecord = readyRecord(syncParsed);
+  const generation = mergedReplayGeneration(
+    localRaw,
+    syncRaw,
+    localRecord,
+    syncRecord,
+    localEligible,
+    syncEligible,
+    epoch,
+  );
+  const record: SiteSettingsV1 = {
+    schemaVersion: 1,
+    overrides: mergeBehaviorOverrides(
+      appliedOverrides(syncParsed, syncRaw, epoch),
+      appliedOverrides(localParsed, localRaw, epoch),
+    ),
+    lastUsedAt: Math.max(
+      localRecord?.lastUsedAt ?? 0,
+      syncEligible ? (syncRecord?.lastUsedAt ?? 0) : 0,
+    ),
+    ...(generation === undefined ? {} : { generation }),
+  };
+  if (record.lastUsedAt <= 0) {
+    record.lastUsedAt = now;
+  }
+  const localExtras = readyExtras(localParsed);
+  const syncExtras = readyExtras(syncParsed);
+  try {
+    await local.set({
+      [storageKey]: serializeSiteRecord(
+        record,
+        extrasForDestination('local', syncExtras, localExtras),
+      ),
+    });
+  } catch {
+    // The outbox stays durable until Sync accepts the merged winner.
   }
   await publishSyncSite(
     sync,
     storageKey,
-    localParsed.record,
-    extrasForDestination('sync', readyExtras(syncParsed), localParsed.extras),
+    record,
+    extrasForDestination('sync', syncExtras, localExtras),
     now,
     epoch,
   );
@@ -442,11 +541,12 @@ export async function recoverCorruptSiteOutbox(
   merged: MergedGeneration,
   localGeneration: ControlMetadataParse<SiteGenerationRecord>,
   syncGeneration: ControlMetadataParse<SiteGenerationRecord>,
-): Promise<void> {
+): Promise<boolean> {
   if (merged.status !== 'known') {
-    return;
+    return false;
   }
   await repairGenerationUpward(sync, local, merged, localGeneration, syncGeneration);
+  let complete = true;
   const entries = await listRawSiteEntries(sync);
   for (const entry of entries) {
     if (cannotSafelyDestroy(entry.parsed)) {
@@ -456,28 +556,17 @@ export async function recoverCorruptSiteOutbox(
       try {
         await sync.remove(entry.key);
       } catch {
-        // Conservative recovery must not abort the later explicit mutation.
+        complete = false;
       }
       continue;
     }
-    const localRaw = (await local.get(entry.key))[entry.key];
-    const localParsed = migrateSiteSettings(localRaw);
-    if (localParsed.status !== 'ready' || !shouldApplySiteCopy(localParsed, localRaw, merged)) {
-      continue;
-    }
     try {
-      await publishSyncSite(
-        sync,
-        entry.key,
-        localParsed.record,
-        extrasForDestination('sync', readyExtras(entry.parsed), localParsed.extras),
-        now,
-        merged,
-      );
+      await replayPublishSite(sync, local, entry.key, now, merged);
     } catch {
-      // Keep going; a later locked replay retries Sync-resident keys.
+      complete = false;
     }
   }
+  return complete;
 }
 
 async function tryShrinkSiteOutbox(
@@ -557,11 +646,18 @@ export async function replaySiteOutboxUnlocked(
 
   const remaining: string[] = [];
   for (const key of nextOutbox.publishSites) {
-    const localRaw = (await local.get(key))[key];
+    const [localRaw, syncRaw] = await Promise.all([
+      local.get(key).then((all) => all[key]),
+      sync.get(key).then((all) => all[key]),
+    ]);
+    const generationExempt =
+      cannotSafelyDestroy(migrateSiteSettings(localRaw)) ||
+      cannotSafelyDestroy(migrateSiteSettings(syncRaw));
     const decision = decidePublishSiteReplay(
       parseSiteRecordGeneration(localRaw),
       mergedAfter,
       syncEpoch,
+      generationExempt,
     );
     if (decision.action === 'obsolete') {
       continue;
@@ -584,7 +680,7 @@ export async function replaySiteOutboxUnlocked(
       syncEpoch = mergedAfter.epoch;
     }
     try {
-      await publishSiteFromLocal(sync, local, key, now, mergedAfter);
+      await replayPublishSite(sync, local, key, now, mergedAfter);
     } catch {
       remaining.push(key);
       continue;

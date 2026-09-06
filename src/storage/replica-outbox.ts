@@ -2,7 +2,9 @@
 
 import { z } from 'zod';
 import { LogicalValueSchema } from '../settings/behavior-schema';
+import { normalizeSiteHostname } from '../settings/site-hostname';
 import { parseSchemaVersionedControl, type ControlMetadataParse } from './control-metadata';
+import { hostnameFromSiteStorageKey } from './site-key';
 import type { MergedGeneration, ParsedGeneration } from './site-generation';
 
 export const SITE_OUTBOX_KEY = 'meta:dirty:sites';
@@ -32,8 +34,13 @@ const SiteResetAllSchema = z.object({
   cleanupPending: z.boolean(),
 });
 
+function isPublishableSiteKey(key: string): boolean {
+  const hostname = hostnameFromSiteStorageKey(key);
+  return hostname != null && normalizeSiteHostname(hostname) === hostname;
+}
+
 const SiteOutboxV1Schema = z.object({
-  publishSites: z.array(z.string().min(1)),
+  publishSites: z.array(z.string().refine(isPublishableSiteKey)),
 });
 
 const GlobalOutboxV1Schema = z.object({
@@ -193,15 +200,16 @@ export function decidePublishSiteReplay(
   siteGeneration: ParsedGeneration,
   merged: MergedGeneration,
   syncEpoch: number | null,
+  generationExempt = false,
 ): PublishSiteReplayDecision {
-  if (siteGeneration.status === 'unknown') {
+  if (siteGeneration.status === 'unknown' && !generationExempt) {
     return { action: 'ineligible' };
   }
   if (merged.status === 'unknown') {
     return { action: 'pending' };
   }
-  const generation = siteGeneration.value;
-  if (generation < merged.epoch) {
+  const generation = siteGeneration.status === 'unknown' ? 0 : siteGeneration.value;
+  if (generation < merged.epoch && !generationExempt) {
     return { action: 'obsolete' };
   }
   if (generation > merged.epoch) {

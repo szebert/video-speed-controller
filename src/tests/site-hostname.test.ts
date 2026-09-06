@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { normalizeSiteHostname, siteResolutionUrl } from '../settings/site-hostname';
-import { hostnameFromSiteStorageKey } from '../storage/site-key';
+import { hostnameFromSiteStorageKey, isSiteStorageKey } from '../storage/site-key';
 
 describe('normalizeSiteHostname', () => {
   it('accepts a bare hostname and synthesizes a resolution URL', () => {
@@ -29,5 +29,7 @@ describe('hostnameFromSiteStorageKey', () => {
     expect(hostnameFromSiteStorageKey('site:127.0.0.1')).toBe('127.0.0.1');
     expect(hostnameFromSiteStorageKey('site:')).toBeNull();
     expect(hostnameFromSiteStorageKey('defaults:site-behavior')).toBeNull();
+    expect(isSiteStorageKey('site:www.youtube.com')).toBe(true);
+    expect(isSiteStorageKey('meta:site-generation')).toBe(false);
   });
 });

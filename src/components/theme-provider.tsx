@@ -32,7 +32,9 @@ export function ThemeProvider({
   const setTheme = useCallback((preference: ThemePreference) => {
     setThemeState(preference);
     applyTheme(preference);
-    void sendOptionsRequest({ type: 'SET_THEME', preference });
+    void sendOptionsRequest({ type: 'SET_THEME', preference }).catch(() => {
+      // Apply immediately even if the persist RPC rejects.
+    });
   }, []);
 
   useEffect(() => {

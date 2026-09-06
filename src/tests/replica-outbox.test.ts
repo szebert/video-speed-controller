@@ -31,6 +31,18 @@ describe('replica outbox parsers', () => {
       value: { schemaVersion: 1, publish: true },
     });
     expect(parseGlobalReplicaOutbox({ schemaVersion: 1 })).toEqual({ status: 'corrupt' });
+    expect(
+      parseSiteReplicaOutbox({
+        schemaVersion: 1,
+        publishSites: ['meta:site-generation'],
+      }),
+    ).toEqual({ status: 'corrupt' });
+    expect(
+      parseSiteReplicaOutbox({
+        schemaVersion: 1,
+        publishSites: ['site:'],
+      }),
+    ).toEqual({ status: 'corrupt' });
   });
 
   it('lets Reset All supersede prior publishSites for reset keys', () => {
@@ -78,6 +90,17 @@ describe('replica outbox replay decisions', () => {
     ).toEqual({ action: 'eligible', publishGenerationFirst: true });
     expect(
       decidePublishSiteReplay({ status: 'legacy', value: 0 }, { status: 'known', epoch: 0 }, 0),
+    ).toEqual({ action: 'eligible', publishGenerationFirst: false });
+    expect(
+      decidePublishSiteReplay({ status: 'valid', value: 0 }, { status: 'known', epoch: 1 }, 1),
+    ).toEqual({ action: 'obsolete' });
+    expect(
+      decidePublishSiteReplay(
+        { status: 'valid', value: 0 },
+        { status: 'known', epoch: 1 },
+        1,
+        true,
+      ),
     ).toEqual({ action: 'eligible', publishGenerationFirst: false });
   });
 });

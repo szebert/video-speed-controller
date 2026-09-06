@@ -70,6 +70,7 @@ import {
 } from './hybrid-clock';
 import {
   SITE_OUTBOX_KEY,
+  REPLICA_OUTBOX_CORRUPT,
   addPublishSite,
   applyResetAllToOutbox,
   parseSiteReplicaOutbox,
@@ -522,7 +523,7 @@ async function persistMutatedSite(
     assertKnownGeneration(loaded.mergedGeneration);
     let outbox = loaded.siteOutbox;
     if (outbox.status === 'corrupt') {
-      await recoverCorruptSiteOutbox(
+      const recovered = await recoverCorruptSiteOutbox(
         loaded.sync,
         loaded.local,
         loaded.now,
@@ -530,6 +531,9 @@ async function persistMutatedSite(
         loaded.localGeneration,
         loaded.syncGeneration,
       );
+      if (!recovered) {
+        throw new Error(REPLICA_OUTBOX_CORRUPT);
+      }
       outbox = { status: 'absent' };
     }
     const currentOutbox = usableSiteOutbox(outbox);
@@ -757,7 +761,7 @@ export async function deleteSiteSettings(
     assertHybridClockUsable(siteClock);
     let outbox = siteOutbox;
     if (outbox.status === 'corrupt') {
-      await recoverCorruptSiteOutbox(
+      const recovered = await recoverCorruptSiteOutbox(
         sync,
         local,
         at,
@@ -765,6 +769,9 @@ export async function deleteSiteSettings(
         generation.localGeneration,
         generation.syncGeneration,
       );
+      if (!recovered) {
+        throw new Error(REPLICA_OUTBOX_CORRUPT);
+      }
       outbox = { status: 'absent' };
     }
     const issued = issueHybridTimestamp(
@@ -831,7 +838,7 @@ export async function deleteAllSiteSettings(
     assertHybridClockUsable(siteClock);
     let outbox = siteOutbox;
     if (outbox.status === 'corrupt') {
-      await recoverCorruptSiteOutbox(
+      const recovered = await recoverCorruptSiteOutbox(
         sync,
         local,
         at,
@@ -839,6 +846,9 @@ export async function deleteAllSiteSettings(
         generation.localGeneration,
         generation.syncGeneration,
       );
+      if (!recovered) {
+        throw new Error(REPLICA_OUTBOX_CORRUPT);
+      }
       outbox = { status: 'absent' };
     }
     const nextEpoch = checkedIncrement(generation.merged.epoch);

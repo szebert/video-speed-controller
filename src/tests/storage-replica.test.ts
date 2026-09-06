@@ -2,9 +2,13 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SYNC_TARGET_MAX_SITE_ITEMS } from '../settings/site-behavior';
-import { persistGlobalBehaviorChange } from '../storage/behavior-defaults';
+import {
+  persistGlobalBehaviorChange,
+  reconcilePendingGlobalReplicas,
+} from '../storage/behavior-defaults';
 import { SITE_HLC_KEY } from '../storage/hybrid-clock';
 import { GLOBAL_OUTBOX_KEY, SITE_OUTBOX_KEY } from '../storage/replica-outbox';
+import { GLOBAL_BEHAVIOR_KEY } from '../settings/site-behavior';
 import { SITE_GENERATION_KEY } from '../storage/site-generation';
 import {
   deleteAllSiteSettings,
@@ -615,5 +619,151 @@ describe('storage replica hardening', () => {
     });
     expect(sync.data[YOUTUBE_KEY]).toBeDefined();
     expect(attempts).toBeGreaterThanOrEqual(3);
+  });
+
+  it('merges current-generation Sync LWW fields instead of publishing stale Local', async () => {
+    const local = memoryDurable();
+    const sync = memoryDurable();
+    await persistSiteSpeed(YOUTUBE, 1.5, {
+      local,
+      sync: {
+        ...sync,
+        async set() {
+          throw new Error('offline');
+        },
+      },
+      now: () => 100,
+    });
+    sync.data[YOUTUBE_KEY] = siteRecord(2, 200, 0);
+    await reconcilePendingSiteReplicas({ local, sync, now: () => 100 });
+    expect(sync.data[YOUTUBE_KEY]).toMatchObject({
+      overrides: { speed: { value: 2, updatedAt: 200 } },
+    });
+    expect(local.data[YOUTUBE_KEY]).toMatchObject({
+      overrides: { speed: { value: 2, updatedAt: 200 } },
+    });
+  });
+
+  it('does not overwrite a future-generation Sync site with an eligible Local copy', async () => {
+    const deps = pair(50);
+    deps.local.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 6 };
+    deps.sync.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 6 };
+    deps.local.data[YOUTUBE_KEY] = siteRecord(1.5, 100, 6);
+    deps.local.data[SITE_OUTBOX_KEY] = { schemaVersion: 1, publishSites: [YOUTUBE_KEY] };
+    deps.sync.data[YOUTUBE_KEY] = siteRecord(2, 200, 7);
+    await reconcilePendingSiteReplicas(deps);
+    expect(deps.sync.data[YOUTUBE_KEY]).toMatchObject({
+      generation: 7,
+      overrides: { speed: { value: 2, updatedAt: 200 } },
+    });
+    expect(deps.local.data[YOUTUBE_KEY]).toMatchObject({
+      generation: 6,
+      overrides: { speed: { value: 1.5, updatedAt: 100 } },
+    });
+  });
+
+  it('does not downgrade or delete an unsupported Sync site during replay', async () => {
+    const deps = pair(50);
+    deps.local.data[YOUTUBE_KEY] = siteRecord(1.5, 100);
+    deps.local.data[SITE_OUTBOX_KEY] = { schemaVersion: 1, publishSites: [YOUTUBE_KEY] };
+    deps.sync.data[YOUTUBE_KEY] = { schemaVersion: 2, lastUsedAt: 1, overrides: { extra: true } };
+    await reconcilePendingSiteReplicas(deps);
+    expect(deps.sync.data[YOUTUBE_KEY]).toEqual({
+      schemaVersion: 2,
+      lastUsedAt: 1,
+      overrides: { extra: true },
+    });
+
+    const missingLocal = pair(50);
+    missingLocal.local.data[SITE_OUTBOX_KEY] = { schemaVersion: 1, publishSites: [YOUTUBE_KEY] };
+    missingLocal.sync.data[YOUTUBE_KEY] = {
+      schemaVersion: 2,
+      lastUsedAt: 1,
+      overrides: { extra: true },
+    };
+    await reconcilePendingSiteReplicas(missingLocal);
+    expect(missingLocal.sync.data[YOUTUBE_KEY]).toEqual({
+      schemaVersion: 2,
+      lastUsedAt: 1,
+      overrides: { extra: true },
+    });
+  });
+
+  it('keeps a dirty opaque skip-list site obligated through Reset All and replay', async () => {
+    const deps = pair(50);
+    await persistSiteSpeed('https://vimeo.com/1', 1.5, deps);
+    const opaque = {
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: {
+        speed: { kind: 'value' as const, value: 2, updatedAt: 1 },
+        seekInterval: { kind: 'value', value: 10, updatedAt: 1 },
+      },
+    };
+    deps.local.data[YOUTUBE_KEY] = opaque;
+    deps.local.data[SITE_OUTBOX_KEY] = { schemaVersion: 1, publishSites: [YOUTUBE_KEY] };
+    const result = await deleteAllSiteSettings({ ...deps, now: () => 200 });
+    expect(result).toEqual({ skippedRecordCount: 1 });
+    expect(deps.local.data[YOUTUBE_KEY]).toMatchObject({
+      overrides: { speed: { value: 2 }, seekInterval: { value: 10 } },
+    });
+    expect(deps.sync.data[YOUTUBE_KEY]).toMatchObject({
+      overrides: { speed: { value: 2 }, seekInterval: { value: 10 } },
+    });
+    expect(deps.local.data['site:vimeo.com']).toMatchObject({
+      overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
+    });
+  });
+
+  it('retains a corrupt outbox when Sync-resident recovery is incomplete', async () => {
+    const deps = pair(50);
+    deps.local.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 1 };
+    deps.sync.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 1 };
+    deps.local.data[SITE_OUTBOX_KEY] = { schemaVersion: 1, publishSites: 'bad' };
+    deps.sync.data['site:other.example'] = siteRecord(2, 10, 0);
+    await expect(
+      persistSiteSpeed(YOUTUBE, 1.75, {
+        ...deps,
+        sync: {
+          ...deps.sync,
+          async remove() {
+            throw new Error('offline');
+          },
+        },
+      }),
+    ).rejects.toThrow(/outbox metadata is corrupt/i);
+    expect(deps.local.data[SITE_OUTBOX_KEY]).toEqual({ schemaVersion: 1, publishSites: 'bad' });
+    expect(deps.sync.data['site:other.example']).toBeDefined();
+    expect(deps.local.data[YOUTUBE_KEY]).toBeUndefined();
+  });
+
+  it('merges current Sync and Local global fields during outbox replay', async () => {
+    const local = memoryDurable();
+    const sync = memoryDurable();
+    await persistGlobalBehaviorChange(
+      { kind: 'value', field: 'speed', value: 1.5 },
+      {
+        local,
+        sync: {
+          ...sync,
+          async set() {
+            throw new Error('offline');
+          },
+        },
+        now: () => 50,
+      },
+    );
+    sync.data[GLOBAL_BEHAVIOR_KEY] = {
+      schemaVersion: 1,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 200 } },
+    };
+    await reconcilePendingGlobalReplicas({ local, sync, now: () => 50 });
+    expect(sync.data[GLOBAL_BEHAVIOR_KEY]).toMatchObject({
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 200 } },
+    });
+    expect(local.data[GLOBAL_BEHAVIOR_KEY]).toMatchObject({
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 200 } },
+    });
+    expect(local.data[GLOBAL_OUTBOX_KEY]).toBeUndefined();
   });
 });
