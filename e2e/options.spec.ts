@@ -64,6 +64,11 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   await expect(options.getByRole('heading', { name: 'Settings' })).toBeVisible();
   await expect(options.getByRole('button', { name: 'Reset ALL Settings' })).toBeVisible();
   await expect(options.getByText('Restore settings to defaults')).toBeVisible();
+  await expect(options.getByRole('button', { name: 'Export' })).toBeVisible();
+  await expect(options.getByRole('button', { name: 'Import', exact: true })).toBeVisible();
+  await expect(options.getByText('No file selected')).toBeVisible();
+  await expect(options.getByRole('button', { name: 'Import (merge)' })).toBeDisabled();
+  await expect(options.getByRole('button', { name: 'Import (replace)' })).toBeDisabled();
 });
 
 test('options.html?site=127.0.0.1 selects Site', async ({ context, extensionId }) => {

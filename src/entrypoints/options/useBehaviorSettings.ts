@@ -5,6 +5,7 @@ import { sendOptionsRequest } from '../../protocol/rpc';
 import type {
   DeleteSiteSettingsResponse,
   OptionsToBackgroundRequest,
+  ImportBackupResponse,
   ResetAllBehaviorResponse,
   ResetGlobalBehaviorResponse,
   SetBehaviorSettingResponse,
@@ -12,7 +13,14 @@ import type {
 import type { BehaviorSettingsSnapshot, SiteMembershipUpdate } from '../../protocol/schemas/shared';
 import { adjustSpeed, clampPolicyNumber } from '../../core/speed';
 import { t } from '@/i18n/t';
+import {
+  BACKUP_CREATED_BY_NEWER_VERSION,
+  BACKUP_INVALID,
+  BACKUP_TOO_LARGE,
+  BACKUP_TOO_MANY_SITES,
+} from '../../settings/backup';
 import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../../settings/migrate';
+import { backupExportFilename, backupFailureMessage } from './backup-file';
 import {
   canonicalizeOverlayAutoHideDelayMs,
   speedPolicyFromResolved,
@@ -53,7 +61,8 @@ type MutationResponse =
   | SetBehaviorSettingResponse
   | DeleteSiteSettingsResponse
   | ResetGlobalBehaviorResponse
-  | ResetAllBehaviorResponse;
+  | ResetAllBehaviorResponse
+  | ImportBackupResponse;
 
 function applyMembership(current: string[], update: SiteMembershipUpdate): string[] {
   const has = current.includes(update.hostname);
@@ -69,6 +78,14 @@ function applyMembership(current: string[], update: SiteMembershipUpdate): strin
 function persistErrorMessage(error: string | undefined): string {
   if (error === SETTINGS_CREATED_BY_NEWER_VERSION) {
     return t('settingsNewerVersion');
+  }
+  if (
+    error === BACKUP_CREATED_BY_NEWER_VERSION ||
+    error === BACKUP_INVALID ||
+    error === BACKUP_TOO_LARGE ||
+    error === BACKUP_TOO_MANY_SITES
+  ) {
+    return backupFailureMessage(error);
   }
   return error || t('settingsSaveError');
 }
@@ -218,7 +235,9 @@ export function useBehaviorSettings() {
           ? omitMatchingOptimisticChanges(optimisticRef.current, options.sentChanges)
           : {},
       );
-      if (options.clearCustomSites) {
+      if ('customSites' in response && response.customSites) {
+        setCustomSites(response.customSites);
+      } else if (options.clearCustomSites) {
         setCustomSites([]);
       } else if ('siteMembership' in response && response.siteMembership) {
         const membership = response.siteMembership;
@@ -393,6 +412,63 @@ export function useBehaviorSettings() {
     });
   }
 
+  async function exportBackup(): Promise<void> {
+    if (blocking) {
+      return;
+    }
+    setBlocking(true);
+    setError(null);
+    try {
+      await coalescer?.flush();
+      const response = await sendOptionsRequest({ type: 'EXPORT_BACKUP' });
+      if (!response?.ok) {
+        setError(
+          response?.ok === false ? persistErrorMessage(response.error) : t('backupExportError'),
+        );
+        return;
+      }
+      const blob = new Blob([response.backupText], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = backupExportFilename();
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError(t('backupExportError'));
+    } finally {
+      setBlocking(false);
+    }
+  }
+
+  async function importBackup(mode: 'merge' | 'replace', backupText: string): Promise<boolean> {
+    let imported = false;
+    await runDestructive(async () => {
+      try {
+        const response = await sendOptionsRequest(
+          withSnapshotHostname({ type: 'IMPORT_BACKUP', mode, backupText }),
+        );
+        const partial = Boolean(
+          response?.ok && 'skippedRecordCount' in response && response.skippedRecordCount > 0,
+        );
+        if (response?.ok) {
+          imported = true;
+        }
+        if (!applyResponse(response) || (response && !response.ok)) {
+          await recover('pane-and-sidebar');
+          return;
+        }
+        if (partial && !('customSites' in (response ?? {}))) {
+          await recover('sidebar');
+        }
+      } catch {
+        setError(t('settingsSaveError'));
+        await recover('pane-and-sidebar');
+      }
+    });
+    return imported;
+  }
+
   async function resetAll(): Promise<void> {
     await runDestructive(async () => {
       try {
@@ -563,6 +639,8 @@ export function useBehaviorSettings() {
     deleteSite,
     resetDefaults,
     resetAll,
+    exportBackup,
+    importBackup,
     commitDecimal,
     commitDelay,
     setSliderPreview,

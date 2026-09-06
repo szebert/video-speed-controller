@@ -990,6 +990,164 @@ describe('Options page', () => {
     expect(sendMessage).toHaveBeenCalledWith({ type: 'RESET_ALL_BEHAVIOR' });
   });
 
+  it('exports settings from the Settings pane', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      if (message.type === 'EXPORT_BACKUP') {
+        return { ok: true, backupText: '{"formatVersion":1}\n' };
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:backup');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const downloadClick = vi.fn();
+    let downloaded = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloaded = this.download;
+      downloadClick();
+    });
+    await renderApp();
+    const settings = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Settings',
+    );
+    await act(async () => {
+      settings?.click();
+    });
+    const exportButton = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Export',
+    );
+    await act(async () => {
+      exportButton?.click();
+    });
+    expect(sendMessage).toHaveBeenCalledWith({ type: 'EXPORT_BACKUP' });
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(downloadClick).toHaveBeenCalled();
+    expect(downloaded).toMatch(/^os-vsc-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.json$/);
+    expect(revokeObjectURL).toHaveBeenCalled();
+  });
+
+  async function chooseBackupFile(contents: string, name = 'os-vsc-backup.json'): Promise<void> {
+    const input = container.querySelector('input[type="file"]');
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    const file = new File([contents], name, { type: 'application/json' });
+    await act(async () => {
+      Object.defineProperty(input as HTMLInputElement, 'files', {
+        configurable: true,
+        value: [file],
+      });
+      (input as HTMLInputElement).dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
+  it('parses a backup before offering merge or replace', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+        skippedRecordCount: 0,
+        customSites: [],
+      };
+    });
+    await renderApp();
+    const settings = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Settings',
+    );
+    await act(async () => {
+      settings?.click();
+    });
+    const mergeBefore = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Import (merge)',
+    );
+    expect(mergeBefore?.hasAttribute('disabled')).toBe(true);
+    expect(
+      [...container.querySelectorAll('button')].some((button) => button.textContent === 'Import'),
+    ).toBe(true);
+    expect(container.querySelector('[aria-label="Drop a backup file"]')).toBeTruthy();
+    expect(container.querySelector('[data-slot="attachment"]')?.getAttribute('data-state')).toBe(
+      'idle',
+    );
+    expect(container.textContent).toContain('No file selected');
+    await chooseBackupFile('{"formatVersion":1}', 'os-vsc-backup.json');
+    expect(container.querySelector('[data-slot="attachment"]')?.getAttribute('data-state')).toBe(
+      'done',
+    );
+    expect(container.textContent).toContain('os-vsc-backup.json');
+    expect(container.textContent).toContain('JSON');
+    const merge = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Import (merge)',
+    );
+    expect(merge?.hasAttribute('disabled')).toBe(false);
+    await act(async () => {
+      merge?.click();
+    });
+    expect(sendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'IMPORT_BACKUP' }),
+    );
+    const confirm = [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
+      (button) => button.textContent === 'Import',
+    );
+    await act(async () => {
+      confirm?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'IMPORT_BACKUP',
+        mode: 'merge',
+        backupText: '{"formatVersion":1}',
+      }),
+    );
+  });
+
+  it('shows a parse error on the file and keeps merge disabled', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const settings = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Settings',
+    );
+    await act(async () => {
+      settings?.click();
+    });
+    await chooseBackupFile('{', 'bad.json');
+    expect(container.querySelector('[data-slot="attachment"]')?.getAttribute('data-state')).toBe(
+      'error',
+    );
+    expect(container.textContent).toContain('bad.json');
+    expect(container.textContent).toContain(
+      'This file is not a valid Video Speed Controller backup.',
+    );
+    const merge = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Import (merge)',
+    );
+    const replace = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Import (replace)',
+    );
+    expect(merge?.hasAttribute('disabled')).toBe(true);
+    expect(replace?.hasAttribute('disabled')).toBe(true);
+    expect(sendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'IMPORT_BACKUP' }),
+    );
+  });
+
   it('deletes a listed site after confirmation', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {

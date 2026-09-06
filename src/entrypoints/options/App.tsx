@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FieldGroup } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { t } from '@/i18n/t';
+import { BackupSettingsCards } from './BackupSettingsCards';
 import { OverlaySettingsCard } from './OverlaySettingsCard';
 import { PlaybackSettingsCard } from './PlaybackSettingsCard';
 import { SettingsSidebar } from './SettingsSidebar';
@@ -48,6 +49,8 @@ export function App() {
     deleteSite,
     resetDefaults,
     resetAll,
+    exportBackup,
+    importBackup,
     commitDecimal,
     commitDelay,
     setSliderPreview,
@@ -94,6 +97,13 @@ export function App() {
                 <h2 className="text-lg font-semibold">{t('settingsTitle')}</h2>
                 <p className="text-sm text-muted-foreground">{t('settingsPageDescription')}</p>
               </div>
+              <BackupSettingsCards
+                pending={pending}
+                onExport={() => {
+                  void exportBackup();
+                }}
+                onImport={importBackup}
+              />
               <Card>
                 <CardHeader>
                   <CardTitle>{t('resetAllSettings')}</CardTitle>
