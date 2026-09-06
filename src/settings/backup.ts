@@ -20,6 +20,8 @@ export const MAX_BACKUP_HOSTNAME_LENGTH = 253;
 
 export const BACKUP_CREATED_BY_NEWER_VERSION =
   'This backup was created by a newer version of Video Speed Controller.';
+export const BACKUP_CONTAINS_NEWER_SETTINGS =
+  'This backup contains settings added by a newer version of Video Speed Controller.';
 export const BACKUP_INVALID = 'This file is not a valid Video Speed Controller backup.';
 export const BACKUP_TOO_LARGE = 'This backup file is too large.';
 export const BACKUP_TOO_MANY_SITES = 'This backup contains too many sites.';
@@ -224,10 +226,27 @@ function invalid(error = BACKUP_INVALID): BackupParseResult {
   return { status: 'invalid', error };
 }
 
+function isUnrecognizedSettingKeys(error: z.ZodError): boolean {
+  return (
+    error.issues.length > 0 &&
+    error.issues.every((issue) => {
+      if (issue.code !== 'unrecognized_keys') {
+        return false;
+      }
+      const path = issue.path;
+      return (
+        (path.length === 1 && path[0] === 'global') || (path.length === 2 && path[0] === 'sites')
+      );
+    })
+  );
+}
+
 function parseBackupV1(value: unknown): BackupParseResult {
   const parsed = BackupFormatV1Schema.safeParse(value);
   if (!parsed.success) {
-    return invalid();
+    return invalid(
+      isUnrecognizedSettingKeys(parsed.error) ? BACKUP_CONTAINS_NEWER_SETTINGS : BACKUP_INVALID,
+    );
   }
   const rawSites = parsed.data.sites ?? {};
   const sourceNames = Object.keys(rawSites);

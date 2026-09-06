@@ -14,6 +14,7 @@ import type { BehaviorSettingsSnapshot, SiteMembershipUpdate } from '../../proto
 import { adjustSpeed, clampPolicyNumber } from '../../core/speed';
 import { t } from '@/i18n/t';
 import {
+  BACKUP_CONTAINS_NEWER_SETTINGS,
   BACKUP_CREATED_BY_NEWER_VERSION,
   BACKUP_INVALID,
   BACKUP_TOO_LARGE,
@@ -81,6 +82,7 @@ function persistErrorMessage(error: string | undefined): string {
   }
   if (
     error === BACKUP_CREATED_BY_NEWER_VERSION ||
+    error === BACKUP_CONTAINS_NEWER_SETTINGS ||
     error === BACKUP_INVALID ||
     error === BACKUP_TOO_LARGE ||
     error === BACKUP_TOO_MANY_SITES

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   assertCompleteBackup,
+  BACKUP_CONTAINS_NEWER_SETTINGS,
   BACKUP_CREATED_BY_NEWER_VERSION,
   BACKUP_INVALID,
   BACKUP_TOO_LARGE,
@@ -136,7 +137,7 @@ describe('backup format', () => {
     expect(parsed.backup.sites).toEqual({ 'netflix.com': { speed: 1.5 } });
   });
 
-  it('rejects raw storage dumps, unknown keys, and newer format versions', () => {
+  it('rejects raw storage dumps, unknown top-level keys, and newer format versions', () => {
     expect(parseBackupText(JSON.stringify({ schemaVersion: 1, overrides: {} }))).toEqual({
       status: 'invalid',
       error: BACKUP_INVALID,
@@ -145,7 +146,7 @@ describe('backup format', () => {
       parseBackupText(
         JSON.stringify({
           formatVersion: 1,
-          global: { speed: 1.25, mystery: true },
+          extra: true,
         }),
       ),
     ).toEqual({ status: 'invalid', error: BACKUP_INVALID });
@@ -154,6 +155,25 @@ describe('backup format', () => {
       formatVersion: 2,
     });
     expect(BACKUP_CREATED_BY_NEWER_VERSION).toMatch(/newer version/i);
+  });
+
+  it('names unknown V1 setting fields as newer-version settings', () => {
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { speed: 1.25, preservePitch: true },
+        }),
+      ),
+    ).toEqual({ status: 'invalid', error: BACKUP_CONTAINS_NEWER_SETTINGS });
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          sites: { 'netflix.com': { preservePitch: true } },
+        }),
+      ),
+    ).toEqual({ status: 'invalid', error: BACKUP_CONTAINS_NEWER_SETTINGS });
   });
 
   it('names both source hostnames on a normalize collision', () => {

@@ -44,6 +44,21 @@ describe('backup file staging', () => {
     expect(staged.error).toBe('This backup contains too many sites.');
   });
 
+  it('names unknown V1 setting fields as newer-version settings', () => {
+    const backupText = JSON.stringify({
+      formatVersion: 1,
+      global: { preservePitch: true },
+    });
+    const staged = parseStagedBackupFile('newer.json', backupText.length, backupText);
+    expect(staged.status).toBe('error');
+    if (staged.status !== 'error') {
+      throw new Error('expected error');
+    }
+    expect(staged.error).toBe(
+      'This backup contains settings added by a newer version of Video Speed Controller.',
+    );
+  });
+
   it('rejects a newer format version before import', () => {
     const staged = parseStagedBackupFile(
       'future.json',

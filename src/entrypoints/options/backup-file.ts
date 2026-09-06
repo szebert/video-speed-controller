@@ -2,6 +2,7 @@
 
 import { t } from '@/i18n/t';
 import {
+  BACKUP_CONTAINS_NEWER_SETTINGS,
   BACKUP_CREATED_BY_NEWER_VERSION,
   BACKUP_INVALID,
   BACKUP_TOO_LARGE,
@@ -27,6 +28,9 @@ export type StagedBackupFile =
 export function backupFailureMessage(error: string | undefined): string {
   if (error === BACKUP_CREATED_BY_NEWER_VERSION) {
     return t('backupNewerVersion');
+  }
+  if (error === BACKUP_CONTAINS_NEWER_SETTINGS) {
+    return t('backupNewerSettings');
   }
   if (error === BACKUP_TOO_LARGE) {
     return t('backupTooLarge');
