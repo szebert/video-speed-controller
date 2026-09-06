@@ -7,8 +7,9 @@ export type ReapplyMode = 'none' | 'preserve-target' | 'revalidate-target' | 're
 
 // Content-safe registry: defaults and reapply policy. Domain types derive from
 // this. Validators do not — Mini APPLY, options RPC, and storage salvage each
-// keep their own schema so Zod stays out of overlay/content. Backup V1 is a
-// frozen historical field contract in settings/backup.ts, not these defaults.
+// keep their own schema so Zod stays out of overlay/content. Backup V1 is an
+// additive protocol in settings/backup.ts: existing field representations stay
+// stable; new optional settings may join V1.
 export const BEHAVIOR_FIELDS = {
   speed: {
     default: 1,

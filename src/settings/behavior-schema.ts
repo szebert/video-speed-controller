@@ -30,7 +30,7 @@ type BehaviorValueSchemaMap = {
 
 // Storage salvage (regular Zod). Stricter than RPC/Mini (integer delay).
 // Cannot be imported from protocol/content or the content graph. Backup V1
-// is a separate historical contract and must not reuse these live schemas.
+// keeps its own field representations and must not reuse these live schemas.
 export const LogicalValueSchema = z.number().refine(isLogicalValue);
 
 export const behaviorValueSchemas = {

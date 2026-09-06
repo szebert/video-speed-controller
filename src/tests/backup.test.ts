@@ -26,6 +26,8 @@ function readBackupFixture(name: string): string {
   return readFileSync(join(FIXTURES, name), 'utf8');
 }
 
+// Original released V1 vocabulary. Later additive V1 fields get additional
+// fixtures; these files must keep parsing and round-tripping.
 const COMPLETE_BACKUP_V1: LogicalBackup = {
   formatVersion: 1,
   global: {
@@ -196,13 +198,13 @@ describe('backup format', () => {
     });
   });
 
-  it('parses and reserializes the frozen V1 complete fixture', () => {
+  it('still imports and reserializes the original complete V1 fixture', () => {
     const text = readBackupFixture('backup-v1-complete.json');
     expect(parseBackupText(text)).toEqual({ status: 'ready', backup: COMPLETE_BACKUP_V1 });
     expect(serializeBackup(COMPLETE_BACKUP_V1)).toBe(text);
   });
 
-  it('parses and reserializes the frozen V1 minimal fixture', () => {
+  it('still imports and reserializes the original minimal V1 fixture', () => {
     const text = readBackupFixture('backup-v1-minimal.json');
     const backup: LogicalBackup = { formatVersion: 1, global: {}, sites: {} };
     expect(parseBackupText(text)).toEqual({ status: 'ready', backup });

@@ -40,9 +40,14 @@ export type BackupParseResult =
   | { status: 'unsupported'; formatVersion: number }
   | { status: 'invalid'; error: string };
 
-// Historical formatVersion 1 field contract. Do not compose this from the live
-// storage salvage schemas — changing a current range must not change what a V1
-// file means. Import still canonicalizes through the current domain after parse.
+// V1 backup protocol. Existing field representations are historical contracts
+// and must not change incompatibly. New optional settings may be added while
+// remaining formatVersion 1. Increment formatVersion only when an existing
+// representation or backup structure changes incompatibly.
+//
+// Do not compose these from live storage salvage schemas — changing a current
+// range must not change what a V1 file is syntactically allowed to contain.
+// Import still canonicalizes through the current domain after parse.
 const BackupV1DelaySchema = z
   .number()
   .refine(Number.isInteger)
@@ -52,7 +57,8 @@ const BackupV1OverlayPositionSchema = z.literal([
   0, 1, 2, 3, 4, 5, 6, 7, 8,
 ]) satisfies z.ZodType<OverlayPosition>;
 
-const LogicalFieldValuesSchema = z.strictObject({
+const BackupV1FieldSchema = z.strictObject({
+  // Original V1 fields.
   speed: z.number().optional(),
   speedMin: z.number().optional(),
   speedMax: z.number().optional(),
@@ -66,19 +72,20 @@ const LogicalFieldValuesSchema = z.strictObject({
   overlayAutoHideDelayMs: BackupV1DelaySchema.optional(),
 });
 
-true satisfies Equal<z.infer<typeof LogicalFieldValuesSchema>, LogicalFieldValues>;
+// Adding an editable field must also add an optional V1 field.
+true satisfies Equal<z.infer<typeof BackupV1FieldSchema>, LogicalFieldValues>;
 
 const BackupFormatV1Schema = z.strictObject({
   formatVersion: z.literal(1),
-  global: LogicalFieldValuesSchema.optional(),
-  sites: z.record(z.string(), LogicalFieldValuesSchema).optional(),
+  global: BackupV1FieldSchema.optional(),
+  sites: z.record(z.string(), BackupV1FieldSchema).optional(),
   theme: z.enum(['dark', 'light', 'system']).optional(),
 });
 
 export const LogicalBackupSchema = z.object({
   formatVersion: z.literal(1),
-  global: LogicalFieldValuesSchema,
-  sites: z.record(z.string(), LogicalFieldValuesSchema),
+  global: BackupV1FieldSchema,
+  sites: z.record(z.string(), BackupV1FieldSchema),
   theme: z.enum(['dark', 'light', 'system']).optional(),
 });
 
@@ -276,8 +283,8 @@ export function migrateBackup(value: unknown): BackupParseResult {
   if (formatVersion !== 1) {
     return invalid();
   }
-  // formatVersion 1 is the historical on-disk contract. A future V2 must keep
-  // parseBackupV1 unchanged and add migrateBackupV1ToCurrent plus fixtures.
+  // A future V2 must continue accepting all historically valid V1 files.
+  // parseBackupV1 may grow to recognize later additive V1 fields.
   return parseBackupV1(value);
 }
 
