@@ -84,6 +84,17 @@ export const ResetAllBehaviorResponseSchema = z.union([
   z.object({ ok: z.literal(false), error: z.string() }),
 ]);
 
+export const ExportBackupRequestSchema = z.object({
+  type: z.literal('EXPORT_BACKUP'),
+});
+
+export const ImportBackupRequestSchema = z.object({
+  type: z.literal('IMPORT_BACKUP'),
+  mode: z.enum(['merge', 'replace']),
+  backupText: z.string(),
+  snapshotHostname: z.string().optional(),
+});
+
 export const SetThemeRequestSchema = z.object({
   type: z.literal('SET_THEME'),
   preference: z.enum(['dark', 'light', 'system']),
@@ -91,6 +102,21 @@ export const SetThemeRequestSchema = z.object({
 
 export const SetThemeResponseSchema = z.union([
   z.object({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+]);
+
+export const ExportBackupResponseSchema = z.union([
+  z.object({ ok: z.literal(true), backupText: z.string() }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+]);
+
+export const ImportBackupResponseSchema = z.union([
+  BehaviorMutationSuccessSchema.and(
+    z.object({
+      skippedRecordCount: z.number().int().nonnegative(),
+      customSites: z.array(z.string()),
+    }),
+  ),
   z.object({ ok: z.literal(false), error: z.string() }),
 ]);
 
@@ -123,6 +149,14 @@ export const OPTIONS_TO_BACKGROUND = {
     request: SetThemeRequestSchema,
     response: SetThemeResponseSchema,
   },
+  EXPORT_BACKUP: {
+    request: ExportBackupRequestSchema,
+    response: ExportBackupResponseSchema,
+  },
+  IMPORT_BACKUP: {
+    request: ImportBackupRequestSchema,
+    response: ImportBackupResponseSchema,
+  },
 } as const;
 
 export type GetBehaviorSettingsRequest = z.infer<typeof GetBehaviorSettingsRequestSchema>;
@@ -139,6 +173,10 @@ export type ResetGlobalBehaviorResponse = z.infer<typeof ResetGlobalBehaviorResp
 export type ResetAllBehaviorResponse = z.infer<typeof ResetAllBehaviorResponseSchema>;
 export type SetThemeRequest = z.infer<typeof SetThemeRequestSchema>;
 export type SetThemeResponse = z.infer<typeof SetThemeResponseSchema>;
+export type ExportBackupRequest = z.infer<typeof ExportBackupRequestSchema>;
+export type ExportBackupResponse = z.infer<typeof ExportBackupResponseSchema>;
+export type ImportBackupRequest = z.infer<typeof ImportBackupRequestSchema>;
+export type ImportBackupResponse = z.infer<typeof ImportBackupResponseSchema>;
 export type OptionsToBackgroundRequest = z.infer<
   (typeof OPTIONS_TO_BACKGROUND)[keyof typeof OPTIONS_TO_BACKGROUND]['request']
 >;

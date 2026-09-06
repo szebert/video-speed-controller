@@ -13,6 +13,27 @@ export function enqueueStorageMutation<T>(key: string, task: () => Promise<T>): 
   return storageMutations.enqueue(key, task);
 }
 
+function uniqueSortedKeys(keys: readonly string[]): string[] {
+  return [...new Set(keys)].sort();
+}
+
+export function enqueueStorageMutations<T>(
+  keys: readonly string[],
+  task: () => Promise<T>,
+): Promise<T> {
+  const ordered = uniqueSortedKeys(keys);
+  if (ordered.length === 0) {
+    return task();
+  }
+  const [head, ...rest] = ordered;
+  if (head === undefined) {
+    return task();
+  }
+  return enqueueStorageMutation(head, () =>
+    rest.length === 0 ? task() : enqueueStorageMutations(rest, task),
+  );
+}
+
 export function resetStorageMutationQueue(): void {
   storageMutations.reset();
 }

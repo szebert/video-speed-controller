@@ -151,6 +151,11 @@ describe('parseBackgroundInbound', () => {
     expect(accepted({ type: 'SET_THEME', preference: 'system' })).toBe(true);
     expect(accepted({ type: 'SET_THEME', preference: 'sepia' })).toBe(false);
     expect(accepted({ type: 'SET_THEME' })).toBe(false);
+    expect(accepted({ type: 'EXPORT_BACKUP' })).toBe(true);
+    expect(accepted({ type: 'IMPORT_BACKUP', mode: 'merge', backupText: '{}' })).toBe(true);
+    expect(accepted({ type: 'IMPORT_BACKUP', mode: 'replace', backupText: '{}' })).toBe(true);
+    expect(accepted({ type: 'IMPORT_BACKUP', mode: 'merge' })).toBe(false);
+    expect(accepted({ type: 'IMPORT_BACKUP', mode: 'wipe', backupText: '{}' })).toBe(false);
     expect(accepted({ type: 'APPLY_TAB_BEHAVIOR', behavior: tabBehavior(1.5) })).toBe(false);
   });
 

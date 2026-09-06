@@ -28,15 +28,16 @@ type BehaviorValueSchemaMap = {
   [K in BehaviorField]: z.ZodType<BehaviorFieldValue<K>>;
 };
 
-// Storage salvage (regular Zod). Stricter than RPC/Mini (finite numbers,
-// integer delay). Cannot be imported from protocol/content or the content graph.
+// Storage salvage (regular Zod). Stricter than RPC/Mini (integer delay).
+// Cannot be imported from protocol/content or the content graph. Backup
+// composes optional copies of these; do not hand-write a fourth field list.
 export const LogicalValueSchema = z.number().refine(isLogicalValue);
 
 export const behaviorValueSchemas = {
-  speed: z.number().finite(),
-  speedMin: z.number().finite(),
-  speedMax: z.number().finite(),
-  speedTick: z.number().finite(),
+  speed: z.number(),
+  speedMin: z.number(),
+  speedMax: z.number(),
+  speedTick: z.number(),
   overlayVisible: z.boolean(),
   overlayPosition: StoredOverlayPositionSchema,
   overlayPositionButton: z.boolean(),

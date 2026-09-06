@@ -3,8 +3,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteSiteBehaviorSettings,
+  exportBehaviorBackup,
   getBehaviorSettings,
   getCustomSites,
+  importBehaviorBackup,
   resetAllBehaviorSettings,
   resetGlobalBehaviorSettings,
   setBehaviorSetting,
@@ -66,6 +68,16 @@ describe('behavior settings API', () => {
           scope: { kind: 'global' },
           change: { kind: 'value', field: 'speed', value: 1.5 },
         },
+        { url: 'https://example.com/' },
+      ),
+    ).resolves.toEqual({ ok: false, error: 'Unauthorized' });
+    await expect(exportBehaviorBackup({ url: 'https://example.com/' })).resolves.toEqual({
+      ok: false,
+      error: 'Unauthorized',
+    });
+    await expect(
+      importBehaviorBackup(
+        { type: 'IMPORT_BACKUP', mode: 'merge', backupText: '{}' },
         { url: 'https://example.com/' },
       ),
     ).resolves.toEqual({ ok: false, error: 'Unauthorized' });

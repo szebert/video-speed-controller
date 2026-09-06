@@ -11,8 +11,10 @@ import { setOverlayPositionFromSender } from '../background/set-overlay-position
 import { setSpeed } from '../background/set-speed';
 import {
   deleteSiteBehaviorSettings,
+  exportBehaviorBackup,
   getBehaviorSettings,
   getCustomSites,
+  importBehaviorBackup,
   resetAllBehaviorSettings,
   resetGlobalBehaviorSettings,
   setBehaviorSetting,
@@ -232,6 +234,26 @@ export default defineBackground(() => {
         respondWithError(sendResponse, 'SET_THEME', {
           ok: false,
           error: 'Unexpected theme write failure',
+        }),
+      );
+      return true;
+    }
+    if (request.type === 'EXPORT_BACKUP') {
+      void exportBehaviorBackup(sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'EXPORT_BACKUP', {
+          ok: false,
+          error: 'Unexpected backup export failure',
+        }),
+      );
+      return true;
+    }
+    if (request.type === 'IMPORT_BACKUP') {
+      void importBehaviorBackup(request, sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'IMPORT_BACKUP', {
+          ok: false,
+          error: 'Unexpected backup import failure',
         }),
       );
       return true;

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { BEHAVIOR_FIELDS, EDITABLE_BEHAVIOR_FIELDS } from '../settings/behavior-fields';
 import { behaviorValueSchemas } from '../settings/behavior-schema';
 import { BUILT_IN_SITE_BEHAVIOR } from '../settings/site-behavior';
+import { LogicalBackupSchema } from '../settings/backup';
 
 describe('behavior field registry', () => {
   it('keeps registry, storage schema, and editable keys in parity', () => {
@@ -12,5 +13,8 @@ describe('behavior field registry', () => {
     expect(Object.keys(BUILT_IN_SITE_BEHAVIOR).sort()).toEqual(
       [...EDITABLE_BEHAVIOR_FIELDS, 'hotkeys'].sort(),
     );
+    expect(Object.keys(LogicalBackupSchema.shape.global.shape)).toEqual([
+      ...EDITABLE_BEHAVIOR_FIELDS,
+    ]);
   });
 });

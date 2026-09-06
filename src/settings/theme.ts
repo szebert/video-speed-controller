@@ -2,6 +2,7 @@
 
 import { THEME_KEY } from './site-behavior';
 import { defaultSyncStore, type DurableSettingsStore } from '../storage/durable-store';
+import { enqueueStorageMutation, THEME_LOCK } from '../storage/storage-mutation-queue';
 import {
   CURRENT_THEME_SCHEMA_VERSION,
   SETTINGS_CREATED_BY_NEWER_VERSION,
@@ -92,7 +93,7 @@ export async function getStoredTheme(deps: ThemeDeps = {}): Promise<ThemePrefere
   }
 }
 
-export async function persistTheme(
+export async function persistThemeUnlocked(
   preference: ThemePreference,
   deps: ThemeDeps = {},
 ): Promise<void> {
@@ -106,6 +107,13 @@ export async function persistTheme(
   await sync.set({
     [THEME_KEY]: serializeThemeRecord({ schemaVersion: 1, preference }, extras),
   });
+}
+
+export async function persistTheme(
+  preference: ThemePreference,
+  deps: ThemeDeps = {},
+): Promise<void> {
+  return enqueueStorageMutation(THEME_LOCK, () => persistThemeUnlocked(preference, deps));
 }
 
 export function resolveColorScheme(

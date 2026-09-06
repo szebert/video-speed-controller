@@ -3,9 +3,12 @@
 import type {
   DeleteSiteSettingsRequest,
   DeleteSiteSettingsResponse,
+  ExportBackupResponse,
   GetBehaviorSettingsRequest,
   GetBehaviorSettingsResponse,
   GetCustomSitesResponse,
+  ImportBackupRequest,
+  ImportBackupResponse,
   ResetAllBehaviorRequest,
   ResetAllBehaviorResponse,
   ResetGlobalBehaviorRequest,
@@ -31,6 +34,7 @@ import {
   resetGlobalBehaviorOverrides,
   type BehaviorDefaultsDeps,
 } from '../storage/behavior-defaults';
+import { exportLogicalBackupText, importLogicalSettings } from '../storage/logical-backup';
 import {
   deleteAllSiteSettings,
   deleteSiteSettings,
@@ -314,5 +318,45 @@ export async function resetAllBehaviorSettings(
     return { ...result, skippedRecordCount };
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to reset settings') };
+  }
+}
+
+export async function exportBehaviorBackup(
+  sender: chrome.runtime.MessageSender,
+  deps: BehaviorSettingsDeps = {},
+): Promise<ExportBackupResponse> {
+  if (!isExtensionPageSender(sender)) {
+    return { ok: false, error: 'Unauthorized' };
+  }
+  try {
+    return { ok: true, backupText: await exportLogicalBackupText(deps) };
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, 'Failed to export settings') };
+  }
+}
+
+export async function importBehaviorBackup(
+  message: ImportBackupRequest,
+  sender: chrome.runtime.MessageSender,
+  deps: BehaviorSettingsDeps = {},
+): Promise<ImportBackupResponse> {
+  if (!isExtensionPageSender(sender)) {
+    return { ok: false, error: 'Unauthorized' };
+  }
+  const snapshot = validatedOptionalHostname(message.snapshotHostname);
+  if (!snapshot.ok) {
+    return snapshot;
+  }
+  try {
+    const imported = await importLogicalSettings(message.backupText, message.mode, deps);
+    const customSites = await listCustomSiteHostnames(deps);
+    const result = await afterPersist(
+      snapshot.hostname,
+      { scope: { kind: 'all' }, mode: 'resolve-target' },
+      deps,
+    );
+    return { ...result, skippedRecordCount: imported.skippedRecordCount, customSites };
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, 'Failed to import settings') };
   }
 }

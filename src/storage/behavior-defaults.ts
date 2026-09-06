@@ -164,6 +164,15 @@ export async function reconcilePendingGlobalReplicas(
   });
 }
 
+export async function readGlobalBehaviorCopiesUnlocked(deps: BehaviorDefaultsDeps = {}): Promise<{
+  syncParsed: SettingsParseResult<GlobalBehaviorSettingsV1>;
+  localParsed: SettingsParseResult<GlobalBehaviorSettingsV1>;
+  merged: BehaviorOverrides;
+}> {
+  const { sync, local } = stores(deps);
+  return readCopies(sync, local);
+}
+
 async function readCopies(
   sync: DurableSettingsStore,
   local: DurableSettingsStore,
@@ -326,41 +335,61 @@ async function persistGlobalRecord(
   }
 }
 
+export async function persistGlobalBehaviorOverridesUnlocked(
+  mutate: (current: BehaviorOverrides, now: number) => BehaviorOverrides,
+  deps: BehaviorDefaultsDeps = {},
+): Promise<void> {
+  const { sync, local, now } = stores(deps);
+  const at = now();
+  const copies = await readCopies(sync, local);
+  const localMeta = await local.get(GLOBAL_HLC_KEY);
+  const clock = parseHybridClockRecord(localMeta[GLOBAL_HLC_KEY]);
+  if (clock.status === 'corrupt') {
+    console.warn('Failed to parse global hybrid clock', localMeta[GLOBAL_HLC_KEY]);
+  }
+  assertHybridClockUsable(clock);
+  const issued = issueHybridTimestamp(
+    clock,
+    at,
+    collectOverrideTimestamps(
+      readyRecord(copies.syncParsed)?.overrides,
+      readyRecord(copies.localParsed)?.overrides,
+    ),
+  );
+  const next: GlobalBehaviorSettingsV1 = {
+    schemaVersion: 1,
+    overrides: mutate(copies.merged, issued.timestamp),
+  };
+  await persistGlobalRecord(
+    sync,
+    local,
+    next,
+    copies.syncParsed,
+    copies.localParsed,
+    issued.record,
+  );
+}
+
 export async function persistGlobalBehaviorOverrides(
   mutate: (current: BehaviorOverrides, now: number) => BehaviorOverrides,
   deps: BehaviorDefaultsDeps = {},
 ): Promise<void> {
-  return enqueueStorageMutation(GLOBAL_DEFAULTS_LOCK, async () => {
-    const { sync, local, now } = stores(deps);
-    const at = now();
-    const copies = await readCopies(sync, local);
-    const localMeta = await local.get(GLOBAL_HLC_KEY);
-    const clock = parseHybridClockRecord(localMeta[GLOBAL_HLC_KEY]);
-    if (clock.status === 'corrupt') {
-      console.warn('Failed to parse global hybrid clock', localMeta[GLOBAL_HLC_KEY]);
+  return enqueueStorageMutation(GLOBAL_DEFAULTS_LOCK, () =>
+    persistGlobalBehaviorOverridesUnlocked(mutate, deps),
+  );
+}
+
+export async function persistGlobalBehaviorChangesUnlocked(
+  changes: readonly BehaviorSettingChange[],
+  deps: BehaviorDefaultsDeps = {},
+): Promise<void> {
+  await persistGlobalBehaviorOverridesUnlocked((current, at) => {
+    let next = current;
+    for (const change of changes) {
+      next = applyBehaviorSettingChange(next, change, at);
     }
-    assertHybridClockUsable(clock);
-    const issued = issueHybridTimestamp(
-      clock,
-      at,
-      collectOverrideTimestamps(
-        readyRecord(copies.syncParsed)?.overrides,
-        readyRecord(copies.localParsed)?.overrides,
-      ),
-    );
-    const next: GlobalBehaviorSettingsV1 = {
-      schemaVersion: 1,
-      overrides: mutate(copies.merged, issued.timestamp),
-    };
-    await persistGlobalRecord(
-      sync,
-      local,
-      next,
-      copies.syncParsed,
-      copies.localParsed,
-      issued.record,
-    );
-  });
+    return next;
+  }, deps);
 }
 
 export async function persistGlobalBehaviorChanges(

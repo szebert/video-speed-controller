@@ -7,7 +7,8 @@ export type ReapplyMode = 'none' | 'preserve-target' | 'revalidate-target' | 're
 
 // Content-safe registry: defaults and reapply policy. Domain types derive from
 // this. Validators do not — Mini APPLY, options RPC, and storage salvage each
-// keep their own schema so Zod stays out of overlay/content.
+// keep their own schema so Zod stays out of overlay/content. Backup JSON
+// reuses optional storage value schemas instead of adding another field list.
 export const BEHAVIOR_FIELDS = {
   speed: {
     default: 1,

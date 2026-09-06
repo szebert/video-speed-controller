@@ -15,6 +15,7 @@ const UI_ENTRIES = [
 
 const FORBIDDEN_PERSIST = new Set([
   'persistTheme',
+  'persistThemeUnlocked',
   'persistSiteBehaviorChanges',
   'persistSiteBehaviorChange',
   'persistSiteSpeed',
@@ -25,6 +26,12 @@ const FORBIDDEN_PERSIST = new Set([
   'persistGlobalBehaviorChanges',
   'persistGlobalBehaviorChange',
   'resetGlobalBehaviorOverrides',
+  'persistGlobalBehaviorOverridesUnlocked',
+  'persistGlobalBehaviorChangesUnlocked',
+  'importLogicalSettings',
+  'importLogicalSitesUnlocked',
+  'exportLogicalBackup',
+  'exportLogicalBackupText',
 ]);
 
 const STORAGE_MUTATOR =

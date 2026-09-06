@@ -819,6 +819,246 @@ export async function deleteSiteSettings(
   });
 }
 
+export type ImportedSiteWrite = {
+  hostname: string;
+  changes: readonly BehaviorSettingChange[];
+};
+
+export type MergedSiteOverrideRead = {
+  hostname: string;
+  overrides: BehaviorOverrides;
+  lastUsedAt: number;
+};
+
+export async function readMergedSiteOverridesUnlocked(
+  deps: SiteSettingsDeps = {},
+): Promise<MergedSiteOverrideRead[]> {
+  const { sync, local } = stores(deps);
+  const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
+  const generation = generationFromStores(syncAll, localAll);
+  const sites: MergedSiteOverrideRead[] = [];
+  const keys = new Set([...Object.keys(syncAll), ...Object.keys(localAll)]);
+  for (const key of keys) {
+    const hostname = hostnameFromSiteStorageKey(key);
+    if (!hostname || !normalizeSiteHostname(hostname)) {
+      continue;
+    }
+    const copies = copiesForKey(syncAll, localAll, key, generation.merged);
+    sites.push({
+      hostname,
+      overrides: copies.merged,
+      lastUsedAt: Math.max(
+        readyRecord(copies.syncParsed)?.lastUsedAt ?? 0,
+        readyRecord(copies.localParsed)?.lastUsedAt ?? 0,
+      ),
+    });
+  }
+  return sites;
+}
+
+function applyImportedChanges(
+  current: BehaviorOverrides,
+  changes: readonly BehaviorSettingChange[],
+  at: number,
+): BehaviorOverrides {
+  let next = current;
+  for (const change of changes) {
+    next = applyBehaviorSettingChange(next, change, at);
+  }
+  return next;
+}
+
+function issueNextHybridTimestamp(
+  clock: ReturnType<typeof parseHybridClockRecord>,
+  now: number,
+  observed: readonly number[],
+): {
+  timestamp: number;
+  record: ReturnType<typeof issueHybridTimestamp>['record'];
+  clock: { status: 'valid'; value: ReturnType<typeof issueHybridTimestamp>['record'] };
+} {
+  const issued = issueHybridTimestamp(clock, now, observed);
+  return {
+    timestamp: issued.timestamp,
+    record: issued.record,
+    clock: { status: 'valid', value: issued.record },
+  };
+}
+
+export async function importLogicalSitesUnlocked(
+  sites: readonly ImportedSiteWrite[],
+  mode: 'merge' | 'replace',
+  deps: SiteSettingsDeps = {},
+): Promise<{ skippedRecordCount: number; writtenKeys: string[] }> {
+  const { sync, local, now } = stores(deps);
+  const at = now();
+  const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
+  const generation = generationFromStores(syncAll, localAll);
+  assertKnownGeneration(generation.merged);
+  const siteClock = parseHybridClockRecord(localAll[SITE_HLC_KEY]);
+  const siteOutbox = parseSiteReplicaOutbox(localAll[SITE_OUTBOX_KEY]);
+  if (siteClock.status === 'corrupt') {
+    console.warn('Failed to parse site hybrid clock', localAll[SITE_HLC_KEY]);
+  }
+  if (siteOutbox.status === 'corrupt') {
+    console.warn('Failed to parse site replica outbox', localAll[SITE_OUTBOX_KEY]);
+  }
+  assertHybridClockUsable(siteClock);
+  let outbox = siteOutbox;
+  if (outbox.status === 'corrupt') {
+    const recovered = await recoverCorruptSiteOutbox(
+      sync,
+      local,
+      at,
+      generation.merged,
+      generation.localGeneration,
+      generation.syncGeneration,
+    );
+    if (!recovered) {
+      throw new Error(REPLICA_OUTBOX_CORRUPT);
+    }
+    outbox = { status: 'absent' };
+  }
+
+  const existingKeys = [
+    ...new Set(
+      [...Object.keys(syncAll), ...Object.keys(localAll)].filter((key) => key.startsWith('site:')),
+    ),
+  ];
+  const importedByKey = new Map<string, ImportedSiteWrite>();
+  for (const site of sites) {
+    importedByKey.set(getSiteStorageKey({ supported: true, hostname: site.hostname }), site);
+  }
+
+  const skipKeys = new Set<string>();
+  for (const key of existingKeys) {
+    const copies = copiesForKey(syncAll, localAll, key, generation.merged);
+    if (cannotSafelyDestroy(copies.syncParsed) || cannotSafelyDestroy(copies.localParsed)) {
+      skipKeys.add(key);
+    }
+  }
+  for (const key of importedByKey.keys()) {
+    const copies = copiesForKey(syncAll, localAll, key, generation.merged);
+    if (cannotSafelyDestroy(copies.syncParsed) || cannotSafelyDestroy(copies.localParsed)) {
+      skipKeys.add(key);
+    }
+  }
+
+  const observed = [
+    ...existingKeys.flatMap((key) => {
+      const copies = copiesForKey(syncAll, localAll, key, generation.merged);
+      return collectOverrideTimestamps(
+        readyRecord(copies.syncParsed)?.overrides,
+        readyRecord(copies.localParsed)?.overrides,
+      );
+    }),
+    ...observedHlcTimestamps(null, null, generation.localGeneration, generation.syncGeneration),
+  ];
+
+  let clock = siteClock;
+  const localItems: Record<string, unknown> = {};
+  const writtenKeys: string[] = [];
+  const toRemove: string[] = [];
+  let currentOutbox = usableSiteOutbox(outbox);
+
+  if (mode === 'replace') {
+    const nextEpoch = checkedIncrement(generation.merged.epoch);
+    const generationIssued = issueNextHybridTimestamp(clock, at, observed);
+    clock = generationIssued.clock;
+    localItems[SITE_GENERATION_KEY] = serializeSiteGeneration(
+      nextEpoch,
+      generationIssued.timestamp,
+    );
+    for (const key of existingKeys) {
+      if (skipKeys.has(key) || importedByKey.has(key)) {
+        continue;
+      }
+      toRemove.push(key);
+    }
+    for (const hostname of [...importedByKey.keys()]
+      .map((key) => key.slice('site:'.length))
+      .sort()) {
+      const storageKey = getSiteStorageKey({ supported: true, hostname });
+      const imported = importedByKey.get(storageKey);
+      if (!imported || skipKeys.has(storageKey) || imported.changes.length === 0) {
+        continue;
+      }
+      const copies = copiesForKey(syncAll, localAll, storageKey, generation.merged);
+      const issued = issueNextHybridTimestamp(clock, at, observed);
+      clock = issued.clock;
+      const record: SiteSettingsV1 = {
+        schemaVersion: 1,
+        overrides: applyImportedChanges({}, imported.changes, issued.timestamp),
+        lastUsedAt: at,
+        generation: nextEpoch,
+      };
+      localItems[storageKey] = serializeSiteRecord(
+        record,
+        extrasForDestination(
+          'local',
+          readyExtras(copies.syncParsed),
+          readyExtras(copies.localParsed),
+        ),
+      );
+      writtenKeys.push(storageKey);
+    }
+    localItems[SITE_HLC_KEY] = clock.status === 'valid' ? clock.value : generationIssued.record;
+    localItems[SITE_OUTBOX_KEY] = serializeSiteOutbox({
+      schemaVersion: 1,
+      publishSites: writtenKeys,
+      resetAll: { epoch: nextEpoch, cleanupPending: true },
+    });
+  } else {
+    for (const hostname of [...importedByKey.keys()]
+      .map((key) => key.slice('site:'.length))
+      .sort()) {
+      const storageKey = getSiteStorageKey({ supported: true, hostname });
+      const imported = importedByKey.get(storageKey);
+      if (!imported || skipKeys.has(storageKey) || imported.changes.length === 0) {
+        continue;
+      }
+      const copies = copiesForKey(syncAll, localAll, storageKey, generation.merged);
+      const issued = issueNextHybridTimestamp(clock, at, observed);
+      clock = issued.clock;
+      const record: SiteSettingsV1 = {
+        schemaVersion: 1,
+        overrides: applyImportedChanges(copies.merged, imported.changes, issued.timestamp),
+        lastUsedAt: at,
+        generation: generation.merged.epoch,
+      };
+      localItems[storageKey] = serializeSiteRecord(
+        record,
+        extrasForDestination(
+          'local',
+          readyExtras(copies.syncParsed),
+          readyExtras(copies.localParsed),
+        ),
+      );
+      writtenKeys.push(storageKey);
+      currentOutbox = addPublishSite(currentOutbox, storageKey);
+    }
+    if (writtenKeys.length > 0) {
+      localItems[SITE_HLC_KEY] = clock.status === 'valid' ? clock.value : localAll[SITE_HLC_KEY];
+      localItems[SITE_OUTBOX_KEY] = serializeSiteOutbox(currentOutbox);
+    }
+  }
+
+  if (Object.keys(localItems).length > 0) {
+    await local.set(localItems);
+  }
+  if (toRemove.length > 0) {
+    await local.remove(toRemove);
+  }
+  if (Object.keys(localItems).length > 0) {
+    try {
+      await replaySiteOutboxUnlocked(sync, local, at);
+    } catch {
+      // Local+outbox already committed.
+    }
+  }
+  return { skippedRecordCount: skipKeys.size, writtenKeys };
+}
+
 export async function deleteAllSiteSettings(
   deps: SiteSettingsDeps = {},
 ): Promise<{ skippedRecordCount: number }> {

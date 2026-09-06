@@ -17,13 +17,15 @@ export const EnableSiteRequestSchema = TabUrlRequestSchema.extend({
 
 export const SetSpeedRequestSchema = TabUrlRequestSchema.extend({
   type: z.literal('SET_SPEED'),
-  speed: z.number().finite(),
+  speed: z.number(),
 });
 
 export const ResetSiteSpeedRequestSchema = TabUrlRequestSchema.extend({
   type: z.literal('RESET_SITE_SPEED'),
 });
 
+// Popup snapshot DTO, not the behavior field map. speedMin/Max/Tick are the
+// slider range for this tab, not a second copy of storage salvage.
 export const PopupStateResponseSchema = z.object({
   supported: z.boolean(),
   hostname: z.string().nullable(),
