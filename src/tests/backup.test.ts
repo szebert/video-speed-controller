@@ -1,22 +1,57 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  assertCompleteBackup,
   BACKUP_CREATED_BY_NEWER_VERSION,
   BACKUP_INVALID,
   BACKUP_TOO_LARGE,
   BACKUP_TOO_MANY_SITES,
   MAX_BACKUP_BYTES,
   MAX_BACKUP_SITES,
-  fitLogicalBackup,
   migrateBackup,
   parseBackupText,
   projectBackup,
-  rankBackupSitesNewestFirst,
   serializeBackup,
-  utf8BackupByteLength,
+  type LogicalBackup,
 } from '../settings/backup';
 import { SPEED_MAX_SETTING_MAX } from '../core/speed';
+
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+
+function readBackupFixture(name: string): string {
+  return readFileSync(join(FIXTURES, name), 'utf8');
+}
+
+const COMPLETE_BACKUP_V1: LogicalBackup = {
+  formatVersion: 1,
+  global: {
+    speed: 1.25,
+    speedMin: 0.25,
+    speedMax: 4,
+    speedTick: 0.25,
+    overlayVisible: true,
+    overlayPosition: 2,
+    overlayPositionButton: false,
+    overlaySettingsButton: true,
+    overlayAutoHide: true,
+    overlayHoverHold: false,
+    overlayAutoHideDelayMs: 1500,
+  },
+  sites: {
+    'netflix.com': {
+      speed: 1.5,
+      overlayVisible: false,
+    },
+    'www.youtube.com': {
+      speed: 2,
+    },
+  },
+  theme: 'light',
+};
 
 describe('backup format', () => {
   it('projects value overrides only and always includes theme', () => {
@@ -161,18 +196,27 @@ describe('backup format', () => {
     });
   });
 
-  it('ranks newer lastUsedAt first and uses hostname as a tie-break', () => {
-    expect(
-      rankBackupSitesNewestFirst([
-        { hostname: 'z.example', lastUsedAt: 10 },
-        { hostname: 'a.example', lastUsedAt: 10 },
-        { hostname: 'm.example', lastUsedAt: 50 },
-      ]).map((site) => site.hostname),
-    ).toEqual(['m.example', 'a.example', 'z.example']);
+  it('parses and reserializes the frozen V1 complete fixture', () => {
+    const text = readBackupFixture('backup-v1-complete.json');
+    expect(parseBackupText(text)).toEqual({ status: 'ready', backup: COMPLETE_BACKUP_V1 });
+    expect(serializeBackup(COMPLETE_BACKUP_V1)).toBe(text);
   });
 
-  it('keeps the newest sites when fitting to site and byte limits', () => {
-    const ranked = ['new.example', 'mid.example', 'old.example'];
+  it('parses and reserializes the frozen V1 minimal fixture', () => {
+    const text = readBackupFixture('backup-v1-minimal.json');
+    const backup: LogicalBackup = { formatVersion: 1, global: {}, sites: {} };
+    expect(parseBackupText(text)).toEqual({ status: 'ready', backup });
+    expect(serializeBackup(backup)).toBe(text);
+  });
+
+  it('leaves a V2 fixture unsupported until a V1→V2 migration exists', () => {
+    expect(parseBackupText(readBackupFixture('backup-v2-unsupported.json'))).toEqual({
+      status: 'unsupported',
+      formatVersion: 2,
+    });
+  });
+
+  it('fails a complete export that exceeds site or byte limits', () => {
     const backup = projectBackup({
       global: {},
       sites: {
@@ -182,26 +226,9 @@ describe('backup format', () => {
       },
       theme: 'dark',
     });
-    expect(fitLogicalBackup(backup, ranked, { maxSites: 2 }).sites).toEqual({
-      'mid.example': { speed: 1.5 },
-      'new.example': { speed: 1.75 },
-    });
-    expect(fitLogicalBackup(backup, ['new.example'], { maxSites: 2 }).sites).toEqual({
-      'mid.example': { speed: 1.5 },
-      'new.example': { speed: 1.75 },
-    });
-    const threeBytes = utf8BackupByteLength(serializeBackup(backup));
-    const twoBytes = utf8BackupByteLength(
-      serializeBackup(fitLogicalBackup(backup, ranked, { maxSites: 2 })),
-    );
-    expect(threeBytes).toBeGreaterThan(twoBytes);
-    const twoNewest = fitLogicalBackup(backup, ranked, {
-      maxSites: 3,
-      maxBytes: twoBytes + Math.floor((threeBytes - twoBytes) / 2),
-    });
-    expect(Object.keys(twoNewest.sites).sort()).toEqual(['mid.example', 'new.example']);
-    expect(utf8BackupByteLength(serializeBackup(twoNewest))).toBeLessThanOrEqual(twoBytes);
-    expect(() => fitLogicalBackup(backup, ranked, { maxBytes: 1 })).toThrow(BACKUP_TOO_LARGE);
+    expect(() => assertCompleteBackup(backup)).not.toThrow();
+    expect(() => assertCompleteBackup(backup, { maxSites: 2 })).toThrow(BACKUP_TOO_MANY_SITES);
+    expect(() => assertCompleteBackup(backup, { maxBytes: 1 })).toThrow(BACKUP_TOO_LARGE);
   });
 
   it('measures the 4 MiB cap in UTF-8 bytes, not JS string length', () => {

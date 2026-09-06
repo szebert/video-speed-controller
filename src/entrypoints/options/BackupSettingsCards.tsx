@@ -36,10 +36,29 @@ type BackupSettingsCardsProps = {
 
 export function BackupSettingsCards({ pending, onExport, onImport }: BackupSettingsCardsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stageRequestId = useRef(0);
   const [staged, setStaged] = useState<StagedBackupFile | null>(null);
   const [pendingImport, setPendingImport] = useState<'merge' | 'replace' | null>(null);
 
+  function beginStage(): number {
+    stageRequestId.current += 1;
+    return stageRequestId.current;
+  }
+
+  function commitStage(requestId: number, next: StagedBackupFile): void {
+    if (requestId === stageRequestId.current) {
+      setStaged(next);
+    }
+  }
+
+  function parseAndCommit(requestId: number, file: File): void {
+    void readAndParseBackupFile(file).then((next) => {
+      commitStage(requestId, next);
+    });
+  }
+
   function clearStaged(): void {
+    beginStage();
     setStaged(null);
     setPendingImport(null);
     if (fileInputRef.current) {
@@ -51,9 +70,7 @@ export function BackupSettingsCards({ pending, onExport, onImport }: BackupSetti
     if (!file) {
       return;
     }
-    void readAndParseBackupFile(file).then((next) => {
-      setStaged(next);
-    });
+    parseAndCommit(beginStage(), file);
   }
 
   return (
@@ -113,8 +130,12 @@ export function BackupSettingsCards({ pending, onExport, onImport }: BackupSetti
               if (item?.kind !== 'file') {
                 return;
               }
+              const requestId = beginStage();
               void item.getFile().then((file) => {
-                stageFile(file);
+                if (requestId !== stageRequestId.current) {
+                  return;
+                }
+                parseAndCommit(requestId, file);
               });
             }}
             className={({ isDropTarget, defaultClassName }) =>

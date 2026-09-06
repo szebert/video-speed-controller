@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import {
+  assertCompleteBackup,
   BACKUP_CREATED_BY_NEWER_VERSION,
   BACKUP_TOO_LARGE,
-  fitLogicalBackup,
   logicalFieldChanges,
   MAX_BACKUP_BYTES,
   parseBackupText,
   projectBackup,
-  rankBackupSitesNewestFirst,
   serializeBackup,
   utf8BackupByteLength,
-  type BackupSiteRank,
   type LogicalBackup,
 } from '../settings/backup';
-import type { BehaviorOverrides } from '../settings/site-behavior';
 import { cannotSafelyDestroy } from '../settings/destroy-policy';
 import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../settings/migrate';
 import { applyBehaviorSettingChange, inheritAllEditableFields } from '../settings/site-behavior';
@@ -52,32 +49,20 @@ function backupError(
   return new Error(parsed.error);
 }
 
-export async function exportLogicalBackup(
-  deps: LogicalBackupDeps = {},
-  limits?: { maxSites?: number; maxBytes?: number },
-): Promise<LogicalBackup> {
+export async function exportLogicalBackup(deps: LogicalBackupDeps = {}): Promise<LogicalBackup> {
   return enqueueStorageMutations(BACKUP_LOCKS, async () => {
     const [copies, sites, theme] = await Promise.all([
       readGlobalBehaviorCopiesUnlocked(deps),
       readMergedSiteOverridesUnlocked(deps),
       getStoredTheme({ sync: deps.sync }),
     ]);
-    const overrides: Record<string, BehaviorOverrides> = {};
-    const ranks: BackupSiteRank[] = [];
-    for (const site of sites) {
-      overrides[site.hostname] = site.overrides;
-      ranks.push({ hostname: site.hostname, lastUsedAt: site.lastUsedAt });
-    }
     const backup = projectBackup({
       global: copies.merged,
-      sites: overrides,
+      sites,
       theme,
     });
-    return fitLogicalBackup(
-      backup,
-      rankBackupSitesNewestFirst(ranks).map((site) => site.hostname),
-      limits,
-    );
+    assertCompleteBackup(backup);
+    return backup;
   });
 }
 

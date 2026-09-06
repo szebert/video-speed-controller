@@ -81,6 +81,7 @@
   "confirmImport": "Import",
   "backupInvalid": "This file is not a valid Video Speed Controller backup.",
   "backupTooLarge": "This backup file is too large.",
+  "backupTooManySites": "This backup contains too many sites.",
   "backupNewerVersion": "This backup was created by a newer version of Video Speed Controller.",
   "backupExportError": "Could not export settings.",
   "deleteSiteConfirm": "Remove settings for this site? You will not be able to undo this decision.",

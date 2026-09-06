@@ -1118,6 +1118,40 @@ describe('Options page', () => {
     );
   });
 
+  it('does not stage an older file that finishes after a newer pick', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    let releaseSlow: ((text: string) => void) | undefined;
+    const originalText = File.prototype.text;
+    const textSpy = vi.spyOn(File.prototype, 'text').mockImplementation(function (this: File) {
+      if (this.name === 'slow.json') {
+        return new Promise((resolve) => {
+          releaseSlow = resolve;
+        });
+      }
+      return originalText.call(this);
+    });
+    try {
+      await renderApp();
+      const settings = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'Settings',
+      );
+      await act(async () => {
+        settings?.click();
+      });
+      await chooseBackupFile('{"formatVersion":1,"global":{"speed":1.25}}', 'slow.json');
+      expect(container.textContent).not.toContain('slow.json');
+      await chooseBackupFile('{"formatVersion":1,"global":{"speed":2}}', 'fast.json');
+      expect(container.textContent).toContain('fast.json');
+      await act(async () => {
+        releaseSlow?.('{"formatVersion":1,"global":{"speed":1.25}}');
+      });
+      expect(container.textContent).toContain('fast.json');
+      expect(container.textContent).not.toContain('slow.json');
+    } finally {
+      textSpy.mockRestore();
+    }
+  });
+
   it('shows a parse error on the file and keeps merge disabled', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();

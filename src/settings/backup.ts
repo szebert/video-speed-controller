@@ -3,13 +3,13 @@
 import { z } from 'zod';
 import type { Equal } from '../types/equal';
 import { EDITABLE_BEHAVIOR_FIELDS, type EditableBehaviorField } from './behavior-fields';
-import { behaviorValueSchemas } from './behavior-schema';
 import { normalizeSiteHostname } from './site-hostname';
 import {
   canonicalizeBehaviorSettingChange,
   type BehaviorFieldValue,
   type BehaviorOverrides,
   type BehaviorSettingChange,
+  type OverlayPosition,
 } from './site-behavior';
 import type { ThemePreference } from './theme';
 
@@ -35,30 +35,36 @@ export type LogicalBackup = {
   theme?: ThemePreference;
 };
 
-export type BackupSiteRank = {
-  hostname: string;
-  lastUsedAt: number;
-};
-
 export type BackupParseResult =
   | { status: 'ready'; backup: LogicalBackup }
   | { status: 'unsupported'; formatVersion: number }
   | { status: 'invalid'; error: string };
 
-type OptionalBehaviorValueShape = {
-  [K in EditableBehaviorField]: z.ZodOptional<(typeof behaviorValueSchemas)[K]>;
-};
+// Historical formatVersion 1 field contract. Do not compose this from the live
+// storage salvage schemas — changing a current range must not change what a V1
+// file means. Import still canonicalizes through the current domain after parse.
+const BackupV1DelaySchema = z
+  .number()
+  .refine(Number.isInteger)
+  .refine((value) => value >= 0);
 
-function optionalBehaviorValueShape(): OptionalBehaviorValueShape {
-  const shape = {} as OptionalBehaviorValueShape;
-  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    Object.assign(shape, { [field]: behaviorValueSchemas[field].optional() });
-  }
-  return shape;
-}
+const BackupV1OverlayPositionSchema = z.literal([
+  0, 1, 2, 3, 4, 5, 6, 7, 8,
+]) satisfies z.ZodType<OverlayPosition>;
 
-// Privileged JSON only. Optional storage value schemas — not a Mini/RPC twin.
-const LogicalFieldValuesSchema = z.strictObject(optionalBehaviorValueShape());
+const LogicalFieldValuesSchema = z.strictObject({
+  speed: z.number().optional(),
+  speedMin: z.number().optional(),
+  speedMax: z.number().optional(),
+  speedTick: z.number().optional(),
+  overlayVisible: z.boolean().optional(),
+  overlayPosition: BackupV1OverlayPositionSchema.optional(),
+  overlayPositionButton: z.boolean().optional(),
+  overlaySettingsButton: z.boolean().optional(),
+  overlayAutoHide: z.boolean().optional(),
+  overlayHoverHold: z.boolean().optional(),
+  overlayAutoHideDelayMs: BackupV1DelaySchema.optional(),
+});
 
 true satisfies Equal<z.infer<typeof LogicalFieldValuesSchema>, LogicalFieldValues>;
 
@@ -80,66 +86,18 @@ export function utf8BackupByteLength(text: string): number {
   return new TextEncoder().encode(text).byteLength;
 }
 
-export function rankBackupSitesNewestFirst(sites: readonly BackupSiteRank[]): BackupSiteRank[] {
-  return [...sites].sort((left, right) => {
-    if (right.lastUsedAt !== left.lastUsedAt) {
-      return right.lastUsedAt - left.lastUsedAt;
-    }
-    if (left.hostname < right.hostname) {
-      return -1;
-    }
-    if (left.hostname > right.hostname) {
-      return 1;
-    }
-    return 0;
-  });
-}
-
-export function fitLogicalBackup(
+export function assertCompleteBackup(
   backup: LogicalBackup,
-  rankedNewestFirst: readonly string[],
   limits: { maxSites?: number; maxBytes?: number } = {},
-): LogicalBackup {
+): void {
   const maxSites = limits.maxSites ?? MAX_BACKUP_SITES;
   const maxBytes = limits.maxBytes ?? MAX_BACKUP_BYTES;
-  const ranked = new Set(rankedNewestFirst);
-  const unranked = Object.keys(backup.sites)
-    .filter((hostname) => !ranked.has(hostname))
-    .sort();
-  const present: string[] = [];
-  const seen = new Set<string>();
-  for (const hostname of [...rankedNewestFirst, ...unranked]) {
-    if (seen.has(hostname) || backup.sites[hostname] == null) {
-      continue;
-    }
-    seen.add(hostname);
-    present.push(hostname);
+  if (Object.keys(backup.sites).length > maxSites) {
+    throw new Error(BACKUP_TOO_MANY_SITES);
   }
-  let picked = present.slice(0, maxSites);
-  const rebuild = (hostnames: readonly string[]): LogicalBackup => {
-    const sites: Record<string, LogicalFieldValues> = {};
-    for (const hostname of hostnames) {
-      const fields = backup.sites[hostname];
-      if (fields) {
-        sites[hostname] = fields;
-      }
-    }
-    return {
-      formatVersion: 1,
-      global: backup.global,
-      sites,
-      ...(backup.theme ? { theme: backup.theme } : {}),
-    };
-  };
-  let next = rebuild(picked);
-  while (picked.length > 0 && utf8BackupByteLength(serializeBackup(next)) > maxBytes) {
-    picked = picked.slice(0, -1);
-    next = rebuild(picked);
-  }
-  if (utf8BackupByteLength(serializeBackup(next)) > maxBytes) {
+  if (utf8BackupByteLength(serializeBackup(backup)) > maxBytes) {
     throw new Error(BACKUP_TOO_LARGE);
   }
-  return next;
 }
 
 function detectFormatVersion(value: unknown): number | null {
@@ -318,6 +276,8 @@ export function migrateBackup(value: unknown): BackupParseResult {
   if (formatVersion !== 1) {
     return invalid();
   }
+  // formatVersion 1 is the historical on-disk contract. A future V2 must keep
+  // parseBackupV1 unchanged and add migrateBackupV1ToCurrent plus fixtures.
   return parseBackupV1(value);
 }
 

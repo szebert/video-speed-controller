@@ -1,0 +1,26 @@
+{
+  "formatVersion": 1,
+  "global": {
+    "speed": 1.25,
+    "speedMin": 0.25,
+    "speedMax": 4,
+    "speedTick": 0.25,
+    "overlayVisible": true,
+    "overlayPosition": 2,
+    "overlayPositionButton": false,
+    "overlaySettingsButton": true,
+    "overlayAutoHide": true,
+    "overlayHoverHold": false,
+    "overlayAutoHideDelayMs": 1500
+  },
+  "sites": {
+    "netflix.com": {
+      "speed": 1.5,
+      "overlayVisible": false
+    },
+    "www.youtube.com": {
+      "speed": 2
+    }
+  },
+  "theme": "light"
+}

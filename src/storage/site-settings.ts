@@ -824,34 +824,20 @@ export type ImportedSiteWrite = {
   changes: readonly BehaviorSettingChange[];
 };
 
-export type MergedSiteOverrideRead = {
-  hostname: string;
-  overrides: BehaviorOverrides;
-  lastUsedAt: number;
-};
-
 export async function readMergedSiteOverridesUnlocked(
   deps: SiteSettingsDeps = {},
-): Promise<MergedSiteOverrideRead[]> {
+): Promise<Record<string, BehaviorOverrides>> {
   const { sync, local } = stores(deps);
   const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
   const generation = generationFromStores(syncAll, localAll);
-  const sites: MergedSiteOverrideRead[] = [];
+  const sites: Record<string, BehaviorOverrides> = {};
   const keys = new Set([...Object.keys(syncAll), ...Object.keys(localAll)]);
   for (const key of keys) {
     const hostname = hostnameFromSiteStorageKey(key);
     if (!hostname || !normalizeSiteHostname(hostname)) {
       continue;
     }
-    const copies = copiesForKey(syncAll, localAll, key, generation.merged);
-    sites.push({
-      hostname,
-      overrides: copies.merged,
-      lastUsedAt: Math.max(
-        readyRecord(copies.syncParsed)?.lastUsedAt ?? 0,
-        readyRecord(copies.localParsed)?.lastUsedAt ?? 0,
-      ),
-    });
+    sites[hostname] = copiesForKey(syncAll, localAll, key, generation.merged).merged;
   }
   return sites;
 }

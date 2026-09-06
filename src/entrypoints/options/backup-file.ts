@@ -28,8 +28,11 @@ export function backupFailureMessage(error: string | undefined): string {
   if (error === BACKUP_CREATED_BY_NEWER_VERSION) {
     return t('backupNewerVersion');
   }
-  if (error === BACKUP_TOO_LARGE || error === BACKUP_TOO_MANY_SITES) {
+  if (error === BACKUP_TOO_LARGE) {
     return t('backupTooLarge');
+  }
+  if (error === BACKUP_TOO_MANY_SITES) {
+    return t('backupTooManySites');
   }
   if (error === BACKUP_INVALID) {
     return t('backupInvalid');

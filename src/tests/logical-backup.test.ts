@@ -63,7 +63,7 @@ describe('logical backup import/export', () => {
     expect(parseBackupText(text)).toEqual({ status: 'ready', backup });
   });
 
-  it('drops the oldest sites when an export would exceed backup limits', async () => {
+  it('exports every configured site instead of dropping older ones', async () => {
     const deps = {
       sync: memoryDurable(),
       local: memoryDurable(),
@@ -73,10 +73,11 @@ describe('logical backup import/export', () => {
     await persistSiteSpeed('https://mid.example/', 1.5, { ...deps, now: () => 20 });
     await persistSiteSpeed('https://new.example/', 1.75, { ...deps, now: () => 30 });
     await persistTheme('dark', { sync: deps.sync });
-    const backup = await exportLogicalBackup(deps, { maxSites: 2 });
+    const backup = await exportLogicalBackup(deps);
     expect(backup.sites).toEqual({
       'mid.example': { speed: 1.5 },
       'new.example': { speed: 1.75 },
+      'old.example': { speed: 1.25 },
     });
   });
 

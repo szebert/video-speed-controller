@@ -7,7 +7,7 @@ import {
   parseStagedBackupFile,
   readAndParseBackupFile,
 } from '../entrypoints/options/backup-file';
-import { MAX_BACKUP_BYTES } from '../settings/backup';
+import { MAX_BACKUP_BYTES, MAX_BACKUP_SITES } from '../settings/backup';
 
 describe('backup file staging', () => {
   it('accepts a valid backup before merge or replace', () => {
@@ -28,6 +28,20 @@ describe('backup file staging', () => {
       throw new Error('expected error');
     }
     expect(staged.error).toBe('This file is not a valid Video Speed Controller backup.');
+  });
+
+  it('maps too-many-sites independently of the byte-limit message', () => {
+    const sites: Record<string, Record<string, never>> = {};
+    for (let index = 0; index <= MAX_BACKUP_SITES; index += 1) {
+      sites[`site${String(index).padStart(5, '0')}.example`] = {};
+    }
+    const backupText = JSON.stringify({ formatVersion: 1, sites });
+    const staged = parseStagedBackupFile('many.json', backupText.length, backupText);
+    expect(staged.status).toBe('error');
+    if (staged.status !== 'error') {
+      throw new Error('expected error');
+    }
+    expect(staged.error).toBe('This backup contains too many sites.');
   });
 
   it('rejects a newer format version before import', () => {
