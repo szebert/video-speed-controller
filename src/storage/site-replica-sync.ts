@@ -455,7 +455,7 @@ function mergedReplayGeneration(
   return localRecord?.generation ?? syncRecord?.generation;
 }
 
-export type ReplayPublishResult = 'completed' | 'blocked';
+type ReplayPublishResult = 'completed' | 'blocked';
 
 async function replayPublishSite(
   sync: DurableSettingsStore,
@@ -555,10 +555,7 @@ export async function recoverCorruptSiteOutbox(
   let complete = true;
   const entries = await listRawSiteEntries(sync);
   for (const entry of entries) {
-    if (cannotSafelyDestroy(entry.parsed)) {
-      continue;
-    }
-    if (isOldGenerationCopy(entry.raw, merged.epoch)) {
+    if (isOldGenerationCopy(entry.raw, merged.epoch) && !cannotSafelyDestroy(entry.parsed)) {
       try {
         await sync.remove(entry.key);
       } catch {
@@ -567,7 +564,9 @@ export async function recoverCorruptSiteOutbox(
       continue;
     }
     try {
-      await replayPublishSite(sync, local, entry.key, now, merged);
+      if ((await replayPublishSite(sync, local, entry.key, now, merged)) === 'blocked') {
+        complete = false;
+      }
     } catch {
       complete = false;
     }

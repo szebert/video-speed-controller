@@ -774,6 +774,23 @@ describe('storage replica hardening', () => {
     expect(deps.local.data[YOUTUBE_KEY]).toBeUndefined();
   });
 
+  it('fails closed when corrupt-outbox recovery is blocked by a future Sync site', async () => {
+    const deps = pair(50);
+    deps.local.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 6 };
+    deps.sync.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 6 };
+    deps.local.data[SITE_OUTBOX_KEY] = { schemaVersion: 1, publishSites: 'bad' };
+    deps.sync.data[YOUTUBE_KEY] = siteRecord(2, 200, 7);
+    await expect(persistSiteSpeed(YOUTUBE, 1.75, deps)).rejects.toThrow(
+      /outbox metadata is corrupt/i,
+    );
+    expect(deps.local.data[SITE_OUTBOX_KEY]).toEqual({ schemaVersion: 1, publishSites: 'bad' });
+    expect(deps.sync.data[YOUTUBE_KEY]).toMatchObject({
+      generation: 7,
+      overrides: { speed: { value: 2, updatedAt: 200 } },
+    });
+    expect(deps.local.data[YOUTUBE_KEY]).toBeUndefined();
+  });
+
   it('merges current Sync and Local global fields during outbox replay', async () => {
     const local = memoryDurable();
     const sync = memoryDurable();
