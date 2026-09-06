@@ -5,7 +5,7 @@
   "license": "GPL-3.0-only",
   "description": "Open source Chrome extension for controlling HTML5 video playback speed.",
   "type": "module",
-  "packageManager": "pnpm@11.24.0",
+  "packageManager": "pnpm@12.3.4",
   "engines": {
     "node": ">=22"
   },
@@ -38,12 +38,11 @@
     "@react-stately/flags": "3.2.1",
     "@wxt-dev/i18n": "0.2.7",
     "class-variance-authority": "0.7.1",
-    "clsx": "2.1.1",
+    "cn": "^0.2.5",
     "lucide-react": "1.37.0",
     "react": "19.2.8",
     "react-aria-components": "1.20.0",
     "react-dom": "19.2.8",
-    "tailwind-merge": "3.6.0",
     "zod": "4.5.4"
   },
   "devDependencies": {

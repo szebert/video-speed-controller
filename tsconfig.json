@@ -5,7 +5,28 @@
     "resolveJsonModule": true,
     "jsx": "react-jsx",
     "typeRoots": ["./node_modules/@types"],
-    "types": ["chrome"]
+    "types": ["chrome"],
+    // TypeScript replaces `compilerOptions.paths` from `extends` instead of
+    // merging. Redeclare WXT's aliases here, rebased to this file's directory,
+    // so tools like the shadcn CLI do not treat `.wxt`'s `../src` as outside
+    // the repo.
+    "paths": {
+      // src/ (WXT default)
+      "@": ["./src"],
+      "@/*": ["./src/*"],
+      // src/ (WXT alternate)
+      "~": ["./src"],
+      "~/*": ["./src/*"],
+      // project root (WXT)
+      "@@": ["."],
+      "@@/*": ["./*"],
+      // project root (WXT alternate)
+      "~~": ["."],
+      "~~/*": ["./*"],
+      // generated WXT i18n helper
+      "#i18n": ["./.wxt/i18n/index.ts"],
+      "#i18n/*": ["./.wxt/i18n/index.ts/*"]
+    }
   },
   "include": ["src/**/*", ".wxt/wxt.d.ts"]
 }
