@@ -1,9 +1,67 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { OVERLAY_HOST_TAG } from '../core/video-overlay';
+import { OVERLAY_HOST_TAG, OVERLAY_INSET_PX, VideoOverlay } from '../core/video-overlay';
 import { MediaRegistry } from '../core/media-registry';
+import { OverlayView } from '../overlay/overlay-view';
+import { OVERLAY_POSITION } from '../settings/site-behavior';
 import { tabBehavior } from './tab-behavior-fixture';
+
+class RecordingResizeObserver {
+  static instances: RecordingResizeObserver[] = [];
+  readonly observed = new Set<Element>();
+  disconnected = false;
+
+  constructor(readonly callback: ResizeObserverCallback) {
+    RecordingResizeObserver.instances.push(this);
+  }
+
+  observe(target: Element): void {
+    this.observed.add(target);
+  }
+
+  unobserve(target: Element): void {
+    this.observed.delete(target);
+  }
+
+  disconnect(): void {
+    this.disconnected = true;
+    this.observed.clear();
+  }
+
+  notify(targets: Element[]): void {
+    this.callback(
+      targets.map((target) => ({ target }) as ResizeObserverEntry),
+      this as unknown as ResizeObserver,
+    );
+  }
+}
+
+function installRecordingResizeObserver(): () => void {
+  RecordingResizeObserver.instances = [];
+  const original = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = RecordingResizeObserver as unknown as typeof ResizeObserver;
+  return () => {
+    globalThis.ResizeObserver = original;
+  };
+}
+
+function installRafQueue(): {
+  flush: () => void;
+} {
+  const frames: FrameRequestCallback[] = [];
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    frames.push(callback);
+    return frames.length;
+  });
+  return {
+    flush() {
+      const callback = frames.at(-1);
+      frames.length = 0;
+      callback?.(0);
+    },
+  };
+}
 
 function video(): HTMLVideoElement {
   const node = document.createElement('video');
@@ -26,14 +84,18 @@ function video(): HTMLVideoElement {
 
 describe('media registry', () => {
   const registries: MediaRegistry[] = [];
+  let restoreResizeObserver: (() => void) | undefined;
 
   afterEach(() => {
     for (const registry of registries.splice(0)) {
       registry.destroy();
     }
+    restoreResizeObserver?.();
+    restoreResizeObserver = undefined;
     document.body.replaceChildren();
     document.documentElement.querySelectorAll(OVERLAY_HOST_TAG).forEach((node) => node.remove());
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('keeps one controller and overlay per video and applies current behavior to new videos', () => {
@@ -230,5 +292,217 @@ describe('media registry', () => {
     registry['discover'](document);
     expect(registry.size).toBe(1);
     registry.destroy();
+  });
+
+  it('uses one ResizeObserver for every registered video including open shadow', () => {
+    restoreResizeObserver = installRecordingResizeObserver();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const a = video();
+    const b = video();
+    const host = document.createElement('div');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const nested = video();
+    shadow.append(nested);
+    document.body.append(a, b, host);
+    registry.ensureController(a);
+    registry.ensureController(b);
+    registry['discover'](document);
+    expect(RecordingResizeObserver.instances).toHaveLength(1);
+    const observer = RecordingResizeObserver.instances[0];
+    expect(observer?.observed.has(a)).toBe(true);
+    expect(observer?.observed.has(b)).toBe(true);
+    expect(observer?.observed.has(nested)).toBe(true);
+    expect(observer?.observed.size).toBe(3);
+  });
+
+  it('unobserves a removed video and leaves the other overlay intact', () => {
+    restoreResizeObserver = installRecordingResizeObserver();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const a = video();
+    const b = video();
+    document.body.append(a, b);
+    registry.ensureController(a);
+    registry.ensureController(b);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    registry.getOverlay(a)?.layout();
+    registry.getOverlay(b)?.layout();
+    expect(registry.getOverlay(a)?.host.style.visibility).toBe('visible');
+    expect(registry.getOverlay(b)?.host.style.visibility).toBe('visible');
+
+    a.remove();
+    registry['handleMutations']([
+      {
+        addedNodes: [] as unknown as NodeList,
+        removedNodes: [a] as unknown as NodeList,
+        type: 'childList',
+        target: document.body,
+      } as unknown as MutationRecord,
+    ]);
+    const observer = RecordingResizeObserver.instances[0];
+    expect(observer?.observed.has(a)).toBe(false);
+    expect(observer?.observed.has(b)).toBe(true);
+    expect(registry.getOverlay(a)).toBeUndefined();
+    expect(registry.getOverlay(b)?.host.isConnected).toBe(true);
+    expect(registry.getOverlay(b)?.host.style.visibility).toBe('visible');
+  });
+
+  it('ignores queued ResizeObserver notifications for a removed video', () => {
+    restoreResizeObserver = installRecordingResizeObserver();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const a = video();
+    const b = video();
+    document.body.append(a, b);
+    registry.ensureController(a);
+    registry.ensureController(b);
+    a.remove();
+    registry['handleMutations']([
+      {
+        addedNodes: [] as unknown as NodeList,
+        removedNodes: [a] as unknown as NodeList,
+        type: 'childList',
+        target: document.body,
+      } as unknown as MutationRecord,
+    ]);
+    const hostsBefore = document.querySelectorAll(OVERLAY_HOST_TAG).length;
+    RecordingResizeObserver.instances[0]?.notify([a]);
+    expect(registry.size).toBe(1);
+    expect(registry.getOverlay(a)).toBeUndefined();
+    expect(document.querySelectorAll(OVERLAY_HOST_TAG)).toHaveLength(hostsBefore);
+  });
+
+  it('disconnects the shared ResizeObserver and cancels pending layout on destroy', () => {
+    restoreResizeObserver = installRecordingResizeObserver();
+    vi.useFakeTimers();
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame');
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.ensureController(node);
+    const overlay = registry.getOverlay(node);
+    const layout = vi.spyOn(overlay!, 'layout');
+    window.dispatchEvent(new Event('scroll'));
+    expect(frames.length).toBeGreaterThan(0);
+    registry.destroy();
+    expect(RecordingResizeObserver.instances[0]?.disconnected).toBe(true);
+    expect(cancel).toHaveBeenCalled();
+    frames.at(-1)?.(0);
+    expect(layout).not.toHaveBeenCalled();
+  });
+
+  it('measures a visible video at most once per flush even if layout asks twice', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.ensureController(node);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    const overlay = registry.getOverlay(node);
+    const original = overlay!.layout.bind(overlay);
+    overlay!.layout = ((measure?: () => DOMRect) => {
+      measure?.();
+      measure?.();
+      original(measure);
+    }) as VideoOverlay['layout'];
+    const getRect = vi.spyOn(node, 'getBoundingClientRect');
+    getRect.mockClear();
+    raf.flush();
+    expect(getRect).toHaveBeenCalledTimes(1);
+    expect(overlay?.host.style.visibility).toBe('visible');
+  });
+
+  it('does not measure a cheap-hidden video during a shared flush', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const shown = video();
+    const hidden = video();
+    document.body.append(shown, hidden);
+    registry.ensureController(shown);
+    registry.ensureController(hidden);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    registry.getOverlay(hidden)?.setControlled(false);
+    const shownRect = vi.spyOn(shown, 'getBoundingClientRect');
+    const hiddenRect = vi.spyOn(hidden, 'getBoundingClientRect');
+    raf.flush();
+    expect(shownRect).toHaveBeenCalledTimes(1);
+    expect(hiddenRect).not.toHaveBeenCalled();
+    expect(registry.getOverlay(shown)?.host.style.visibility).toBe('visible');
+    expect(registry.getOverlay(hidden)?.host.style.visibility).toBe('hidden');
+  });
+
+  it('does not read rects from setBehavior before the RAF flush', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.ensureController(node);
+    const getRect = vi.spyOn(node, 'getBoundingClientRect');
+    const update = vi.spyOn(OverlayView.prototype, 'update');
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    expect(getRect).not.toHaveBeenCalled();
+    expect(update.mock.calls.at(-1)?.[0]?.visible).toBe(false);
+    raf.flush();
+    expect(getRect).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls.at(-1)?.[0]?.visible).toBe(true);
+  });
+
+  it('repositions after movement that ResizeObserver does not report', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    let box = { left: 10, top: 20, width: 200, height: 100 };
+    const node = video();
+    node.getBoundingClientRect = () =>
+      ({
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON() {
+          return this;
+        },
+      }) as DOMRect;
+    document.body.append(node);
+    registry.ensureController(node);
+    registry.setBehavior(
+      tabBehavior(1.25, {
+        overlayAutoHide: false,
+        overlayPosition: OVERLAY_POSITION.TOP_LEFT,
+      }),
+    );
+    raf.flush();
+    const overlay = registry.getOverlay(node);
+    expect(overlay?.host.style.left).toBe(`${10 + OVERLAY_INSET_PX}px`);
+    expect(overlay?.host.style.top).toBe(`${20 + OVERLAY_INSET_PX}px`);
+
+    box = { left: 300, top: 40, width: 200, height: 100 };
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 320, clientY: 50 }));
+    raf.flush();
+    expect(overlay?.host.style.left).toBe(`${300 + OVERLAY_INSET_PX}px`);
+    expect(overlay?.host.style.top).toBe(`${40 + OVERLAY_INSET_PX}px`);
   });
 });

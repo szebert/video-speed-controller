@@ -47,6 +47,7 @@ export function collectOpenShadowRoots(root: Node): ShadowRoot[] {
 export class MediaRegistry {
   private readonly entries = new Map<HTMLVideoElement, RegistryEntry>();
   private readonly rootObservers = new Map<Document | ShadowRoot, MutationObserver>();
+  private readonly resizeObserver: ResizeObserver;
   private currentBehavior: AppliedTabBehavior | null = null;
   private destroyed = false;
   private layoutRaf: number | null = null;
@@ -57,6 +58,9 @@ export class MediaRegistry {
     private readonly actions?: OverlayActions,
   ) {
     this.view = document.defaultView;
+    this.resizeObserver = new ResizeObserver((entries) => {
+      this.onVideoResize(entries);
+    });
   }
 
   start(): void {
@@ -97,6 +101,7 @@ export class MediaRegistry {
   destroy(): void {
     this.destroyed = true;
     this.cancelLayout();
+    this.resizeObserver.disconnect();
     this.detachLayoutListeners();
     for (const entry of this.entries.values()) {
       entry.overlay.destroy();
@@ -120,6 +125,7 @@ export class MediaRegistry {
     });
     const entry = { controller, overlay };
     this.entries.set(video, entry);
+    this.resizeObserver.observe(video);
     if (this.currentBehavior) {
       overlay.setBehavior(this.currentBehavior);
       controller.setTarget(this.currentBehavior.targetSpeed);
@@ -204,9 +210,22 @@ export class MediaRegistry {
     if (!entry) {
       return;
     }
+    this.resizeObserver.unobserve(video);
+    this.entries.delete(video);
     entry.overlay.destroy();
     entry.controller.destroy();
-    this.entries.delete(video);
+  }
+
+  private onVideoResize(entries: ResizeObserverEntry[]): void {
+    if (this.destroyed) {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.target instanceof HTMLVideoElement && this.entries.has(entry.target)) {
+        this.requestLayout();
+        return;
+      }
+    }
   }
 
   private readonly requestLayout = (): void => {
@@ -214,15 +233,28 @@ export class MediaRegistry {
       return;
     }
     this.layoutRaf = this.view.requestAnimationFrame(() => {
-      this.layoutRaf = null;
-      if (this.destroyed) {
-        return;
-      }
-      for (const entry of this.entries.values()) {
-        entry.overlay.layout();
-      }
+      this.flushLayout();
     });
   };
+
+  private flushLayout(): void {
+    this.layoutRaf = null;
+    if (this.destroyed) {
+      return;
+    }
+    const measuredThisFlush = new Map<HTMLVideoElement, DOMRect>();
+    for (const [video, entry] of this.entries) {
+      entry.overlay.layout(() => {
+        const cached = measuredThisFlush.get(video);
+        if (cached) {
+          return cached;
+        }
+        const rect = video.getBoundingClientRect();
+        measuredThisFlush.set(video, rect);
+        return rect;
+      });
+    }
+  }
 
   private readonly onLayoutSignal = (): void => {
     this.requestLayout();

@@ -8,6 +8,7 @@ import {
   OVERLAY_Z_INDEX,
   VideoOverlay,
 } from '../core/video-overlay';
+import { OverlayView } from '../overlay/overlay-view';
 import overlayCss from '../overlay/overlay.css?inline';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -85,6 +86,30 @@ describe('VideoOverlay', () => {
     overlay.layout();
     expect(getRect).not.toHaveBeenCalled();
     expect(overlay.host.style.visibility).toBe('hidden');
+  });
+
+  it('does not read geometry from setBehavior or syncView before layout', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => undefined);
+    overlay.setControlled(true);
+    const getRect = vi.spyOn(video, 'getBoundingClientRect');
+    const update = vi.spyOn(OverlayView.prototype, 'update');
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    expect(getRect).not.toHaveBeenCalled();
+    expect(update.mock.calls.at(-1)?.[0]?.visible).toBe(false);
+    expect(overlay.host.style.visibility).toBe('hidden');
+  });
+
+  it('does not treat a cheap-pass as visible before a successful layout', () => {
+    const video = sizedVideo({ left: 0, top: 0, width: 0, height: 0 });
+    const update = vi.spyOn(OverlayView.prototype, 'update');
+    const overlay = new VideoOverlay(video, () => undefined);
+    overlay.setControlled(true);
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    expect(update.mock.calls.at(-1)?.[0]?.visible).toBe(false);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    expect(update.mock.calls.at(-1)?.[0]?.visible).toBe(false);
   });
 
   it('places badges with grid anchors and transforms', () => {

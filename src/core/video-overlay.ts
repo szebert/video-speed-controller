@@ -23,7 +23,7 @@ export class VideoOverlay {
   private autoHideExpired = false;
   private interactive = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly resizeObserver: ResizeObserver;
+  private layoutVisible = false;
 
   constructor(
     readonly video: HTMLVideoElement,
@@ -65,11 +65,6 @@ export class VideoOverlay {
     shadow.append(this.view.element);
     document.documentElement.append(this.host);
 
-    this.resizeObserver = new ResizeObserver(() => {
-      this.requestLayout();
-    });
-    this.resizeObserver.observe(video);
-
     const signal = this.videoAbort.signal;
     video.addEventListener('pointermove', this.onVideoActivity, { signal });
     video.addEventListener('focus', this.onVideoActivity, { signal });
@@ -99,19 +94,22 @@ export class VideoOverlay {
       this.interactive = false;
       this.clearHideTimer();
       this.autoHideExpired = false;
+      this.syncView();
       this.requestLayout();
       return;
     }
     this.restartAutoHide();
+    this.syncView();
     this.requestLayout();
   }
 
-  layout(): void {
-    const rect = this.evaluateVisibility();
+  layout(measureRect: () => DOMRect = () => this.video.getBoundingClientRect()): void {
+    const rect = this.evaluateVisibility(measureRect);
     const visible = rect != null;
-    const wasVisible = this.host.style.visibility !== 'hidden';
+    const changed = this.layoutVisible !== visible;
+    this.layoutVisible = visible;
     this.host.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
-    if (wasVisible !== visible) {
+    if (changed) {
       this.syncView(visible);
     }
     if (!visible || !this.behavior) {
@@ -144,12 +142,21 @@ export class VideoOverlay {
   destroy(): void {
     this.clearHideTimer();
     this.videoAbort.abort();
-    this.resizeObserver.disconnect();
     this.view.destroy();
     this.host.remove();
   }
 
-  private syncView(visible = this.evaluateVisibility() != null): void {
+  private isCheapHidden(): boolean {
+    return (
+      this.behavior == null ||
+      !this.controlled ||
+      !this.behavior.overlayVisible ||
+      (this.behavior.overlayAutoHide && this.autoHideExpired) ||
+      !this.video.isConnected
+    );
+  }
+
+  private syncView(visible = this.isCheapHidden() ? false : this.layoutVisible): void {
     if (!this.behavior) {
       return;
     }
@@ -188,17 +195,11 @@ export class VideoOverlay {
     );
   }
 
-  private evaluateVisibility(): DOMRect | null {
-    if (
-      this.behavior == null ||
-      !this.controlled ||
-      !this.behavior.overlayVisible ||
-      (this.behavior.overlayAutoHide && this.autoHideExpired) ||
-      !this.video.isConnected
-    ) {
+  private evaluateVisibility(measureRect: () => DOMRect): DOMRect | null {
+    if (this.isCheapHidden()) {
       return null;
     }
-    const rect = this.video.getBoundingClientRect();
+    const rect = measureRect();
     if (rect.width < OVERLAY_MIN_SIZE_PX || rect.height < OVERLAY_MIN_SIZE_PX) {
       return null;
     }
@@ -234,6 +235,7 @@ export class VideoOverlay {
     }
     this.hideTimer = setTimeout(() => {
       this.autoHideExpired = true;
+      this.syncView();
       this.requestLayout();
     }, canonicalizeOverlayAutoHideDelayMs(this.behavior.overlayAutoHideDelayMs));
   }
