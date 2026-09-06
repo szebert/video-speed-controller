@@ -36,8 +36,8 @@ for (const forbidden of ['package-lock.json', 'yarn.lock', 'bun.lock', 'bun.lock
 if (pkg.private !== true) {
   fail('package.json must be private');
 }
-if (pkg.packageManager !== 'pnpm@11.24.0') {
-  fail(`packageManager must be pnpm@11.24.0, found ${pkg.packageManager}`);
+if (pkg.packageManager !== 'pnpm@12.3.4') {
+  fail(`packageManager must be pnpm@12.3.4, found ${pkg.packageManager}`);
 }
 
 const tag =
