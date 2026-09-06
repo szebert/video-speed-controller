@@ -91,6 +91,20 @@ function isForbiddenZod(file: string, specifier: string): boolean {
   return specifier === 'zod' || specifier.startsWith('zod/');
 }
 
+const FORBIDDEN_CONTENT_PACKAGES = [
+  'react',
+  'react-dom',
+  'react-aria-components',
+  '@react-stately/flags',
+  'lucide-react',
+] as const;
+
+function isForbiddenContentPackage(specifier: string): boolean {
+  return FORBIDDEN_CONTENT_PACKAGES.some(
+    (name) => specifier === name || specifier.startsWith(`${name}/`),
+  );
+}
+
 const CONTENT_GRAPH = walkFrom(CONTENT_ENTRY);
 
 describe('content import isolation', () => {
@@ -98,7 +112,7 @@ describe('content import isolation', () => {
     const files = [...CONTENT_GRAPH.keys()].map(srcPath);
     expect(files).toContain('access/site-access.ts');
     expect(files).toContain('protocol/content/client.ts');
-    expect(files).toContain('overlay/OverlayRoot.tsx');
+    expect(files).toContain('overlay/overlay-view.ts');
     expect(files).not.toContain('settings/behavior-schema.ts');
     expect(files).not.toContain('protocol/schemas/shared.ts');
   });
@@ -110,6 +124,7 @@ describe('content import isolation', () => {
       for (const specifier of specifiers) {
         if (
           isForbiddenZod(file, specifier) ||
+          isForbiddenContentPackage(specifier) ||
           /(?:^|\/)behavior-schema(?:\.ts)?$/.test(specifier)
         ) {
           violations.push(`${path} imports ${specifier}`);

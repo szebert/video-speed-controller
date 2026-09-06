@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { shadowDOM } from '@react-stately/flags';
-import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import {
@@ -262,10 +260,6 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('visible');
   });
 
-  it('enables React Aria shadow DOM event targeting', () => {
-    expect(shadowDOM()).toBe(true);
-  });
-
   it('restarts auto-hide when plus or minus is pressed', () => {
     vi.useFakeTimers();
     const adjustSpeed = vi.fn();
@@ -298,9 +292,7 @@ describe('VideoOverlay', () => {
     overlay.layout();
     const faster = overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]');
     expect(faster).toBeInstanceOf(HTMLButtonElement);
-    act(() => {
-      (faster as HTMLButtonElement).focus();
-    });
+    (faster as HTMLButtonElement).focus();
     vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
@@ -356,14 +348,10 @@ describe('VideoOverlay', () => {
     overlay.layout();
     const root = overlay.host.shadowRoot;
     expect(root?.querySelector('[aria-label="Bottom right"]')).toBeNull();
-    act(() => {
-      (root?.querySelector('[aria-label="Move overlay"]') as HTMLButtonElement).click();
-    });
+    (root?.querySelector('[aria-label="Move overlay"]') as HTMLButtonElement).click();
     const bottomRight = root?.querySelector('[aria-label="Bottom right"]');
     expect(bottomRight).toBeInstanceOf(HTMLButtonElement);
-    act(() => {
-      (bottomRight as HTMLButtonElement).click();
-    });
+    (bottomRight as HTMLButtonElement).click();
     expect(setOverlayPosition).toHaveBeenCalledWith(OVERLAY_POSITION.BOTTOM_RIGHT);
     expect(root?.querySelector('[aria-label="Bottom right"]')).toBeNull();
   });
@@ -378,13 +366,9 @@ describe('VideoOverlay', () => {
     const root = overlay.host.shadowRoot;
     const move = root?.querySelector('[aria-label="Move overlay"]');
     expect(move).toBeInstanceOf(HTMLButtonElement);
-    act(() => {
-      (move as HTMLButtonElement).click();
-    });
+    (move as HTMLButtonElement).click();
     expect(root?.querySelector('.position-picker')).not.toBeNull();
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
+    vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
@@ -418,17 +402,11 @@ describe('VideoOverlay', () => {
     const root = overlay.host.shadowRoot;
     const move = root?.querySelector('[aria-label="Move overlay"]');
     expect(move).toBeInstanceOf(HTMLButtonElement);
-    act(() => {
-      (move as HTMLButtonElement).click();
-    });
+    (move as HTMLButtonElement).click();
     expect(root?.querySelector('.position-picker')).not.toBeNull();
-    act(() => {
-      (move as HTMLButtonElement).click();
-    });
+    (move as HTMLButtonElement).click();
     expect(root?.querySelector('.position-picker')).toBeNull();
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
+    vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
   });
@@ -448,12 +426,8 @@ describe('VideoOverlay', () => {
     overlay.layout();
     const shell = overlay.host.shadowRoot?.querySelector('.controls-shell');
     expect(shell).toBeInstanceOf(HTMLElement);
-    act(() => {
-      shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
-    });
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
+    shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
+    vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
@@ -472,19 +446,13 @@ describe('VideoOverlay', () => {
     overlay.setControlled(true);
     overlay.layout();
     const root = overlay.host.shadowRoot;
-    act(() => {
-      (root?.querySelector('[aria-label="Move overlay"]') as HTMLButtonElement).click();
-    });
+    (root?.querySelector('[aria-label="Move overlay"]') as HTMLButtonElement).click();
     const picker = root?.querySelector('.position-picker');
     const shell = root?.querySelector('.controls-shell');
     expect(picker).toBeInstanceOf(HTMLElement);
     expect(shell).toBeInstanceOf(HTMLElement);
-    act(() => {
-      shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
-    });
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
+    shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
+    vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
@@ -504,12 +472,8 @@ describe('VideoOverlay', () => {
     overlay.layout();
     const shell = overlay.host.shadowRoot?.querySelector('.controls-shell');
     expect(shell).toBeInstanceOf(HTMLElement);
-    act(() => {
-      shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
-    });
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
+    shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
+    vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
   });
@@ -524,14 +488,10 @@ describe('VideoOverlay', () => {
     const root = overlay.host.shadowRoot;
     const shell = root?.querySelector('.controls-shell');
     expect(shell).toBeInstanceOf(HTMLElement);
-    act(() => {
-      shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
-    });
+    shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
     overlay.setControlled(false);
     overlay.layout();
-    act(() => {
-      shell?.dispatchEvent(new PointerEvent('pointerleave', { bubbles: true }));
-    });
+    shell?.dispatchEvent(new PointerEvent('pointerleave', { bubbles: true }));
     overlay.setControlled(true);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
@@ -547,9 +507,7 @@ describe('VideoOverlay', () => {
     overlay.setControlled(true);
     overlay.layout();
     const root = overlay.host.shadowRoot;
-    act(() => {
-      (root?.querySelector('[aria-label="Move overlay"]') as HTMLButtonElement).click();
-    });
+    (root?.querySelector('[aria-label="Move overlay"]') as HTMLButtonElement).click();
     expect(root?.querySelector('.position-picker')).not.toBeNull();
     overlay.setBehavior(
       tabBehavior(1.25, { overlayAutoHide: false, overlayPositionButton: false }),
@@ -672,5 +630,83 @@ describe('VideoOverlay', () => {
     vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
+  });
+
+  it('keeps two overlays isolated and leaves B intact when A is destroyed', () => {
+    const videoA = sizedVideo({ left: 10, top: 20, width: 200, height: 100 });
+    const videoB = sizedVideo({ left: 300, top: 20, width: 200, height: 100 });
+    const overlayA = new VideoOverlay(videoA, () => overlayA.layout());
+    const overlayB = new VideoOverlay(videoB, () => overlayB.layout());
+    const behavior = tabBehavior(1.25, { overlayAutoHide: false });
+    overlayA.setBehavior(behavior);
+    overlayB.setBehavior(behavior);
+    overlayA.setControlled(true);
+    overlayB.setControlled(true);
+    overlayA.layout();
+    overlayB.layout();
+
+    expect(document.querySelectorAll(OVERLAY_HOST_TAG)).toHaveLength(2);
+    expect(overlayA.host).not.toBe(overlayB.host);
+    expect(overlayA.speedReadout).not.toBe(overlayB.speedReadout);
+    expect(overlayA.speedReadout?.textContent).toBe('1.25×');
+    expect(overlayB.speedReadout?.textContent).toBe('1.25×');
+    expect(overlayA.host.style.visibility).toBe('visible');
+    expect(overlayB.host.style.visibility).toBe('visible');
+
+    const fasterA = overlayA.host.shadowRoot?.querySelector('[aria-label="Faster"]');
+    const fasterB = overlayB.host.shadowRoot?.querySelector('[aria-label="Faster"]');
+    expect(fasterA).toBeInstanceOf(HTMLButtonElement);
+    expect(fasterB).toBeInstanceOf(HTMLButtonElement);
+    (fasterA as HTMLButtonElement).click();
+    expect(overlayB.host).toBe(document.querySelectorAll(OVERLAY_HOST_TAG)[1]);
+    expect(overlayB.host.style.visibility).toBe('visible');
+    expect(overlayB.speedReadout?.textContent).toBe('1.25×');
+
+    const moveA = overlayA.host.shadowRoot?.querySelector('[aria-label="Move overlay"]');
+    const moveB = overlayB.host.shadowRoot?.querySelector('[aria-label="Move overlay"]');
+    expect(moveA).toBeInstanceOf(HTMLButtonElement);
+    expect(moveB).toBeInstanceOf(HTMLButtonElement);
+    (moveA as HTMLButtonElement).click();
+    expect(overlayA.host.shadowRoot?.querySelector('.position-picker')).not.toBeNull();
+    expect(overlayB.host.shadowRoot?.querySelector('.position-picker')).toBeNull();
+    (moveB as HTMLButtonElement).click();
+    expect(overlayA.host.shadowRoot?.querySelector('.position-picker')).not.toBeNull();
+    expect(overlayB.host.shadowRoot?.querySelector('.position-picker')).not.toBeNull();
+
+    overlayA.setControlled(false);
+    overlayA.layout();
+    expect(overlayA.host.style.visibility).toBe('hidden');
+    expect(overlayB.host.style.visibility).toBe('visible');
+    expect(overlayB.host.shadowRoot?.querySelector('.position-picker')).not.toBeNull();
+
+    overlayA.destroy();
+    expect(overlayA.host.isConnected).toBe(false);
+    expect(overlayB.host.isConnected).toBe(true);
+    expect(overlayB.speedReadout?.textContent).toBe('1.25×');
+    expect(overlayB.host.style.visibility).toBe('visible');
+  });
+
+  it('detaches overlay listeners on destroy and does not accumulate them', () => {
+    const requestLayout = vi.fn();
+    const video = sizedVideo();
+    const first = new VideoOverlay(video, requestLayout);
+    first.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    first.setControlled(true);
+    first.layout();
+    requestLayout.mockClear();
+    first.destroy();
+    expect(document.querySelector(OVERLAY_HOST_TAG)).toBeNull();
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
+    video.dispatchEvent(new Event('pointermove'));
+    expect(requestLayout).not.toHaveBeenCalled();
+
+    for (let index = 0; index < 8; index += 1) {
+      const overlay = new VideoOverlay(video, requestLayout);
+      overlay.destroy();
+    }
+    expect(document.querySelectorAll(OVERLAY_HOST_TAG)).toHaveLength(0);
+    requestLayout.mockClear();
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
+    expect(requestLayout).not.toHaveBeenCalled();
   });
 });

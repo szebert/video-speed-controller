@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
-import type { SpeedPolicy } from '../core/speed';
 import type { OverlayPosition } from '../settings/site-behavior';
 
 export type OverlayActions = {
@@ -10,12 +9,14 @@ export type OverlayActions = {
   openSettings?(): void;
 };
 
-export type OverlayControlsProps = {
-  behavior: AppliedTabBehavior;
-  policy?: SpeedPolicy;
-  visible?: boolean;
+export type OverlayViewCallbacks = {
   onAdjust(direction: -1 | 1): void;
   onSetPosition(position: OverlayPosition): void;
   onOpenSettings(): void;
   onInteractiveChange(active: boolean): void;
+};
+
+export type OverlayViewState = {
+  behavior: AppliedTabBehavior;
+  visible: boolean;
 };

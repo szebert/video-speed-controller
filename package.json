@@ -35,7 +35,6 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@react-stately/flags": "3.2.1",
     "@wxt-dev/i18n": "0.2.7",
     "class-variance-authority": "0.7.1",
     "cn": "^0.2.5",

@@ -58,6 +58,9 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
   than `zod/mini` under `protocol/content/**`. Content may import
   `protocol/content/*` (Mini only). Overlay, playback, and engine import
   neither Zod variant.
+- React, React DOM, React Aria, and `lucide-react` stay out of `content.js`,
+  including `import type` from files that runtime-import them. Popup and
+  options may keep those packages.
 - Do not merge Mini schemas, regular Zod RPC/storage schemas, or the
   handwritten session `isAppliedTabBehavior` guard. Those copies are the
   isolation wall. Domain types may derive from `BEHAVIOR_FIELDS`.

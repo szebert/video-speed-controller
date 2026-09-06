@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { createElement } from 'react';
-import { flushSync } from 'react-dom';
-import { createRoot, type Root } from 'react-dom/client';
-import { OverlayRoot } from '../overlay/OverlayRoot';
+import { OverlayView } from '../overlay/overlay-view';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
 import type { OverlayActions } from '../overlay/types';
 import {
@@ -17,10 +14,14 @@ export const OVERLAY_INSET_PX = 8;
 export const OVERLAY_MIN_SIZE_PX = 2;
 export const OVERLAY_Z_INDEX = '2147483647';
 
+type Visibility = {
+  visible: boolean;
+  rect?: DOMRect;
+};
+
 export class VideoOverlay {
   readonly host: HTMLElement;
-  private readonly mount: HTMLElement;
-  private readonly reactRoot: Root;
+  private readonly view: OverlayView;
   private readonly videoAbort = new AbortController();
   private behavior: AppliedTabBehavior | null = null;
   private controlled = false;
@@ -49,10 +50,25 @@ export class VideoOverlay {
 
     const shadow = this.host.attachShadow({ mode: 'open' });
     applyOverlayStyles(shadow);
-    this.mount = document.createElement('div');
-    shadow.append(this.mount);
+    this.view = new OverlayView(document, {
+      onAdjust: (direction) => {
+        this.restartAutoHide();
+        this.actions.adjustSpeed(direction);
+      },
+      onSetPosition: (position) => {
+        this.restartAutoHide();
+        this.actions.setOverlayPosition?.(position);
+      },
+      onOpenSettings: () => {
+        this.restartAutoHide();
+        this.actions.openSettings?.();
+      },
+      onInteractiveChange: (active) => {
+        this.setInteractive(active);
+      },
+    });
+    shadow.append(this.view.element);
     document.documentElement.append(this.host);
-    this.reactRoot = createRoot(this.mount);
 
     this.resizeObserver = new ResizeObserver(() => {
       this.requestLayout();
@@ -70,12 +86,12 @@ export class VideoOverlay {
   }
 
   get speedReadout(): HTMLElement | null {
-    return this.host.shadowRoot?.querySelector('.speed') ?? null;
+    return this.view.speedReadout.isConnected ? this.view.speedReadout : null;
   }
 
   setBehavior(behavior: AppliedTabBehavior): void {
     this.behavior = behavior;
-    this.renderControls();
+    this.syncView();
     if (this.controlled) {
       this.restartAutoHide();
     }
@@ -96,16 +112,16 @@ export class VideoOverlay {
   }
 
   layout(): void {
-    const visible = this.isVisible();
+    const next = this.evaluateVisibility();
     const wasVisible = this.host.style.visibility !== 'hidden';
-    this.host.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
-    if (wasVisible !== visible) {
-      this.renderControls();
+    this.host.style.setProperty('visibility', next.visible ? 'visible' : 'hidden', 'important');
+    if (wasVisible !== next.visible) {
+      this.syncView(next.visible);
     }
-    if (!visible || !this.behavior) {
+    if (!next.visible || !this.behavior || !next.rect) {
       return;
     }
-    const rect = this.video.getBoundingClientRect();
+    const rect = next.rect;
     const { row, column } = overlayPositionToGrid(this.behavior.overlayPosition);
     const x =
       column === 0
@@ -134,37 +150,17 @@ export class VideoOverlay {
     this.clearHideTimer();
     this.videoAbort.abort();
     this.resizeObserver.disconnect();
-    this.reactRoot.unmount();
+    this.view.destroy();
     this.host.remove();
   }
 
-  private renderControls(): void {
+  private syncView(visible = this.evaluateVisibility().visible): void {
     if (!this.behavior) {
       return;
     }
-    const behavior = this.behavior;
-    flushSync(() => {
-      this.reactRoot.render(
-        createElement(OverlayRoot, {
-          behavior,
-          visible: this.isVisible(),
-          onAdjust: (direction) => {
-            this.restartAutoHide();
-            this.actions.adjustSpeed(direction);
-          },
-          onSetPosition: (position) => {
-            this.restartAutoHide();
-            this.actions.setOverlayPosition?.(position);
-          },
-          onOpenSettings: () => {
-            this.restartAutoHide();
-            this.actions.openSettings?.();
-          },
-          onInteractiveChange: (active) => {
-            this.setInteractive(active);
-          },
-        }),
-      );
+    this.view.update({
+      behavior: this.behavior,
+      visible,
     });
   }
 
@@ -197,25 +193,21 @@ export class VideoOverlay {
     );
   }
 
-  private isVisible(): boolean {
-    if (this.behavior == null || !this.controlled || !this.isRenderable()) {
-      return false;
-    }
-    if (!this.behavior.overlayVisible) {
-      return false;
-    }
-    if (!this.behavior.overlayAutoHide) {
-      return true;
-    }
-    return !this.autoHideExpired;
-  }
-
-  private isRenderable(): boolean {
-    if (!this.video.isConnected) {
-      return false;
+  private evaluateVisibility(): Visibility {
+    if (
+      this.behavior == null ||
+      !this.controlled ||
+      !this.behavior.overlayVisible ||
+      (this.behavior.overlayAutoHide && this.autoHideExpired) ||
+      !this.video.isConnected
+    ) {
+      return { visible: false };
     }
     const rect = this.video.getBoundingClientRect();
-    return rect.width >= OVERLAY_MIN_SIZE_PX && rect.height >= OVERLAY_MIN_SIZE_PX;
+    if (rect.width < OVERLAY_MIN_SIZE_PX || rect.height < OVERLAY_MIN_SIZE_PX) {
+      return { visible: false };
+    }
+    return { visible: true, rect };
   }
 
   private setInteractive(active: boolean): void {
