@@ -48,17 +48,16 @@ export function AllSitesAccessCard() {
   const [error, setError] = useState<string | null>(null);
   const readGeneration = useRef(0);
 
-  const applyAccess = (result: LatestAccess): boolean | undefined => {
+  const applyAccess = (result: LatestAccess): void => {
     if (result.kind === 'stale') {
-      return undefined;
+      return;
     }
     if (result.kind === 'granted') {
       setHasAllSitesAccess(result.value);
       setError(null);
-      return result.value;
+      return;
     }
     setError(t('allSitesAccessError'));
-    return undefined;
   };
 
   useEffect(() => {
@@ -69,14 +68,19 @@ export function AllSitesAccessCard() {
     const onExternalChange = (): void => {
       void refresh();
     };
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+      }
+    };
     window.addEventListener('focus', onExternalChange);
-    document.addEventListener('visibilitychange', onExternalChange);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     chrome.permissions.onAdded.addListener(onExternalChange);
     chrome.permissions.onRemoved.addListener(onExternalChange);
     return () => {
       readGeneration.current += 1;
       window.removeEventListener('focus', onExternalChange);
-      document.removeEventListener('visibilitychange', onExternalChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       chrome.permissions.onAdded.removeListener(onExternalChange);
       chrome.permissions.onRemoved.removeListener(onExternalChange);
     };

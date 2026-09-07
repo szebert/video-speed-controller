@@ -1283,6 +1283,32 @@ describe('Options page', () => {
     expect(allSitesSwitch()?.checked).toBe(false);
   });
 
+  it('re-reads all-sites access on visible, not hidden, visibilitychange', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await openSettingsPane();
+    const containsAfterLoad = permissionsContains.mock.calls.length;
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await Promise.resolve();
+    });
+    expect(permissionsContains.mock.calls.length).toBe(containsAfterLoad);
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
+    permissionsContains.mockResolvedValue(true);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await Promise.resolve();
+    });
+    expect(allSitesSwitch()?.checked).toBe(true);
+  });
+
   it('ignores a stale all-sites contains() result', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     let releaseFirst!: (value: boolean) => void;
