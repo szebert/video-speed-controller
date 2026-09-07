@@ -228,6 +228,37 @@ describe('media registry', () => {
     expect(layout).toHaveBeenCalledTimes(1);
   });
 
+  it('queues exactly one follow-up RAF when layout requests work during a flush', () => {
+    vi.useFakeTimers();
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.ensureController(node);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    const overlay = registry.getOverlay(node);
+    const original = overlay!.layout.bind(overlay);
+    let layoutCalls = 0;
+    overlay!.layout = ((measure?: () => DOMRect) => {
+      layoutCalls += 1;
+      registry['requestLayout']();
+      registry['requestLayout']();
+      original(measure);
+    }) as VideoOverlay['layout'];
+    expect(frames).toHaveLength(1);
+    const scheduledBeforeFlush = raf.mock.calls.length;
+    frames[0]?.(0);
+    expect(layoutCalls).toBe(1);
+    expect(raf.mock.calls.length).toBe(scheduledBeforeFlush + 1);
+    expect(frames).toHaveLength(2);
+  });
+
   it('does not destroy a reparented connected video', () => {
     const registry = new MediaRegistry(document);
     registries.push(registry);
