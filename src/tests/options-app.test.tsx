@@ -8,7 +8,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { SpeedControls } from '@/components/SpeedControls';
 import type { GetBehaviorSettingsResponse } from '../protocol/schemas/options-background';
 import type { BehaviorSettingsSnapshot } from '../protocol/schemas/shared';
-import { OVERLAY_POSITION } from '../settings/site-behavior';
+import { OVERLAY_POSITION, resolveSiteBehavior } from '../settings/site-behavior';
 import { SPEED_MIN_SETTING_MIN } from '../core/speed';
 import { App } from '../entrypoints/options/App';
 
@@ -31,9 +31,11 @@ function builtInBehavior() {
 
 function snapshot(site: string | null = null): BehaviorSettingsSnapshot {
   const global = builtInBehavior();
+  const hotkeys = resolveSiteBehavior().hotkeys;
   return {
     global,
-    site: site ? { hostname: site, behavior: { ...global } } : null,
+    globalHotkeys: hotkeys,
+    site: site ? { hostname: site, behavior: { ...global }, hotkeys } : null,
   };
 }
 

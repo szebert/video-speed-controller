@@ -2,6 +2,7 @@
 
 import * as z from 'zod/mini';
 import type { AppliedTabBehavior } from '../../core/applied-tab-behavior';
+import type { EffectiveHotkeyMap } from '../../settings/hotkey-binding';
 import type { Equal } from '../../types/equal';
 import { OverlayPositionSchema } from './content-background';
 
@@ -24,9 +25,26 @@ export const AppliedTabBehaviorSchema = z.object({
 
 true satisfies Equal<z.infer<typeof AppliedTabBehaviorSchema>, AppliedTabBehavior>;
 
+const HotkeyBindingSchema = z.object({
+  code: z.string(),
+  ctrl: z.boolean(),
+  alt: z.boolean(),
+  shift: z.boolean(),
+  meta: z.boolean(),
+});
+
+export const EffectiveHotkeyMapSchema = z.object({
+  increaseSpeed: z.union([HotkeyBindingSchema, z.null()]),
+  decreaseSpeed: z.union([HotkeyBindingSchema, z.null()]),
+  resetSpeed: z.union([HotkeyBindingSchema, z.null()]),
+});
+
+true satisfies Equal<z.infer<typeof EffectiveHotkeyMapSchema>, EffectiveHotkeyMap>;
+
 export const ApplyTabBehaviorRequestSchema = z.object({
   type: z.literal('APPLY_TAB_BEHAVIOR'),
   behavior: AppliedTabBehaviorSchema,
+  hotkeys: z.optional(EffectiveHotkeyMapSchema),
 });
 
 export const ReconcileAccessRequestSchema = z.object({

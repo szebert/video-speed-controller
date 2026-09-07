@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import * as z from 'zod/mini';
+import { TAB_SPEED_ACTIONS } from '../../core/controller-action';
 
 // Content → background wire (Zod Mini). Regular Zod twins live in
 // protocol/schemas and must not be imported here — they would ship in content.js.
@@ -12,6 +13,11 @@ export const OverlayPositionSchema = z.literal([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 export const AdjustSpeedRequestSchema = z.object({
   type: z.literal('ADJUST_SPEED'),
   direction: z.literal([-1, 1]),
+});
+
+export const DispatchTabActionRequestSchema = z.object({
+  type: z.literal('DISPATCH_TAB_ACTION'),
+  action: z.literal(TAB_SPEED_ACTIONS),
 });
 
 export const SetOverlayPositionRequestSchema = z.object({
@@ -70,6 +76,10 @@ export const TopFrameDestroyedResponseSchema = z.object({
 
 export const CONTENT_TO_BACKGROUND = {
   ADJUST_SPEED: { request: AdjustSpeedRequestSchema, response: AdjustSpeedResponseSchema },
+  DISPATCH_TAB_ACTION: {
+    request: DispatchTabActionRequestSchema,
+    response: AdjustSpeedResponseSchema,
+  },
   SET_OVERLAY_POSITION: {
     request: SetOverlayPositionRequestSchema,
     response: SetOverlayPositionResponseSchema,
@@ -86,6 +96,8 @@ export const CONTENT_TO_BACKGROUND = {
 } as const;
 
 export type AdjustSpeedRequest = z.infer<typeof AdjustSpeedRequestSchema>;
+export type DispatchTabActionRequest = z.infer<typeof DispatchTabActionRequestSchema>;
+export type DispatchTabActionResponse = AdjustSpeedResponse;
 export type SetOverlayPositionRequest = z.infer<typeof SetOverlayPositionRequestSchema>;
 export type OpenOptionsPageRequest = z.infer<typeof OpenOptionsPageRequestSchema>;
 export type FrameReadyRequest = z.infer<typeof FrameReadyRequestSchema>;

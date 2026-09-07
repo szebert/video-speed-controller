@@ -84,6 +84,14 @@ function isContentEntrypoint(file: string): boolean {
   return srcPath(file) === 'entrypoints/content.ts';
 }
 
+function mayImportContentProtocol(file: string): boolean {
+  return (
+    isProtocolContent(file) ||
+    isContentEntrypoint(file) ||
+    srcPath(file) === 'core/execute-controller-action.ts'
+  );
+}
+
 function isForbiddenZod(file: string, specifier: string): boolean {
   if (specifier === 'zod/mini') {
     return !isProtocolContent(file);
@@ -134,8 +142,7 @@ describe('content import isolation', () => {
         }
         if (
           /(?:^|\/)protocol\/content(?:\/|$)/.test(specifier) &&
-          !isProtocolContent(file) &&
-          !isContentEntrypoint(file)
+          !mayImportContentProtocol(file)
         ) {
           violations.push(`${path} imports ${specifier}`);
         }

@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { builtInAppliedTabBehavior } from '../core/applied-tab-behavior';
 import { destroyEngine, getActiveEngine, startEngine } from '../core/video-speed-engine';
+import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 
 describe('engine lifecycle', () => {
   afterEach(() => {
     destroyEngine();
     document.body.replaceChildren();
     document.documentElement.querySelectorAll('osvsc-overlay').forEach((node) => node.remove());
+    vi.unstubAllGlobals();
   });
 
   it('is idempotent while active and restartable after destroy', () => {
@@ -36,5 +38,34 @@ describe('engine lifecycle', () => {
 
     expect(destroyEngine()).toBe(true);
     expect(video.playbackRate).toBe(1.25);
+  });
+
+  it('does not dispatch compiled-in hotkeys until APPLY includes a map', async () => {
+    const sendMessage = vi.fn(async () => ({ ok: true, targetSpeed: 1 }));
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+    const engine = startEngine();
+    engine.setBehavior(builtInAppliedTabBehavior(2));
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        code: 'BracketLeft',
+        key: '[',
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(sendMessage).not.toHaveBeenCalled();
+    engine.setBehavior(builtInAppliedTabBehavior(2), builtInEffectiveHotkeys());
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        code: 'BracketLeft',
+        key: '[',
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'DISPATCH_TAB_ACTION',
+      action: 'decreaseSpeed',
+    });
   });
 });

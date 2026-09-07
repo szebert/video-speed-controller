@@ -29,6 +29,35 @@ describe('parseBackgroundInbound', () => {
     expect(accepted({ type: 'ADJUST_SPEED', direction: 2 })).toBe(false);
     expect(accepted({ type: 'ADJUST_SPEED', direction: '1' })).toBe(false);
     expect(accepted({ type: 'ADJUST_SPEED', direction: null })).toBe(false);
+    expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'increaseSpeed' })).toBe(true);
+    expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'decreaseSpeed' })).toBe(true);
+    expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'resetSpeed' })).toBe(true);
+    expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'seekForward' })).toBe(false);
+    expect(
+      accepted({
+        type: 'SET_HOTKEY_SETTING',
+        scope: { kind: 'global' },
+        change: {
+          kind: 'hotkey-value',
+          action: 'increaseSpeed',
+          value: { code: 'KeyD', ctrl: false, alt: false, shift: false, meta: false },
+        },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_HOTKEY_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'hotkey-inherit', action: 'resetSpeed' },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_HOTKEY_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'hotkey-value', action: 'increaseSpeed', value: { code: 'KeyD' } },
+      }),
+    ).toBe(false);
     expect(accepted({ type: 'SET_OVERLAY_POSITION', position: 8 })).toBe(true);
     expect(accepted({ type: 'SET_OVERLAY_POSITION', position: 9 })).toBe(false);
     expect(accepted({ type: 'SET_OVERLAY_POSITION' })).toBe(false);
@@ -178,6 +207,11 @@ describe('parseBackgroundInbound', () => {
       }),
     ).toMatchObject({ channel: 'options' });
     expect(parseBackgroundInbound({ type: 'ADJUST_SPEED', direction: 1 })).toMatchObject({
+      channel: 'content',
+    });
+    expect(
+      parseBackgroundInbound({ type: 'DISPATCH_TAB_ACTION', action: 'resetSpeed' }),
+    ).toMatchObject({
       channel: 'content',
     });
     expect(parseBackgroundInbound({ type: 'APPLY_TAB_BEHAVIOR', behavior: tabBehavior(1.5) })).toBe(

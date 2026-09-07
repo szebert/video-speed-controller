@@ -45,6 +45,9 @@ describe('authorizeBackgroundInbound', () => {
       'ignore',
     );
     expect(authorizeBackgroundInbound('content', 'ADJUST_SPEED', extensionPage)).toBe('ignore');
+    expect(authorizeBackgroundInbound('content', 'DISPATCH_TAB_ACTION', extensionPage)).toBe(
+      'ignore',
+    );
     expect(
       authorizeBackgroundInbound('content', 'FRAME_READY', {
         url: 'https://example.com/',

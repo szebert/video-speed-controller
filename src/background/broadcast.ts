@@ -2,6 +2,7 @@
 
 import type { HostPattern } from '../access/site-access';
 import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
+import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type {
   ApplyTabBehaviorRequest,
   ReconcileAccessRequest,
@@ -44,12 +45,13 @@ export async function applyTabBehavior(
   tabId: number,
   behavior: AppliedTabBehavior,
   tabs: TabMessenger = chrome.tabs,
-  options: { ignoreNoReceiver?: boolean } = {},
+  options: { ignoreNoReceiver?: boolean; hotkeys?: EffectiveHotkeyMap } = {},
 ): Promise<void> {
   try {
     await tabs.sendMessage(tabId, {
       type: 'APPLY_TAB_BEHAVIOR',
       behavior,
+      ...(options.hotkeys ? { hotkeys: options.hotkeys } : {}),
     } satisfies ApplyTabBehaviorRequest);
   } catch (error) {
     if (options.ignoreNoReceiver !== false && isNoReceiverError(error)) {

@@ -7,6 +7,7 @@ import {
   BehaviorSettingChangeSchema,
   BehaviorSettingsScopeSchema,
   BehaviorSettingsSnapshotSchema,
+  HotkeySettingChangeSchema,
   SiteMembershipUpdateSchema,
 } from './shared';
 
@@ -25,6 +26,16 @@ export const SetBehaviorSettingRequestSchema = z
     scope: BehaviorSettingsScopeSchema,
     change: BehaviorSettingChangeSchema.optional(),
     changes: z.array(BehaviorSettingChangeSchema).min(1).optional(),
+    snapshotHostname: z.string().optional(),
+  })
+  .refine((value) => Boolean(value.change) !== Boolean(value.changes));
+
+export const SetHotkeySettingRequestSchema = z
+  .object({
+    type: z.literal('SET_HOTKEY_SETTING'),
+    scope: BehaviorSettingsScopeSchema,
+    change: HotkeySettingChangeSchema.optional(),
+    changes: z.array(HotkeySettingChangeSchema).min(1).optional(),
     snapshotHostname: z.string().optional(),
   })
   .refine((value) => Boolean(value.change) !== Boolean(value.changes));
@@ -63,6 +74,8 @@ export const SetBehaviorSettingResponseSchema = z.union([
   ),
   z.object({ ok: z.literal(false), error: z.string() }),
 ]);
+
+export const SetHotkeySettingResponseSchema = SetBehaviorSettingResponseSchema;
 
 export const DeleteSiteSettingsResponseSchema = z.union([
   BehaviorMutationSuccessSchema.and(
@@ -133,6 +146,10 @@ export const OPTIONS_TO_BACKGROUND = {
     request: SetBehaviorSettingRequestSchema,
     response: SetBehaviorSettingResponseSchema,
   },
+  SET_HOTKEY_SETTING: {
+    request: SetHotkeySettingRequestSchema,
+    response: SetHotkeySettingResponseSchema,
+  },
   DELETE_SITE_SETTINGS: {
     request: DeleteSiteSettingsRequestSchema,
     response: DeleteSiteSettingsResponseSchema,
@@ -162,6 +179,8 @@ export const OPTIONS_TO_BACKGROUND = {
 export type GetBehaviorSettingsRequest = z.infer<typeof GetBehaviorSettingsRequestSchema>;
 export type GetCustomSitesRequest = z.infer<typeof GetCustomSitesRequestSchema>;
 export type SetBehaviorSettingRequest = z.infer<typeof SetBehaviorSettingRequestSchema>;
+export type SetHotkeySettingRequest = z.infer<typeof SetHotkeySettingRequestSchema>;
+export type SetHotkeySettingResponse = z.infer<typeof SetHotkeySettingResponseSchema>;
 export type DeleteSiteSettingsRequest = z.infer<typeof DeleteSiteSettingsRequestSchema>;
 export type ResetGlobalBehaviorRequest = z.infer<typeof ResetGlobalBehaviorRequestSchema>;
 export type ResetAllBehaviorRequest = z.infer<typeof ResetAllBehaviorRequestSchema>;

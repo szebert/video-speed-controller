@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { handleFrameReady } from '../background/frame-ready';
+import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import type { TabStateStore } from '../storage/tab-state';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -42,7 +43,7 @@ describe('FRAME_READY', () => {
     );
 
     expect(response).toEqual({ action: 'applied' });
-    expect(apply).toHaveBeenCalledWith(9, existing);
+    expect(apply).toHaveBeenCalledWith(9, existing, undefined, {});
     expect(tabStore.data['tab:9']).toEqual(existing);
   });
 
@@ -59,7 +60,7 @@ describe('FRAME_READY', () => {
       { tabStore, apply, readBehavior: async () => seeded },
     );
     expect(response).toEqual({ action: 'applied' });
-    expect(apply).toHaveBeenCalledWith(3, seeded);
+    expect(apply).toHaveBeenCalledWith(3, seeded, undefined, {});
     expect(tabStore.data['tab:3']).toEqual(seeded);
   });
 
@@ -118,5 +119,58 @@ describe('FRAME_READY', () => {
       ),
     ).rejects.toThrow(/send failed/);
     expect(tabStore.data['tab:3']).toBeUndefined();
+  });
+
+  it('resolves hotkeys from the tab URL when a child frame is about:blank', async () => {
+    const tabStore = memoryTabStore();
+    const existing = tabBehavior(1.25);
+    await tabStore.set({ 'tab:9': existing });
+    const apply = vi.fn();
+    const hotkeys = {
+      ...builtInEffectiveHotkeys(),
+      increaseSpeed: {
+        code: 'KeyJ',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+      },
+    };
+    const readPayload = vi.fn(async (url: string) => {
+      expect(url).toBe('https://www.youtube.com/watch');
+      return { behavior: existing, hotkeys };
+    });
+    const response = await handleFrameReady(
+      {
+        tab: { id: 9, url: 'https://www.youtube.com/watch' } as chrome.tabs.Tab,
+        frameId: 3,
+        url: 'about:blank',
+      },
+      { tabStore, apply, readPayload },
+    );
+    expect(response).toEqual({ action: 'applied' });
+    expect(readPayload).toHaveBeenCalledWith('https://www.youtube.com/watch', {
+      touchUsage: false,
+    });
+    expect(apply).toHaveBeenCalledWith(9, existing, undefined, { hotkeys });
+  });
+
+  it('omits hotkeys instead of applying compiled-in defaults when no supported URL exists', async () => {
+    const tabStore = memoryTabStore();
+    const existing = tabBehavior(2);
+    await tabStore.set({ 'tab:9': existing });
+    const apply = vi.fn();
+    const readPayload = vi.fn();
+    const response = await handleFrameReady(
+      {
+        tab: { id: 9, url: 'about:blank' } as chrome.tabs.Tab,
+        frameId: 3,
+        url: 'about:blank',
+      },
+      { tabStore, apply, readPayload },
+    );
+    expect(response).toEqual({ action: 'applied' });
+    expect(readPayload).not.toHaveBeenCalled();
+    expect(apply).toHaveBeenCalledWith(9, existing, undefined, {});
   });
 });

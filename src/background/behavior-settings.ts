@@ -15,6 +15,8 @@ import type {
   ResetGlobalBehaviorResponse,
   SetBehaviorSettingRequest,
   SetBehaviorSettingResponse,
+  SetHotkeySettingRequest,
+  SetHotkeySettingResponse,
 } from '../protocol/schemas/options-background';
 import type {
   BehaviorMutationSuccess,
@@ -23,13 +25,16 @@ import type {
 } from '../protocol/schemas/shared';
 import {
   canonicalizeBehaviorSettingChange,
+  canonicalizeHotkeySettingChange,
   resolveSiteBehavior,
   toEditableResolvedBehavior,
   type BehaviorSettingChange,
+  type HotkeySettingChange,
 } from '../settings/site-behavior';
 import { normalizeSiteHostname, siteResolutionUrl } from '../settings/site-hostname';
 import {
   persistGlobalBehaviorChanges,
+  persistGlobalHotkeyChanges,
   readGlobalBehaviorOverrides,
   resetGlobalBehaviorOverrides,
   type BehaviorDefaultsDeps,
@@ -40,6 +45,7 @@ import {
   deleteSiteSettings,
   listCustomSiteHostnames,
   persistSiteBehaviorChanges,
+  persistSiteHotkeyChanges,
   readSiteMembership,
   resolveSiteBehaviorForUrl,
   type SiteSettingsDeps,
@@ -51,10 +57,12 @@ import {
   type ReapplyBehaviorRequest,
   type ReapplyBehaviorSettingsDeps,
 } from './reapply-behavior-settings';
+import { reapplyHotkeysToTabs, type ReapplyHotkeysDeps } from './reapply-hotkeys';
 
 export type BehaviorSettingsDeps = BehaviorDefaultsDeps &
   SiteSettingsDeps &
-  ReapplyBehaviorSettingsDeps;
+  ReapplyBehaviorSettingsDeps &
+  ReapplyHotkeysDeps;
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -65,9 +73,11 @@ export async function readBehaviorSettingsSnapshot(
   deps: BehaviorSettingsDeps = {},
 ): Promise<BehaviorSettingsSnapshot> {
   const globalOverrides = await readGlobalBehaviorOverrides(deps);
-  const global = toEditableResolvedBehavior(resolveSiteBehavior(globalOverrides, {}));
+  const globalResolved = resolveSiteBehavior(globalOverrides, {});
+  const global = toEditableResolvedBehavior(globalResolved);
+  const globalHotkeys = globalResolved.hotkeys;
   if (!hostname) {
-    return { global, site: null };
+    return { global, globalHotkeys, site: null };
   }
   const resolved = await resolveSiteBehaviorForUrl(siteResolutionUrl(hostname), {
     ...deps,
@@ -75,9 +85,11 @@ export async function readBehaviorSettingsSnapshot(
   });
   return {
     global,
+    globalHotkeys,
     site: {
       hostname,
       behavior: resolved ? toEditableResolvedBehavior(resolved) : global,
+      hotkeys: resolved ? resolved.hotkeys : globalHotkeys,
     },
   };
 }
@@ -226,6 +238,80 @@ export async function setBehaviorSetting(
     deps,
   );
   if (scope === 'site' && persistHostname) {
+    const siteMembership = await siteMembershipOf(persistHostname, deps);
+    return siteMembership ? { ...result, siteMembership } : result;
+  }
+  return result;
+}
+
+function requestedHotkeyChanges(message: SetHotkeySettingRequest): HotkeySettingChange[] | null {
+  const raw = message.changes ?? (message.change ? [message.change] : []);
+  const canonical: HotkeySettingChange[] = [];
+  for (const change of raw) {
+    const next = canonicalizeHotkeySettingChange(change);
+    if (!next) {
+      return null;
+    }
+    canonical.push(next);
+  }
+  return canonical.length > 0 ? canonical : null;
+}
+
+export async function setHotkeySetting(
+  message: SetHotkeySettingRequest,
+  sender: chrome.runtime.MessageSender,
+  deps: BehaviorSettingsDeps = {},
+): Promise<SetHotkeySettingResponse> {
+  if (!isExtensionPageSender(sender)) {
+    return { ok: false, error: 'Unauthorized' };
+  }
+
+  const changes = requestedHotkeyChanges(message);
+  if (!changes) {
+    return { ok: false, error: 'Invalid change' };
+  }
+
+  let persistHostname: string | null = null;
+  if (message.scope.kind === 'site') {
+    persistHostname = normalizeSiteHostname(message.scope.hostname);
+    if (!persistHostname) {
+      return { ok: false, error: 'Invalid hostname' };
+    }
+  }
+
+  const snapshot = validatedOptionalHostname(message.snapshotHostname);
+  if (!snapshot.ok) {
+    return snapshot;
+  }
+
+  try {
+    if (message.scope.kind === 'global') {
+      await persistGlobalHotkeyChanges(changes, deps);
+    } else {
+      await persistSiteHotkeyChanges(siteResolutionUrl(persistHostname!), changes, deps);
+    }
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, 'Failed to persist setting') };
+  }
+
+  const reapply = await reapplyHotkeysToTabs(
+    message.scope.kind === 'global'
+      ? { kind: 'global' }
+      : { kind: 'site', hostname: persistHostname! },
+    deps,
+  );
+  let result: BehaviorMutationSuccess;
+  try {
+    const state = await readBehaviorSettingsSnapshot(snapshot.hostname, deps);
+    result = { ok: true, state, ...reapply };
+  } catch (error) {
+    result = {
+      ok: true,
+      snapshotError: errorMessage(error, 'Failed to refresh settings'),
+      ...reapply,
+    };
+  }
+  if (message.scope.kind === 'site' && persistHostname) {
     const siteMembership = await siteMembershipOf(persistHostname, deps);
     return siteMembership ? { ...result, siteMembership } : result;
   }

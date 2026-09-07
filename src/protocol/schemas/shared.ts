@@ -8,11 +8,16 @@ import {
   NUMBER_BEHAVIOR_FIELDS,
   type BehaviorField,
 } from '../../settings/behavior-fields';
+import type { HotkeyBinding } from '../../settings/hotkey-binding';
 import type {
   BehaviorSettingChange as DomainBehaviorSettingChange,
   EditableResolvedBehavior,
+  HotkeySettingChange as DomainHotkeySettingChange,
   OverlayPosition,
+  ResolvedHotkeyMap,
+  SiteHotkeyAction,
 } from '../../settings/site-behavior';
+import { SITE_HOTKEY_ACTIONS } from '../../settings/site-behavior';
 
 // Options/popup RPC (regular Zod). Field lists stay here because this module
 // cannot be imported by protocol/content or overlay. Mini twins: OverlayPosition
@@ -82,12 +87,50 @@ export const EditableResolvedBehaviorSchema = z.object({
 
 true satisfies Equal<z.infer<typeof EditableResolvedBehaviorSchema>, EditableResolvedBehavior>;
 
+export const HotkeyBindingSchema = z.strictObject({
+  code: z.string(),
+  ctrl: z.boolean(),
+  alt: z.boolean(),
+  shift: z.boolean(),
+  meta: z.boolean(),
+}) satisfies z.ZodType<HotkeyBinding>;
+
+export const SiteHotkeyActionSchema = z.enum(
+  SITE_HOTKEY_ACTIONS,
+) satisfies z.ZodType<SiteHotkeyAction>;
+
+export const HotkeySettingChangeSchema = z.union([
+  z.object({
+    kind: z.literal('hotkey-inherit'),
+    action: SiteHotkeyActionSchema,
+  }),
+  z.object({
+    kind: z.literal('hotkey-value'),
+    action: SiteHotkeyActionSchema,
+    value: z.union([HotkeyBindingSchema, z.null()]),
+  }),
+]) satisfies z.ZodType<DomainHotkeySettingChange>;
+
+true satisfies Equal<DomainHotkeySettingChange, z.infer<typeof HotkeySettingChangeSchema>>;
+
+const ResolvedHotkeyBindingSchema = resolvedSettingSchema(z.union([HotkeyBindingSchema, z.null()]));
+
+export const ResolvedHotkeyMapSchema = z.object({
+  increaseSpeed: ResolvedHotkeyBindingSchema,
+  decreaseSpeed: ResolvedHotkeyBindingSchema,
+  resetSpeed: ResolvedHotkeyBindingSchema,
+}) satisfies z.ZodType<ResolvedHotkeyMap>;
+
+true satisfies Equal<z.infer<typeof ResolvedHotkeyMapSchema>, ResolvedHotkeyMap>;
+
 export const BehaviorSettingsSnapshotSchema = z.object({
   global: EditableResolvedBehaviorSchema,
+  globalHotkeys: ResolvedHotkeyMapSchema,
   site: z
     .object({
       hostname: z.string(),
       behavior: EditableResolvedBehaviorSchema,
+      hotkeys: ResolvedHotkeyMapSchema,
     })
     .nullable(),
 });
@@ -128,6 +171,7 @@ export const BehaviorMutationResponseSchema = z.union([
 
 export type BehaviorSettingsSnapshot = z.infer<typeof BehaviorSettingsSnapshotSchema>;
 export type BehaviorSettingChange = z.infer<typeof BehaviorSettingChangeSchema>;
+export type HotkeySettingChange = z.infer<typeof HotkeySettingChangeSchema>;
 export type BehaviorSettingsScope = z.infer<typeof BehaviorSettingsScopeSchema>;
 export type ReapplyResult = z.infer<typeof ReapplyResultSchema>;
 export type SiteMembershipUpdate = z.infer<typeof SiteMembershipUpdateSchema>;

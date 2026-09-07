@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import {
   OVERLAY_HOST_TAG,
@@ -779,5 +780,56 @@ describe('VideoOverlay', () => {
     requestLayout.mockClear();
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
     expect(requestLayout).not.toHaveBeenCalled();
+  });
+
+  it('shows [ / ] captions and aria-keyshortcuts on −/+ only when those actions are bound', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }), builtInEffectiveHotkeys());
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    const slower = root?.querySelector('[aria-label="Slower"]');
+    const faster = root?.querySelector('[aria-label="Faster"]');
+    expect(slower?.getAttribute('aria-keyshortcuts')).toBe('[');
+    expect(faster?.getAttribute('aria-keyshortcuts')).toBe(']');
+    expect(slower?.querySelector('.hotkey-hint')?.textContent).toBe('[');
+    expect(faster?.querySelector('.hotkey-hint')?.textContent).toBe(']');
+    expect(slower?.querySelector('.hotkey-hint')?.tagName).toBe('KBD');
+    expect(slower?.querySelector('.adjust-glyph')?.namespaceURI).toBe('http://www.w3.org/2000/svg');
+    expect(slower?.querySelector('.adjust-glyph')?.nextElementSibling?.className).toBe(
+      'hotkey-hint',
+    );
+    expect(overlayCss).toContain('flex-direction: row');
+    expect(overlayCss).toContain('height: 15px');
+    expect(overlay.speedReadout?.getAttribute('aria-keyshortcuts')).toBeNull();
+    expect(overlay.speedReadout?.querySelector('.hotkey-hint')).toBeNull();
+
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }), {
+      ...builtInEffectiveHotkeys(),
+      decreaseSpeed: {
+        code: 'BracketLeft',
+        ctrl: true,
+        alt: false,
+        shift: false,
+        meta: false,
+      },
+    });
+    const chord = root?.querySelector('[aria-label="Slower"]')?.querySelector('.hotkey-hint');
+    expect(chord?.textContent?.includes('+')).toBe(false);
+    expect(chord?.textContent?.endsWith('[')).toBe(true);
+    expect(chord?.textContent).toContain('\u2009');
+    expect(chord?.childElementCount).toBe(0);
+
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }), {
+      decreaseSpeed: null,
+      increaseSpeed: null,
+      resetSpeed: builtInEffectiveHotkeys().resetSpeed,
+    });
+    expect(
+      root?.querySelector('[aria-label="Slower"]')?.getAttribute('aria-keyshortcuts'),
+    ).toBeNull();
+    expect(root?.querySelector('[aria-label="Faster"]')?.querySelector('.hotkey-hint')).toBeNull();
+    expect(overlay.speedReadout?.querySelector('.hotkey-hint')).toBeNull();
   });
 });

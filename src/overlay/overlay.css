@@ -8,6 +8,7 @@
   --accent-foreground: #f8fafc;
   --muted: rgba(15, 23, 42, 0.72);
   --muted-foreground: #e2e8f0;
+  --kbd: rgba(248, 250, 252, 0.22);
   --ring: #38bdf8;
   position: fixed;
   pointer-events: none;
@@ -69,6 +70,44 @@
 .control:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
+}
+
+.control-adjust {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 1.75rem;
+}
+
+.adjust-glyph {
+  display: block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+.hotkey-hint {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  height: 15px;
+  min-width: 15px;
+  margin: 0;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 0.1875rem;
+  background: var(--kbd);
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
 }
 
 .control-icon {

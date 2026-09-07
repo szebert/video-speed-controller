@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { OverlayActions } from '../overlay/types';
+import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 import { MediaController } from './media-controller';
 import { OVERLAY_HOST_TAG, VideoOverlay } from './video-overlay';
@@ -53,6 +54,7 @@ export class MediaRegistry {
   private readonly rootObservers = new Map<Document | ShadowRoot, MutationObserver>();
   private readonly resizeObserver: ResizeObserver;
   private currentBehavior: AppliedTabBehavior | null = null;
+  private currentHotkeys: EffectiveHotkeyMap | null = null;
   private destroyed = false;
   private layoutRaf: number | null = null;
   private latestPointer: { x: number; y: number } | null = null;
@@ -74,10 +76,13 @@ export class MediaRegistry {
     this.discover(this.document);
   }
 
-  setBehavior(behavior: AppliedTabBehavior): void {
+  setBehavior(behavior: AppliedTabBehavior, hotkeys?: EffectiveHotkeyMap): void {
     this.currentBehavior = behavior;
+    if (hotkeys) {
+      this.currentHotkeys = hotkeys;
+    }
     for (const entry of this.entries.values()) {
-      entry.overlay.setBehavior(behavior);
+      entry.overlay.setBehavior(behavior, hotkeys ?? this.currentHotkeys ?? undefined);
       entry.controller.setTarget(behavior.targetSpeed);
     }
     this.requestLayout();
@@ -133,7 +138,7 @@ export class MediaRegistry {
     this.entries.set(video, entry);
     this.resizeObserver.observe(video);
     if (this.currentBehavior) {
-      overlay.setBehavior(this.currentBehavior);
+      overlay.setBehavior(this.currentBehavior, this.currentHotkeys ?? undefined);
       controller.setTarget(this.currentBehavior.targetSpeed);
     }
     this.requestLayout();

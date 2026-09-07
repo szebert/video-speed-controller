@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
+import { ariaKeyshortcutsFromBinding, visualHotkeyParts } from '../core/hotkey-format';
 import { canAdjustSpeed, formatSpeed } from '../core/speed';
 import { t, type MessageKey } from '../i18n/t';
+import type { HotkeyBinding } from '../settings/hotkey-binding';
 import {
   canonicalizeOverlayOpacity,
   overlayPositionToGrid,
@@ -67,8 +69,8 @@ export class OverlayView {
       { signal: this.abort.signal },
     );
 
-    this.slower = this.createChromeButton('control', t('slower'));
-    this.slower.textContent = '−';
+    this.slower = this.createChromeButton('control control-adjust', t('slower'));
+    this.slower.append(createAdjustIcon(document, -1));
     this.slower.addEventListener(
       'click',
       () => {
@@ -82,8 +84,8 @@ export class OverlayView {
     this.speedReadout = document.createElement('div');
     this.speedReadout.className = 'speed';
 
-    this.faster = this.createChromeButton('control', t('faster'));
-    this.faster.textContent = '+';
+    this.faster = this.createChromeButton('control control-adjust', t('faster'));
+    this.faster.append(createAdjustIcon(document, 1));
     this.faster.addEventListener(
       'click',
       () => {
@@ -188,6 +190,8 @@ export class OverlayView {
     this.speedReadout.textContent = formatSpeed(behavior.targetSpeed);
     this.slower.disabled = !canAdjustSpeed(behavior.targetSpeed, -1, policy);
     this.faster.disabled = !canAdjustSpeed(behavior.targetSpeed, 1, policy);
+    syncHotkeyHint(this.slower, state.hotkeys?.decreaseSpeed ?? null);
+    syncHotkeyHint(this.faster, state.hotkeys?.increaseSpeed ?? null);
 
     if (behavior.overlayPositionButton) {
       if (!this.move.isConnected) {
@@ -301,6 +305,32 @@ export class OverlayView {
     this.lastInteractive = interactive;
     this.callbacks.onInteractiveChange(interactive);
   }
+}
+
+function createAdjustIcon(document: Document, direction: -1 | 1): SVGSVGElement {
+  const svg =
+    direction < 0
+      ? createSvg(document, [['path', { d: 'M5 12h14' }]])
+      : createSvg(document, [
+          ['path', { d: 'M5 12h14' }],
+          ['path', { d: 'M12 5v14' }],
+        ]);
+  svg.classList.add('adjust-glyph');
+  return svg;
+}
+
+function syncHotkeyHint(button: HTMLButtonElement, binding: HotkeyBinding | null): void {
+  button.querySelector('.hotkey-hint')?.remove();
+  if (!binding) {
+    button.removeAttribute('aria-keyshortcuts');
+    return;
+  }
+  button.setAttribute('aria-keyshortcuts', ariaKeyshortcutsFromBinding(binding));
+  const hint = button.ownerDocument.createElement('kbd');
+  hint.className = 'hotkey-hint';
+  hint.setAttribute('aria-hidden', 'true');
+  hint.textContent = visualHotkeyParts(binding).join('\u2009');
+  button.append(hint);
 }
 
 function blurAfterPointerClick(event: MouseEvent): void {

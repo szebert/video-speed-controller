@@ -6,6 +6,7 @@ import { handleFrameReady } from '../background/frame-ready';
 import { getPopupState } from '../background/popup-state';
 import { resetSiteSpeed } from '../background/reset-site-speed';
 import { adjustTabSpeed } from '../background/adjust-tab-speed';
+import { dispatchTabAction } from '../background/dispatch-tab-action';
 import { openOptionsFromSender } from '../background/open-options-from-sender';
 import { setOverlayPositionFromSender } from '../background/set-overlay-position';
 import { setSpeed } from '../background/set-speed';
@@ -18,6 +19,7 @@ import {
   resetAllBehaviorSettings,
   resetGlobalBehaviorSettings,
   setBehaviorSetting,
+  setHotkeySetting,
 } from '../background/behavior-settings';
 import { setTheme } from '../background/set-theme';
 import { reconcilePendingGlobalReplicas } from '../storage/behavior-defaults';
@@ -126,6 +128,21 @@ export default defineBackground(() => {
       );
       return true;
     }
+    if (request.type === 'DISPATCH_TAB_ACTION') {
+      const tabId = sender.tab?.id;
+      if (tabId == null) {
+        sendResponse({ ok: false, error: 'Missing tab' });
+        return false;
+      }
+      void enqueueTabMutation(tabId, () => dispatchTabAction(sender, request.action)).then(
+        sendResponse,
+        respondWithError(sendResponse, 'DISPATCH_TAB_ACTION', {
+          ok: false,
+          error: 'Unexpected tab action failure',
+        }),
+      );
+      return true;
+    }
     if (request.type === 'SET_OVERLAY_POSITION') {
       void setOverlayPositionFromSender(sender, request.position).then(
         sendResponse,
@@ -194,6 +211,16 @@ export default defineBackground(() => {
         respondWithError(sendResponse, 'SET_BEHAVIOR_SETTING', {
           ok: false,
           error: 'Unexpected settings write failure',
+        }),
+      );
+      return true;
+    }
+    if (request.type === 'SET_HOTKEY_SETTING') {
+      void setHotkeySetting(request, sender).then(
+        sendResponse,
+        respondWithError(sendResponse, 'SET_HOTKEY_SETTING', {
+          ok: false,
+          error: 'Unexpected hotkey write failure',
         }),
       );
       return true;

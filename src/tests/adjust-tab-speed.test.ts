@@ -54,7 +54,7 @@ describe('adjustTabSpeed', () => {
     const result = await adjustTabSpeed(sender({ id: 4, url: 'https://example.com/watch' }), 1, {
       tabStore,
       apply,
-      persist: vi.fn(),
+      persist: vi.fn(async () => {}),
       ensure: vi.fn(),
     });
     expect(result).toEqual({ ok: true, targetSpeed: 4 });
@@ -88,7 +88,7 @@ describe('adjustTabSpeed', () => {
     const result = await adjustTabSpeed(sender({ id: 2, url: 'https://example.com/watch' }), -1, {
       tabStore,
       apply,
-      persist: vi.fn(),
+      persist: vi.fn(async () => {}),
       ensure: vi.fn(),
       readBehavior: async () => tabBehavior(1.25),
     });

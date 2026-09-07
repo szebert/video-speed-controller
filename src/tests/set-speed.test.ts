@@ -39,7 +39,7 @@ describe('setSpeed', () => {
     const apply = vi.fn();
     await setSpeed(7, 'https://example.com/watch', 2.25, {
       tabStore,
-      persist: vi.fn(),
+      persist: vi.fn(async () => {}),
       apply,
       ensure: vi.fn(),
     });
@@ -130,13 +130,27 @@ describe('setSpeed', () => {
     expect(apply).toHaveBeenCalledWith(1, tabBehavior(1.5));
   });
 
+  it('skips persist when persist is false', async () => {
+    const tabStore = memoryTabStore();
+    const apply = vi.fn();
+    const result = await setSpeed(4, 'https://example.com/watch', 1, {
+      tabStore,
+      persist: false,
+      apply,
+      ensure: vi.fn(),
+      readOverlay: async () => tabBehavior(1.75),
+    });
+    expect(result).toEqual({ ok: true, targetSpeed: 1 });
+    expect(apply).toHaveBeenCalledWith(4, tabBehavior(1));
+  });
+
   it('treats old speed-only session state as absent', async () => {
     const tabStore = memoryTabStore();
     await tabStore.set({ 'tab:1': { targetSpeed: 2 } });
     const apply = vi.fn();
     await setSpeed(1, 'https://example.com/watch', 1.5, {
       tabStore,
-      persist: vi.fn(),
+      persist: vi.fn(async () => {}),
       apply,
       ensure: vi.fn(),
       readOverlay: async () => tabBehavior(1, { overlayAutoHide: true }),

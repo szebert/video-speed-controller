@@ -3,7 +3,7 @@
 import { canonicalizeSpeed, clampSpeed, type SpeedPolicy } from '../core/speed';
 import { speedPolicyFromApplied, type AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type { SetSpeedResponse } from '../protocol/schemas/popup-background';
-import { persistSiteSpeed } from '../storage/site-settings';
+import { persistSiteSpeed, type SiteSettingsDeps } from '../storage/site-settings';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { readOverlaySeed, type OverlaySeed } from './applied-behavior';
 import { applyTabBehavior } from './broadcast';
@@ -12,7 +12,7 @@ import { ensureCurrentTabEngine, type ScriptInjector } from './inject';
 export type SetSpeedDeps = {
   scripting?: ScriptInjector;
   tabStore?: TabStateStore;
-  persist?: typeof persistSiteSpeed;
+  persist?: ((url: string, speed: number, deps?: SiteSettingsDeps) => Promise<void>) | false;
   apply?: typeof applyTabBehavior;
   ensure?: typeof ensureCurrentTabEngine;
   readOverlay?: (url: string) => Promise<OverlaySeed>;
@@ -60,6 +60,10 @@ export async function setSpeed(
       ok: false,
       error: error instanceof Error ? error.message : 'Top-frame injection failed',
     };
+  }
+
+  if (deps.persist === false) {
+    return { ok: true, targetSpeed: canonical };
   }
 
   try {

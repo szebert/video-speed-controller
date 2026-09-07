@@ -164,6 +164,11 @@ describe('behavior settings API', () => {
         speed: { value: 1.25, source: 'site' },
         overlayPosition: { value: OVERLAY_POSITION.BOTTOM_RIGHT, source: 'global' },
       }),
+      hotkeys: expect.objectContaining({
+        decreaseSpeed: expect.objectContaining({ source: 'built-in' }),
+        increaseSpeed: expect.objectContaining({ source: 'built-in' }),
+        resetSpeed: expect.objectContaining({ source: 'built-in' }),
+      }),
     });
   });
 

@@ -27,6 +27,12 @@ describe('content Mini protocol', () => {
     expect(
       CONTENT_TO_BACKGROUND.FRAME_READY.request.safeParse({ type: 'FRAME_READY' }).success,
     ).toBe(true);
+    expect(
+      CONTENT_TO_BACKGROUND.DISPATCH_TAB_ACTION.request.safeParse({
+        type: 'DISPATCH_TAB_ACTION',
+        action: 'resetSpeed',
+      }).data,
+    ).toEqual({ type: 'DISPATCH_TAB_ACTION', action: 'resetSpeed' });
   });
 
   it('rejects missing or malformed known APPLY fields', () => {
@@ -57,6 +63,38 @@ describe('content Mini protocol', () => {
     ).toEqual({
       type: 'APPLY_TAB_BEHAVIOR',
       behavior: tabBehavior(1.5),
+    });
+    expect(
+      parseBackgroundToContent({
+        type: 'APPLY_TAB_BEHAVIOR',
+        behavior: tabBehavior(1.5),
+        hotkeys: {
+          decreaseSpeed: {
+            code: 'BracketLeft',
+            ctrl: false,
+            alt: false,
+            shift: false,
+            meta: false,
+          },
+          increaseSpeed: {
+            code: 'BracketRight',
+            ctrl: false,
+            alt: false,
+            shift: false,
+            meta: false,
+          },
+          resetSpeed: null,
+          extra: true,
+        },
+      }),
+    ).toEqual({
+      type: 'APPLY_TAB_BEHAVIOR',
+      behavior: tabBehavior(1.5),
+      hotkeys: {
+        decreaseSpeed: { code: 'BracketLeft', ctrl: false, alt: false, shift: false, meta: false },
+        increaseSpeed: { code: 'BracketRight', ctrl: false, alt: false, shift: false, meta: false },
+        resetSpeed: null,
+      },
     });
   });
 

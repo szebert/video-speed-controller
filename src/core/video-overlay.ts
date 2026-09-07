@@ -7,6 +7,7 @@ import {
   canonicalizeOverlayAutoHideDelayMs,
   overlayPositionToGrid,
 } from '../settings/site-behavior';
+import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 
 export const OVERLAY_HOST_TAG = 'osvsc-overlay';
@@ -19,6 +20,7 @@ export class VideoOverlay {
   private readonly view: OverlayView;
   private readonly videoAbort = new AbortController();
   private behavior: AppliedTabBehavior | null = null;
+  private hotkeys: EffectiveHotkeyMap | null = null;
   private controlled = false;
   private autoHideExpired = false;
   private interactive = false;
@@ -74,8 +76,11 @@ export class VideoOverlay {
     return this.view.speedReadout.isConnected ? this.view.speedReadout : null;
   }
 
-  setBehavior(behavior: AppliedTabBehavior): void {
+  setBehavior(behavior: AppliedTabBehavior, hotkeys?: EffectiveHotkeyMap): void {
     this.behavior = behavior;
+    if (hotkeys) {
+      this.hotkeys = hotkeys;
+    }
     this.syncView();
     if (this.controlled) {
       this.restartAutoHide();
@@ -174,6 +179,7 @@ export class VideoOverlay {
     this.view.update({
       behavior: this.behavior,
       visible,
+      hotkeys: this.hotkeys,
     });
   }
 

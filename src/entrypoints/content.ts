@@ -10,12 +10,13 @@ import { destroyEngine, startEngine } from '../core/video-speed-engine';
 import { parseBackgroundToContent } from '../protocol/content/background-content';
 import { contentFailureMessage, sendContentRequest } from '../protocol/content/client';
 import type { ContentToBackgroundRequest } from '../protocol/content/content-background';
+import { executeControllerAction } from '../core/execute-controller-action';
 import type { OverlayActions } from '../overlay/types';
 
 async function sendOverlayIntent(
   request: Extract<
     ContentToBackgroundRequest,
-    { type: 'ADJUST_SPEED' | 'SET_OVERLAY_POSITION' | 'OPEN_OPTIONS_PAGE' }
+    { type: 'SET_OVERLAY_POSITION' | 'OPEN_OPTIONS_PAGE' }
   >,
 ): Promise<void> {
   try {
@@ -35,10 +36,7 @@ async function sendOverlayIntent(
 
 const overlayActions: OverlayActions = {
   adjustSpeed(direction) {
-    void sendOverlayIntent({
-      type: 'ADJUST_SPEED',
-      direction,
-    });
+    void executeControllerAction(direction === 1 ? 'increaseSpeed' : 'decreaseSpeed');
   },
   setOverlayPosition(position) {
     void sendOverlayIntent({
@@ -104,7 +102,7 @@ export default defineContentScript({
           return false;
         }
         if (inbound.type === 'APPLY_TAB_BEHAVIOR') {
-          engine.setBehavior(inbound.behavior);
+          engine.setBehavior(inbound.behavior, inbound.hotkeys);
           sendResponse({ ok: true });
           return false;
         }
