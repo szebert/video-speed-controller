@@ -48,3 +48,25 @@ test('iframe fixture has a top video, same-origin iframe, and ungranted embed', 
   await expect(page.locator('#same-origin')).toHaveCount(1);
   await expect(page.locator('#cross-origin')).toHaveCount(1);
 });
+
+test('overlay-stacking fixture exposes six labeled cases', async ({ page }) => {
+  await page.goto('/overlay-stacking.html');
+  await expect(page.getByRole('heading', { name: 'Sticky header' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ordinary modal' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Player chrome' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dropdown / menu' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Wrapper fullscreen' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Transparent click-capture' })).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(6);
+  await expect(page.locator('#sticky-header')).toBeVisible();
+  await expect(page.locator('#ordinary-modal')).toBeHidden();
+  await expect(page.locator('#player-chrome')).toBeVisible();
+  await expect(page.locator('#dropdown-menu')).toBeHidden();
+  await expect(page.locator('#fullscreen-wrapper')).toBeVisible();
+  await expect(page.locator('#click-trap')).toBeVisible();
+  await expect
+    .poll(async () =>
+      page.locator('#click-trap').evaluate((node) => getComputedStyle(node).backgroundColor),
+    )
+    .toBe('rgba(0, 0, 0, 0)');
+});

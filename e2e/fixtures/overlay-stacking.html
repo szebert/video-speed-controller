@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OS VSC overlay stacking fixture</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+      }
+
+      body {
+        margin: 1rem;
+      }
+
+      section {
+        margin-block: 2.5rem;
+      }
+
+      .stage {
+        position: relative;
+        width: 480px;
+      }
+
+      video {
+        display: block;
+        width: 480px;
+        height: 270px;
+        background: #000;
+      }
+
+      #sticky-scroller {
+        height: 280px;
+        overflow: auto;
+        overscroll-behavior: contain;
+        border: 1px solid #64748b;
+      }
+
+      .scroll-lead,
+      .scroll-trail {
+        height: 200px;
+        background: #e2e8f0;
+      }
+
+      #sticky-header {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        height: 40px;
+        box-sizing: border-box;
+        padding: 0.5rem 0.75rem;
+        background: #c45c26;
+        color: #fff;
+      }
+
+      #ordinary-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+      }
+
+      #ordinary-modal[hidden] {
+        display: none;
+      }
+
+      #ordinary-modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgb(15 23 42 / 0.55);
+      }
+
+      #ordinary-modal-dialog {
+        position: absolute;
+        inset: 20% 15%;
+        padding: 1rem;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      #player-chrome {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 2;
+        height: 48px;
+        box-sizing: border-box;
+        padding: 0.75rem;
+        background: #15803d;
+        color: #fff;
+      }
+
+      #dropdown-menu {
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        z-index: 4;
+        min-width: 240px;
+        min-height: 48px;
+        margin: 0;
+        padding: 0.5rem;
+        list-style: none;
+        background: #1d4ed8;
+        color: #fff;
+        transform: translateX(-50%);
+      }
+
+      #dropdown-menu[hidden] {
+        display: none;
+      }
+
+      #click-trap {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        background: transparent;
+      }
+
+      #fullscreen-wrapper {
+        position: relative;
+        width: 480px;
+        background: #111;
+      }
+
+      #fullscreen-wrapper:fullscreen {
+        width: 100%;
+        height: 100%;
+        background: #000;
+      }
+
+      #fullscreen-wrapper:fullscreen video {
+        width: 100%;
+        height: 100%;
+      }
+
+      #fullscreen-chrome {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 2;
+        height: 48px;
+        box-sizing: border-box;
+        padding: 0.75rem;
+        background: #7c3aed;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>OS VSC overlay stacking fixture</h1>
+      <p>
+        Ordinary stacking only. The modal and menu are not top-layer
+        <code>&lt;dialog&gt;</code> or <code>popover</code> UI.
+      </p>
+
+      <section id="section-sticky" aria-labelledby="heading-sticky">
+        <h2 id="heading-sticky">Sticky header</h2>
+        <div id="sticky-scroller">
+          <div class="scroll-lead"></div>
+          <header id="sticky-header">Sticky header</header>
+          <div class="stage">
+            <video id="video-sticky" muted></video>
+          </div>
+          <div class="scroll-trail"></div>
+        </div>
+      </section>
+
+      <section id="section-modal" aria-labelledby="heading-modal">
+        <h2 id="heading-modal">Ordinary modal</h2>
+        <button type="button" id="open-modal">Open modal</button>
+        <div class="stage">
+          <video id="video-modal" muted></video>
+        </div>
+        <!-- Ordinary stacking: not a top-layer dialog. -->
+        <div
+          id="ordinary-modal"
+          hidden
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ordinary-modal-title"
+        >
+          <div id="ordinary-modal-backdrop"></div>
+          <div id="ordinary-modal-dialog">
+            <h3 id="ordinary-modal-title">Ordinary modal</h3>
+            <p>Fixed dimmer and dialog, ordinary z-index.</p>
+            <button type="button" id="close-modal">Close modal</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-chrome" aria-labelledby="heading-chrome">
+        <h2 id="heading-chrome">Player chrome</h2>
+        <div class="stage">
+          <video id="video-chrome" muted></video>
+          <div id="player-chrome">Player chrome</div>
+        </div>
+      </section>
+
+      <section id="section-menu" aria-labelledby="heading-menu">
+        <h2 id="heading-menu">Dropdown / menu</h2>
+        <div class="stage">
+          <button
+            type="button"
+            id="menu-toggle"
+            aria-expanded="false"
+            aria-controls="dropdown-menu"
+          >
+            Open menu
+          </button>
+          <video id="video-menu" muted></video>
+          <ul id="dropdown-menu" hidden role="menu">
+            <li role="none">
+              <button type="button" role="menuitem">Menu item</button>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="section-fullscreen" aria-labelledby="heading-fullscreen">
+        <h2 id="heading-fullscreen">Wrapper fullscreen</h2>
+        <button type="button" id="enter-fullscreen">Enter fullscreen</button>
+        <div id="fullscreen-wrapper">
+          <video id="video-fullscreen" muted></video>
+          <div id="fullscreen-chrome">Fullscreen chrome</div>
+        </div>
+      </section>
+
+      <section id="section-trap" aria-labelledby="heading-trap">
+        <h2 id="heading-trap">Transparent click-capture</h2>
+        <div class="stage">
+          <video id="video-trap" muted></video>
+          <div id="click-trap"></div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const modal = document.getElementById('ordinary-modal');
+      document.getElementById('open-modal').addEventListener('click', () => {
+        modal.hidden = false;
+      });
+      document.getElementById('close-modal').addEventListener('click', () => {
+        modal.hidden = true;
+      });
+
+      const menu = document.getElementById('dropdown-menu');
+      const toggle = document.getElementById('menu-toggle');
+      toggle.addEventListener('click', () => {
+        const open = menu.hidden;
+        menu.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.textContent = open ? 'Close menu' : 'Open menu';
+      });
+
+      const wrapper = document.getElementById('fullscreen-wrapper');
+      const fullscreenButton = document.getElementById('enter-fullscreen');
+      const syncFullscreenLabel = () => {
+        fullscreenButton.textContent = document.fullscreenElement
+          ? 'Exit fullscreen'
+          : 'Enter fullscreen';
+      };
+      fullscreenButton.addEventListener('click', () => {
+        delete fullscreenButton.dataset.error;
+        const action = document.fullscreenElement
+          ? document.exitFullscreen()
+          : wrapper.requestFullscreen();
+        action.catch((error) => {
+          fullscreenButton.dataset.error = error instanceof Error ? error.message : String(error);
+        });
+      });
+      document.addEventListener('fullscreenchange', syncFullscreenLabel);
+    </script>
+  </body>
+</html>
