@@ -1,5 +1,7 @@
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - cn@0.2.6
 publicHoistPattern:
   - '*react-aria*'
   - '*react-stately*'
