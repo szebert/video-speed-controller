@@ -97,12 +97,23 @@ if (existsSync(join(root, '.output', 'chrome-mv3', 'manifest.json'))) {
   }
 }
 
+const notices = join(root, 'THIRD_PARTY_NOTICES');
+const publicNotices = join(root, 'src/public/THIRD_PARTY_NOTICES');
+if (!existsSync(notices) || !existsSync(publicNotices)) {
+  fail('THIRD_PARTY_NOTICES must exist at the repo root and in src/public');
+} else if (readFileSync(notices, 'utf8') !== readFileSync(publicNotices, 'utf8')) {
+  fail('THIRD_PARTY_NOTICES and src/public/THIRD_PARTY_NOTICES must match');
+}
+
 if (existsSync(join(root, '.output', 'chrome-mv3'))) {
   const outputFiles = readdirSync(join(root, '.output', 'chrome-mv3'), { recursive: true }).map(
     String,
   );
   if (outputFiles.some((file) => file.includes('.cursor') || file.includes('.agents'))) {
     fail('development tooling must not be bundled into the Chrome artifact');
+  }
+  if (!outputFiles.includes('THIRD_PARTY_NOTICES')) {
+    fail('Chrome artifact must include THIRD_PARTY_NOTICES');
   }
 }
 
