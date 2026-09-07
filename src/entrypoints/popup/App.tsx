@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { SettingsIcon } from 'lucide-react';
+import { AlertCircleIcon, SettingsIcon } from 'lucide-react';
 import { t } from '@/i18n/t';
 import {
   E2E_POPUP_TARGET_TAB_ID_KEY,
@@ -15,6 +15,7 @@ import {
 } from '../../access/site-access';
 import { ModeToggle } from '@/components/mode-toggle';
 import { SpeedControls } from '@/components/SpeedControls';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { sendPopupRequest } from '../../protocol/rpc';
@@ -99,8 +100,15 @@ function PopupShell({
           <ModeToggle />
         </div>
       </header>
-      <main className="flex flex-col gap-4 p-4">{children}</main>
-      {notice ? <p className="px-4 pb-4 text-sm text-destructive">{notice}</p> : null}
+      <main className="flex flex-col gap-4 p-4">
+        {children}
+        {notice ? (
+          <Alert variant="destructive">
+            <AlertCircleIcon />
+            <AlertTitle>{notice}</AlertTitle>
+          </Alert>
+        ) : null}
+      </main>
     </div>
   );
 }
