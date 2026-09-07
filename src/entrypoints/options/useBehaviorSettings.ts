@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { sendOptionsRequest } from '../../protocol/rpc';
 import type {
   DeleteSiteSettingsResponse,
@@ -76,6 +77,18 @@ function applyMembership(current: string[], update: SiteMembershipUpdate): strin
   return current;
 }
 
+function reportActionError(message: string): void {
+  toast.error(message);
+}
+
+function reportActionWarning(message: string): void {
+  toast.warning(message);
+}
+
+function clearActionFeedback(): void {
+  toast.dismiss();
+}
+
 function persistErrorMessage(error: string | undefined): string {
   if (error === SETTINGS_CREATED_BY_NEWER_VERSION) {
     return t('settingsNewerVersion');
@@ -112,7 +125,6 @@ export function useBehaviorSettings() {
   const [ready, setReady] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
   const [sliderPreview, setSliderPreview] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<Partial<Record<DraftKey, string>>>({});
   const [optimistic, setOptimistic] = useState<
@@ -162,7 +174,7 @@ export function useBehaviorSettings() {
         if (sites.ok) {
           setCustomSites(sites.customSites);
         } else if (settings.ok) {
-          setError(sites.error);
+          reportActionError(sites.error);
         }
       } catch {
         if (!cancelled) {
@@ -212,11 +224,11 @@ export function useBehaviorSettings() {
     options: { clearCustomSites?: boolean; sentChanges?: readonly BehaviorSettingChange[] } = {},
   ): boolean {
     if (!response) {
-      setError(t('settingsSaveError'));
+      reportActionError(t('settingsSaveError'));
       return false;
     }
     if (!response.ok) {
-      setError(persistErrorMessage(response.error));
+      reportActionError(persistErrorMessage(response.error));
       return false;
     }
     let nextWarning: string | null = null;
@@ -228,7 +240,7 @@ export function useBehaviorSettings() {
       nextWarning = nextWarning ? `${nextWarning} ${partial}` : partial;
     }
     if (nextWarning) {
-      setWarning(nextWarning);
+      reportActionWarning(nextWarning);
     }
     if (response.state) {
       setSnapshot(response.state);
@@ -251,7 +263,7 @@ export function useBehaviorSettings() {
       }
       return true;
     }
-    setWarning(t('settingsRefreshError'));
+    reportActionWarning(t('settingsRefreshError'));
     return false;
   }
 
@@ -310,7 +322,7 @@ export function useBehaviorSettings() {
           await recover('sidebar');
         }
       } catch {
-        setError(t('settingsSaveError'));
+        reportActionError(t('settingsSaveError'));
         await recover(membership ? 'pane-and-sidebar' : 'pane');
         writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
       }
@@ -336,8 +348,7 @@ export function useBehaviorSettings() {
       currentSnapshot,
     );
     writeOptimistic({ ...optimisticRef.current, [change.field]: change });
-    setError(null);
-    setWarning(null);
+    clearActionFeedback();
     coalescer?.enqueue(scope, change);
   }
 
@@ -358,7 +369,7 @@ export function useBehaviorSettings() {
       return;
     }
     setBlocking(true);
-    setError(null);
+    clearActionFeedback();
     try {
       await coalescer?.flush();
       writeOptimistic({});
@@ -373,10 +384,10 @@ export function useBehaviorSettings() {
         setSnapshot(response.state);
         setSelection({ kind: 'site', hostname });
       } else {
-        setError(response.error);
+        reportActionError(response.error);
       }
     } catch {
-      setError(t('settingsSaveError'));
+      reportActionError(t('settingsSaveError'));
     } finally {
       setBlocking(false);
     }
@@ -387,8 +398,7 @@ export function useBehaviorSettings() {
       return;
     }
     setBlocking(true);
-    setError(null);
-    setWarning(null);
+    clearActionFeedback();
     try {
       await coalescer?.flush();
       writeOptimistic({});
@@ -408,7 +418,7 @@ export function useBehaviorSettings() {
           await recover('pane');
         }
       } catch {
-        setError(t('settingsSaveError'));
+        reportActionError(t('settingsSaveError'));
         await recover('pane');
       }
     });
@@ -419,12 +429,12 @@ export function useBehaviorSettings() {
       return;
     }
     setBlocking(true);
-    setError(null);
+    clearActionFeedback();
     try {
       await coalescer?.flush();
       const response = await sendOptionsRequest({ type: 'EXPORT_BACKUP' });
       if (!response?.ok) {
-        setError(
+        reportActionError(
           response?.ok === false ? persistErrorMessage(response.error) : t('backupExportError'),
         );
         return;
@@ -437,7 +447,7 @@ export function useBehaviorSettings() {
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError(t('backupExportError'));
+      reportActionError(t('backupExportError'));
     } finally {
       setBlocking(false);
     }
@@ -464,7 +474,7 @@ export function useBehaviorSettings() {
           await recover('sidebar');
         }
       } catch {
-        setError(t('settingsSaveError'));
+        reportActionError(t('settingsSaveError'));
         await recover('pane-and-sidebar');
       }
     });
@@ -491,7 +501,7 @@ export function useBehaviorSettings() {
           await recover('sidebar');
         }
       } catch {
-        setError(t('settingsSaveError'));
+        reportActionError(t('settingsSaveError'));
         await recover('pane-and-sidebar');
       }
     });
@@ -536,7 +546,7 @@ export function useBehaviorSettings() {
           setSelection({ kind: 'global' });
         }
       } catch {
-        setError(t('settingsSaveError'));
+        reportActionError(t('settingsSaveError'));
         await recover('pane-and-sidebar');
       }
     });
@@ -621,7 +631,6 @@ export function useBehaviorSettings() {
     pending: blocking,
     blocking,
     error,
-    warning,
     sliderPreview,
     drafts,
     updateDraft,

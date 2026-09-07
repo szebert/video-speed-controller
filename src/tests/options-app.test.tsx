@@ -2,6 +2,7 @@
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@/components/theme-provider';
 import { SpeedControls } from '@/components/SpeedControls';
@@ -146,6 +147,12 @@ describe('Options page', () => {
     return container.querySelector('[data-slot="field-error"]');
   }
 
+  function toastText(): string {
+    return [...document.querySelectorAll('[data-sonner-toast]')]
+      .map((element) => element.textContent ?? '')
+      .join('\n');
+  }
+
   beforeEach(() => {
     sendMessage.mockReset();
     permissionsContains.mockReset();
@@ -182,6 +189,7 @@ describe('Options page', () => {
 
   afterEach(() => {
     act(() => {
+      toast.dismiss();
       root?.unmount();
     });
     root = null;
@@ -1429,7 +1437,7 @@ describe('Options page', () => {
     });
     const types = sendMessage.mock.calls.map((call) => call[0]?.type);
     expect(types).toEqual(['SET_BEHAVIOR_SETTING', 'GET_BEHAVIOR_SETTINGS']);
-    expect(container.textContent).toContain('quota');
+    expect(toastText()).toContain('quota');
     expect(container.textContent).toContain('1.25×');
   });
 
@@ -1454,7 +1462,7 @@ describe('Options page', () => {
     await act(async () => {
       click(faster);
     });
-    expect(container.textContent).toContain('Saved, but open tabs could not be refreshed.');
+    expect(toastText()).toContain('Saved, but open tabs could not be refreshed.');
   });
 
   it('shows a first site override from SET membership without GET_CUSTOM_SITES', async () => {
@@ -1550,7 +1558,7 @@ describe('Options page', () => {
       'GET_BEHAVIOR_SETTINGS',
     ]);
     expect(container.textContent).toContain('1.25×');
-    expect(container.textContent).toContain('Saved, but settings could not be refreshed.');
+    expect(toastText()).toContain('Saved, but settings could not be refreshed.');
   });
 
   it('rescans custom sites when a successful delete omits membership', async () => {
@@ -1596,7 +1604,7 @@ describe('Options page', () => {
       'GET_CUSTOM_SITES',
     ]);
     expect(container.textContent).toContain('No site settings yet.');
-    expect(container.textContent).not.toContain('Could not save this setting.');
+    expect(toastText()).not.toContain('Could not save this setting.');
   });
 
   it('rescans custom sites when a successful site save omits membership', async () => {
@@ -1641,7 +1649,7 @@ describe('Options page', () => {
       'GET_CUSTOM_SITES',
     ]);
     expect(container.textContent).toContain('No site settings yet.');
-    expect(container.textContent).not.toContain('Could not save this setting.');
+    expect(toastText()).not.toContain('Could not save this setting.');
   });
 
   it('recovers pane after a thrown persist', async () => {
@@ -1667,7 +1675,7 @@ describe('Options page', () => {
       'SET_BEHAVIOR_SETTING',
       'GET_BEHAVIOR_SETTINGS',
     ]);
-    expect(container.textContent).toContain('Could not save this setting.');
+    expect(toastText()).toContain('Could not save this setting.');
     expect(container.textContent).toContain('1.25×');
   });
 
@@ -1692,7 +1700,7 @@ describe('Options page', () => {
       'GET_BEHAVIOR_SETTINGS',
       'GET_CUSTOM_SITES',
     ]);
-    expect(container.textContent).toContain('Could not save this setting.');
+    expect(toastText()).toContain('Could not save this setting.');
   });
 
   it('recovers pane after a thrown Reset defaults', async () => {
@@ -1720,7 +1728,7 @@ describe('Options page', () => {
       'RESET_GLOBAL_BEHAVIOR',
       'GET_BEHAVIOR_SETTINGS',
     ]);
-    expect(container.textContent).toContain('Could not save this setting.');
+    expect(toastText()).toContain('Could not save this setting.');
     expect(container.textContent).toContain('1.25×');
   });
 
@@ -1760,7 +1768,7 @@ describe('Options page', () => {
       'GET_BEHAVIOR_SETTINGS',
       'GET_CUSTOM_SITES',
     ]);
-    expect(container.textContent).toContain('Could not save this setting.');
+    expect(toastText()).toContain('Could not save this setting.');
     expect(container.textContent).toContain('No site settings yet.');
   });
 
@@ -1791,7 +1799,7 @@ describe('Options page', () => {
       'GET_BEHAVIOR_SETTINGS',
       'GET_CUSTOM_SITES',
     ]);
-    expect(container.textContent).toContain('Could not save this setting.');
+    expect(toastText()).toContain('Could not save this setting.');
   });
 
   it('keeps Faster enabled while saving and computes the next tick from optimistic speed', async () => {
@@ -1970,7 +1978,7 @@ describe('Options page', () => {
     await act(async () => {
       click(faster);
     });
-    expect(container.textContent).toContain('Settings were created by a newer version.');
+    expect(toastText()).toContain('Settings were created by a newer version.');
   });
 
   it('keeps an unrelated draft when an in-flight persist finishes', async () => {
@@ -2083,7 +2091,7 @@ describe('Options page', () => {
     await act(async () => {
       click(confirm ?? null);
     });
-    expect(container.textContent).toContain(
+    expect(toastText()).toContain(
       'Some settings were created by a newer version and were left unchanged.',
     );
     expect(container.textContent).toContain('example.com');

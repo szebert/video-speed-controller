@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { AlertCircleIcon } from 'lucide-react';
 import { ModeToggle } from '@/components/mode-toggle';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,6 +14,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Toaster } from '@/components/ui/sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldGroup } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
@@ -32,7 +35,6 @@ export function App() {
     ready,
     pending,
     error,
-    warning,
     sliderPreview,
     drafts,
     updateDraft,
@@ -59,19 +61,26 @@ export function App() {
 
   if (!ready || !snapshot || !behavior || !policy) {
     return (
-      <div className="mx-auto flex max-w-xl flex-col gap-4 p-6">
-        <p>{t('settingsLoading')}</p>
-        {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </div>
+      <>
+        <Toaster />
+        <div className="mx-auto flex max-w-xl flex-col gap-4 p-6">
+          {error ? (
+            <Alert variant="destructive">
+              <AlertCircleIcon />
+              <AlertTitle>{t('settingsLoadError')}</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : (
+            <p>{t('settingsLoading')}</p>
+          )}
+        </div>
+      </>
     );
   }
 
   return (
     <div className="@container mx-auto flex min-h-svh w-full max-w-screen-xl flex-col">
+      <Toaster />
       <header className="flex items-center justify-between gap-3 p-3">
         <h1 className="text-sm font-semibold">{t('popupTitle')}</h1>
         <ModeToggle />
@@ -205,17 +214,6 @@ export function App() {
               ) : null}
             </form>
           )}
-
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {warning ? (
-            <p className="text-sm text-muted-foreground" aria-live="polite">
-              {warning}
-            </p>
-          ) : null}
         </main>
       </div>
     </div>

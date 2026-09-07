@@ -37,11 +37,12 @@
   "dependencies": {
     "@wxt-dev/i18n": "0.2.7",
     "class-variance-authority": "0.7.1",
-    "cn": "^0.2.5",
+    "cn": "0.2.5",
     "lucide-react": "1.37.0",
     "react": "19.2.8",
     "react-aria-components": "1.20.0",
     "react-dom": "19.2.8",
+    "sonner": "2.0.8",
     "zod": "4.5.4"
   },
   "devDependencies": {
