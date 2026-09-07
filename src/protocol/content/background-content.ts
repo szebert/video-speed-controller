@@ -19,6 +19,7 @@ export const AppliedTabBehaviorSchema = z.object({
   overlayAutoHide: z.boolean(),
   overlayHoverHold: z.boolean(),
   overlayAutoHideDelayMs: z.number(),
+  overlayOpacity: z.number(),
 });
 
 true satisfies Equal<z.infer<typeof AppliedTabBehaviorSchema>, AppliedTabBehavior>;

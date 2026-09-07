@@ -58,6 +58,7 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   await expect(options.getByRole('tab')).toHaveCount(0);
   await expect(options.getByRole('button', { name: 'Reset defaults' })).toBeEnabled();
   await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeEnabled();
+  await expect(options.getByRole('slider', { name: 'Opacity' })).toBeVisible();
   await expect(options.getByRole('button', { name: 'Reset ALL Settings' })).toHaveCount(0);
 
   await options.getByRole('button', { name: 'Settings', exact: true }).click();

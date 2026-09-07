@@ -18,6 +18,7 @@ describe('getPopupState', () => {
       overlayAutoHide: { value: true, source: 'built-in' as const },
       overlayHoverHold: { value: false, source: 'built-in' as const },
       overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
+      overlayOpacity: { value: 70, source: 'built-in' as const },
       hotkeys: {},
     }));
     const result = await getPopupState(4, 'https://www.youtube.com/watch', {

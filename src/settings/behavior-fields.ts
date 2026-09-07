@@ -66,6 +66,11 @@ export const BEHAVIOR_FIELDS = {
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
+  overlayOpacity: {
+    default: 70,
+    category: 'overlay',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
 } as const;
 
 export type BehaviorField = keyof typeof BEHAVIOR_FIELDS;

@@ -12,6 +12,8 @@ import {
   BUILT_IN_SITE_BEHAVIOR,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
+  OVERLAY_OPACITY_MAX,
+  OVERLAY_OPACITY_MIN,
 } from '../settings/site-behavior';
 import { getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { tabBehavior } from './tab-behavior-fixture';
@@ -48,6 +50,7 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHide).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayHoverHold).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlayOpacity).toBe(70);
   });
 
   it('clamps applied auto-hide delay to 100ms–5min', () => {
@@ -59,6 +62,15 @@ describe('applied tab behavior', () => {
       toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayAutoHideDelayMs: 999_999 })
         .overlayAutoHideDelayMs,
     ).toBe(OVERLAY_AUTO_HIDE_DELAY_MS_MAX);
+  });
+
+  it('clamps applied overlay opacity to 1–100', () => {
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayOpacity: 0 }).overlayOpacity,
+    ).toBe(OVERLAY_OPACITY_MIN);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayOpacity: 150 }).overlayOpacity,
+    ).toBe(OVERLAY_OPACITY_MAX);
   });
 
   it('rejects incomplete or invalid runtime records', () => {

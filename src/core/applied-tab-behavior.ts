@@ -9,6 +9,7 @@ import {
 import {
   BUILT_IN_SITE_BEHAVIOR,
   canonicalizeOverlayAutoHideDelayMs,
+  canonicalizeOverlayOpacity,
   isOverlayPosition,
   type SiteBehavior,
 } from '../settings/site-behavior';
@@ -49,6 +50,7 @@ export function toAppliedTabBehavior(
     ...fields,
     targetSpeed,
     overlayAutoHideDelayMs: canonicalizeOverlayAutoHideDelayMs(fields.overlayAutoHideDelayMs),
+    overlayOpacity: canonicalizeOverlayOpacity(fields.overlayOpacity),
   };
 }
 

@@ -15,7 +15,9 @@ import {
   type SiteSettingsV1,
 } from './site-behavior';
 
-const StoredDelaySchema = z
+// Salvage shape only: integer ≥ 0. Product min/max are applied in
+// canonicalize so an out-of-range override is kept and clamped, not dropped.
+const StoredNonNegativeIntegerSchema = z
   .number()
   .refine(Number.isInteger)
   .refine((value) => value >= 0);
@@ -28,7 +30,7 @@ type BehaviorValueSchemaMap = {
   [K in BehaviorField]: z.ZodType<BehaviorFieldValue<K>>;
 };
 
-// Storage salvage (regular Zod). Stricter than RPC/Mini (integer delay).
+// Storage salvage (regular Zod). Stricter than RPC/Mini (integer delay/opacity).
 // Cannot be imported from protocol/content or the content graph. Backup V1
 // keeps its own field representations and must not reuse these live schemas.
 export const LogicalValueSchema = z.number().refine(isLogicalValue);
@@ -44,7 +46,8 @@ export const behaviorValueSchemas = {
   overlaySettingsButton: z.boolean(),
   overlayAutoHide: z.boolean(),
   overlayHoverHold: z.boolean(),
-  overlayAutoHideDelayMs: StoredDelaySchema,
+  overlayAutoHideDelayMs: StoredNonNegativeIntegerSchema,
+  overlayOpacity: StoredNonNegativeIntegerSchema,
 } satisfies BehaviorValueSchemaMap;
 
 true satisfies Equal<

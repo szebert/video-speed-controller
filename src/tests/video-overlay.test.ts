@@ -150,6 +150,25 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.transform).toBe('translate(-100%, -100%)');
   });
 
+  it('applies overlay opacity to the controls shell', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, overlayOpacity: 40 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const shell = overlay.host.shadowRoot?.querySelector('.controls-shell');
+    expect(shell).toBeInstanceOf(HTMLElement);
+    expect((shell as HTMLElement).style.opacity).toBe('0.4');
+
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, overlayOpacity: 1 }));
+    overlay.layout();
+    expect((shell as HTMLElement).style.opacity).toBe('0.01');
+
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, overlayOpacity: 100 }));
+    overlay.layout();
+    expect((shell as HTMLElement).style.opacity).toBe('1');
+  });
+
   it('does not intercept pointer input', () => {
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => undefined);

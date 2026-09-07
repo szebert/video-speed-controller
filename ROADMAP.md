@@ -36,7 +36,6 @@ Add configurable shortcuts for speed and media controls.
 Expand overlay settings as the control surface grows.
 
 - Show or hide control groups
-- Overlay opacity
 - Layout behavior for multi-row controls
 
 ## Planned enhancements

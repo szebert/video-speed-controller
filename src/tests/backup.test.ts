@@ -218,6 +218,33 @@ describe('backup format', () => {
     });
   });
 
+  it('accepts additive V1 overlayOpacity and clamps it', () => {
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { overlayOpacity: 0 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { overlayOpacity: 1 }, sites: {} },
+    });
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { overlayOpacity: 150 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { overlayOpacity: 100 }, sites: {} },
+    });
+  });
+
   it('still imports and reserializes the original complete V1 fixture', () => {
     const text = readBackupFixture('backup-v1-complete.json');
     expect(parseBackupText(text)).toEqual({ status: 'ready', backup: COMPLETE_BACKUP_V1 });

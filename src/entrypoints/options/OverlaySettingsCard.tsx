@@ -13,11 +13,15 @@ import {
 } from '@/components/ui/field';
 import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
 import { RadioButton, RadioField, RadioGroup } from '@/components/ui/radio-group';
+import { Slider } from '@/components/ui/slider';
 import { t } from '@/i18n/t';
 import { cn } from '@/lib/utils';
 import {
+  canonicalizeOverlayOpacity,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
+  OVERLAY_OPACITY_MAX,
+  OVERLAY_OPACITY_MIN,
   type BehaviorSettingChange,
   type EditableResolvedBehavior,
   type OverlayPosition,
@@ -77,6 +81,58 @@ export function OverlaySettingsCard({
             resetBadgeText={resetBadgeText}
             onMutate={onMutate}
           />
+          <Field data-disabled={overlayLocked || undefined}>
+            <div className="flex items-start justify-between gap-2">
+              <FieldContent>
+                <FieldLabel id="overlay-opacity-label">{t('overlayOpacity')}</FieldLabel>
+                <FieldDescription id="overlay-opacity-help">
+                  {t('overlayOpacityDescription')}
+                </FieldDescription>
+              </FieldContent>
+              <ResetBadge
+                active={ownsOverride(selection, behavior.overlayOpacity.source)}
+                disabled={overlayLocked}
+                text={resetBadgeText}
+                label={resetFieldLabel(t('overlayOpacity'))}
+                onReset={() => {
+                  onMutate({ kind: 'inherit', field: 'overlayOpacity' });
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Slider
+                aria-label={t('overlayOpacity')}
+                aria-labelledby="overlay-opacity-label"
+                aria-describedby="overlay-opacity-help"
+                isDisabled={overlayLocked}
+                minValue={OVERLAY_OPACITY_MIN}
+                maxValue={OVERLAY_OPACITY_MAX}
+                step={1}
+                formatOptions={{ style: 'unit', unit: 'percent', maximumFractionDigits: 0 }}
+                value={behavior.overlayOpacity.value}
+                onChange={(value) => {
+                  const next = Array.isArray(value) ? value[0] : value;
+                  if (next == null) {
+                    return;
+                  }
+                  onMutate({
+                    kind: 'value',
+                    field: 'overlayOpacity',
+                    value: canonicalizeOverlayOpacity(next),
+                  });
+                }}
+              />
+              <span
+                className={cn(
+                  'w-10 shrink-0 text-right text-sm tabular-nums',
+                  showsInherited(selection, behavior.overlayOpacity.source) &&
+                    'text-muted-foreground',
+                )}
+              >
+                {`${behavior.overlayOpacity.value}%`}
+              </span>
+            </div>
+          </Field>
           <Field data-disabled={overlayLocked || undefined}>
             <div className="flex items-start justify-between gap-2">
               <FieldContent>

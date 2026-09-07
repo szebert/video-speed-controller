@@ -11,6 +11,8 @@ import {
   mergeOverrideField,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
+  OVERLAY_OPACITY_MAX,
+  OVERLAY_OPACITY_MIN,
   overlayPositionFromGrid,
   overlayPositionToGrid,
   resolveSiteBehavior,
@@ -47,6 +49,7 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayAutoHide).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlayHoverHold).toEqual({ value: false, source: 'built-in' });
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
+    expect(resolved.overlayOpacity).toEqual({ value: 70, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
   });
 
@@ -67,6 +70,23 @@ describe('site behavior resolution', () => {
       ).overlayAutoHideDelayMs,
     ).toEqual({
       value: OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
+      source: 'global',
+    });
+  });
+
+  it('clamps stored overlay opacity outside 1–100 without dropping the override', () => {
+    expect(
+      resolveSiteBehavior({ overlayOpacity: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .overlayOpacity,
+    ).toEqual({
+      value: OVERLAY_OPACITY_MIN,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior({ overlayOpacity: { kind: 'value', value: 150, updatedAt: 10 } }, {})
+        .overlayOpacity,
+    ).toEqual({
+      value: OVERLAY_OPACITY_MAX,
       source: 'global',
     });
   });
@@ -302,6 +322,18 @@ describe('forward-compatible V1 parsers', () => {
     });
     expect(
       parseBehaviorOverrides({
+        overlayOpacity: { kind: 'value', value: 40.5, updatedAt: 1 },
+      }),
+    ).toEqual({});
+    expect(
+      parseBehaviorOverrides({
+        overlayOpacity: { kind: 'value', value: 40, updatedAt: 1 },
+      }),
+    ).toEqual({
+      overlayOpacity: { kind: 'value', value: 40, updatedAt: 1 },
+    });
+    expect(
+      parseBehaviorOverrides({
         overlayAutoHideDelayMs: { kind: 'value', value: 2000.5, updatedAt: 1 },
       }),
     ).toEqual({});
@@ -398,6 +430,37 @@ describe('behavior setting changes', () => {
       ...current,
       speed: { kind: 'inherit', updatedAt: 9 },
     });
+  });
+
+  it('canonicalizes overlay opacity to an integer percent', () => {
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayOpacity',
+        value: 40.4,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayOpacity', value: 40 });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayOpacity',
+        value: -1,
+      }),
+    ).toBeNull();
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayOpacity',
+        value: 0,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayOpacity', value: OVERLAY_OPACITY_MIN });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayOpacity',
+        value: 150,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayOpacity', value: OVERLAY_OPACITY_MAX });
   });
 
   it('canonicalizes delay to integer milliseconds and clamps speed', () => {

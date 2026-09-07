@@ -43,11 +43,20 @@ export const OVERLAY_AUTO_HIDE_DELAY_MS_MIN = 100;
 /** Longest overlay auto-hide delay the product accepts (5 min). */
 export const OVERLAY_AUTO_HIDE_DELAY_MS_MAX = 5 * 60 * 1000;
 
+/** Faintest overlay opacity the product accepts (nearly invisible). */
+export const OVERLAY_OPACITY_MIN = 1;
+/** Solid overlay opacity the product accepts (no fade). */
+export const OVERLAY_OPACITY_MAX = 100;
+
 export function canonicalizeOverlayAutoHideDelayMs(value: number): number {
   return Math.min(
     OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
     Math.max(OVERLAY_AUTO_HIDE_DELAY_MS_MIN, Math.round(value)),
   );
+}
+
+export function canonicalizeOverlayOpacity(value: number): number {
+  return Math.min(OVERLAY_OPACITY_MAX, Math.max(OVERLAY_OPACITY_MIN, Math.round(value)));
 }
 
 export const OVERLAY_POSITION = {
@@ -344,6 +353,11 @@ function clampResolvedOverlayAutoHideDelay(
   return value === setting.value ? setting : { ...setting, value };
 }
 
+function clampResolvedOverlayOpacity(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeOverlayOpacity(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
 export function resolveSiteBehavior(
   globalOverrides: BehaviorOverrides = {},
   siteOverrides: BehaviorOverrides = {},
@@ -373,6 +387,7 @@ export function resolveSiteBehavior(
   resolved.overlayAutoHideDelayMs = clampResolvedOverlayAutoHideDelay(
     resolved.overlayAutoHideDelayMs,
   );
+  resolved.overlayOpacity = clampResolvedOverlayOpacity(resolved.overlayOpacity);
   return resolved;
 }
 
@@ -582,6 +597,15 @@ export function canonicalizeBehaviorSettingChange(
         kind: 'value',
         field: 'overlayAutoHideDelayMs',
         value: canonicalizeOverlayAutoHideDelayMs(change.value),
+      };
+    case 'overlayOpacity':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'overlayOpacity',
+        value: canonicalizeOverlayOpacity(change.value),
       };
     case 'overlayPosition':
       return isOverlayPosition(change.value) ? change : null;

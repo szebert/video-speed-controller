@@ -45,6 +45,8 @@
   "speedTickDescription": "Amount Faster and Slower change the speed. 0.0005× to 1.00×.",
   "overlayVisible": "Show overlay",
   "overlayVisibleDescription": "Show speed controls on videos.",
+  "overlayOpacity": "Opacity",
+  "overlayOpacityDescription": "How opaque the overlay appears over videos.",
   "overlayPosition": "Position",
   "overlayPositionDescription": "Where overlay controls appear on videos.",
   "overlayPositionButton": "Show position button",

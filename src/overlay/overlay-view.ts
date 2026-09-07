@@ -3,7 +3,11 @@
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
 import { canAdjustSpeed, formatSpeed } from '../core/speed';
 import { t, type MessageKey } from '../i18n/t';
-import { overlayPositionToGrid, type OverlayPosition } from '../settings/site-behavior';
+import {
+  canonicalizeOverlayOpacity,
+  overlayPositionToGrid,
+  type OverlayPosition,
+} from '../settings/site-behavior';
 import type { OverlayViewCallbacks, OverlayViewState } from './types';
 
 const POSITION_LABELS = [
@@ -180,6 +184,7 @@ export class OverlayView {
     }
     const { behavior } = state;
     const policy = speedPolicyFromApplied(behavior);
+    this.element.style.opacity = `${canonicalizeOverlayOpacity(behavior.overlayOpacity) / 100}`;
     this.speedReadout.textContent = formatSpeed(behavior.targetSpeed);
     this.slower.disabled = !canAdjustSpeed(behavior.targetSpeed, -1, policy);
     this.faster.disabled = !canAdjustSpeed(behavior.targetSpeed, 1, policy);

@@ -25,6 +25,7 @@ function builtInBehavior() {
     overlayAutoHide: { value: true, source: 'built-in' as const },
     overlayHoverHold: { value: false, source: 'built-in' as const },
     overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
+    overlayOpacity: { value: 70, source: 'built-in' as const },
   };
 }
 
@@ -476,6 +477,7 @@ describe('Options page', () => {
     });
     await renderApp();
     expect(container.textContent).toContain('Where overlay controls appear on videos.');
+    expect(container.textContent).toContain('How opaque the overlay appears over videos.');
     expect(container.textContent).toContain('Seconds of inactivity before the overlay hides.');
     for (const label of labels) {
       expect(container.textContent).toContain(label);
@@ -602,6 +604,76 @@ describe('Options page', () => {
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
       change: { kind: 'value', field: 'overlayAutoHideDelayMs', value: 2500 },
+    });
+  });
+
+  it('sends overlay opacity from the slider', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    expect(container.textContent).toContain('70%');
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Opacity"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlayOpacity', value: 69 },
+    });
+  });
+
+  it('inherits a global opacity override from the Reset badge', async () => {
+    const state = snapshot();
+    state.global.overlayOpacity = { value: 40, source: 'global' };
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(state);
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    expect(container.textContent).toContain('40%');
+    const { button, root } = resetBadge(container, 'Reset: Opacity');
+    expect(button).toBeTruthy();
+    expect(root?.textContent).toContain('Custom');
+    expect(root?.hasAttribute('data-active')).toBe(true);
+    await act(async () => {
+      click(button);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'inherit', field: 'overlayOpacity' },
     });
   });
 
@@ -954,6 +1026,11 @@ describe('Options page', () => {
     const settingsButton = container.querySelector('#overlay-settings-button');
     expect((positionButton as HTMLInputElement).disabled).toBe(true);
     expect((settingsButton as HTMLInputElement).disabled).toBe(true);
+    const opacity = container.querySelector(
+      '[data-slot="slider"][aria-label="Opacity"] input[type="range"]',
+    );
+    expect(opacity).toBeInstanceOf(HTMLInputElement);
+    expect((opacity as HTMLInputElement).disabled).toBe(true);
   });
 
   it('disables auto-hide delay when Auto-hide overlay is off', async () => {

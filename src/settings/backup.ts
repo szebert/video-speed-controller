@@ -50,7 +50,7 @@ export type BackupParseResult =
 // Do not compose these from live storage salvage schemas — changing a current
 // range must not change what a V1 file is syntactically allowed to contain.
 // Import still canonicalizes through the current domain after parse.
-const BackupV1DelaySchema = z
+const BackupV1NonNegativeIntegerSchema = z
   .number()
   .refine(Number.isInteger)
   .refine((value) => value >= 0);
@@ -71,7 +71,8 @@ const BackupV1FieldSchema = z.strictObject({
   overlaySettingsButton: z.boolean().optional(),
   overlayAutoHide: z.boolean().optional(),
   overlayHoverHold: z.boolean().optional(),
-  overlayAutoHideDelayMs: BackupV1DelaySchema.optional(),
+  overlayAutoHideDelayMs: BackupV1NonNegativeIntegerSchema.optional(),
+  overlayOpacity: BackupV1NonNegativeIntegerSchema.optional(),
 });
 
 // Adding an editable field must also add an optional V1 field.
