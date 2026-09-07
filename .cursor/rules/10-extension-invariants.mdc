@@ -78,6 +78,7 @@ The plan is the detailed source of truth; this rule only protects cross-cutting 
 - Tab-level requested speed and per-video arbitration are separate concerns.
 - A single hostile or unusual player must not disable or rewrite state for other videos.
 - Preserve one-controller-per-video and lifecycle cleanup guarantees.
+- Page-level listeners and observers must not scale linearly with video count.
 
 ## Privacy
 

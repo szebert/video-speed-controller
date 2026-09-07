@@ -14,6 +14,10 @@ function isVideoElement(node: Node): node is HTMLVideoElement {
   return node.nodeType === 1 && (node as Element).localName === 'video';
 }
 
+function pointHitsRect(x: number, y: number, rect: DOMRect): boolean {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
 export function collectVideos(root: Node): HTMLVideoElement[] {
   const videos: HTMLVideoElement[] = [];
   if (isVideoElement(root)) {
@@ -51,6 +55,7 @@ export class MediaRegistry {
   private currentBehavior: AppliedTabBehavior | null = null;
   private destroyed = false;
   private layoutRaf: number | null = null;
+  private latestPointer: { x: number; y: number } | null = null;
   private readonly view: Window | null;
 
   constructor(
@@ -100,6 +105,7 @@ export class MediaRegistry {
 
   destroy(): void {
     this.destroyed = true;
+    this.latestPointer = null;
     this.cancelLayout();
     this.resizeObserver.disconnect();
     this.detachLayoutListeners();
@@ -243,20 +249,43 @@ export class MediaRegistry {
       return;
     }
     const measuredThisFlush = new Map<HTMLVideoElement, DOMRect>();
-    for (const [video, entry] of this.entries) {
-      entry.overlay.layout(() => {
-        const cached = measuredThisFlush.get(video);
-        if (cached) {
-          return cached;
+    const measure = (video: HTMLVideoElement): DOMRect => {
+      const cached = measuredThisFlush.get(video);
+      if (cached) {
+        return cached;
+      }
+      const rect = video.getBoundingClientRect();
+      measuredThisFlush.set(video, rect);
+      return rect;
+    };
+
+    const pointer = this.latestPointer;
+    this.latestPointer = null;
+    if (pointer) {
+      for (const [video, entry] of this.entries) {
+        if (!entry.overlay.isPointerEligible()) {
+          continue;
         }
-        const rect = video.getBoundingClientRect();
-        measuredThisFlush.set(video, rect);
-        return rect;
-      });
+        if (pointHitsRect(pointer.x, pointer.y, measure(video))) {
+          entry.overlay.notifyActivity();
+        }
+      }
+    }
+
+    for (const [video, entry] of this.entries) {
+      entry.overlay.layout(() => measure(video));
     }
   }
 
   private readonly onLayoutSignal = (): void => {
+    this.requestLayout();
+  };
+
+  private readonly onWindowPointer = (event: Event): void => {
+    if (this.destroyed || !(event instanceof PointerEvent)) {
+      return;
+    }
+    this.latestPointer = { x: event.clientX, y: event.clientY };
     this.requestLayout();
   };
 
@@ -269,6 +298,8 @@ export class MediaRegistry {
     this.document.addEventListener('scroll', this.onLayoutSignal, capture);
     this.view.addEventListener('resize', this.onLayoutSignal);
     this.document.addEventListener('fullscreenchange', this.onLayoutSignal);
+    this.view.addEventListener('pointermove', this.onWindowPointer, capture);
+    this.view.addEventListener('pointerdown', this.onWindowPointer, capture);
   }
 
   private detachLayoutListeners(): void {
@@ -280,6 +311,8 @@ export class MediaRegistry {
     this.document.removeEventListener('scroll', this.onLayoutSignal, capture);
     this.view.removeEventListener('resize', this.onLayoutSignal);
     this.document.removeEventListener('fullscreenchange', this.onLayoutSignal);
+    this.view.removeEventListener('pointermove', this.onWindowPointer, capture);
+    this.view.removeEventListener('pointerdown', this.onWindowPointer, capture);
   }
 
   private cancelLayout(): void {

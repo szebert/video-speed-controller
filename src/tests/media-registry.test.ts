@@ -63,23 +63,52 @@ function installRafQueue(): {
   };
 }
 
-function video(): HTMLVideoElement {
-  const node = document.createElement('video');
+function setVideoRect(
+  node: HTMLVideoElement,
+  box: { left: number; top: number; width: number; height: number },
+): void {
   node.getBoundingClientRect = () =>
     ({
-      left: 0,
-      top: 0,
-      width: 160,
-      height: 90,
-      right: 160,
-      bottom: 90,
-      x: 0,
-      y: 0,
+      ...box,
+      right: box.left + box.width,
+      bottom: box.top + box.height,
+      x: box.left,
+      y: box.top,
       toJSON() {
         return this;
       },
     }) as DOMRect;
+}
+
+function video(
+  box: { left: number; top: number; width: number; height: number } = {
+    left: 0,
+    top: 0,
+    width: 160,
+    height: 90,
+  },
+): HTMLVideoElement {
+  const node = document.createElement('video');
+  setVideoRect(node, box);
   return node;
+}
+
+function capturePointerAdds(add: ReturnType<typeof vi.spyOn>): { move: number; down: number } {
+  let move = 0;
+  let down = 0;
+  for (const [type, , options] of add.mock.calls) {
+    const capture = options === true || (typeof options === 'object' && options?.capture === true);
+    if (!capture) {
+      continue;
+    }
+    if (type === 'pointermove') {
+      move += 1;
+    }
+    if (type === 'pointerdown') {
+      down += 1;
+    }
+  }
+  return { move, down };
 }
 
 describe('media registry', () => {
@@ -535,5 +564,169 @@ describe('media registry', () => {
     raf.flush();
     expect(overlay?.host.style.left).toBe(`${300 + OVERLAY_INSET_PX}px`);
     expect(overlay?.host.style.top).toBe(`${40 + OVERLAY_INSET_PX}px`);
+  });
+
+  it.each([1, 5, 20])('installs one window pointer listener pair for %s videos', (n) => {
+    const add = vi.spyOn(window, 'addEventListener');
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    for (let index = 0; index < n; index += 1) {
+      const node = video({ left: index * 200, top: 0, width: 160, height: 90 });
+      document.body.append(node);
+      registry.ensureController(node);
+    }
+    expect(capturePointerAdds(add)).toEqual({ move: 1, down: 1 });
+    expect(document.querySelectorAll(OVERLAY_HOST_TAG)).toHaveLength(n);
+  });
+
+  it('does not read geometry synchronously in pointer handlers', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.ensureController(node);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    raf.flush();
+    const getRect = vi.spyOn(node, 'getBoundingClientRect');
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
+    expect(getRect).not.toHaveBeenCalled();
+    raf.flush();
+    expect(getRect).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesces pointer moves to the latest point in one flush', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.ensureController(node);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    raf.flush();
+    vi.advanceTimersByTime(200);
+    raf.flush();
+    expect(registry.getOverlay(node)?.host.style.visibility).toBe('hidden');
+    const getRect = vi.spyOn(node, 'getBoundingClientRect');
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 1, clientY: 1 }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
+    expect(getRect).not.toHaveBeenCalled();
+    raf.flush();
+    expect(getRect).toHaveBeenCalledTimes(1);
+    expect(registry.getOverlay(node)?.host.style.visibility).toBe('visible');
+  });
+
+  it('reveals an auto-hidden overlay in the same pointer flush', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.ensureController(node);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    raf.flush();
+    vi.advanceTimersByTime(200);
+    raf.flush();
+    expect(registry.getOverlay(node)?.host.style.visibility).toBe('hidden');
+    const getRect = vi.spyOn(node, 'getBoundingClientRect');
+    window.dispatchEvent(new PointerEvent('pointerdown', { clientX: 20, clientY: 30 }));
+    expect(getRect).not.toHaveBeenCalled();
+    raf.flush();
+    expect(getRect).toHaveBeenCalledTimes(1);
+    expect(registry.getOverlay(node)?.host.style.visibility).toBe('visible');
+  });
+
+  it('notifies every overlapping video from the same snapshot', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const a = video({ left: 0, top: 0, width: 200, height: 100 });
+    const b = video({ left: 50, top: 0, width: 200, height: 100 });
+    document.body.append(a, b);
+    registry.ensureController(a);
+    registry.ensureController(b);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    raf.flush();
+    vi.advanceTimersByTime(200);
+    raf.flush();
+    expect(registry.getOverlay(a)?.host.style.visibility).toBe('hidden');
+    expect(registry.getOverlay(b)?.host.style.visibility).toBe('hidden');
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 80, clientY: 40 }));
+    raf.flush();
+    expect(registry.getOverlay(a)?.host.style.visibility).toBe('visible');
+    expect(registry.getOverlay(b)?.host.style.visibility).toBe('visible');
+  });
+
+  it('reveals only the video under the pointer', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const a = video({ left: 10, top: 20, width: 200, height: 100 });
+    const b = video({ left: 300, top: 20, width: 200, height: 100 });
+    document.body.append(a, b);
+    registry.ensureController(a);
+    registry.ensureController(b);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    raf.flush();
+    vi.advanceTimersByTime(200);
+    raf.flush();
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
+    raf.flush();
+    expect(registry.getOverlay(a)?.host.style.visibility).toBe('visible');
+    expect(registry.getOverlay(b)?.host.style.visibility).toBe('hidden');
+  });
+
+  it('does not route pointer activity to a removed video', () => {
+    vi.useFakeTimers();
+    const raf = installRafQueue();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const a = video({ left: 10, top: 20, width: 200, height: 100 });
+    const b = video({ left: 300, top: 20, width: 200, height: 100 });
+    document.body.append(a, b);
+    registry.ensureController(a);
+    registry.ensureController(b);
+    registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    raf.flush();
+    a.remove();
+    registry['handleMutations']([
+      {
+        addedNodes: [] as unknown as NodeList,
+        removedNodes: [a] as unknown as NodeList,
+        type: 'childList',
+        target: document.body,
+      } as unknown as MutationRecord,
+    ]);
+    const getRectA = vi.spyOn(a, 'getBoundingClientRect');
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
+    raf.flush();
+    expect(registry.getOverlay(a)).toBeUndefined();
+    expect(getRectA).not.toHaveBeenCalled();
+    expect(registry.getOverlay(b)?.host.style.visibility).toBe('visible');
+  });
+
+  it('ignores window pointer events after destroy', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.ensureController(node);
+    registry.destroy();
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
+    expect(document.querySelectorAll(OVERLAY_HOST_TAG)).toHaveLength(0);
+    expect(registry.size).toBe(0);
   });
 });

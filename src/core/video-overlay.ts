@@ -66,13 +66,8 @@ export class VideoOverlay {
     document.documentElement.append(this.host);
 
     const signal = this.videoAbort.signal;
-    video.addEventListener('pointermove', this.onVideoActivity, { signal });
-    video.addEventListener('focus', this.onVideoActivity, { signal });
-    video.addEventListener('focusin', this.onVideoActivity, { signal });
-
-    const view = document.defaultView;
-    view?.addEventListener('pointermove', this.onWindowPointerMove, { capture: true, signal });
-    view?.addEventListener('pointerdown', this.onWindowPointerDown, { capture: true, signal });
+    video.addEventListener('focus', this.onLocalFocus, { signal });
+    video.addEventListener('focusin', this.onLocalFocus, { signal });
   }
 
   get speedReadout(): HTMLElement | null {
@@ -101,6 +96,22 @@ export class VideoOverlay {
     this.restartAutoHide();
     this.syncView();
     this.requestLayout();
+  }
+
+  notifyActivity(): void {
+    if (!this.controlled || !this.behavior) {
+      return;
+    }
+    this.restartAutoHide();
+  }
+
+  isPointerEligible(): boolean {
+    return (
+      this.controlled &&
+      this.behavior != null &&
+      this.behavior.overlayVisible &&
+      this.video.isConnected
+    );
   }
 
   layout(measureRect: () => DOMRect = () => this.video.getBoundingClientRect()): void {
@@ -166,34 +177,10 @@ export class VideoOverlay {
     });
   }
 
-  private readonly onVideoActivity = (): void => {
-    if (!this.controlled || !this.behavior) {
-      return;
-    }
-    this.restartAutoHide();
+  private readonly onLocalFocus = (): void => {
+    this.notifyActivity();
     this.requestLayout();
   };
-
-  private readonly onWindowPointerMove = (event: Event): void => {
-    if (!(event instanceof PointerEvent) || !this.isPointOverVideo(event.clientX, event.clientY)) {
-      return;
-    }
-    this.onVideoActivity();
-  };
-
-  private readonly onWindowPointerDown = (event: Event): void => {
-    if (!(event instanceof PointerEvent) || !this.isPointOverVideo(event.clientX, event.clientY)) {
-      return;
-    }
-    this.onVideoActivity();
-  };
-
-  private isPointOverVideo(clientX: number, clientY: number): boolean {
-    const rect = this.video.getBoundingClientRect();
-    return (
-      clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
-    );
-  }
 
   private evaluateVisibility(measureRect: () => DOMRect): DOMRect | null {
     if (this.isCheapHidden()) {

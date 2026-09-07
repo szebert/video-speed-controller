@@ -302,7 +302,7 @@ describe('VideoOverlay', () => {
     vi.advanceTimersByTime(1);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
-    video.dispatchEvent(new Event('pointermove'));
+    overlay.notifyActivity();
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
     vi.advanceTimersByTime(2_000);
@@ -439,7 +439,7 @@ describe('VideoOverlay', () => {
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
     expect(overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]')).toBe(faster);
-    video.dispatchEvent(new Event('pointermove'));
+    overlay.notifyActivity();
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
     expect(overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]')).toBe(faster);
@@ -609,26 +609,21 @@ describe('VideoOverlay', () => {
     expect((slowerAtMin as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('reveals when a pointer moves or presses over the video box', () => {
+  it('reveals from notifyActivity without scheduling layout itself', () => {
     vi.useFakeTimers();
+    const requestLayout = vi.fn();
     const video = sizedVideo();
-    const overlay = new VideoOverlay(video, () => overlay.layout());
+    const overlay = new VideoOverlay(video, requestLayout);
     overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
     overlay.setControlled(true);
     overlay.layout();
     vi.advanceTimersByTime(200);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 1, clientY: 1 }));
-    overlay.layout();
+    requestLayout.mockClear();
+    overlay.notifyActivity();
+    expect(requestLayout).not.toHaveBeenCalled();
     expect(overlay.host.style.visibility).toBe('hidden');
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
-    overlay.layout();
-    expect(overlay.host.style.visibility).toBe('visible');
-    vi.advanceTimersByTime(200);
-    overlay.layout();
-    expect(overlay.host.style.visibility).toBe('hidden');
-    window.dispatchEvent(new PointerEvent('pointerdown', { clientX: 50, clientY: 40 }));
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
@@ -650,6 +645,9 @@ describe('VideoOverlay', () => {
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
     video.dispatchEvent(new Event('pointermove'));
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    overlay.notifyActivity();
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
@@ -751,6 +749,7 @@ describe('VideoOverlay', () => {
     expect(document.querySelector(OVERLAY_HOST_TAG)).toBeNull();
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
     video.dispatchEvent(new Event('pointermove'));
+    video.dispatchEvent(new Event('focus'));
     expect(requestLayout).not.toHaveBeenCalled();
 
     for (let index = 0; index < 8; index += 1) {
