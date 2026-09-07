@@ -167,6 +167,24 @@ export function hostPatternsCover(
   return patterns.some((pattern) => hostPatternCovers(identity, pattern));
 }
 
+export const ALL_SITE_ORIGINS = ['http://*/*', 'https://*/*'] as const;
+
+function allSitesPermission(): chrome.permissions.Permissions {
+  return { origins: [...ALL_SITE_ORIGINS] };
+}
+
+export function containsAllSitesAccess(): Promise<boolean> {
+  return chrome.permissions.contains(allSitesPermission());
+}
+
+export function requestAllSitesAccess(): Promise<boolean> {
+  return chrome.permissions.request(allSitesPermission());
+}
+
+export function removeAllSitesAccess(): Promise<boolean> {
+  return chrome.permissions.remove(allSitesPermission());
+}
+
 export function requestExactOriginAccess(pageUrl: string): Promise<boolean> {
   const pattern = getOriginPattern(pageUrl);
   if (!pattern) {
