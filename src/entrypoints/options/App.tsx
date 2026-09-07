@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FieldGroup } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { t } from '@/i18n/t';
+import { AllSitesAccessCard } from './AllSitesAccessCard';
 import { BackupSettingsCards } from './BackupSettingsCards';
 import { OverlaySettingsCard } from './OverlaySettingsCard';
 import { PlaybackSettingsCard } from './PlaybackSettingsCard';
@@ -97,6 +98,7 @@ export function App() {
                 <h2 className="text-lg font-semibold">{t('settingsTitle')}</h2>
                 <p className="text-sm text-muted-foreground">{t('settingsPageDescription')}</p>
               </div>
+              <AllSitesAccessCard />
               <BackupSettingsCards
                 pending={pending}
                 onExport={() => {

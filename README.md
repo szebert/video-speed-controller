@@ -6,7 +6,7 @@ OS Video Speed Controller (OS VSC) is a toolbar popup and per-video overlay that
 
 ## Features
 
-- Enable one site at a time through Chrome’s optional host permission prompt
+- Enable one site at a time from the popup, or all sites from Settings, through Chrome’s optional host permission prompt
 - Toolbar popup: Faster / Slower, reset to 1×, and a slider (commits when you release it)
 - Per-site default speed, plus a per-tab effective speed so changing defaults does not jump an already-playing tab
 - Configurable speed range and step (0.0625×–16×, step 0.0005×–1×)

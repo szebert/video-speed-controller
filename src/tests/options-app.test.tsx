@@ -93,6 +93,17 @@ describe('Options page', () => {
   let root: Root | null = null;
   let container: HTMLElement;
   const sendMessage = vi.fn();
+  const permissionsContains = vi.fn();
+  const permissionsRequest = vi.fn();
+  const permissionsRemove = vi.fn();
+  const permissionsOnAdded = {
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+  };
+  const permissionsOnRemoved = {
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+  };
 
   async function renderApp(href = 'chrome-extension://extid/options.html'): Promise<void> {
     Object.defineProperty(window, 'location', {
@@ -114,8 +125,39 @@ describe('Options page', () => {
     });
   }
 
+  async function openSettingsPane(): Promise<void> {
+    const settings = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Settings',
+    );
+    await act(async () => {
+      settings?.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  function allSitesSwitch(): HTMLInputElement | null {
+    const element = container.querySelector('#all-sites-access');
+    return element instanceof HTMLInputElement ? element : null;
+  }
+
+  function permissionError(): Element | null {
+    return container.querySelector('[data-slot="field-error"]');
+  }
+
   beforeEach(() => {
     sendMessage.mockReset();
+    permissionsContains.mockReset();
+    permissionsRequest.mockReset();
+    permissionsRemove.mockReset();
+    permissionsOnAdded.addListener.mockReset();
+    permissionsOnAdded.removeListener.mockReset();
+    permissionsOnRemoved.addListener.mockReset();
+    permissionsOnRemoved.removeListener.mockReset();
+    permissionsContains.mockResolvedValue(false);
+    permissionsRequest.mockResolvedValue(false);
+    permissionsRemove.mockResolvedValue(true);
     vi.stubGlobal('chrome', {
       runtime: { sendMessage },
       storage: {
@@ -127,6 +169,13 @@ describe('Options page', () => {
           get: vi.fn(async () => ({})),
           set: vi.fn(async () => {}),
         },
+      },
+      permissions: {
+        contains: permissionsContains,
+        request: permissionsRequest,
+        remove: permissionsRemove,
+        onAdded: permissionsOnAdded,
+        onRemoved: permissionsOnRemoved,
       },
     });
   });
@@ -988,6 +1037,142 @@ describe('Options page', () => {
       click(confirm ?? null);
     });
     expect(sendMessage).toHaveBeenCalledWith({ type: 'RESET_ALL_BEHAVIOR' });
+  });
+
+  it('shows the all-sites card and alert above Export', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await openSettingsPane();
+    expect(container.textContent).toContain('Enable on all sites');
+    expect(container.textContent).toContain('Requires broader site access');
+    expect(container.textContent).toContain(
+      'Applies only to this browser profile. This permission is not synced.',
+    );
+    const titles = [...container.querySelectorAll('[data-slot="card-title"]')].map(
+      (element) => element.textContent,
+    );
+    expect(titles.indexOf('Enable on all sites')).toBeGreaterThanOrEqual(0);
+    expect(titles.indexOf('Export')).toBeGreaterThan(titles.indexOf('Enable on all sites'));
+    expect(allSitesSwitch()?.checked).toBe(false);
+    expect(permissionsContains).toHaveBeenCalledWith({
+      origins: ['http://*/*', 'https://*/*'],
+    });
+  });
+
+  it('requests all-sites access from the switch gesture', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    permissionsRequest.mockImplementation(async () => {
+      permissionsContains.mockResolvedValue(true);
+      return true;
+    });
+    await renderApp();
+    await openSettingsPane();
+    const beforeMessages = sendMessage.mock.calls.length;
+    await act(async () => {
+      click(allSitesSwitch());
+    });
+    expect(permissionsRequest).toHaveBeenCalledWith({
+      origins: ['http://*/*', 'https://*/*'],
+    });
+    expect(sendMessage.mock.calls.length).toBe(beforeMessages);
+    expect(allSitesSwitch()?.checked).toBe(true);
+    expect(permissionError()).toBeNull();
+  });
+
+  it('leaves the all-sites switch off when Chrome denies the request', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    permissionsRequest.mockResolvedValue(false);
+    await renderApp();
+    await openSettingsPane();
+    await act(async () => {
+      click(allSitesSwitch());
+    });
+    expect(permissionsRequest).toHaveBeenCalled();
+    expect(allSitesSwitch()?.checked).toBe(false);
+    expect(permissionError()).toBeNull();
+  });
+
+  it('shows an error and restores from contains when request rejects', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    permissionsRequest.mockImplementation(async () => {
+      permissionsContains.mockResolvedValue(true);
+      throw new Error('This function must be called during a user gesture');
+    });
+    await renderApp();
+    await openSettingsPane();
+    await act(async () => {
+      click(allSitesSwitch());
+    });
+    expect(allSitesSwitch()?.checked).toBe(true);
+    expect(permissionError()?.textContent).toBe(
+      'Could not update site access. Try again, or change this extension’s Site access in Chrome.',
+    );
+  });
+
+  it('removes all-sites access from the switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    permissionsContains.mockResolvedValue(true);
+    permissionsRemove.mockImplementation(async () => {
+      permissionsContains.mockResolvedValue(false);
+      return true;
+    });
+    await renderApp();
+    await openSettingsPane();
+    expect(allSitesSwitch()?.checked).toBe(true);
+    await act(async () => {
+      click(allSitesSwitch());
+    });
+    expect(permissionsRemove).toHaveBeenCalledWith({
+      origins: ['http://*/*', 'https://*/*'],
+    });
+    expect(allSitesSwitch()?.checked).toBe(false);
+    expect(permissionError()).toBeNull();
+  });
+
+  it('shows an error and restores from contains when remove rejects', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    permissionsContains.mockResolvedValue(true);
+    permissionsRemove.mockImplementation(async () => {
+      permissionsContains.mockResolvedValue(true);
+      throw new Error('remove failed');
+    });
+    await renderApp();
+    await openSettingsPane();
+    await act(async () => {
+      click(allSitesSwitch());
+    });
+    expect(allSitesSwitch()?.checked).toBe(true);
+    expect(permissionError()?.textContent).toContain('Could not update site access');
+  });
+
+  it('shows an error when contains rejects and leaves the switch unchanged', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    permissionsContains.mockRejectedValue(new Error('contains failed'));
+    await renderApp();
+    await openSettingsPane();
+    expect(allSitesSwitch()?.checked).toBe(false);
+    expect(permissionError()?.textContent).toContain('Could not update site access');
+  });
+
+  it('re-reads all-sites access on focus and permission removal', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await openSettingsPane();
+    expect(allSitesSwitch()?.checked).toBe(false);
+    permissionsContains.mockResolvedValue(true);
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(allSitesSwitch()?.checked).toBe(true);
+    const onRemoved = permissionsOnRemoved.addListener.mock.calls[0]?.[0] as () => void;
+    expect(onRemoved).toEqual(expect.any(Function));
+    permissionsContains.mockResolvedValue(false);
+    await act(async () => {
+      onRemoved();
+      await Promise.resolve();
+    });
+    expect(allSitesSwitch()?.checked).toBe(false);
   });
 
   it('exports settings from the Settings pane', async () => {

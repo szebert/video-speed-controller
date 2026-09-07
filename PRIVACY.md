@@ -13,7 +13,7 @@ Open Source Video Speed Controller does not collect personal information, create
 - `activeTab` identifies the current page when you open the toolbar popup. Opening the popup does not inject scripts or request lasting host access.
 - `storage` reads and writes the per-site speed preference.
 - `scripting` injects the playback engine after you grant a site.
-- Optional `http://*/*` and `https://*/*` hosts are requested one origin at a time from the popup click.
+- Optional `http://*/*` and `https://*/*` hosts are requested one origin at a time from the popup, or as both wildcards from Settings when you enable all sites. They are not granted at install.
 
 ## What we do not do
 

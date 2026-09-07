@@ -13,7 +13,7 @@ Short:
 
 Longer:
 
-Open Source Video Speed Controller (OS VSC) lets you speed up or slow down HTML5 video from the Chrome toolbar. Access is off by default. You enable one site at a time. Per-site speed intent may follow Chrome Sync. The source is on GitHub under GPLv3. There are no accounts, analytics, or servers.
+Open Source Video Speed Controller (OS VSC) lets you speed up or slow down HTML5 video from the Chrome toolbar. Access is off by default. You enable one site at a time from the popup, or all sites from Settings. Per-site speed intent may follow Chrome Sync. The source is on GitHub under GPLv3. There are no accounts, analytics, or servers.
 
 Do not use bare “Video Speed Controller” as the listing name.
 
@@ -22,7 +22,7 @@ Do not use bare “Video Speed Controller” as the listing name.
 - **storage** — Save the user’s per-site playback-speed preference.
 - **activeTab** — Read the current tab URL when the user opens the popup so the popup can show that site’s state. Opening the popup does not inject or persist host access.
 - **scripting** — Inject the isolated-world playback engine into a tab after the user grants that site.
-- **optional host permissions (`http://*/*`, `https://*/*`)** — Requested one origin at a time from the popup. Not granted at install.
+- **optional host permissions (`http://*/*`, `https://*/*`)** — Requested one origin at a time from the popup, or as both wildcards from Settings when the user enables all sites. Not granted at install.
 
 ## Privacy practices
 
