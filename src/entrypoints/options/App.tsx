@@ -21,6 +21,7 @@ import { Separator } from '@/components/ui/separator';
 import { t } from '@/i18n/t';
 import { AllSitesAccessCard } from './AllSitesAccessCard';
 import { BackupSettingsCards } from './BackupSettingsCards';
+import { HotkeysSettingsCard } from './HotkeysSettingsCard';
 import { OverlaySettingsCard } from './OverlaySettingsCard';
 import { PlaybackSettingsCard } from './PlaybackSettingsCard';
 import { SettingsSidebar } from './SettingsSidebar';
@@ -39,6 +40,7 @@ export function App() {
     drafts,
     updateDraft,
     behavior,
+    hotkeys,
     speed,
     delaySeconds,
     policy,
@@ -46,6 +48,7 @@ export function App() {
     delayLocked,
     resetBadgeText,
     mutate,
+    mutateHotkey,
     adjustDisplayedSpeed,
     selectSite,
     selectPane,
@@ -59,7 +62,7 @@ export function App() {
     setSliderPreview,
   } = settings;
 
-  if (!ready || !snapshot || !behavior || !policy) {
+  if (!ready || !snapshot || !behavior || !hotkeys || !policy) {
     return (
       <>
         <Toaster />
@@ -197,6 +200,13 @@ export function App() {
                     updateDraft('delay', value);
                   }}
                   onCommitDelay={commitDelay}
+                />
+                <HotkeysSettingsCard
+                  selection={selection}
+                  hotkeys={hotkeys}
+                  pending={pending}
+                  resetBadgeText={resetBadgeText}
+                  onMutate={mutateHotkey}
                 />
               </FieldGroup>
 

@@ -10,6 +10,7 @@ import type {
   ResetAllBehaviorResponse,
   ResetGlobalBehaviorResponse,
   SetBehaviorSettingResponse,
+  SetHotkeySettingResponse,
 } from '../../protocol/schemas/options-background';
 import type { BehaviorSettingsSnapshot, SiteMembershipUpdate } from '../../protocol/schemas/shared';
 import { adjustSpeed, clampPolicyNumber } from '../../core/speed';
@@ -28,6 +29,8 @@ import {
   speedPolicyFromResolved,
   type BehaviorSettingChange,
   type EditableBehaviorField,
+  type HotkeySettingChange,
+  type SiteHotkeyAction,
 } from '../../settings/site-behavior';
 import {
   createSettingsWriteCoalescer,
@@ -37,9 +40,12 @@ import {
 import {
   applyOptimisticChange,
   applyOptimisticChanges,
+  applyOptimisticHotkeyChanges,
   currentBehavior,
+  currentHotkeys,
   focusedHostnameFromLocation,
   omitMatchingOptimisticChanges,
+  omitMatchingOptimisticHotkeys,
   type DraftKey,
   type RecoverKind,
   type Selection,
@@ -61,6 +67,7 @@ async function requestCustomSites() {
 
 type MutationResponse =
   | SetBehaviorSettingResponse
+  | SetHotkeySettingResponse
   | DeleteSiteSettingsResponse
   | ResetGlobalBehaviorResponse
   | ResetAllBehaviorResponse
@@ -130,8 +137,12 @@ export function useBehaviorSettings() {
   const [optimistic, setOptimistic] = useState<
     Partial<Record<EditableBehaviorField, BehaviorSettingChange>>
   >({});
+  const [optimisticHotkeys, setOptimisticHotkeys] = useState<
+    Partial<Record<SiteHotkeyAction, HotkeySettingChange>>
+  >({});
   const draftsRef = useRef<Partial<Record<DraftKey, string>>>({});
   const optimisticRef = useRef(optimistic);
+  const optimisticHotkeysRef = useRef(optimisticHotkeys);
   const snapshotRef = useRef(snapshot);
   const selectionRef = useRef(selection);
   const blockingRef = useRef(blocking);
@@ -148,6 +159,11 @@ export function useBehaviorSettings() {
     persisted && snapshot
       ? applyOptimisticChanges(persisted, optimistic, selection, snapshot)
       : persisted;
+  const persistedHotkeys = snapshot ? currentHotkeys(snapshot, selection) : null;
+  const hotkeys =
+    persistedHotkeys && snapshot
+      ? applyOptimisticHotkeyChanges(persistedHotkeys, optimisticHotkeys, selection, snapshot)
+      : persistedHotkeys;
   const overlayEnabled = behavior?.overlayVisible.value ?? true;
 
   function clearAllDrafts(): void {
@@ -219,9 +235,25 @@ export function useBehaviorSettings() {
     setOptimistic(next);
   }
 
+  function writeOptimisticHotkeys(
+    next: Partial<Record<SiteHotkeyAction, HotkeySettingChange>>,
+  ): void {
+    optimisticHotkeysRef.current = next;
+    setOptimisticHotkeys(next);
+  }
+
+  function clearOptimistic(): void {
+    writeOptimistic({});
+    writeOptimisticHotkeys({});
+  }
+
   function applyResponse(
     response: MutationResponse | undefined,
-    options: { clearCustomSites?: boolean; sentChanges?: readonly BehaviorSettingChange[] } = {},
+    options: {
+      clearCustomSites?: boolean;
+      sentChanges?: readonly BehaviorSettingChange[];
+      sentHotkey?: HotkeySettingChange;
+    } = {},
   ): boolean {
     if (!response) {
       reportActionError(t('settingsSaveError'));
@@ -244,11 +276,18 @@ export function useBehaviorSettings() {
     }
     if (response.state) {
       setSnapshot(response.state);
-      writeOptimistic(
-        options.sentChanges
-          ? omitMatchingOptimisticChanges(optimisticRef.current, options.sentChanges)
-          : {},
-      );
+      if (options.sentChanges) {
+        writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, options.sentChanges));
+      } else if (!options.sentHotkey) {
+        writeOptimistic({});
+      }
+      if (options.sentHotkey) {
+        writeOptimisticHotkeys(
+          omitMatchingOptimisticHotkeys(optimisticHotkeysRef.current, options.sentHotkey),
+        );
+      } else if (!options.sentChanges) {
+        writeOptimisticHotkeys({});
+      }
       if ('customSites' in response && response.customSites) {
         setCustomSites(response.customSites);
       } else if (options.clearCustomSites) {
@@ -257,7 +296,7 @@ export function useBehaviorSettings() {
         const membership = response.siteMembership;
         setCustomSites((current) => applyMembership(current, membership));
       }
-      if (!options.sentChanges) {
+      if (!options.sentChanges && !options.sentHotkey) {
         clearAllDrafts();
         setSliderPreview(null);
       }
@@ -352,6 +391,44 @@ export function useBehaviorSettings() {
     coalescer?.enqueue(scope, change);
   }
 
+  function mutateHotkey(change: HotkeySettingChange): void {
+    const currentSnapshot = snapshotRef.current;
+    const currentSelection = selectionRef.current;
+    const scope = writeScope(currentSelection);
+    if (!currentSnapshot || blockingRef.current || !scope) {
+      return;
+    }
+    writeOptimisticHotkeys({ ...optimisticHotkeysRef.current, [change.action]: change });
+    clearActionFeedback();
+    void (async () => {
+      try {
+        const response = await sendOptionsRequest(
+          withSnapshotHostname({
+            type: 'SET_HOTKEY_SETTING',
+            scope,
+            change,
+          }),
+        );
+        if (!applyResponse(response, { sentHotkey: change }) || response?.ok === false) {
+          await recover(scope.kind === 'site' ? 'pane-and-sidebar' : 'pane');
+          writeOptimisticHotkeys(
+            omitMatchingOptimisticHotkeys(optimisticHotkeysRef.current, change),
+          );
+        } else if (
+          scope.kind === 'site' &&
+          response?.ok &&
+          !('siteMembership' in response && response.siteMembership)
+        ) {
+          await recover('sidebar');
+        }
+      } catch {
+        reportActionError(t('settingsSaveError'));
+        await recover(scope.kind === 'site' ? 'pane-and-sidebar' : 'pane');
+        writeOptimisticHotkeys(omitMatchingOptimisticHotkeys(optimisticHotkeysRef.current, change));
+      }
+    })();
+  }
+
   function adjustDisplayedSpeed(direction: 1 | -1): void {
     const current = behaviorRef.current;
     if (!current) {
@@ -372,7 +449,7 @@ export function useBehaviorSettings() {
     clearActionFeedback();
     try {
       await coalescer?.flush();
-      writeOptimistic({});
+      clearOptimistic();
       clearAllDrafts();
       setSliderPreview(null);
       if (snapshotRef.current?.site?.hostname === hostname) {
@@ -401,7 +478,7 @@ export function useBehaviorSettings() {
     clearActionFeedback();
     try {
       await coalescer?.flush();
-      writeOptimistic({});
+      clearOptimistic();
       await work();
     } finally {
       setBlocking(false);
@@ -510,7 +587,7 @@ export function useBehaviorSettings() {
   function selectPane(next: Selection): void {
     const applyPane = (): void => {
       setSelection(next);
-      writeOptimistic({});
+      clearOptimistic();
       clearAllDrafts();
       setSliderPreview(null);
     };
@@ -635,6 +712,7 @@ export function useBehaviorSettings() {
     drafts,
     updateDraft,
     behavior,
+    hotkeys,
     overlayEnabled,
     snapshotHostname,
     speed,
@@ -644,6 +722,7 @@ export function useBehaviorSettings() {
     delayLocked,
     resetBadgeText,
     mutate,
+    mutateHotkey,
     adjustDisplayedSpeed,
     selectSite,
     selectPane,

@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest';
 import {
   applyOptimisticChange,
   applyOptimisticChanges,
+  applyOptimisticHotkeyChange,
   omitMatchingOptimisticChanges,
+  omitMatchingOptimisticHotkeys,
   sameBehaviorSettingChange,
 } from '../entrypoints/options/options-model';
-import { OVERLAY_POSITION } from '../settings/site-behavior';
+import { OVERLAY_POSITION, resolveSiteBehavior } from '../settings/site-behavior';
 import type { BehaviorSettingsSnapshot } from '../protocol/schemas/shared';
 
 function snapshot(): BehaviorSettingsSnapshot {
@@ -25,11 +27,14 @@ function snapshot(): BehaviorSettingsSnapshot {
     overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
     overlayOpacity: { value: 70, source: 'built-in' as const },
   };
+  const hotkeys = resolveSiteBehavior().hotkeys;
   return {
     global,
+    globalHotkeys: hotkeys,
     site: {
       hostname: 'www.youtube.com',
       behavior: { ...global, speed: { value: 1.25, source: 'site' as const } },
+      hotkeys,
     },
   };
 }
@@ -86,5 +91,47 @@ describe('optimistic options state', () => {
     expect(
       sameBehaviorSettingChange(pending.speed, { kind: 'value', field: 'speed', value: 1.5 }),
     ).toBe(true);
+  });
+
+  it('applies optimistic hotkey value, inherit, and unbind without touching behavior fields', () => {
+    const state = snapshot();
+    const assigned = applyOptimisticHotkeyChange(
+      state.globalHotkeys,
+      {
+        kind: 'hotkey-value',
+        action: 'decreaseSpeed',
+        value: { code: 'KeyD', ctrl: false, alt: false, shift: false, meta: false },
+      },
+      { kind: 'global' },
+      state,
+    );
+    expect(assigned.decreaseSpeed).toEqual({
+      value: { code: 'KeyD', ctrl: false, alt: false, shift: false, meta: false },
+      source: 'global',
+    });
+    expect(
+      applyOptimisticHotkeyChange(
+        assigned,
+        { kind: 'hotkey-inherit', action: 'decreaseSpeed' },
+        { kind: 'global' },
+        state,
+      ).decreaseSpeed.source,
+    ).toBe('built-in');
+    expect(
+      applyOptimisticHotkeyChange(
+        state.site!.hotkeys,
+        { kind: 'hotkey-value', action: 'resetSpeed', value: null },
+        { kind: 'site', hostname: 'www.youtube.com' },
+        state,
+      ).resetSpeed,
+    ).toEqual({ value: null, source: 'site' });
+    const pending = {
+      decreaseSpeed: {
+        kind: 'hotkey-value' as const,
+        action: 'decreaseSpeed' as const,
+        value: { code: 'KeyD', ctrl: false, alt: false, shift: false, meta: false },
+      },
+    };
+    expect(omitMatchingOptimisticHotkeys(pending, pending.decreaseSpeed)).toEqual({});
   });
 });

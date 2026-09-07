@@ -2,14 +2,18 @@
 
 import type { BehaviorSettingsSnapshot } from '../../protocol/schemas/shared';
 import { t } from '@/i18n/t';
+import { BUILT_IN_HOTKEYS, hotkeyBindingsEqual } from '../../settings/hotkey-binding';
 import {
   BUILT_IN_SITE_BEHAVIOR,
   OVERLAY_POSITION,
   type BehaviorSettingChange,
   type EditableBehaviorField,
   type EditableResolvedBehavior,
+  type HotkeySettingChange,
   type OverlayPosition,
+  type ResolvedHotkeyMap,
   type SettingSource,
+  type SiteHotkeyAction,
 } from '../../settings/site-behavior';
 import { normalizeSiteHostname } from '../../settings/site-hostname';
 
@@ -132,4 +136,78 @@ export function omitMatchingOptimisticChanges(
     }
   }
   return next;
+}
+
+export function currentHotkeys(
+  snapshot: BehaviorSettingsSnapshot,
+  selection: Selection,
+): ResolvedHotkeyMap {
+  if (selection.kind === 'site' && snapshot.site?.hostname === selection.hostname) {
+    return snapshot.site.hotkeys;
+  }
+  return snapshot.globalHotkeys;
+}
+
+export function applyOptimisticHotkeyChange(
+  hotkeys: ResolvedHotkeyMap,
+  change: HotkeySettingChange,
+  selection: Selection,
+  snapshot: BehaviorSettingsSnapshot,
+): ResolvedHotkeyMap {
+  if (change.kind === 'hotkey-inherit') {
+    if (selection.kind === 'site') {
+      return { ...hotkeys, [change.action]: snapshot.globalHotkeys[change.action] };
+    }
+    return {
+      ...hotkeys,
+      [change.action]: { value: { ...BUILT_IN_HOTKEYS[change.action] }, source: 'built-in' },
+    };
+  }
+  return {
+    ...hotkeys,
+    [change.action]: {
+      value: change.value,
+      source: selection.kind === 'site' ? 'site' : 'global',
+    },
+  };
+}
+
+export function applyOptimisticHotkeyChanges(
+  hotkeys: ResolvedHotkeyMap,
+  changes: Partial<Record<SiteHotkeyAction, HotkeySettingChange>>,
+  selection: Selection,
+  snapshot: BehaviorSettingsSnapshot,
+): ResolvedHotkeyMap {
+  let next = hotkeys;
+  for (const change of Object.values(changes)) {
+    if (change) {
+      next = applyOptimisticHotkeyChange(next, change, selection, snapshot);
+    }
+  }
+  return next;
+}
+
+export function sameHotkeySettingChange(
+  left: HotkeySettingChange | undefined,
+  right: HotkeySettingChange,
+): boolean {
+  if (!left || left.kind !== right.kind || left.action !== right.action) {
+    return false;
+  }
+  if (left.kind === 'hotkey-inherit' || right.kind === 'hotkey-inherit') {
+    return left.kind === 'hotkey-inherit' && right.kind === 'hotkey-inherit';
+  }
+  return hotkeyBindingsEqual(left.value, right.value);
+}
+
+export function omitMatchingOptimisticHotkeys(
+  current: Partial<Record<SiteHotkeyAction, HotkeySettingChange>>,
+  sent: HotkeySettingChange,
+): Partial<Record<SiteHotkeyAction, HotkeySettingChange>> {
+  if (sameHotkeySettingChange(current[sent.action], sent)) {
+    const next = { ...current };
+    delete next[sent.action];
+    return next;
+  }
+  return current;
 }
