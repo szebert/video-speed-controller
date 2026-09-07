@@ -1139,9 +1139,31 @@ describe('Options page', () => {
     expect(titles.indexOf('Enable on all sites')).toBeGreaterThanOrEqual(0);
     expect(titles.indexOf('Export')).toBeGreaterThan(titles.indexOf('Enable on all sites'));
     expect(allSitesSwitch()?.checked).toBe(false);
+    expect(allSitesSwitch()?.disabled).toBe(false);
     expect(permissionsContains).toHaveBeenCalledWith({
       origins: ['http://*/*', 'https://*/*'],
     });
+  });
+
+  it('disables the all-sites switch until the first contains() resolves', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    let release!: (value: boolean) => void;
+    permissionsContains.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    await renderApp();
+    await openSettingsPane();
+    expect(allSitesSwitch()?.disabled).toBe(true);
+    expect(allSitesSwitch()?.checked).toBe(false);
+    await act(async () => {
+      release(true);
+      await Promise.resolve();
+    });
+    expect(allSitesSwitch()?.disabled).toBe(false);
+    expect(allSitesSwitch()?.checked).toBe(true);
   });
 
   it('requests all-sites access from the switch gesture', async () => {
@@ -1230,11 +1252,12 @@ describe('Options page', () => {
     expect(permissionError()?.textContent).toContain('Could not update site access');
   });
 
-  it('shows an error when contains rejects and leaves the switch unchanged', async () => {
+  it('keeps the all-sites switch disabled and unknown when contains rejects', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     permissionsContains.mockRejectedValue(new Error('contains failed'));
     await renderApp();
     await openSettingsPane();
+    expect(allSitesSwitch()?.disabled).toBe(true);
     expect(allSitesSwitch()?.checked).toBe(false);
     expect(permissionError()?.textContent).toContain('Could not update site access');
   });
@@ -1258,6 +1281,37 @@ describe('Options page', () => {
       await Promise.resolve();
     });
     expect(allSitesSwitch()?.checked).toBe(false);
+  });
+
+  it('ignores a stale all-sites contains() result', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    let releaseFirst!: (value: boolean) => void;
+    let first = true;
+    permissionsContains.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          if (first) {
+            first = false;
+            releaseFirst = resolve;
+            return;
+          }
+          resolve(true);
+        }),
+    );
+    await renderApp();
+    await openSettingsPane();
+    expect(allSitesSwitch()?.disabled).toBe(true);
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(allSitesSwitch()?.disabled).toBe(false);
+    expect(allSitesSwitch()?.checked).toBe(true);
+    await act(async () => {
+      releaseFirst(false);
+      await Promise.resolve();
+    });
+    expect(allSitesSwitch()?.checked).toBe(true);
   });
 
   it('exports settings from the Settings pane', async () => {
