@@ -7,8 +7,8 @@ const OVERLAY_COUNT = 6;
 
 type OverlayStackSample = {
   osvscIsInteractiveTarget: boolean;
+  osvscIsPageTarget: boolean;
   occluderAboveVideoAfterIgnoringOsvsc: boolean;
-  lightHitTag: string | null;
   pageStackTopId: string | null;
 };
 
@@ -144,7 +144,7 @@ async function sampleOverlayStack(
         shadowHit === control ||
         (shadowHit instanceof Node && control.contains(shadowHit)) ||
         (shadowHit instanceof Element && shadowHit.closest('.controls-shell') != null);
-      const lightHit = document.elementFromPoint(x, y);
+      const osvscIsPageTarget = document.elementFromPoint(x, y) === host;
 
       const hosts = [...document.querySelectorAll('osvsc-overlay')].filter(
         (node): node is HTMLElement => node instanceof HTMLElement,
@@ -161,9 +161,9 @@ async function sampleOverlayStack(
         const videoIndex = stack.findIndex((node) => node === video);
         return {
           osvscIsInteractiveTarget,
+          osvscIsPageTarget,
           occluderAboveVideoAfterIgnoringOsvsc:
             occluderIndex >= 0 && videoIndex >= 0 && occluderIndex < videoIndex,
-          lightHitTag: lightHit instanceof Element ? lightHit.tagName.toLowerCase() : null,
           pageStackTopId:
             stack[0] instanceof Element ? stack[0].id || stack[0].tagName.toLowerCase() : null,
         };
@@ -209,6 +209,7 @@ test('sticky header keeps the max-z overlay as the interactive target', async ({
     scroll: false,
   });
   expect(sample.osvscIsInteractiveTarget).toBe(true);
+  expect(sample.osvscIsPageTarget).toBe(true);
   expect(sample.occluderAboveVideoAfterIgnoringOsvsc).toBe(true);
 });
 
@@ -222,6 +223,7 @@ test('ordinary modal keeps the max-z overlay as the interactive target', async (
   await expect(site.locator('#ordinary-modal')).toBeVisible();
   const sample = await sampleOverlayStack(site, 'video-modal', 'ordinary-modal');
   expect(sample.osvscIsInteractiveTarget).toBe(true);
+  expect(sample.osvscIsPageTarget).toBe(true);
   expect(sample.occluderAboveVideoAfterIgnoringOsvsc).toBe(true);
 });
 
@@ -233,6 +235,7 @@ test('player chrome keeps the max-z overlay as the interactive target', async ({
   const site = await openStackingSite(context, extensionId, serviceWorker);
   const sample = await sampleOverlayStack(site, 'video-chrome', 'player-chrome');
   expect(sample.osvscIsInteractiveTarget).toBe(true);
+  expect(sample.osvscIsPageTarget).toBe(true);
   expect(sample.occluderAboveVideoAfterIgnoringOsvsc).toBe(true);
 });
 
@@ -246,6 +249,7 @@ test('dropdown menu keeps the max-z overlay as the interactive target', async ({
   await expect(site.locator('#dropdown-menu')).toBeVisible();
   const sample = await sampleOverlayStack(site, 'video-menu', 'dropdown-menu');
   expect(sample.osvscIsInteractiveTarget).toBe(true);
+  expect(sample.osvscIsPageTarget).toBe(true);
   expect(sample.occluderAboveVideoAfterIgnoringOsvsc).toBe(true);
 });
 
@@ -257,6 +261,7 @@ test('transparent click-capture is a hit-test false positive above the video', a
   const site = await openStackingSite(context, extensionId, serviceWorker);
   const sample = await sampleOverlayStack(site, 'video-trap', 'click-trap');
   expect(sample.osvscIsInteractiveTarget).toBe(true);
+  expect(sample.osvscIsPageTarget).toBe(true);
   expect(sample.occluderAboveVideoAfterIgnoringOsvsc).toBe(true);
 });
 
