@@ -13,8 +13,9 @@ describe('behavior field registry', () => {
     expect(Object.keys(BUILT_IN_SITE_BEHAVIOR).sort()).toEqual(
       [...EDITABLE_BEHAVIOR_FIELDS, 'hotkeys'].sort(),
     );
-    expect(Object.keys(LogicalBackupSchema.shape.global.shape)).toEqual([
-      ...EDITABLE_BEHAVIOR_FIELDS,
-    ]);
+    expect(
+      Object.keys(LogicalBackupSchema.shape.global.shape).filter((key) => key !== 'hotkeys'),
+    ).toEqual([...EDITABLE_BEHAVIOR_FIELDS]);
+    expect(LogicalBackupSchema.shape.global.shape).toHaveProperty('hotkeys');
   });
 });

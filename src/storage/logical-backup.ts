@@ -5,6 +5,7 @@ import {
   BACKUP_CREATED_BY_NEWER_VERSION,
   BACKUP_TOO_LARGE,
   logicalFieldChanges,
+  logicalHotkeyChanges,
   MAX_BACKUP_BYTES,
   parseBackupText,
   projectBackup,
@@ -14,10 +15,13 @@ import {
 } from '../settings/backup';
 import { cannotSafelyDestroy } from '../settings/destroy-policy';
 import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../settings/migrate';
-import { applyBehaviorSettingChange, inheritAllEditableFields } from '../settings/site-behavior';
+import {
+  applyBehaviorSettingChange,
+  applyHotkeySettingChange,
+  inheritAllKnownSettings,
+} from '../settings/site-behavior';
 import { DARK_DEFAULT, getStoredTheme, persistThemeUnlocked } from '../settings/theme';
 import {
-  persistGlobalBehaviorChangesUnlocked,
   persistGlobalBehaviorOverridesUnlocked,
   readGlobalBehaviorCopiesUnlocked,
   type BehaviorDefaultsDeps,
@@ -95,6 +99,7 @@ async function importLogicalSettingsUnlocked(
 ): Promise<{ skippedRecordCount: number }> {
   let skippedRecordCount = 0;
   const globalChanges = logicalFieldChanges(backup.global);
+  const globalHotkeyChanges = logicalHotkeyChanges(backup.global.hotkeys);
   const copies = await readGlobalBehaviorCopiesUnlocked(deps);
   const globalBlocked =
     cannotSafelyDestroy(copies.syncParsed) || cannotSafelyDestroy(copies.localParsed);
@@ -103,18 +108,30 @@ async function importLogicalSettingsUnlocked(
       skippedRecordCount += 1;
     } else {
       await persistGlobalBehaviorOverridesUnlocked((_current, at) => {
-        let next = inheritAllEditableFields(at);
+        let next = inheritAllKnownSettings(at);
         for (const change of globalChanges) {
           next = applyBehaviorSettingChange(next, change, at);
+        }
+        for (const change of globalHotkeyChanges) {
+          next = applyHotkeySettingChange(next, change, at);
         }
         return next;
       }, deps);
     }
-  } else if (globalChanges.length > 0) {
+  } else if (globalChanges.length > 0 || globalHotkeyChanges.length > 0) {
     if (globalBlocked) {
       skippedRecordCount += 1;
     } else {
-      await persistGlobalBehaviorChangesUnlocked(globalChanges, deps);
+      await persistGlobalBehaviorOverridesUnlocked((current, at) => {
+        let next = current;
+        for (const change of globalChanges) {
+          next = applyBehaviorSettingChange(next, change, at);
+        }
+        for (const change of globalHotkeyChanges) {
+          next = applyHotkeySettingChange(next, change, at);
+        }
+        return next;
+      }, deps);
     }
   }
 
@@ -124,6 +141,7 @@ async function importLogicalSettingsUnlocked(
       .map((hostname) => ({
         hostname,
         changes: logicalFieldChanges(backup.sites[hostname] ?? {}),
+        hotkeyChanges: logicalHotkeyChanges(backup.sites[hostname]?.hotkeys),
       })),
     mode,
     deps,

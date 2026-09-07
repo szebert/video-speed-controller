@@ -4,12 +4,14 @@ import {
   GLOBAL_BEHAVIOR_KEY,
   REPAIR_BACKOFF_MS,
   applyBehaviorSettingChange,
+  applyHotkeySettingChange,
   hasSemanticOverrides,
-  inheritAllEditableFields,
+  inheritAllKnownSettings,
   mergeBehaviorOverrides,
   type BehaviorOverrides,
   type BehaviorSettingChange,
   type GlobalBehaviorSettingsV1,
+  type HotkeySettingChange,
 } from '../settings/site-behavior';
 import { cannotSafelyDestroy } from '../settings/destroy-policy';
 import {
@@ -412,6 +414,19 @@ export async function persistGlobalBehaviorChange(
   await persistGlobalBehaviorChanges([change], deps);
 }
 
+export async function persistGlobalHotkeyChanges(
+  changes: readonly HotkeySettingChange[],
+  deps: BehaviorDefaultsDeps = {},
+): Promise<void> {
+  await persistGlobalBehaviorOverrides((current, at) => {
+    let next = current;
+    for (const change of changes) {
+      next = applyHotkeySettingChange(next, change, at);
+    }
+    return next;
+  }, deps);
+}
+
 export async function resetGlobalBehaviorOverrides(
   deps: BehaviorDefaultsDeps = {},
   options: { ifUnsupported?: 'throw' | 'skip' } = {},
@@ -442,7 +457,7 @@ export async function resetGlobalBehaviorOverrides(
     );
     const next: GlobalBehaviorSettingsV1 = {
       schemaVersion: 1,
-      overrides: inheritAllEditableFields(issued.timestamp),
+      overrides: inheritAllKnownSettings(issued.timestamp),
     };
     await persistGlobalRecord(
       sync,

@@ -15,6 +15,7 @@ import {
   deleteSiteSettings,
   listCustomSiteHostnames,
   persistSiteBehaviorChange,
+  persistSiteHotkeyChanges,
   persistSiteSpeed,
   persistSiteSpeedInherit,
   readSiteSpeed,
@@ -82,6 +83,37 @@ describe('site settings storage', () => {
       overrides: {
         speed: { kind: 'value', value: 1.25, updatedAt: 50 },
         overlayPosition: { kind: 'value', value: OVERLAY_POSITION.BOTTOM_RIGHT, updatedAt: 80 },
+      },
+    });
+  });
+
+  it('keeps a site hotkey after a later speed persist', async () => {
+    const deps = pair(50);
+    const binding = {
+      code: 'KeyK',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
+    };
+    await persistSiteHotkeyChanges(
+      'https://www.youtube.com/watch',
+      [{ kind: 'hotkey-value', action: 'decreaseSpeed', value: binding }],
+      deps,
+    );
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.5, { ...deps, now: () => 80 });
+    const resolved = await resolveSiteBehaviorForUrl('https://www.youtube.com/watch', {
+      ...deps,
+      now: () => 80,
+      touchUsage: false,
+    });
+    expect(resolved?.hotkeys.decreaseSpeed).toEqual({ value: binding, source: 'site' });
+    expect(deps.local.data['site:www.youtube.com']).toMatchObject({
+      overrides: {
+        speed: { kind: 'value', value: 1.5, updatedAt: 80 },
+        hotkeys: {
+          decreaseSpeed: { kind: 'value', value: binding, updatedAt: 50 },
+        },
       },
     });
   });

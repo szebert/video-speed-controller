@@ -25,7 +25,16 @@ import {
   type EditableBehaviorField,
   type NumberBehaviorField,
 } from './behavior-fields';
+import {
+  BUILT_IN_HOTKEYS,
+  hotkeyBindingsEqual,
+  isHotkeyBinding,
+  type EffectiveHotkeyMap,
+  type HotkeyBinding,
+} from './hotkey-binding';
 import { isLogicalValue } from './logical-value';
+
+export type { EffectiveHotkeyMap, HotkeyBinding };
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const SITE_INHERIT_SYNC_RETENTION_MS = 30 * DAY_MS;
@@ -97,15 +106,18 @@ export const SITE_HOTKEY_ACTIONS = [
   'resetSpeed',
 ] as const satisfies readonly SiteHotkeyAction[];
 
-/** Future versioned serializable type. Not accepted in persisted V1 records this milestone. */
-export type HotkeyBinding = unknown;
-
 export type SettingSource = 'built-in' | 'global' | 'site';
 
 export type ResolvedSetting<T> = {
   value: T;
   source: SettingSource;
 };
+
+export type ResolvedHotkeyMap = Record<SiteHotkeyAction, ResolvedSetting<HotkeyBinding | null>>;
+
+export type HotkeySettingChange =
+  | { kind: 'hotkey-value'; action: SiteHotkeyAction; value: HotkeyBinding | null }
+  | { kind: 'hotkey-inherit'; action: SiteHotkeyAction };
 
 // Domain shapes from BEHAVIOR_FIELDS. hotkeys is reserved extras, not a
 // registry row. Zod copies of these fields stay in protocol/schemas (RPC)
@@ -119,7 +131,7 @@ export type BehaviorFieldValue<K extends BehaviorField> = K extends 'overlayPosi
 export type SiteBehavior = {
   [K in BehaviorField]: BehaviorFieldValue<K>;
 } & {
-  hotkeys: Partial<Record<SiteHotkeyAction, HotkeyBinding | null>>;
+  hotkeys: EffectiveHotkeyMap;
 };
 
 export type Override<T> =
@@ -146,11 +158,15 @@ export type GlobalBehaviorSettingsV1 = {
 export type ResolvedSiteBehavior = {
   [K in BehaviorField]: ResolvedSetting<BehaviorFieldValue<K>>;
 } & {
-  hotkeys: Partial<Record<SiteHotkeyAction, ResolvedSetting<HotkeyBinding | null>>>;
+  hotkeys: ResolvedHotkeyMap;
 };
 
 export const BUILT_IN_SITE_BEHAVIOR = {
-  hotkeys: {},
+  hotkeys: {
+    decreaseSpeed: { ...BUILT_IN_HOTKEYS.decreaseSpeed },
+    increaseSpeed: { ...BUILT_IN_HOTKEYS.increaseSpeed },
+    resetSpeed: { ...BUILT_IN_HOTKEYS.resetSpeed },
+  },
   ...Object.fromEntries(
     EDITABLE_BEHAVIOR_FIELDS.map((field) => [field, BEHAVIOR_FIELDS[field].default]),
   ),
@@ -250,6 +266,18 @@ export function toSyncEligibleSiteRecord(
       Object.assign(overrides, { [field]: current });
     }
   }
+  const hotkeys: NonNullable<BehaviorOverrides['hotkeys']> = {};
+  let hasHotkey = false;
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    const current = record.overrides.hotkeys?.[action];
+    if (current && !isExpiredSiteInherit(current, now)) {
+      hotkeys[action] = current;
+      hasHotkey = true;
+    }
+  }
+  if (hasHotkey) {
+    overrides.hotkeys = hotkeys;
+  }
   if (!hasSemanticOverrides(overrides)) {
     return null;
   }
@@ -268,7 +296,17 @@ export function overridesEqual<T>(left: Override<T>, right: Override<T>): boolea
   if (left.kind === 'inherit' || right.kind === 'inherit') {
     return true;
   }
-  return Object.is(left.value, right.value);
+  if (Object.is(left.value, right.value)) {
+    return true;
+  }
+  if (left.value === null && right.value === null) {
+    return true;
+  }
+  return (
+    isHotkeyBinding(left.value) &&
+    isHotkeyBinding(right.value) &&
+    hotkeyBindingsEqual(left.value, right.value)
+  );
 }
 
 export function mergeOverrideField<T>(
@@ -363,7 +401,9 @@ export function resolveSiteBehavior(
   siteOverrides: BehaviorOverrides = {},
   policy?: SpeedPolicy,
 ): ResolvedSiteBehavior {
-  const resolved = { hotkeys: {} } as ResolvedSiteBehavior;
+  const resolved = {
+    hotkeys: resolvedHotkeysFrom(globalOverrides, siteOverrides),
+  } as ResolvedSiteBehavior;
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
     Object.assign(resolved, {
       [field]: resolveOverride(
@@ -391,19 +431,35 @@ export function resolveSiteBehavior(
   return resolved;
 }
 
+export function toEffectiveHotkeys(resolved: ResolvedSiteBehavior): EffectiveHotkeyMap {
+  return {
+    decreaseSpeed: resolved.hotkeys.decreaseSpeed.value,
+    increaseSpeed: resolved.hotkeys.increaseSpeed.value,
+    resetSpeed: resolved.hotkeys.resetSpeed.value,
+  };
+}
+
 export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavior {
-  const hotkeys: SiteBehavior['hotkeys'] = {};
-  for (const action of SITE_HOTKEY_ACTIONS) {
-    const setting = resolved.hotkeys[action];
-    if (setting) {
-      hotkeys[action] = setting.value;
-    }
-  }
-  const effective = { hotkeys } as SiteBehavior;
+  const effective = { hotkeys: toEffectiveHotkeys(resolved) } as SiteBehavior;
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
     Object.assign(effective, { [field]: resolved[field].value });
   }
   return effective;
+}
+
+function resolvedHotkeysFrom(
+  globalOverrides: BehaviorOverrides,
+  siteOverrides: BehaviorOverrides,
+): ResolvedHotkeyMap {
+  const hotkeys = {} as ResolvedHotkeyMap;
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    hotkeys[action] = resolveOverride(
+      BUILT_IN_SITE_BEHAVIOR.hotkeys[action],
+      globalOverrides.hotkeys?.[action],
+      siteOverrides.hotkeys?.[action],
+    );
+  }
+  return hotkeys;
 }
 
 export function behaviorOverridesEqual(left: BehaviorOverrides, right: BehaviorOverrides): boolean {
@@ -482,7 +538,7 @@ export function toEditableResolvedBehavior(
   return editable;
 }
 
-export function tombstoneExistingSiteFields(
+export function tombstoneExistingSiteSettings(
   current: BehaviorOverrides,
   updatedAt: number,
 ): BehaviorOverrides {
@@ -492,15 +548,73 @@ export function tombstoneExistingSiteFields(
       next[field] = { kind: 'inherit', updatedAt };
     }
   }
+  const hotkeys: NonNullable<BehaviorOverrides['hotkeys']> = {};
+  let hasHotkey = false;
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    if (current.hotkeys?.[action]) {
+      hotkeys[action] = { kind: 'inherit', updatedAt };
+      hasHotkey = true;
+    }
+  }
+  if (hasHotkey) {
+    next.hotkeys = hotkeys;
+  }
   return next;
 }
 
-export function inheritAllEditableFields(updatedAt: number): BehaviorOverrides {
+export function inheritAllKnownSettings(updatedAt: number): BehaviorOverrides {
   const overrides: BehaviorOverrides = {};
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
     overrides[field] = { kind: 'inherit', updatedAt };
   }
+  const hotkeys: NonNullable<BehaviorOverrides['hotkeys']> = {};
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    hotkeys[action] = { kind: 'inherit', updatedAt };
+  }
+  overrides.hotkeys = hotkeys;
   return overrides;
+}
+
+export function applyHotkeySettingChange(
+  current: BehaviorOverrides,
+  change: HotkeySettingChange,
+  updatedAt: number,
+): BehaviorOverrides {
+  const hotkeys = { ...current.hotkeys };
+  if (change.kind === 'hotkey-inherit') {
+    hotkeys[change.action] = { kind: 'inherit', updatedAt };
+  } else {
+    hotkeys[change.action] = { kind: 'value', value: change.value, updatedAt };
+  }
+  return { ...current, hotkeys };
+}
+
+export function canonicalizeHotkeySettingChange(
+  change: HotkeySettingChange,
+): HotkeySettingChange | null {
+  if (!isSiteHotkeyAction(change.action)) {
+    return null;
+  }
+  if (change.kind === 'hotkey-inherit') {
+    return { kind: 'hotkey-inherit', action: change.action };
+  }
+  if (change.value === null) {
+    return { kind: 'hotkey-value', action: change.action, value: null };
+  }
+  if (!isHotkeyBinding(change.value)) {
+    return null;
+  }
+  return {
+    kind: 'hotkey-value',
+    action: change.action,
+    value: {
+      code: change.value.code,
+      ctrl: change.value.ctrl,
+      alt: change.value.alt,
+      shift: change.value.shift,
+      meta: change.value.meta,
+    },
+  };
 }
 
 export function applyBehaviorSettingChange(

@@ -4,12 +4,18 @@ import { z } from 'zod';
 import type { Equal } from '../types/equal';
 import { EDITABLE_BEHAVIOR_FIELDS, type EditableBehaviorField } from './behavior-fields';
 import { normalizeSiteHostname } from './site-hostname';
+import { isHotkeyBinding } from './hotkey-binding';
 import {
   canonicalizeBehaviorSettingChange,
+  canonicalizeHotkeySettingChange,
+  SITE_HOTKEY_ACTIONS,
   type BehaviorFieldValue,
   type BehaviorOverrides,
   type BehaviorSettingChange,
+  type HotkeyBinding,
+  type HotkeySettingChange,
   type OverlayPosition,
+  type SiteHotkeyAction,
 } from './site-behavior';
 import type { ThemePreference } from './theme';
 
@@ -30,10 +36,16 @@ export type LogicalFieldValues = {
   [K in EditableBehaviorField]?: BehaviorFieldValue<K>;
 };
 
+export type LogicalHotkeyValues = Partial<Record<SiteHotkeyAction, HotkeyBinding | null>>;
+
+export type LogicalBackupScope = LogicalFieldValues & {
+  hotkeys?: LogicalHotkeyValues;
+};
+
 export type LogicalBackup = {
   formatVersion: 1;
-  global: LogicalFieldValues;
-  sites: Record<string, LogicalFieldValues>;
+  global: LogicalBackupScope;
+  sites: Record<string, LogicalBackupScope>;
   theme?: ThemePreference;
 };
 
@@ -78,17 +90,35 @@ const BackupV1FieldSchema = z.strictObject({
 // Adding an editable field must also add an optional V1 field.
 true satisfies Equal<z.infer<typeof BackupV1FieldSchema>, LogicalFieldValues>;
 
+const BackupV1HotkeyBindingSchema = z.strictObject({
+  code: z.string(),
+  ctrl: z.boolean(),
+  alt: z.boolean(),
+  shift: z.boolean(),
+  meta: z.boolean(),
+}) satisfies z.ZodType<HotkeyBinding>;
+
+const BackupV1HotkeysSchema = z.strictObject({
+  increaseSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  decreaseSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  resetSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+}) satisfies z.ZodType<LogicalHotkeyValues>;
+
+const BackupV1ScopeSchema = BackupV1FieldSchema.extend({
+  hotkeys: BackupV1HotkeysSchema.optional(),
+}) satisfies z.ZodType<LogicalBackupScope>;
+
 const BackupFormatV1Schema = z.strictObject({
   formatVersion: z.literal(1),
-  global: BackupV1FieldSchema.optional(),
-  sites: z.record(z.string(), BackupV1FieldSchema).optional(),
+  global: BackupV1ScopeSchema.optional(),
+  sites: z.record(z.string(), BackupV1ScopeSchema).optional(),
   theme: z.enum(['dark', 'light', 'system']).optional(),
 });
 
 export const LogicalBackupSchema = z.object({
   formatVersion: z.literal(1),
-  global: BackupV1FieldSchema,
-  sites: z.record(z.string(), BackupV1FieldSchema),
+  global: BackupV1ScopeSchema,
+  sites: z.record(z.string(), BackupV1ScopeSchema),
   theme: z.enum(['dark', 'light', 'system']).optional(),
 });
 
@@ -125,6 +155,28 @@ function detectFormatVersion(value: unknown): number | null {
   return null;
 }
 
+function orderedHotkeys(values: LogicalHotkeyValues | undefined): LogicalHotkeyValues | undefined {
+  if (!values) {
+    return undefined;
+  }
+  const next: LogicalHotkeyValues = {};
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    if (Object.prototype.hasOwnProperty.call(values, action)) {
+      next[action] = values[action] ?? null;
+    }
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function orderedScope(values: LogicalBackupScope): LogicalBackupScope {
+  const next: LogicalBackupScope = orderedFields(values);
+  const hotkeys = orderedHotkeys(values.hotkeys);
+  if (hotkeys) {
+    next.hotkeys = hotkeys;
+  }
+  return next;
+}
+
 function orderedFields(values: LogicalFieldValues): LogicalFieldValues {
   const next: LogicalFieldValues = {};
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
@@ -154,6 +206,42 @@ function canonicalizeLogicalFields(raw: LogicalFieldValues): LogicalFieldValues 
   return next;
 }
 
+function canonicalizeLogicalHotkeys(
+  raw: LogicalHotkeyValues | undefined,
+): LogicalHotkeyValues | null | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  const next: LogicalHotkeyValues = {};
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    if (!Object.prototype.hasOwnProperty.call(raw, action)) {
+      continue;
+    }
+    const value = raw[action];
+    if (value === null) {
+      next[action] = null;
+      continue;
+    }
+    if (!isHotkeyBinding(value)) {
+      return null;
+    }
+    next[action] = value;
+  }
+  return next;
+}
+
+function canonicalizeLogicalScope(raw: LogicalBackupScope): LogicalBackupScope | null {
+  const fields = canonicalizeLogicalFields(raw);
+  if (!fields) {
+    return null;
+  }
+  const hotkeys = canonicalizeLogicalHotkeys(raw.hotkeys);
+  if (hotkeys === null) {
+    return null;
+  }
+  return hotkeys && Object.keys(hotkeys).length > 0 ? { ...fields, hotkeys } : fields;
+}
+
 export function projectLogicalFieldValues(overrides: BehaviorOverrides): LogicalFieldValues {
   const values: LogicalFieldValues = {};
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
@@ -163,6 +251,51 @@ export function projectLogicalFieldValues(overrides: BehaviorOverrides): Logical
     }
   }
   return values;
+}
+
+export function projectLogicalHotkeys(
+  overrides: BehaviorOverrides,
+): LogicalHotkeyValues | undefined {
+  const values: LogicalHotkeyValues = {};
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    const current = overrides.hotkeys?.[action];
+    if (current?.kind === 'value') {
+      values[action] = current.value;
+    }
+  }
+  return Object.keys(values).length > 0 ? values : undefined;
+}
+
+function projectLogicalScope(overrides: BehaviorOverrides): LogicalBackupScope {
+  const scope: LogicalBackupScope = projectLogicalFieldValues(overrides);
+  const hotkeys = projectLogicalHotkeys(overrides);
+  if (hotkeys) {
+    scope.hotkeys = hotkeys;
+  }
+  return scope;
+}
+
+export function logicalHotkeyChanges(
+  values: LogicalHotkeyValues | undefined,
+): HotkeySettingChange[] {
+  if (!values) {
+    return [];
+  }
+  const changes: HotkeySettingChange[] = [];
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    if (!Object.prototype.hasOwnProperty.call(values, action)) {
+      continue;
+    }
+    const change = canonicalizeHotkeySettingChange({
+      kind: 'hotkey-value',
+      action,
+      value: values[action] ?? null,
+    });
+    if (change) {
+      changes.push(change);
+    }
+  }
+  return changes;
 }
 
 export function logicalFieldChanges(values: LogicalFieldValues): BehaviorSettingChange[] {
@@ -188,33 +321,33 @@ export function projectBackup(input: {
   sites: Record<string, BehaviorOverrides>;
   theme: ThemePreference;
 }): LogicalBackup {
-  const sites: Record<string, LogicalFieldValues> = {};
+  const sites: Record<string, LogicalBackupScope> = {};
   for (const hostname of Object.keys(input.sites).sort()) {
-    const fields = orderedFields(projectLogicalFieldValues(input.sites[hostname] ?? {}));
-    if (Object.keys(fields).length > 0) {
-      sites[hostname] = fields;
+    const scope = orderedScope(projectLogicalScope(input.sites[hostname] ?? {}));
+    if (Object.keys(scope).length > 0) {
+      sites[hostname] = scope;
     }
   }
   return {
     formatVersion: 1,
-    global: orderedFields(projectLogicalFieldValues(input.global)),
+    global: orderedScope(projectLogicalScope(input.global)),
     sites,
     theme: input.theme,
   };
 }
 
 export function serializeBackup(backup: LogicalBackup): string {
-  const sites: Record<string, LogicalFieldValues> = {};
+  const sites: Record<string, LogicalBackupScope> = {};
   for (const hostname of Object.keys(backup.sites).sort()) {
-    const fields = orderedFields(backup.sites[hostname] ?? {});
-    if (Object.keys(fields).length > 0) {
-      sites[hostname] = fields;
+    const scope = orderedScope(backup.sites[hostname] ?? {});
+    if (Object.keys(scope).length > 0) {
+      sites[hostname] = scope;
     }
   }
   return `${JSON.stringify(
     {
       formatVersion: 1,
-      global: orderedFields(backup.global),
+      global: orderedScope(backup.global),
       sites,
       theme: backup.theme,
     },
@@ -236,7 +369,10 @@ function isUnrecognizedSettingKeys(error: z.ZodError): boolean {
       }
       const path = issue.path;
       return (
-        (path.length === 1 && path[0] === 'global') || (path.length === 2 && path[0] === 'sites')
+        (path.length === 1 && path[0] === 'global') ||
+        (path.length === 2 && path[0] === 'global' && path[1] === 'hotkeys') ||
+        (path.length === 2 && path[0] === 'sites') ||
+        (path.length === 3 && path[0] === 'sites' && path[2] === 'hotkeys')
       );
     })
   );
@@ -254,11 +390,11 @@ function parseBackupV1(value: unknown): BackupParseResult {
   if (sourceNames.length > MAX_BACKUP_SITES) {
     return invalid(BACKUP_TOO_MANY_SITES);
   }
-  const global = canonicalizeLogicalFields(parsed.data.global ?? {});
+  const global = canonicalizeLogicalScope(parsed.data.global ?? {});
   if (!global) {
     return invalid();
   }
-  const sites: Record<string, LogicalFieldValues> = {};
+  const sites: Record<string, LogicalBackupScope> = {};
   const seen = new Map<string, string>();
   for (const source of sourceNames) {
     if (source.length > MAX_BACKUP_HOSTNAME_LENGTH) {
@@ -273,7 +409,7 @@ function parseBackupV1(value: unknown): BackupParseResult {
       return invalid(`Duplicate site hostname: "${previous}" and "${source}"`);
     }
     seen.set(hostname, source);
-    const fields = canonicalizeLogicalFields(rawSites[source] ?? {});
+    const fields = canonicalizeLogicalScope(rawSites[source] ?? {});
     if (!fields) {
       return invalid();
     }

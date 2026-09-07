@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { beforeEach, describe, expect, it } from 'vitest';
+import { readAppliedTabPayload } from '../background/applied-behavior';
+import { EDITABLE_BEHAVIOR_FIELDS, OVERLAY_POSITION } from '../settings/site-behavior';
 import {
   persistGlobalBehaviorChange,
   persistGlobalBehaviorOverrides,
+  persistGlobalHotkeyChanges,
   readGlobalBehaviorOverrides,
   resetBehaviorDefaultsRepairBackoff,
   resetGlobalBehaviorOverrides,
 } from '../storage/behavior-defaults';
-import { EDITABLE_BEHAVIOR_FIELDS, OVERLAY_POSITION } from '../settings/site-behavior';
 import { resetStorageMutationQueue } from '../storage/storage-mutation-queue';
 import { memoryDurable } from './memory-store';
 
@@ -95,10 +97,15 @@ describe('global behavior defaults', () => {
     const overrides = (
       local.data['defaults:site-behavior'] as { overrides: Record<string, unknown> }
     ).overrides;
-    expect(Object.keys(overrides)).toEqual([...EDITABLE_BEHAVIOR_FIELDS]);
+    expect(Object.keys(overrides).sort()).toEqual([...EDITABLE_BEHAVIOR_FIELDS, 'hotkeys'].sort());
     for (const field of EDITABLE_BEHAVIOR_FIELDS) {
       expect(overrides[field]).toEqual({ kind: 'inherit', updatedAt: 200 });
     }
+    expect(overrides.hotkeys).toEqual({
+      increaseSpeed: { kind: 'inherit', updatedAt: 200 },
+      decreaseSpeed: { kind: 'inherit', updatedAt: 200 },
+      resetSpeed: { kind: 'inherit', updatedAt: 200 },
+    });
     expect(sync.data['defaults:site-behavior']).toMatchObject({ overrides });
   });
 
@@ -162,6 +169,41 @@ describe('global behavior defaults', () => {
     expect(sync.data['defaults:site-behavior']).toEqual({
       schemaVersion: 2,
       overrides: { extra: true },
+    });
+  });
+
+  it('round-trips a global hotkey override through applied tab payload', async () => {
+    const sync = memoryDurable();
+    const local = memoryDurable();
+    const binding = {
+      code: 'KeyJ',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
+    };
+    await persistGlobalHotkeyChanges(
+      [{ kind: 'hotkey-value', action: 'increaseSpeed', value: binding }],
+      { sync, local, now: () => 40 },
+    );
+    const stored = (local.data['defaults:site-behavior'] as { overrides: { hotkeys: unknown } })
+      .overrides.hotkeys;
+    expect(stored).toEqual({
+      increaseSpeed: { kind: 'value', value: binding, updatedAt: 40 },
+    });
+    const payload = await readAppliedTabPayload('https://www.youtube.com/watch', {
+      sync,
+      local,
+      now: () => 40,
+      touchUsage: false,
+    });
+    expect(payload.hotkeys.increaseSpeed).toEqual(binding);
+    expect(payload.hotkeys.decreaseSpeed).toEqual({
+      code: 'BracketLeft',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
     });
   });
 

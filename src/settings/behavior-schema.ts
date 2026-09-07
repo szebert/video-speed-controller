@@ -5,12 +5,16 @@ import type { Equal } from '../types/equal';
 import { hasOpaqueContent, pickUnknownKeys, type OpaqueFields } from './opaque-fields';
 import { BEHAVIOR_FIELDS, type BehaviorField } from './behavior-fields';
 import { isLogicalValue } from './logical-value';
+import { isHotkeyBinding } from './hotkey-binding';
 import {
   hasSemanticOverrides,
   isFiniteTimestamp,
+  isOverride,
+  isSiteHotkeyAction,
   type BehaviorFieldValue,
   type BehaviorOverrides,
   type GlobalBehaviorSettingsV1,
+  type HotkeyBinding,
   type OverlayPosition,
   type SiteSettingsV1,
 } from './site-behavior';
@@ -97,8 +101,12 @@ export function parseBehaviorOverrideMap(value: unknown): {
       if (!field || typeof field !== 'object' || Array.isArray(field)) {
         continue;
       }
-      if (Object.keys(field).length > 0) {
-        extras.hotkeys = field;
+      const parsedHotkeys = parseHotkeyOverrideMap(field);
+      if (parsedHotkeys.overrides) {
+        overrides.hotkeys = parsedHotkeys.overrides;
+      }
+      if (parsedHotkeys.extras) {
+        extras.hotkeys = parsedHotkeys.extras;
       }
       continue;
     }
@@ -113,6 +121,34 @@ export function parseBehaviorOverrideMap(value: unknown): {
   }
 
   return { overrides, extras };
+}
+
+function isHotkeyOverrideValue(value: unknown): value is HotkeyBinding | null {
+  return value === null || isHotkeyBinding(value);
+}
+
+function parseHotkeyOverrideMap(value: object): {
+  overrides?: NonNullable<BehaviorOverrides['hotkeys']>;
+  extras?: Record<string, unknown>;
+} {
+  const raw = value as Record<string, unknown>;
+  const overrides: NonNullable<BehaviorOverrides['hotkeys']> = {};
+  const extras: Record<string, unknown> = {};
+  let hasKnown = false;
+  for (const [action, field] of Object.entries(raw)) {
+    if (!isSiteHotkeyAction(action)) {
+      extras[action] = field;
+      continue;
+    }
+    if (isOverride(field, isHotkeyOverrideValue)) {
+      overrides[action] = field;
+      hasKnown = true;
+    }
+  }
+  return {
+    ...(hasKnown ? { overrides } : {}),
+    ...(Object.keys(extras).length > 0 ? { extras } : {}),
+  };
 }
 
 export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null {

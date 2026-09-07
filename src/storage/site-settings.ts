@@ -38,10 +38,12 @@ import {
   hasSemanticOverrides,
   withSpeedInherit,
   applyBehaviorSettingChange,
+  applyHotkeySettingChange,
   hasValueOverrides,
-  tombstoneExistingSiteFields,
+  tombstoneExistingSiteSettings,
   type BehaviorSettingChange,
   type BehaviorOverrides,
+  type HotkeySettingChange,
   type SiteSettingsV1,
 } from '../settings/site-behavior';
 import { cannotSafelyDestroy } from '../settings/destroy-policy';
@@ -618,6 +620,24 @@ export async function persistSiteBehaviorChange(
   await persistSiteBehaviorChanges(url, [change], deps);
 }
 
+export async function persistSiteHotkeyChanges(
+  url: string,
+  changes: readonly HotkeySettingChange[],
+  deps: SiteSettingsDeps = {},
+): Promise<void> {
+  await persistMutatedSite(
+    url,
+    (current, at) => {
+      let next = current;
+      for (const change of changes) {
+        next = applyHotkeySettingChange(next, change, at);
+      }
+      return next;
+    },
+    deps,
+  );
+}
+
 export async function persistSiteSpeed(
   url: string,
   speed: number,
@@ -681,7 +701,7 @@ function generationFromStores(
 }
 
 function tombstoneMergedSite(merged: BehaviorOverrides, at: number): SiteSettingsV1 | null {
-  const overrides = tombstoneExistingSiteFields(merged, at);
+  const overrides = tombstoneExistingSiteSettings(merged, at);
   if (!hasSemanticOverrides(overrides)) {
     return null;
   }
@@ -822,6 +842,7 @@ export async function deleteSiteSettings(
 export type ImportedSiteWrite = {
   hostname: string;
   changes: readonly BehaviorSettingChange[];
+  hotkeyChanges?: readonly HotkeySettingChange[];
 };
 
 export async function readMergedSiteOverridesUnlocked(
@@ -842,14 +863,21 @@ export async function readMergedSiteOverridesUnlocked(
   return sites;
 }
 
+function importedSiteHasWrites(imported: ImportedSiteWrite): boolean {
+  return imported.changes.length > 0 || (imported.hotkeyChanges?.length ?? 0) > 0;
+}
+
 function applyImportedChanges(
   current: BehaviorOverrides,
-  changes: readonly BehaviorSettingChange[],
+  imported: ImportedSiteWrite,
   at: number,
 ): BehaviorOverrides {
   let next = current;
-  for (const change of changes) {
+  for (const change of imported.changes) {
     next = applyBehaviorSettingChange(next, change, at);
+  }
+  for (const change of imported.hotkeyChanges ?? []) {
+    next = applyHotkeySettingChange(next, change, at);
   }
   return next;
 }
@@ -966,7 +994,7 @@ export async function importLogicalSitesUnlocked(
       .sort()) {
       const storageKey = getSiteStorageKey({ supported: true, hostname });
       const imported = importedByKey.get(storageKey);
-      if (!imported || skipKeys.has(storageKey) || imported.changes.length === 0) {
+      if (!imported || skipKeys.has(storageKey) || !importedSiteHasWrites(imported)) {
         continue;
       }
       const copies = copiesForKey(syncAll, localAll, storageKey, generation.merged);
@@ -974,7 +1002,7 @@ export async function importLogicalSitesUnlocked(
       clock = issued.clock;
       const record: SiteSettingsV1 = {
         schemaVersion: 1,
-        overrides: applyImportedChanges({}, imported.changes, issued.timestamp),
+        overrides: applyImportedChanges({}, imported, issued.timestamp),
         lastUsedAt: at,
         generation: nextEpoch,
       };
@@ -1000,7 +1028,7 @@ export async function importLogicalSitesUnlocked(
       .sort()) {
       const storageKey = getSiteStorageKey({ supported: true, hostname });
       const imported = importedByKey.get(storageKey);
-      if (!imported || skipKeys.has(storageKey) || imported.changes.length === 0) {
+      if (!imported || skipKeys.has(storageKey) || !importedSiteHasWrites(imported)) {
         continue;
       }
       const copies = copiesForKey(syncAll, localAll, storageKey, generation.merged);
@@ -1008,7 +1036,7 @@ export async function importLogicalSitesUnlocked(
       clock = issued.clock;
       const record: SiteSettingsV1 = {
         schemaVersion: 1,
-        overrides: applyImportedChanges(copies.merged, imported.changes, issued.timestamp),
+        overrides: applyImportedChanges(copies.merged, imported, issued.timestamp),
         lastUsedAt: at,
         generation: generation.merged.epoch,
       };

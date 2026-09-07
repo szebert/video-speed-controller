@@ -6,8 +6,18 @@ import {
   toAppliedTabBehavior,
   type AppliedTabBehavior,
 } from '../core/applied-tab-behavior';
-import { toEffectiveBehavior } from '../settings/site-behavior';
+import { builtInEffectiveHotkeys, type EffectiveHotkeyMap } from '../settings/hotkey-binding';
+import {
+  resolveSiteBehavior,
+  toEffectiveBehavior,
+  toEffectiveHotkeys,
+} from '../settings/site-behavior';
 import { resolveSiteBehaviorForUrl, type SiteSettingsDeps } from '../storage/site-settings';
+
+export type AppliedTabPayload = {
+  behavior: AppliedTabBehavior;
+  hotkeys: EffectiveHotkeyMap;
+};
 
 export type OverlaySeed = Omit<AppliedTabBehavior, 'targetSpeed'>;
 
@@ -22,6 +32,30 @@ export async function readAppliedTabBehavior(
     return builtInAppliedTabBehavior();
   }
   return toAppliedTabBehavior(toEffectiveBehavior(resolved));
+}
+
+export async function readAppliedTabPayload(
+  url: string,
+  deps: SiteSettingsDeps = { touchUsage: true },
+): Promise<AppliedTabPayload> {
+  const resolved = await resolveSiteBehaviorForUrl(url, deps);
+  if (!resolved) {
+    return {
+      behavior: builtInAppliedTabBehavior(),
+      hotkeys: toEffectiveHotkeys(resolveSiteBehavior()),
+    };
+  }
+  return {
+    behavior: toAppliedTabBehavior(toEffectiveBehavior(resolved)),
+    hotkeys: toEffectiveHotkeys(resolved),
+  };
+}
+
+export function builtInAppliedTabPayload(): AppliedTabPayload {
+  return {
+    behavior: builtInAppliedTabBehavior(),
+    hotkeys: builtInEffectiveHotkeys(),
+  };
 }
 
 export async function readOverlaySeed(

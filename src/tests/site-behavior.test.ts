@@ -6,8 +6,9 @@ import {
   applyBehaviorSettingChange,
   canonicalizeBehaviorSettingChange,
   EDITABLE_BEHAVIOR_FIELDS,
-  inheritAllEditableFields,
-  tombstoneExistingSiteFields,
+  hasValueOverrides,
+  inheritAllKnownSettings,
+  tombstoneExistingSiteSettings,
   mergeOverrideField,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
@@ -29,6 +30,7 @@ import {
 import {
   parseBehaviorOverrides,
   parseGlobalBehaviorSettings,
+  parseReadySiteSettings,
   parseSiteSettings,
 } from '../settings/behavior-schema';
 
@@ -51,6 +53,60 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
     expect(resolved.overlayOpacity).toEqual({ value: 70, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
+    expect(resolved.hotkeys).toEqual({
+      decreaseSpeed: {
+        value: { code: 'BracketLeft', ctrl: false, alt: false, shift: false, meta: false },
+        source: 'built-in',
+      },
+      increaseSpeed: {
+        value: { code: 'BracketRight', ctrl: false, alt: false, shift: false, meta: false },
+        source: 'built-in',
+      },
+      resetSpeed: {
+        value: { code: 'Backslash', ctrl: false, alt: false, shift: false, meta: false },
+        source: 'built-in',
+      },
+    });
+    expect(toEffectiveBehavior(resolved).hotkeys.resetSpeed).toEqual({
+      code: 'Backslash',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
+    });
+  });
+
+  it('resolves site unbind, inherit, and global value as a total map', () => {
+    const binding = {
+      code: 'KeyD',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
+    };
+    const resolved = resolveSiteBehavior(
+      {
+        hotkeys: {
+          increaseSpeed: { kind: 'value', value: binding, updatedAt: 1 },
+          resetSpeed: { kind: 'value', value: null, updatedAt: 1 },
+        },
+      },
+      {
+        hotkeys: {
+          increaseSpeed: { kind: 'inherit', updatedAt: 2 },
+          decreaseSpeed: { kind: 'value', value: null, updatedAt: 2 },
+        },
+      },
+    );
+    expect(resolved.hotkeys.increaseSpeed).toEqual({ value: binding, source: 'global' });
+    expect(resolved.hotkeys.decreaseSpeed).toEqual({ value: null, source: 'site' });
+    expect(resolved.hotkeys.resetSpeed).toEqual({ value: null, source: 'global' });
+    expect(
+      hasValueOverrides({ hotkeys: { resetSpeed: { kind: 'value', value: null, updatedAt: 1 } } }),
+    ).toBe(true);
+    expect(hasValueOverrides({ hotkeys: { resetSpeed: { kind: 'inherit', updatedAt: 1 } } })).toBe(
+      false,
+    );
   });
 
   it('clamps stored auto-hide delays outside 100ms–5min without dropping the override', () => {
@@ -189,7 +245,7 @@ describe('field merge primitive', () => {
     ).toEqual({ kind: 'value', value: 1.5, updatedAt: 200 });
   });
 
-  it('merges hotkey actions independently without treating a persisted binding as a known V1 field', () => {
+  it('merges hotkey actions independently and drops malformed persisted bindings', () => {
     const increase = mergeOverrideField<unknown>(
       { kind: 'value', value: null, updatedAt: 5 },
       { kind: 'inherit', updatedAt: 8 },
@@ -203,7 +259,48 @@ describe('field merge primitive', () => {
           hotkeys: { increaseSpeed: { kind: 'value', value: { code: 'KeyD' }, updatedAt: 1 } },
         },
       }),
-    ).toEqual({ schemaVersion: 1, lastUsedAt: 1, overrides: {} });
+    ).toBeNull();
+  });
+
+  it('parses a complete hotkey binding and keeps unknown actions in extras', () => {
+    const binding = {
+      code: 'KeyD',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
+    };
+    expect(
+      parseSiteSettings({
+        schemaVersion: 1,
+        lastUsedAt: 1,
+        overrides: {
+          hotkeys: { increaseSpeed: { kind: 'value', value: binding, updatedAt: 1 } },
+        },
+      }),
+    ).toEqual({
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: {
+        hotkeys: { increaseSpeed: { kind: 'value', value: binding, updatedAt: 1 } },
+      },
+    });
+    const ready = parseReadySiteSettings({
+      schemaVersion: 1,
+      lastUsedAt: 1,
+      overrides: {
+        hotkeys: {
+          increaseSpeed: { kind: 'value', value: binding, updatedAt: 1 },
+          seekForward: { kind: 'value', value: binding, updatedAt: 2 },
+        },
+      },
+    });
+    expect(ready?.record.overrides).toEqual({
+      hotkeys: { increaseSpeed: { kind: 'value', value: binding, updatedAt: 1 } },
+    });
+    expect(ready?.extras.overrides).toEqual({
+      hotkeys: { seekForward: { kind: 'value', value: binding, updatedAt: 2 } },
+    });
   });
 });
 
@@ -572,7 +669,7 @@ describe('behavior setting changes', () => {
 
   it('tombstones existing site fields and leaves absent fields absent', () => {
     expect(
-      tombstoneExistingSiteFields(
+      tombstoneExistingSiteSettings(
         {
           speed: { kind: 'value', value: 2, updatedAt: 100 },
           overlayVisible: { kind: 'inherit', updatedAt: 80 },
@@ -583,7 +680,26 @@ describe('behavior setting changes', () => {
       speed: { kind: 'inherit', updatedAt: 200 },
       overlayVisible: { kind: 'inherit', updatedAt: 200 },
     });
-    expect(tombstoneExistingSiteFields({}, 200)).toEqual({});
-    expect(Object.keys(inheritAllEditableFields(5))).toEqual([...EDITABLE_BEHAVIOR_FIELDS]);
+    expect(tombstoneExistingSiteSettings({}, 200)).toEqual({});
+    expect(
+      tombstoneExistingSiteSettings(
+        {
+          hotkeys: {
+            increaseSpeed: { kind: 'value', value: null, updatedAt: 100 },
+          },
+        },
+        200,
+      ),
+    ).toEqual({
+      hotkeys: { increaseSpeed: { kind: 'inherit', updatedAt: 200 } },
+    });
+    expect(Object.keys(inheritAllKnownSettings(5)).sort()).toEqual(
+      [...EDITABLE_BEHAVIOR_FIELDS, 'hotkeys'].sort(),
+    );
+    expect(inheritAllKnownSettings(5).hotkeys).toEqual({
+      increaseSpeed: { kind: 'inherit', updatedAt: 5 },
+      decreaseSpeed: { kind: 'inherit', updatedAt: 5 },
+      resetSpeed: { kind: 'inherit', updatedAt: 5 },
+    });
   });
 });

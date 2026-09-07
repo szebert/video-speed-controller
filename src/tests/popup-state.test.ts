@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { getPopupState } from '../background/popup-state';
-import { OVERLAY_POSITION } from '../settings/site-behavior';
+import { OVERLAY_POSITION, resolveSiteBehavior } from '../settings/site-behavior';
 
 describe('getPopupState', () => {
   it('resolves site behavior once and derives speed plus policy from it', async () => {
@@ -19,7 +19,7 @@ describe('getPopupState', () => {
       overlayHoverHold: { value: false, source: 'built-in' as const },
       overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
       overlayOpacity: { value: 70, source: 'built-in' as const },
-      hotkeys: {},
+      hotkeys: resolveSiteBehavior().hotkeys,
     }));
     const result = await getPopupState(4, 'https://www.youtube.com/watch', {
       resolveBehavior,
