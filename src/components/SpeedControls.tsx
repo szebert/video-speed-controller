@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { MinusIcon, PlusIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { t } from '@/i18n/t';
 import { Button } from '@/components/ui/button';
@@ -79,7 +80,7 @@ export function SpeedControls({
           onPress={() => onAdjust(-1)}
           aria-label={t('slower')}
         >
-          −
+          <MinusIcon />
         </Button>
         <Button
           type="button"
@@ -96,7 +97,7 @@ export function SpeedControls({
           onPress={() => onAdjust(1)}
           aria-label={t('faster')}
         >
-          +
+          <PlusIcon />
         </Button>
       </ButtonGroup>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">

@@ -2366,6 +2366,8 @@ describe('SpeedControls preview vs persist', () => {
     const faster = container.querySelector('[aria-label="Faster"]');
     expect(slower).toBeInstanceOf(HTMLButtonElement);
     expect(faster).toBeInstanceOf(HTMLButtonElement);
+    expect(slower?.querySelector('svg')).not.toBeNull();
+    expect(faster?.querySelector('svg')).not.toBeNull();
     expect((slower as HTMLButtonElement).disabled).toBe(true);
     expect((faster as HTMLButtonElement).disabled).toBe(false);
   });
