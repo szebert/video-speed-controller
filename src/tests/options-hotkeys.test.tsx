@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   HotkeysSettingsCard,
   hotkeyConflictMessage,
+  hotkeyShadowedMessage,
 } from '../entrypoints/options/HotkeysSettingsCard';
 import { BUILT_IN_HOTKEYS } from '../settings/hotkey-binding';
 import { resolveSiteBehavior, type HotkeySettingChange } from '../settings/site-behavior';
@@ -48,7 +49,6 @@ describe('Hotkeys settings card', () => {
     onMutate: (change: HotkeySettingChange) => void,
     hotkeys = resolveSiteBehavior().hotkeys,
     selection: { kind: 'global' } | { kind: 'site'; hostname: string } = { kind: 'global' },
-    globalHotkeys = resolveSiteBehavior().hotkeys,
   ): Promise<void> {
     container = document.createElement('div');
     document.body.append(container);
@@ -58,7 +58,6 @@ describe('Hotkeys settings card', () => {
         <HotkeysSettingsCard
           selection={selection}
           hotkeys={hotkeys}
-          globalHotkeys={globalHotkeys}
           pending={false}
           resetBadgeText={selection.kind === 'site' ? 'Override' : 'Custom'}
           onMutate={onMutate}
@@ -90,7 +89,7 @@ describe('Hotkeys settings card', () => {
     return button;
   }
 
-  it('renders the three actions and blocks a duplicate against inherited bindings', async () => {
+  it('renders the three actions and allows a global assignment that shadows a built-in binding', async () => {
     const onMutate = vi.fn();
     await renderCard(onMutate);
     expect(container.textContent).toContain('Hotkeys');
@@ -103,6 +102,27 @@ describe('Hotkeys settings card', () => {
     });
     await flush();
     expect(recorder('decreaseSpeed').dataset.recording).toBe('true');
+    await act(async () => {
+      window.dispatchEvent(keydown('BracketRight', { key: ']' }));
+    });
+    expect(onMutate).toHaveBeenCalledWith({
+      kind: 'hotkey-value',
+      action: 'decreaseSpeed',
+      value: { code: 'BracketRight', ctrl: false, alt: false, shift: false, meta: false },
+    });
+  });
+
+  it('blocks a duplicate against another same-scope binding', async () => {
+    const onMutate = vi.fn();
+    const builtIn = resolveSiteBehavior().hotkeys;
+    await renderCard(onMutate, {
+      ...builtIn,
+      increaseSpeed: { value: { ...BUILT_IN_HOTKEYS.increaseSpeed }, source: 'global' },
+    });
+    await act(async () => {
+      recorder('decreaseSpeed').click();
+    });
+    await flush();
     await act(async () => {
       window.dispatchEvent(keydown('BracketRight', { key: ']' }));
     });
@@ -200,7 +220,11 @@ describe('Hotkeys settings card', () => {
       window.dispatchEvent(new Event('blur'));
     });
     expect(recorder('increaseSpeed').dataset.recording).toBeUndefined();
-    expect(container.textContent).toContain('Chrome or your OS used that shortcut.');
+    expect(container.querySelector('[data-slot="field-warning"]')?.textContent).toBe(
+      'Chrome or your OS used that shortcut.',
+    );
+    expect(container.querySelector('[data-warning="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-invalid="true"]')).toBeNull();
   });
 
   it('keeps inherit distinct from an explicit unbind', async () => {
@@ -251,7 +275,7 @@ describe('Hotkeys settings card', () => {
     });
   });
 
-  it('blocks inherit when the parent binding already belongs to another action', async () => {
+  it('inherits even when the parent binding is already used by a site override', async () => {
     const onMutate = vi.fn();
     const builtIn = resolveSiteBehavior().hotkeys;
     await renderCard(
@@ -271,7 +295,26 @@ describe('Hotkeys settings card', () => {
     await act(async () => {
       (inheritIncrease as HTMLButtonElement).click();
     });
+    expect(onMutate).toHaveBeenCalledWith({ kind: 'hotkey-inherit', action: 'increaseSpeed' });
+  });
+
+  it('warns when an inherited binding is shadowed by a more specific override', async () => {
+    const onMutate = vi.fn();
+    const builtIn = resolveSiteBehavior().hotkeys;
+    await renderCard(
+      onMutate,
+      {
+        decreaseSpeed: { value: { ...BUILT_IN_HOTKEYS.increaseSpeed }, source: 'site' },
+        increaseSpeed: { value: { ...BUILT_IN_HOTKEYS.increaseSpeed }, source: 'global' },
+        resetSpeed: builtIn.resetSpeed,
+      },
+      { kind: 'site', hostname: 'www.youtube.com' },
+    );
     expect(onMutate).not.toHaveBeenCalled();
-    expect(container.textContent).toContain(hotkeyConflictMessage('decreaseSpeed'));
+    expect(container.querySelector('[data-slot="field-warning"]')?.textContent).toBe(
+      hotkeyShadowedMessage('decreaseSpeed'),
+    );
+    expect(container.querySelector('[data-warning="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-invalid="true"]')).toBeNull();
   });
 });

@@ -27,8 +27,7 @@ import {
 } from './behavior-fields';
 import {
   BUILT_IN_HOTKEYS,
-  builtInEffectiveHotkeys,
-  findHotkeyMapConflict,
+  emptyEffectiveHotkeys,
   hotkeyBindingsEqual,
   isHotkeyBinding,
   type EffectiveHotkeyMap,
@@ -433,16 +432,120 @@ export function resolveSiteBehavior(
   return resolved;
 }
 
+export function settingSourceRank(source: SettingSource): number {
+  if (source === 'site') {
+    return 2;
+  }
+  if (source === 'global') {
+    return 1;
+  }
+  return 0;
+}
+
 export function toEffectiveHotkeyMap(hotkeys: ResolvedHotkeyMap): EffectiveHotkeyMap {
-  return {
-    decreaseSpeed: hotkeys.decreaseSpeed.value,
-    increaseSpeed: hotkeys.increaseSpeed.value,
-    resetSpeed: hotkeys.resetSpeed.value,
-  };
+  const next = emptyEffectiveHotkeys();
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    const binding = hotkeys[action].value;
+    if (!binding) {
+      continue;
+    }
+    const rank = settingSourceRank(hotkeys[action].source);
+    let highest = rank;
+    let uniqueHighest = true;
+    for (const other of SITE_HOTKEY_ACTIONS) {
+      if (other === action) {
+        continue;
+      }
+      const otherBinding = hotkeys[other].value;
+      if (!otherBinding || !hotkeyBindingsEqual(otherBinding, binding)) {
+        continue;
+      }
+      const otherRank = settingSourceRank(hotkeys[other].source);
+      if (otherRank > highest) {
+        highest = otherRank;
+        uniqueHighest = false;
+      } else if (otherRank === highest) {
+        uniqueHighest = false;
+      }
+    }
+    if (uniqueHighest && highest === rank) {
+      next[action] = binding;
+    }
+  }
+  return next;
 }
 
 export function toEffectiveHotkeys(resolved: ResolvedSiteBehavior): EffectiveHotkeyMap {
   return toEffectiveHotkeyMap(resolved.hotkeys);
+}
+
+export function findShadowedHotkey(
+  hotkeys: ResolvedHotkeyMap,
+  action: SiteHotkeyAction,
+): SiteHotkeyAction | null {
+  const binding = hotkeys[action].value;
+  if (!binding) {
+    return null;
+  }
+  const rank = settingSourceRank(hotkeys[action].source);
+  let winner: SiteHotkeyAction | null = null;
+  let winnerRank = rank;
+  for (const other of SITE_HOTKEY_ACTIONS) {
+    if (other === action) {
+      continue;
+    }
+    const otherBinding = hotkeys[other].value;
+    if (!otherBinding || !hotkeyBindingsEqual(otherBinding, binding)) {
+      continue;
+    }
+    const otherRank = settingSourceRank(hotkeys[other].source);
+    if (otherRank > winnerRank) {
+      winner = other;
+      winnerRank = otherRank;
+    }
+  }
+  return winner;
+}
+
+export function findSameSourceHotkeyConflict(
+  hotkeys: ResolvedHotkeyMap,
+  action: SiteHotkeyAction,
+  binding: HotkeyBinding,
+  source: SettingSource,
+): SiteHotkeyAction | null {
+  for (const other of SITE_HOTKEY_ACTIONS) {
+    if (other === action) {
+      continue;
+    }
+    const setting = hotkeys[other];
+    if (setting.source !== source || !setting.value) {
+      continue;
+    }
+    if (hotkeyBindingsEqual(setting.value, binding)) {
+      return other;
+    }
+  }
+  return null;
+}
+
+export function sameSourceHotkeyConflict(
+  hotkeys: ResolvedHotkeyMap,
+  source: SettingSource,
+): SiteHotkeyAction | null {
+  const seen: { action: SiteHotkeyAction; binding: HotkeyBinding }[] = [];
+  for (const action of SITE_HOTKEY_ACTIONS) {
+    const setting = hotkeys[action];
+    if (setting.source !== source || !setting.value) {
+      continue;
+    }
+    for (const prior of seen) {
+      if (hotkeyBindingsEqual(prior.binding, setting.value)) {
+        return action;
+      }
+    }
+    seen.push({ action, binding: setting.value });
+  }
+  return null;
 }
 
 export function prospectiveEffectiveHotkeys(
@@ -467,12 +570,14 @@ export function hotkeyChangesWouldConflict(
   changes: readonly HotkeySettingChange[],
   inherited: 'parent' | 'built-in' = 'parent',
 ): boolean {
-  const current = toEffectiveHotkeys(resolveSiteBehavior(globalOverrides, siteOverrides));
-  const parent =
-    inherited === 'built-in'
-      ? builtInEffectiveHotkeys()
-      : toEffectiveHotkeys(resolveSiteBehavior(globalOverrides, {}));
-  return findHotkeyMapConflict(prospectiveEffectiveHotkeys(current, parent, changes)) != null;
+  const scope: SettingSource = inherited === 'built-in' ? 'global' : 'site';
+  let next = scope === 'site' ? siteOverrides : globalOverrides;
+  for (const change of changes) {
+    next = applyHotkeySettingChange(next, change, 0);
+  }
+  const resolved =
+    scope === 'site' ? resolveSiteBehavior(globalOverrides, next) : resolveSiteBehavior(next, {});
+  return sameSourceHotkeyConflict(resolved.hotkeys, scope) != null;
 }
 
 export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavior {

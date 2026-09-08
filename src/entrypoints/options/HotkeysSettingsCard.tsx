@@ -8,19 +8,17 @@ import {
   FieldContent,
   FieldDescription,
   FieldError,
+  FieldWarning,
   FieldLabel,
   FieldLegend,
   FieldSet,
 } from '@/components/ui/field';
 import { readKeyboardLayoutMap } from '../../core/hotkey-format';
 import { t, type MessageKey } from '@/i18n/t';
+import type { HotkeyBinding } from '../../settings/hotkey-binding';
 import {
-  BUILT_IN_HOTKEYS,
-  findHotkeyConflict,
-  type HotkeyBinding,
-} from '../../settings/hotkey-binding';
-import {
-  toEffectiveHotkeyMap,
+  findSameSourceHotkeyConflict,
+  findShadowedHotkey,
   type HotkeySettingChange,
   type ResolvedHotkeyMap,
   type SiteHotkeyAction,
@@ -60,17 +58,19 @@ export function hotkeyConflictMessage(action: SiteHotkeyAction): string {
   return `${t('hotkeyAlreadyUsed')} ${t(ACTION_LABEL[action])}.`;
 }
 
+export function hotkeyShadowedMessage(action: SiteHotkeyAction): string {
+  return `${t('hotkeyShadowed')} ${t(ACTION_LABEL[action])}.`;
+}
+
 export function HotkeysSettingsCard({
   selection,
   hotkeys,
-  globalHotkeys,
   pending,
   resetBadgeText,
   onMutate,
 }: {
   selection: Selection;
   hotkeys: ResolvedHotkeyMap;
-  globalHotkeys: ResolvedHotkeyMap;
   pending: boolean;
   resetBadgeText: string;
   onMutate: (change: HotkeySettingChange) => void;
@@ -106,19 +106,12 @@ export function HotkeysSettingsCard({
     setTakeoverAction((current) => (current === action ? null : current));
   }
 
-  function currentEffective() {
-    return toEffectiveHotkeyMap(hotkeys);
-  }
-
-  function inheritedBinding(action: SiteHotkeyAction): HotkeyBinding | null {
-    if (selection.kind === 'site') {
-      return globalHotkeys[action].value;
-    }
-    return { ...BUILT_IN_HOTKEYS[action] };
+  function writeSource(): 'site' | 'global' {
+    return selection.kind === 'site' ? 'site' : 'global';
   }
 
   function assign(action: SiteHotkeyAction, binding: HotkeyBinding): void {
-    const conflict = findHotkeyConflict(currentEffective(), action, binding);
+    const conflict = findSameSourceHotkeyConflict(hotkeys, action, binding, writeSource());
     if (conflict) {
       setConflictAction((current) => ({ ...current, [action]: hotkeyConflictMessage(conflict) }));
       setTakeoverAction((current) => (current === action ? null : current));
@@ -142,6 +135,7 @@ export function HotkeysSettingsCard({
             const label = t(row.label);
             const inherited = showsInherited(selection, setting.source);
             const conflict = conflictAction[row.action];
+            const shadowedBy = findShadowedHotkey(hotkeys, row.action);
             const takeover = takeoverAction === row.action;
             const helpId = `hotkey-${row.action}-help`;
             return (
@@ -151,15 +145,17 @@ export function HotkeysSettingsCard({
                 className="min-w-0"
                 data-disabled={pending || undefined}
                 data-invalid={conflict ? true : undefined}
+                data-warning={!conflict && (shadowedBy || takeover) ? true : undefined}
               >
                 <FieldContent className="min-w-0 flex-[1_1_12rem]">
                   <FieldLabel htmlFor={`hotkey-${row.action}`}>{label}</FieldLabel>
                   <FieldDescription id={helpId}>{t(row.description)}</FieldDescription>
                   {conflict ? <FieldError>{conflict}</FieldError> : null}
-                  {takeover && !conflict ? (
-                    <p className="text-sm text-muted-foreground">
-                      {t('hotkeyBrowserTookShortcut')}
-                    </p>
+                  {!conflict && shadowedBy ? (
+                    <FieldWarning>{hotkeyShadowedMessage(shadowedBy)}</FieldWarning>
+                  ) : null}
+                  {takeover && !conflict && !shadowedBy ? (
+                    <FieldWarning>{t('hotkeyBrowserTookShortcut')}</FieldWarning>
                   ) : null}
                 </FieldContent>
                 <div className="flex max-w-full flex-wrap-reverse items-center justify-end gap-2">
@@ -169,18 +165,6 @@ export function HotkeysSettingsCard({
                     text={resetBadgeText}
                     label={resetFieldLabel(label)}
                     onReset={() => {
-                      const next = inheritedBinding(row.action);
-                      if (next) {
-                        const conflict = findHotkeyConflict(currentEffective(), row.action, next);
-                        if (conflict) {
-                          setConflictAction((current) => ({
-                            ...current,
-                            [row.action]: hotkeyConflictMessage(conflict),
-                          }));
-                          setTakeoverAction((current) => (current === row.action ? null : current));
-                          return;
-                        }
-                      }
                       clearRowStatus(row.action);
                       onMutate({ kind: 'hotkey-inherit', action: row.action });
                     }}

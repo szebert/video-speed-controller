@@ -33,6 +33,7 @@ import {
   type SiteHotkeyAction,
 } from '../../settings/site-behavior';
 import {
+  createSerialMutationLane,
   createSettingsWriteCoalescer,
   flushSettingsWriteQueues,
   settingsWriteQueuesBusy,
@@ -154,6 +155,7 @@ export function useBehaviorSettings() {
   const sendHotkeyBatchRef = useRef<
     (batch: SettingsWriteBatch<HotkeySettingChange>) => Promise<void>
   >(async () => {});
+  const mutationLaneRef = useRef(createSerialMutationLane());
   const [coalescer, setCoalescer] = useState<ReturnType<
     typeof createSettingsWriteCoalescer<BehaviorSettingChange>
   > | null>(null);
@@ -351,76 +353,80 @@ export function useBehaviorSettings() {
     behaviorRef.current = behavior;
     snapshotHostnameRef.current = snapshotHostname;
     sendBatchRef.current = async (batch: SettingsWriteBatch) => {
-      const membership = batch.scope.kind === 'site';
-      const payload =
-        batch.changes.length === 1
-          ? {
-              type: 'SET_BEHAVIOR_SETTING' as const,
-              scope: batch.scope,
-              change: batch.changes[0],
-            }
-          : {
-              type: 'SET_BEHAVIOR_SETTING' as const,
-              scope: batch.scope,
-              changes: batch.changes,
-            };
-      try {
-        const response = await sendOptionsRequest(withSnapshotHostname(payload));
-        if (!applyResponse(response, { sentChanges: batch.changes }) || response?.ok === false) {
+      await mutationLaneRef.current.enqueue(async () => {
+        const membership = batch.scope.kind === 'site';
+        const payload =
+          batch.changes.length === 1
+            ? {
+                type: 'SET_BEHAVIOR_SETTING' as const,
+                scope: batch.scope,
+                change: batch.changes[0],
+              }
+            : {
+                type: 'SET_BEHAVIOR_SETTING' as const,
+                scope: batch.scope,
+                changes: batch.changes,
+              };
+        try {
+          const response = await sendOptionsRequest(withSnapshotHostname(payload));
+          if (!applyResponse(response, { sentChanges: batch.changes }) || response?.ok === false) {
+            await recover(membership ? 'pane-and-sidebar' : 'pane');
+            writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
+          } else if (
+            membership &&
+            response?.ok &&
+            !('siteMembership' in response && response.siteMembership)
+          ) {
+            await recover('sidebar');
+          }
+        } catch {
+          reportActionError(t('settingsSaveError'));
           await recover(membership ? 'pane-and-sidebar' : 'pane');
           writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
-        } else if (
-          membership &&
-          response?.ok &&
-          !('siteMembership' in response && response.siteMembership)
-        ) {
-          await recover('sidebar');
         }
-      } catch {
-        reportActionError(t('settingsSaveError'));
-        await recover(membership ? 'pane-and-sidebar' : 'pane');
-        writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
-      }
+      });
     };
     sendHotkeyBatchRef.current = async (batch: SettingsWriteBatch<HotkeySettingChange>) => {
-      const membership = batch.scope.kind === 'site';
-      const payload =
-        batch.changes.length === 1
-          ? {
-              type: 'SET_HOTKEY_SETTING' as const,
-              scope: batch.scope,
-              change: batch.changes[0],
+      await mutationLaneRef.current.enqueue(async () => {
+        const membership = batch.scope.kind === 'site';
+        const payload =
+          batch.changes.length === 1
+            ? {
+                type: 'SET_HOTKEY_SETTING' as const,
+                scope: batch.scope,
+                change: batch.changes[0],
+              }
+            : {
+                type: 'SET_HOTKEY_SETTING' as const,
+                scope: batch.scope,
+                changes: batch.changes,
+              };
+        try {
+          const response = await sendOptionsRequest(withSnapshotHostname(payload));
+          if (!applyResponse(response, { sentHotkeys: batch.changes }) || response?.ok === false) {
+            await recover(membership ? 'pane-and-sidebar' : 'pane');
+            let nextHotkeys = optimisticHotkeysRef.current;
+            for (const change of batch.changes) {
+              nextHotkeys = omitMatchingOptimisticHotkeys(nextHotkeys, change);
             }
-          : {
-              type: 'SET_HOTKEY_SETTING' as const,
-              scope: batch.scope,
-              changes: batch.changes,
-            };
-      try {
-        const response = await sendOptionsRequest(withSnapshotHostname(payload));
-        if (!applyResponse(response, { sentHotkeys: batch.changes }) || response?.ok === false) {
+            writeOptimisticHotkeys(nextHotkeys);
+          } else if (
+            membership &&
+            response?.ok &&
+            !('siteMembership' in response && response.siteMembership)
+          ) {
+            await recover('sidebar');
+          }
+        } catch {
+          reportActionError(t('settingsSaveError'));
           await recover(membership ? 'pane-and-sidebar' : 'pane');
           let nextHotkeys = optimisticHotkeysRef.current;
           for (const change of batch.changes) {
             nextHotkeys = omitMatchingOptimisticHotkeys(nextHotkeys, change);
           }
           writeOptimisticHotkeys(nextHotkeys);
-        } else if (
-          membership &&
-          response?.ok &&
-          !('siteMembership' in response && response.siteMembership)
-        ) {
-          await recover('sidebar');
         }
-      } catch {
-        reportActionError(t('settingsSaveError'));
-        await recover(membership ? 'pane-and-sidebar' : 'pane');
-        let nextHotkeys = optimisticHotkeysRef.current;
-        for (const change of batch.changes) {
-          nextHotkeys = omitMatchingOptimisticHotkeys(nextHotkeys, change);
-        }
-        writeOptimisticHotkeys(nextHotkeys);
-      }
+      });
     };
     // Persist uses the latest apply/recover closures; those are recreated each
     // render and would retrigger this effect without changing behavior.

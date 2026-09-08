@@ -442,7 +442,7 @@ describe('behavior settings API', () => {
     await expect(siteSettings.readSiteMembership('www.youtube.com', deps)).resolves.toBe(true);
   });
 
-  it('rejects inherit that would duplicate another effective hotkey', async () => {
+  it('allows inherit when the parent binding is shadowed by a site override', async () => {
     const deps = { ...stores(), listTabIds: async () => [] };
     await persistSiteHotkeyChanges(
       'https://www.youtube.com/watch',
@@ -460,13 +460,54 @@ describe('behavior settings API', () => {
       ],
       deps,
     );
+    const response = await setHotkeySetting(
+      {
+        type: 'SET_HOTKEY_SETTING',
+        scope: { kind: 'site', hostname: 'www.youtube.com' },
+        snapshotHostname: 'www.youtube.com',
+        change: { kind: 'hotkey-inherit', action: 'increaseSpeed' },
+      },
+      extensionSender(),
+      deps,
+    );
+    expect(response.ok).toBe(true);
+    if (!response.ok || !response.state?.site) {
+      throw new Error('expected a site snapshot');
+    }
+    expect(response.state.site.hotkeys.decreaseSpeed).toEqual({
+      value: { ...BUILT_IN_HOTKEYS.increaseSpeed },
+      source: 'site',
+    });
+    expect(response.state.site.hotkeys.increaseSpeed).toEqual({
+      value: { ...BUILT_IN_HOTKEYS.increaseSpeed },
+      source: 'built-in',
+    });
+  });
+
+  it('rejects two site overrides that use the same shortcut', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
+    await persistSiteHotkeyChanges(
+      'https://www.youtube.com/watch',
+      [
+        {
+          kind: 'hotkey-value',
+          action: 'decreaseSpeed',
+          value: { ...BUILT_IN_HOTKEYS.increaseSpeed },
+        },
+      ],
+      deps,
+    );
     const before = structuredClone(deps.local.data['site:www.youtube.com']);
     await expect(
       setHotkeySetting(
         {
           type: 'SET_HOTKEY_SETTING',
           scope: { kind: 'site', hostname: 'www.youtube.com' },
-          change: { kind: 'hotkey-inherit', action: 'increaseSpeed' },
+          change: {
+            kind: 'hotkey-value',
+            action: 'increaseSpeed',
+            value: { ...BUILT_IN_HOTKEYS.increaseSpeed },
+          },
         },
         extensionSender(),
         deps,

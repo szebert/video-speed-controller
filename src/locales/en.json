@@ -49,6 +49,7 @@
   "hotkeyRecord": "Record shortcut",
   "hotkeyRemove": "Remove shortcut",
   "hotkeyAlreadyUsed": "Already used by",
+  "hotkeyShadowed": "Shadowed by",
   "hotkeyBrowserTookShortcut": "Chrome or your OS used that shortcut.",
   "defaultSpeed": "Default speed",
   "speedMin": "Minimum speed",

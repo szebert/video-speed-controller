@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SPEED_POLICY } from '../core/speed';
+import { matchHotkeyAction } from '../settings/hotkey-binding';
 import {
   applyBehaviorSettingChange,
   canonicalizeBehaviorSettingChange,
@@ -131,6 +132,17 @@ describe('site behavior resolution', () => {
         },
         [{ kind: 'hotkey-inherit', action: 'increaseSpeed' }],
       ),
+    ).toBe(false);
+    expect(
+      hotkeyChangesWouldConflict(
+        {},
+        {
+          hotkeys: {
+            decreaseSpeed: { kind: 'value', value: current.increaseSpeed, updatedAt: 1 },
+          },
+        },
+        [{ kind: 'hotkey-value', action: 'increaseSpeed', value: current.increaseSpeed }],
+      ),
     ).toBe(true);
     expect(
       hotkeyChangesWouldConflict(
@@ -140,6 +152,90 @@ describe('site behavior resolution', () => {
         'built-in',
       ),
     ).toBe(false);
+  });
+
+  it('lets a more specific binding win in the runtime hotkey map', () => {
+    const resolved = resolveSiteBehavior(
+      {},
+      {
+        hotkeys: {
+          decreaseSpeed: {
+            kind: 'value',
+            value: {
+              code: 'BracketRight',
+              ctrl: false,
+              alt: false,
+              shift: false,
+              meta: false,
+            },
+            updatedAt: 1,
+          },
+        },
+      },
+    );
+    expect(resolved.hotkeys.decreaseSpeed.source).toBe('site');
+    expect(resolved.hotkeys.increaseSpeed.source).toBe('built-in');
+    const runtime = toEffectiveHotkeys(resolved);
+    expect(runtime).toEqual({
+      decreaseSpeed: {
+        code: 'BracketRight',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+      },
+      increaseSpeed: null,
+      resetSpeed: {
+        code: 'Backslash',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+      },
+    });
+    expect(
+      matchHotkeyAction(runtime, new KeyboardEvent('keydown', { code: 'BracketRight', key: ']' })),
+    ).toBe('decreaseSpeed');
+    const tied = resolveSiteBehavior(
+      {},
+      {
+        hotkeys: {
+          decreaseSpeed: {
+            kind: 'value',
+            value: {
+              code: 'KeyA',
+              ctrl: false,
+              alt: false,
+              shift: false,
+              meta: false,
+            },
+            updatedAt: 1,
+          },
+          increaseSpeed: {
+            kind: 'value',
+            value: {
+              code: 'KeyA',
+              ctrl: false,
+              alt: false,
+              shift: false,
+              meta: false,
+            },
+            updatedAt: 1,
+          },
+        },
+      },
+    );
+    expect(toEffectiveHotkeys(tied)).toEqual({
+      decreaseSpeed: null,
+      increaseSpeed: null,
+      resetSpeed: {
+        code: 'Backslash',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+      },
+    });
   });
 
   it('clamps stored auto-hide delays outside 100ms–5min without dropping the override', () => {

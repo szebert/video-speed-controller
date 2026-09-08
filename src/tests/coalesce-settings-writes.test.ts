@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  createSerialMutationLane,
   createSettingsWriteCoalescer,
   flushSettingsWriteQueues,
   SETTINGS_WRITE_COALESCE_MS,
@@ -249,5 +250,24 @@ describe('settings write coalescer', () => {
     await flushSettingsWriteQueues(firstQueue, secondQueue);
     expect(sent).toEqual(['first', 'second']);
     expect(settingsWriteQueuesBusy(firstQueue, secondQueue)).toBe(false);
+  });
+
+  it('runs mutation work one at a time', async () => {
+    const lane = createSerialMutationLane();
+    const first = deferred<void>();
+    const order: string[] = [];
+    const leading = lane.enqueue(async () => {
+      order.push('a-start');
+      await first.promise;
+      order.push('a-end');
+    });
+    const trailing = lane.enqueue(async () => {
+      order.push('b');
+    });
+    await Promise.resolve();
+    expect(order).toEqual(['a-start']);
+    first.resolve();
+    await Promise.all([leading, trailing]);
+    expect(order).toEqual(['a-start', 'a-end', 'b']);
   });
 });

@@ -2170,6 +2170,96 @@ describe('Options page', () => {
     });
   });
 
+  it('sends behavior and hotkey mutations one at a time', async () => {
+    let releaseBehavior!: (value: unknown) => void;
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const decrease = {
+      code: 'KeyD',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
+    };
+    sendMessage.mockImplementation((message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return Promise.resolve({ ok: true, customSites: [] });
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return Promise.resolve(getOk(snapshot()));
+      }
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      if (message.type === 'SET_BEHAVIOR_SETTING') {
+        return new Promise((resolve) => {
+          releaseBehavior = (value) => {
+            inFlight -= 1;
+            resolve(value);
+          };
+        });
+      }
+      inFlight -= 1;
+      const state = snapshot();
+      state.global.speed = { value: 1.25, source: 'global' };
+      state.globalHotkeys = {
+        ...state.globalHotkeys,
+        decreaseSpeed: { value: decrease, source: 'global' },
+      };
+      return Promise.resolve({
+        ok: true,
+        state,
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      });
+    });
+    await renderApp();
+    sendMessage.mockClear();
+    const faster = container.querySelector('[aria-label="Faster"]');
+    await act(async () => {
+      click(faster);
+    });
+    const recorder = container.querySelector('[aria-label="Record shortcut: Decrease speed"]');
+    await act(async () => {
+      click(recorder);
+    });
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code: 'KeyD',
+          key: 'd',
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual(['SET_BEHAVIOR_SETTING']);
+    expect(maxInFlight).toBe(1);
+    const afterBehavior = snapshot();
+    afterBehavior.global.speed = { value: 1.25, source: 'global' };
+    await act(async () => {
+      releaseBehavior({
+        ok: true,
+        state: afterBehavior,
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      });
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'SET_BEHAVIOR_SETTING',
+      'SET_HOTKEY_SETTING',
+    ]);
+    expect(maxInFlight).toBe(1);
+    expect(container.textContent).toContain('1.25×');
+    expect(
+      container.querySelector('[aria-label="Record shortcut: Decrease speed"]')?.textContent,
+    ).toContain('D');
+  });
+
   it('sends one batched persist when two fields change before the first drain', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();

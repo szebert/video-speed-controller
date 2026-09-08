@@ -34,6 +34,22 @@ export function settingsWriteQueuesBusy(
   return queues.some((queue) => queue?.isBusy());
 }
 
+export function createSerialMutationLane(): {
+  enqueue: <T>(work: () => Promise<T>) => Promise<T>;
+} {
+  let tail = Promise.resolve();
+  return {
+    enqueue(work) {
+      const run = tail.then(work, work);
+      tail = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      return run;
+    },
+  };
+}
+
 export function createSettingsWriteCoalescer<TChange>(deps: {
   key: (change: TChange) => string;
   send: (batch: SettingsWriteBatch<TChange>) => Promise<void>;
