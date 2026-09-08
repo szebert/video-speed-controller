@@ -124,7 +124,7 @@ test('site auto-hide off stays visible and deleting the site restores the timeou
   await site.waitForTimeout(2500);
   await expect.poll(async () => overlayVisibility(site)).toBe('visible');
 
-  await options.getByRole('button', { name: 'Delete site settings: 127.0.0.1' }).click();
+  await options.getByRole('button', { name: 'Delete site settings' }).click();
   await confirmAlertDialog(options, 'Delete');
   await expect.poll(async () => overlayVisibility(site), { timeout: 5_000 }).toBe('hidden');
 });
@@ -191,7 +191,7 @@ test('site speed 1.5 updates videos overlay and popup, then delete restores 1.00
   await popup.getByRole('switch', { name: 'Enabled on this site' }).waitFor({ timeout: 10_000 });
   await expect(popup.getByText('1.50×')).toBeVisible();
 
-  await options.getByRole('button', { name: 'Delete site settings: 127.0.0.1' }).click();
+  await options.getByRole('button', { name: 'Delete site settings' }).click();
   await confirmAlertDialog(options, 'Delete');
   await expect(options.getByText('1.00×', { exact: true })).toBeVisible();
   await expect

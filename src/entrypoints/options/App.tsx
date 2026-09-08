@@ -81,6 +81,29 @@ export function App() {
     );
   }
 
+  const paneAction =
+    selection.kind === 'site'
+      ? {
+          label: t('deleteSiteSettings'),
+          description: t('deleteSiteConfirm'),
+          confirm: t('confirmDelete'),
+          variant: 'destructive' as const,
+          onConfirm: () => {
+            void deleteSite(selection.hostname);
+          },
+        }
+      : selection.kind === 'global'
+        ? {
+            label: t('resetDefaults'),
+            description: t('resetDefaultsConfirm'),
+            confirm: t('confirmReset'),
+            variant: 'outline' as const,
+            onConfirm: () => {
+              void resetDefaults();
+            },
+          }
+        : null;
+
   return (
     <div className="@container mx-auto flex min-h-svh w-full max-w-screen-xl flex-col">
       <Toaster />
@@ -97,9 +120,6 @@ export function App() {
           onSelectPane={selectPane}
           onSelectSite={(hostname) => {
             void selectSite(hostname);
-          }}
-          onDeleteSite={(hostname) => {
-            void deleteSite(hostname);
           }}
         />
 
@@ -210,17 +230,24 @@ export function App() {
                 />
               </FieldGroup>
 
-              {selection.kind === 'global' ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  isDisabled={pending}
-                  onPress={() => {
-                    void resetDefaults();
-                  }}
-                >
-                  {t('resetDefaults')}
-                </Button>
+              {paneAction ? (
+                <AlertDialogTrigger>
+                  <Button type="button" variant={paneAction.variant} isDisabled={pending}>
+                    {paneAction.label}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{paneAction.label}</AlertDialogTitle>
+                      <AlertDialogDescription>{paneAction.description}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                      <AlertDialogAction variant="destructive" onPress={paneAction.onConfirm}>
+                        {paneAction.confirm}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialog>
+                </AlertDialogTrigger>
               ) : null}
             </form>
           )}

@@ -1,16 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { Trash2Icon } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { t } from '@/i18n/t';
@@ -23,14 +12,12 @@ export function SettingsSidebar({
   pending,
   onSelectPane,
   onSelectSite,
-  onDeleteSite,
 }: {
   selection: Selection;
   customSites: string[];
   pending: boolean;
   onSelectPane: (next: Selection) => void;
   onSelectSite: (hostname: string) => void;
-  onDeleteSite: (hostname: string) => void;
 }) {
   return (
     <aside className="flex min-h-0 min-w-0 flex-col border-b @3xl:h-full @3xl:border-b-0 @3xl:border-e">
@@ -74,7 +61,7 @@ export function SettingsSidebar({
                 {customSites.map((hostname) => {
                   const selected = selection.kind === 'site' && selection.hostname === hostname;
                   return (
-                    <li key={hostname} className="flex items-center gap-1">
+                    <li key={hostname}>
                       <button
                         type="button"
                         disabled={pending}
@@ -84,7 +71,7 @@ export function SettingsSidebar({
                             size: 'sm',
                             variant: selected ? 'default' : 'ghost',
                           }),
-                          'min-w-0 flex-1 justify-start',
+                          'w-full justify-start',
                         )}
                         onClick={() => {
                           onSelectSite(hostname);
@@ -92,36 +79,6 @@ export function SettingsSidebar({
                       >
                         <span className="truncate">{hostname}</span>
                       </button>
-                      <AlertDialogTrigger>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label={`${t('deleteSiteSettings')}: ${hostname}`}
-                          isDisabled={pending}
-                        >
-                          <Trash2Icon />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>{t('deleteSiteSettings')}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {t('deleteSiteConfirm')}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                            <AlertDialogAction
-                              variant="destructive"
-                              onPress={() => {
-                                onDeleteSite(hostname);
-                              }}
-                            >
-                              {t('confirmDelete')}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialog>
-                      </AlertDialogTrigger>
                     </li>
                   );
                 })}

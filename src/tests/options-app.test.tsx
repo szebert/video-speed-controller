@@ -150,6 +150,18 @@ describe('Options page', () => {
     return container.querySelector('[data-slot="field-error"]');
   }
 
+  function deleteSiteButton(): HTMLButtonElement | undefined {
+    return [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Delete site settings',
+    ) as HTMLButtonElement | undefined;
+  }
+
+  function dialogAction(label: string): Element | undefined {
+    return [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
+      (button) => button.textContent === label,
+    );
+  }
+
   function toastText(): string {
     return [...document.querySelectorAll('[data-sonner-toast]')]
       .map((element) => element.textContent ?? '')
@@ -214,6 +226,7 @@ describe('Options page', () => {
     expect(container.querySelector('[role="tab"]')).toBeNull();
     expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Global defaults');
     expect(container.textContent).not.toContain('Reset ALL Settings');
+    expect(deleteSiteButton()).toBeUndefined();
   });
 
   it('selects Site when ?site= is a valid hostname', async () => {
@@ -231,6 +244,7 @@ describe('Options page', () => {
         (button) => button.textContent === 'Reset defaults',
       ),
     ).toBe(false);
+    expect(deleteSiteButton()).toBeInstanceOf(HTMLButtonElement);
   });
 
   it('treats an invalid ?site= as Global-only before GET', async () => {
@@ -1080,6 +1094,12 @@ describe('Options page', () => {
     await act(async () => {
       resetDefaults?.click();
     });
+    expect(sendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'RESET_GLOBAL_BEHAVIOR' }),
+    );
+    await act(async () => {
+      click(dialogAction('Reset') ?? null);
+    });
     expect(sendMessage).toHaveBeenCalledWith({ type: 'RESET_GLOBAL_BEHAVIOR' });
   });
 
@@ -1550,9 +1570,8 @@ describe('Options page', () => {
       };
     });
     await renderApp('chrome-extension://extid/options.html?site=example.com');
-    const trash = container.querySelector('[aria-label="Delete site settings: example.com"]');
     await act(async () => {
-      click(trash);
+      click(deleteSiteButton() ?? null);
     });
     const confirm = [...document.querySelectorAll('button')].find(
       (button) => button.textContent === 'Delete',
@@ -1736,9 +1755,8 @@ describe('Options page', () => {
       };
     });
     await renderApp('chrome-extension://extid/options.html?site=example.com');
-    const trash = container.querySelector('[aria-label="Delete site settings: example.com"]');
     await act(async () => {
-      click(trash);
+      click(deleteSiteButton() ?? null);
     });
     sendMessage.mockClear();
     sendMessage.mockImplementation(async (message: { type?: string }) => {
@@ -1883,6 +1901,9 @@ describe('Options page', () => {
     await act(async () => {
       resetDefaults?.click();
     });
+    await act(async () => {
+      click(dialogAction('Reset') ?? null);
+    });
     expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
       'RESET_GLOBAL_BEHAVIOR',
       'GET_BEHAVIOR_SETTINGS',
@@ -1942,9 +1963,8 @@ describe('Options page', () => {
       throw new Error('channel closed');
     });
     await renderApp('chrome-extension://extid/options.html?site=example.com');
-    const trash = container.querySelector('[aria-label="Delete site settings: example.com"]');
     await act(async () => {
-      click(trash);
+      click(deleteSiteButton() ?? null);
     });
     sendMessage.mockClear();
     const confirm = [...document.querySelectorAll('button')].find(

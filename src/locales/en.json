@@ -85,6 +85,7 @@
   "overlayAutoHideDelay": "Auto-hide delay",
   "overlayAutoHideDelayDescription": "Seconds of inactivity before the overlay hides. 0.1s to 300s.",
   "resetDefaults": "Reset defaults",
+  "resetDefaultsConfirm": "Reset global defaults? Site overrides stay. You will not be able to undo this decision.",
   "resetAllSettings": "Reset ALL Settings",
   "restoreSettingsToDefaults": "Restore settings to defaults",
   "resetAllConfirm": "Are you sure you want to remove all of your settings? You will not be able to undo this decision.",
