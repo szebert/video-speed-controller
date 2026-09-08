@@ -22,15 +22,6 @@ Initial scope:
 - Global → Site settings for control visibility and seek interval
 - Keyboard and screen-reader accessible controls
 
-### Keyboard shortcuts
-
-Add configurable shortcuts for speed and media controls.
-
-- Global → Site inheritance
-- Clear display of active bindings
-- Conflict-aware shortcut capture
-- Accessible keyboard-only configuration
-
 ### Overlay customization
 
 Expand overlay settings as the control surface grows.
