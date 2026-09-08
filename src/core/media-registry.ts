@@ -83,7 +83,9 @@ export class MediaRegistry {
     }
     for (const entry of this.entries.values()) {
       entry.overlay.setBehavior(behavior, hotkeys ?? this.currentHotkeys ?? undefined);
-      entry.controller.setTarget(behavior.targetSpeed);
+      if (entry.controller.targetSpeed !== behavior.targetSpeed) {
+        entry.controller.setTarget(behavior.targetSpeed);
+      }
     }
     this.requestLayout();
   }

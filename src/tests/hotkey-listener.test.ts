@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HotkeyListener } from '../core/hotkey-listener';
+import { MediaRegistry } from '../core/media-registry';
 import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 
 describe('HotkeyListener', () => {
@@ -18,7 +19,11 @@ describe('HotkeyListener', () => {
   });
 
   it('stays inert until a map is applied and ignores key repeat', () => {
-    const listener = new HotkeyListener(window);
+    const registry = new MediaRegistry(document);
+    const listener = new HotkeyListener(window, () => ({
+      registry,
+      source: { kind: 'hotkey' },
+    }));
     window.dispatchEvent(
       new KeyboardEvent('keydown', {
         code: 'BracketLeft',
@@ -55,5 +60,6 @@ describe('HotkeyListener', () => {
     );
     expect(sendMessage).not.toHaveBeenCalled();
     listener.destroy();
+    registry.destroy();
   });
 });

@@ -5,13 +5,16 @@ import {
   matchHotkeyAction,
   type EffectiveHotkeyMap,
 } from '../settings/hotkey-binding';
-import { executeControllerAction } from './execute-controller-action';
+import { executeControllerAction, type ControllerActionContext } from './execute-controller-action';
 
 export class HotkeyListener {
   private map: EffectiveHotkeyMap | null = null;
   private readonly abort = new AbortController();
 
-  constructor(private readonly target: Window) {
+  constructor(
+    private readonly target: Window,
+    private readonly resolveContext: () => ControllerActionContext,
+  ) {
     target.addEventListener('keydown', this.onKeyDown, {
       capture: true,
       signal: this.abort.signal,
@@ -46,6 +49,6 @@ export class HotkeyListener {
     if (event.repeat) {
       return;
     }
-    void executeControllerAction(action);
+    void executeControllerAction(action, this.resolveContext());
   };
 }

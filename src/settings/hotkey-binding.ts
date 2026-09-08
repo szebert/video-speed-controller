@@ -137,6 +137,23 @@ export function findHotkeyConflict(
   return null;
 }
 
+export function findHotkeyMapConflict(map: EffectiveHotkeyMap): SiteHotkeyAction | null {
+  const seen: { action: SiteHotkeyAction; binding: HotkeyBinding }[] = [];
+  for (const action of Object.keys(map) as SiteHotkeyAction[]) {
+    const binding = map[action];
+    if (!binding) {
+      continue;
+    }
+    for (const prior of seen) {
+      if (hotkeyBindingsEqual(prior.binding, binding)) {
+        return action;
+      }
+    }
+    seen.push({ action, binding });
+  }
+  return null;
+}
+
 export function matchHotkeyAction(
   map: EffectiveHotkeyMap,
   event: KeyboardEvent,
@@ -144,13 +161,18 @@ export function matchHotkeyAction(
   if (event.getModifierState?.('AltGraph')) {
     return null;
   }
+  let match: SiteHotkeyAction | null = null;
   for (const action of Object.keys(map) as SiteHotkeyAction[]) {
     const binding = map[action];
-    if (binding && hotkeyBindingMatches(binding, event)) {
-      return action;
+    if (!binding || !hotkeyBindingMatches(binding, event)) {
+      continue;
     }
+    if (match) {
+      return null;
+    }
+    match = action;
   }
-  return null;
+  return match;
 }
 
 export function hotkeyBindingMatches(binding: HotkeyBinding, event: KeyboardEvent): boolean {

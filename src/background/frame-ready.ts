@@ -5,16 +5,11 @@ import type { FrameReadyResponse } from '../protocol/content/content-background'
 import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import { getSiteKey } from '../storage/site-key';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
-import {
-  readAppliedTabBehavior,
-  readAppliedTabPayload,
-  type AppliedBehaviorReader,
-} from './applied-behavior';
+import { readAppliedTabPayload } from './applied-behavior';
 import { applyTabBehavior } from './broadcast';
 
 export type FrameReadyDeps = {
   tabStore?: TabStateStore;
-  readBehavior?: AppliedBehaviorReader;
   readPayload?: typeof readAppliedTabPayload;
   apply?: typeof applyTabBehavior;
 };
@@ -45,12 +40,12 @@ export async function handleFrameReady(
     return { action: 'dormant' };
   }
 
-  const readBehavior = deps.readBehavior ?? readAppliedTabBehavior;
   let behavior: AppliedTabBehavior;
   let hotkeys: EffectiveHotkeyMap | undefined;
   if (pageUrl) {
-    behavior = await readBehavior(pageUrl);
-    hotkeys = await resolveHotkeysForUrl(pageUrl, readPayload);
+    const payload = await readPayload(pageUrl, { touchUsage: false });
+    behavior = payload.behavior;
+    hotkeys = payload.hotkeys;
   } else {
     behavior = builtInAppliedTabBehavior();
   }

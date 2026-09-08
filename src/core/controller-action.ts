@@ -8,19 +8,15 @@ export type { SiteHotkeyAction };
 /** Actions content can execute. V1 aliases stored bindings; later grows media-local actions. */
 export type ControllerAction = SiteHotkeyAction;
 
-/** Actions that may cross DISPATCH_TAB_ACTION. Stays the tab-wide speed subset. */
-export type TabSpeedAction = SiteHotkeyAction;
+export const TAB_SPEED_ACTIONS = ['increaseSpeed', 'decreaseSpeed', 'resetSpeed'] as const;
 
-export const TAB_SPEED_ACTIONS = [
-  'increaseSpeed',
-  'decreaseSpeed',
-  'resetSpeed',
-] as const satisfies readonly TabSpeedAction[];
+/** Actions that may cross DISPATCH_TAB_ACTION. Stays the tab-wide speed subset. */
+export type TabSpeedAction = (typeof TAB_SPEED_ACTIONS)[number];
 
 export function isControllerAction(value: unknown): value is ControllerAction {
   return isSiteHotkeyAction(value);
 }
 
 export function isTabSpeedAction(value: unknown): value is TabSpeedAction {
-  return isSiteHotkeyAction(value);
+  return typeof value === 'string' && (TAB_SPEED_ACTIONS as readonly string[]).includes(value);
 }

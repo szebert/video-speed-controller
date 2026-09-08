@@ -21,7 +21,12 @@ declare global {
 function createEngine(actions?: OverlayActions): VideoSpeedEngine {
   const registry = new MediaRegistry(document, actions);
   const view = document.defaultView;
-  const hotkeys = view ? new HotkeyListener(view) : null;
+  const hotkeys = view
+    ? new HotkeyListener(view, () => ({
+        registry,
+        source: { kind: 'hotkey' },
+      }))
+    : null;
   const engine: VideoSpeedEngine = {
     active: true,
     listening: false,

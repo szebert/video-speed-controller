@@ -204,6 +204,7 @@ export function App() {
                 <HotkeysSettingsCard
                   selection={selection}
                   hotkeys={hotkeys}
+                  globalHotkeys={snapshot.globalHotkeys}
                   pending={pending}
                   resetBadgeText={resetBadgeText}
                   onMutate={mutateHotkey}

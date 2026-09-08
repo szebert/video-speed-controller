@@ -14,11 +14,16 @@ import {
 } from '@/components/ui/field';
 import { readKeyboardLayoutMap } from '../../core/hotkey-format';
 import { t, type MessageKey } from '@/i18n/t';
-import { findHotkeyConflict, type HotkeyBinding } from '../../settings/hotkey-binding';
-import type {
-  HotkeySettingChange,
-  ResolvedHotkeyMap,
-  SiteHotkeyAction,
+import {
+  BUILT_IN_HOTKEYS,
+  findHotkeyConflict,
+  type HotkeyBinding,
+} from '../../settings/hotkey-binding';
+import {
+  toEffectiveHotkeyMap,
+  type HotkeySettingChange,
+  type ResolvedHotkeyMap,
+  type SiteHotkeyAction,
 } from '../../settings/site-behavior';
 import { ownsOverride, resetFieldLabel, showsInherited, type Selection } from './options-model';
 import { ShortcutRecorder } from './ShortcutRecorder';
@@ -58,12 +63,14 @@ export function hotkeyConflictMessage(action: SiteHotkeyAction): string {
 export function HotkeysSettingsCard({
   selection,
   hotkeys,
+  globalHotkeys,
   pending,
   resetBadgeText,
   onMutate,
 }: {
   selection: Selection;
   hotkeys: ResolvedHotkeyMap;
+  globalHotkeys: ResolvedHotkeyMap;
   pending: boolean;
   resetBadgeText: string;
   onMutate: (change: HotkeySettingChange) => void;
@@ -99,16 +106,19 @@ export function HotkeysSettingsCard({
     setTakeoverAction((current) => (current === action ? null : current));
   }
 
+  function currentEffective() {
+    return toEffectiveHotkeyMap(hotkeys);
+  }
+
+  function inheritedBinding(action: SiteHotkeyAction): HotkeyBinding | null {
+    if (selection.kind === 'site') {
+      return globalHotkeys[action].value;
+    }
+    return { ...BUILT_IN_HOTKEYS[action] };
+  }
+
   function assign(action: SiteHotkeyAction, binding: HotkeyBinding): void {
-    const conflict = findHotkeyConflict(
-      {
-        decreaseSpeed: hotkeys.decreaseSpeed.value,
-        increaseSpeed: hotkeys.increaseSpeed.value,
-        resetSpeed: hotkeys.resetSpeed.value,
-      },
-      action,
-      binding,
-    );
+    const conflict = findHotkeyConflict(currentEffective(), action, binding);
     if (conflict) {
       setConflictAction((current) => ({ ...current, [action]: hotkeyConflictMessage(conflict) }));
       setTakeoverAction((current) => (current === action ? null : current));
@@ -159,6 +169,18 @@ export function HotkeysSettingsCard({
                     text={resetBadgeText}
                     label={resetFieldLabel(label)}
                     onReset={() => {
+                      const next = inheritedBinding(row.action);
+                      if (next) {
+                        const conflict = findHotkeyConflict(currentEffective(), row.action, next);
+                        if (conflict) {
+                          setConflictAction((current) => ({
+                            ...current,
+                            [row.action]: hotkeyConflictMessage(conflict),
+                          }));
+                          setTakeoverAction((current) => (current === row.action ? null : current));
+                          return;
+                        }
+                      }
                       clearRowStatus(row.action);
                       onMutate({ kind: 'hotkey-inherit', action: row.action });
                     }}

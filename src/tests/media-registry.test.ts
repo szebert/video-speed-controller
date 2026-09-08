@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OVERLAY_HOST_TAG, OVERLAY_INSET_PX, VideoOverlay } from '../core/video-overlay';
 import { MediaRegistry } from '../core/media-registry';
 import { OverlayView } from '../overlay/overlay-view';
+import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -231,6 +232,41 @@ describe('media registry', () => {
     expect(node.playbackRate).toBe(1.5);
     overlay?.layout();
     expect(overlay?.host.style.visibility).toBe('hidden');
+  });
+
+  it('does not retake a surrendered video when only hotkeys change', () => {
+    vi.useFakeTimers();
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    const controller = registry.ensureController(node);
+    registry.setBehavior(tabBehavior(3), builtInEffectiveHotkeys());
+
+    node.playbackRate = 1.5;
+    node.dispatchEvent(new Event('ratechange'));
+    for (let index = 0; index < 4; index += 1) {
+      vi.runOnlyPendingTimers();
+      node.playbackRate = 1.5;
+      node.dispatchEvent(new Event('ratechange'));
+    }
+    expect(controller.surrendered).toBe(true);
+    expect(node.playbackRate).toBe(1.5);
+
+    registry.setBehavior(tabBehavior(3), {
+      ...builtInEffectiveHotkeys(),
+      decreaseSpeed: {
+        code: 'KeyK',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+      },
+    });
+    expect(controller.surrendered).toBe(true);
+    expect(controller.targetSpeed).toBe(3);
+    expect(node.playbackRate).toBe(1.5);
   });
 
   it('coalesces layout onto one animation frame', () => {

@@ -10,13 +10,19 @@ import {
   resetAllBehaviorSettings,
   resetGlobalBehaviorSettings,
   setBehaviorSetting,
+  setHotkeySetting,
 } from '../background/behavior-settings';
+import { BUILT_IN_HOTKEYS } from '../settings/hotkey-binding';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import {
   persistGlobalBehaviorChange,
   resetBehaviorDefaultsRepairBackoff,
 } from '../storage/behavior-defaults';
-import { persistSiteSpeed, resetSiteRepairBackoff } from '../storage/site-settings';
+import {
+  persistSiteHotkeyChanges,
+  persistSiteSpeed,
+  resetSiteRepairBackoff,
+} from '../storage/site-settings';
 import * as siteSettings from '../storage/site-settings';
 import { resetStorageMutationQueue } from '../storage/storage-mutation-queue';
 import { resetTabMutationQueue } from '../background/tab-mutation-queue';
@@ -434,6 +440,39 @@ describe('behavior settings API', () => {
     }
     expect(response).not.toHaveProperty('siteMembership');
     await expect(siteSettings.readSiteMembership('www.youtube.com', deps)).resolves.toBe(true);
+  });
+
+  it('rejects inherit that would duplicate another effective hotkey', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
+    await persistSiteHotkeyChanges(
+      'https://www.youtube.com/watch',
+      [
+        {
+          kind: 'hotkey-value',
+          action: 'decreaseSpeed',
+          value: { ...BUILT_IN_HOTKEYS.increaseSpeed },
+        },
+        {
+          kind: 'hotkey-value',
+          action: 'increaseSpeed',
+          value: { code: 'KeyA', ctrl: false, alt: false, shift: false, meta: false },
+        },
+      ],
+      deps,
+    );
+    const before = structuredClone(deps.local.data['site:www.youtube.com']);
+    await expect(
+      setHotkeySetting(
+        {
+          type: 'SET_HOTKEY_SETTING',
+          scope: { kind: 'site', hostname: 'www.youtube.com' },
+          change: { kind: 'hotkey-inherit', action: 'increaseSpeed' },
+        },
+        extensionSender(),
+        deps,
+      ),
+    ).resolves.toEqual({ ok: false, error: 'Hotkey already used' });
+    expect(deps.local.data['site:www.youtube.com']).toEqual(before);
   });
 
   it('rejects privileged reset and delete senders from the web', async () => {

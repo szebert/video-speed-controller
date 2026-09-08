@@ -2,8 +2,18 @@
 
 import { contentFailureMessage, sendContentRequest } from '../protocol/content/client';
 import { isTabSpeedAction, type ControllerAction } from './controller-action';
+import type { MediaRegistry } from './media-registry';
 
-export async function executeControllerAction(action: ControllerAction): Promise<void> {
+export type ControllerActionContext = {
+  registry: MediaRegistry;
+  source: { kind: 'hotkey' } | { kind: 'overlay'; video: HTMLVideoElement };
+};
+
+export async function executeControllerAction(
+  action: ControllerAction,
+  context: ControllerActionContext,
+): Promise<void> {
+  void context;
   if (!isTabSpeedAction(action)) {
     return;
   }

@@ -6,6 +6,7 @@ import { handleFrameReady } from '../background/frame-ready';
 import { adjustTabSpeed } from '../background/adjust-tab-speed';
 import { setSpeed } from '../background/set-speed';
 import { enqueueTabMutation, resetTabMutationQueue } from '../background/tab-mutation-queue';
+import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import { clearTabState, type TabStateStore } from '../storage/tab-state';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -87,7 +88,10 @@ describe('tab-target queue races', () => {
         },
         {
           tabStore,
-          readBehavior: async () => tabBehavior(1),
+          readPayload: async () => ({
+            behavior: tabBehavior(1),
+            hotkeys: builtInEffectiveHotkeys(),
+          }),
           apply: async (_tabId, behavior) => {
             await hold;
             applied.push(behavior.targetSpeed);

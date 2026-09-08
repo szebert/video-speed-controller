@@ -39,28 +39,43 @@ describe('FRAME_READY', () => {
         frameId: 0,
         url: 'https://youtube.com',
       },
-      { tabStore, apply, readBehavior: async () => tabBehavior(1) },
+      {
+        tabStore,
+        apply,
+        readPayload: async () => ({
+          behavior: tabBehavior(1),
+          hotkeys: builtInEffectiveHotkeys(),
+        }),
+      },
     );
 
     expect(response).toEqual({ action: 'applied' });
-    expect(apply).toHaveBeenCalledWith(9, existing, undefined, {});
+    expect(apply).toHaveBeenCalledWith(9, existing, undefined, {
+      hotkeys: builtInEffectiveHotkeys(),
+    });
     expect(tabStore.data['tab:9']).toEqual(existing);
   });
 
-  it('seeds full behavior for a top-frame handshake', async () => {
+  it('seeds full behavior and hotkeys from one payload read', async () => {
     const tabStore = memoryTabStore();
     const seeded = tabBehavior(1.25);
+    const hotkeys = builtInEffectiveHotkeys();
     const apply = vi.fn();
+    const readPayload = vi.fn(async () => ({ behavior: seeded, hotkeys }));
     const response = await handleFrameReady(
       {
         tab: { id: 3, url: 'https://www.youtube.com/watch' } as chrome.tabs.Tab,
         frameId: 0,
         url: 'https://www.youtube.com/watch',
       },
-      { tabStore, apply, readBehavior: async () => seeded },
+      { tabStore, apply, readPayload },
     );
     expect(response).toEqual({ action: 'applied' });
-    expect(apply).toHaveBeenCalledWith(3, seeded, undefined, {});
+    expect(readPayload).toHaveBeenCalledTimes(1);
+    expect(readPayload).toHaveBeenCalledWith('https://www.youtube.com/watch', {
+      touchUsage: false,
+    });
+    expect(apply).toHaveBeenCalledWith(3, seeded, undefined, { hotkeys });
     expect(tabStore.data['tab:3']).toEqual(seeded);
   });
 
@@ -77,7 +92,7 @@ describe('FRAME_READY', () => {
     ).resolves.toEqual({ action: 'dormant' });
   });
 
-  it('does not cache built-ins when a supported-site behavior read fails', async () => {
+  it('does not cache built-ins when a supported-site payload read fails', async () => {
     const tabStore = memoryTabStore();
     const apply = vi.fn();
     await expect(
@@ -90,7 +105,7 @@ describe('FRAME_READY', () => {
         {
           tabStore,
           apply,
-          readBehavior: async () => {
+          readPayload: async () => {
             throw new Error('offline');
           },
         },
@@ -111,7 +126,10 @@ describe('FRAME_READY', () => {
         },
         {
           tabStore,
-          readBehavior: async () => tabBehavior(1.25),
+          readPayload: async () => ({
+            behavior: tabBehavior(1.25),
+            hotkeys: builtInEffectiveHotkeys(),
+          }),
           apply: async () => {
             throw new Error('send failed');
           },

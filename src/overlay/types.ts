@@ -5,7 +5,7 @@ import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { OverlayPosition } from '../settings/site-behavior';
 
 export type OverlayActions = {
-  adjustSpeed(direction: -1 | 1): void;
+  adjustSpeed(direction: -1 | 1, video: HTMLVideoElement): void;
   setOverlayPosition?(position: OverlayPosition): void;
   openSettings?(): void;
 };

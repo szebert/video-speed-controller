@@ -16,8 +16,10 @@ import {
   OVERLAY_OPACITY_MIN,
   overlayPositionFromGrid,
   overlayPositionToGrid,
+  prospectiveEffectiveHotkeys,
   resolveSiteBehavior,
   toEffectiveBehavior,
+  toEffectiveHotkeys,
   toSyncEligibleSiteRecord,
   isOverride,
   isOverlayPosition,
@@ -107,6 +109,16 @@ describe('site behavior resolution', () => {
     expect(hasValueOverrides({ hotkeys: { resetSpeed: { kind: 'inherit', updatedAt: 1 } } })).toBe(
       false,
     );
+  });
+
+  it('previews inherit and value changes on the effective hotkey map', () => {
+    const current = toEffectiveHotkeys(resolveSiteBehavior());
+    const remapped = prospectiveEffectiveHotkeys(current, current, [
+      { kind: 'hotkey-value', action: 'decreaseSpeed', value: current.increaseSpeed },
+      { kind: 'hotkey-inherit', action: 'increaseSpeed' },
+    ]);
+    expect(remapped.decreaseSpeed).toEqual(current.increaseSpeed);
+    expect(remapped.increaseSpeed).toEqual(current.increaseSpeed);
   });
 
   it('clamps stored auto-hide delays outside 100ms–5min without dropping the override', () => {

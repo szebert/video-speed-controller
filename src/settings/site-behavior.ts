@@ -431,12 +431,32 @@ export function resolveSiteBehavior(
   return resolved;
 }
 
-export function toEffectiveHotkeys(resolved: ResolvedSiteBehavior): EffectiveHotkeyMap {
+export function toEffectiveHotkeyMap(hotkeys: ResolvedHotkeyMap): EffectiveHotkeyMap {
   return {
-    decreaseSpeed: resolved.hotkeys.decreaseSpeed.value,
-    increaseSpeed: resolved.hotkeys.increaseSpeed.value,
-    resetSpeed: resolved.hotkeys.resetSpeed.value,
+    decreaseSpeed: hotkeys.decreaseSpeed.value,
+    increaseSpeed: hotkeys.increaseSpeed.value,
+    resetSpeed: hotkeys.resetSpeed.value,
   };
+}
+
+export function toEffectiveHotkeys(resolved: ResolvedSiteBehavior): EffectiveHotkeyMap {
+  return toEffectiveHotkeyMap(resolved.hotkeys);
+}
+
+export function prospectiveEffectiveHotkeys(
+  current: EffectiveHotkeyMap,
+  inherited: EffectiveHotkeyMap,
+  changes: readonly HotkeySettingChange[],
+): EffectiveHotkeyMap {
+  let next = current;
+  for (const change of changes) {
+    if (change.kind === 'hotkey-inherit') {
+      next = { ...next, [change.action]: inherited[change.action] };
+    } else {
+      next = { ...next, [change.action]: change.value };
+    }
+  }
+  return next;
 }
 
 export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavior {

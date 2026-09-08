@@ -50,7 +50,7 @@ export class VideoOverlay {
     this.view = new OverlayView(document, {
       onAdjust: (direction) => {
         this.restartAutoHide();
-        this.actions.adjustSpeed(direction);
+        this.actions.adjustSpeed(direction, this.video);
       },
       onSetPosition: (position) => {
         this.restartAutoHide();

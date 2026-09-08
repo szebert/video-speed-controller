@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BUILT_IN_HOTKEYS,
   findHotkeyConflict,
+  findHotkeyMapConflict,
   hotkeyBindingFromEvent,
   hotkeyBindingsEqual,
   isAssignableHotkeyCode,
@@ -70,6 +71,22 @@ describe('hotkey bindings', () => {
         ...BUILT_IN_HOTKEYS.increaseSpeed,
       }),
     ).toBe(true);
+    expect(findHotkeyMapConflict(map)).toBeNull();
+    expect(
+      matchHotkeyAction(
+        {
+          ...map,
+          decreaseSpeed: { ...BUILT_IN_HOTKEYS.increaseSpeed },
+        },
+        keydown('BracketRight'),
+      ),
+    ).toBeNull();
+    expect(
+      findHotkeyMapConflict({
+        ...map,
+        decreaseSpeed: { ...BUILT_IN_HOTKEYS.increaseSpeed },
+      }),
+    ).toBe('increaseSpeed');
   });
 
   it('builds a binding from a key event and skips typing contexts', () => {

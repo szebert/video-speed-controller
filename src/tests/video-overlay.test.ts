@@ -345,7 +345,7 @@ describe('VideoOverlay', () => {
     const faster = overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]');
     expect(faster).toBeInstanceOf(HTMLButtonElement);
     (faster as HTMLButtonElement).click();
-    expect(adjustSpeed).toHaveBeenCalledWith(1);
+    expect(adjustSpeed).toHaveBeenCalledWith(1, video);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
     vi.advanceTimersByTime(150);

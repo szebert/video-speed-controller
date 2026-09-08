@@ -6,11 +6,11 @@ import {
   isOpaqueOrigin,
   type HostPattern,
 } from '../access/site-access';
-import { destroyEngine, startEngine } from '../core/video-speed-engine';
+import { executeControllerAction } from '../core/execute-controller-action';
+import { destroyEngine, getActiveEngine, startEngine } from '../core/video-speed-engine';
 import { parseBackgroundToContent } from '../protocol/content/background-content';
 import { contentFailureMessage, sendContentRequest } from '../protocol/content/client';
 import type { ContentToBackgroundRequest } from '../protocol/content/content-background';
-import { executeControllerAction } from '../core/execute-controller-action';
 import type { OverlayActions } from '../overlay/types';
 
 async function sendOverlayIntent(
@@ -35,8 +35,15 @@ async function sendOverlayIntent(
 }
 
 const overlayActions: OverlayActions = {
-  adjustSpeed(direction) {
-    void executeControllerAction(direction === 1 ? 'increaseSpeed' : 'decreaseSpeed');
+  adjustSpeed(direction, video) {
+    const engine = getActiveEngine();
+    if (!engine) {
+      return;
+    }
+    void executeControllerAction(direction === 1 ? 'increaseSpeed' : 'decreaseSpeed', {
+      registry: engine.registry,
+      source: { kind: 'overlay', video },
+    });
   },
   setOverlayPosition(position) {
     void sendOverlayIntent({

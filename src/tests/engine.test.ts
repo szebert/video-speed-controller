@@ -10,6 +10,7 @@ describe('engine lifecycle', () => {
     destroyEngine();
     document.body.replaceChildren();
     document.documentElement.querySelectorAll('osvsc-overlay').forEach((node) => node.remove());
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -67,5 +68,35 @@ describe('engine lifecycle', () => {
       type: 'DISPATCH_TAB_ACTION',
       action: 'decreaseSpeed',
     });
+  });
+
+  it('does not retake a surrendered video when APPLY repeats the same target with new hotkeys', () => {
+    vi.useFakeTimers();
+    const video = document.createElement('video');
+    document.body.append(video);
+    const engine = startEngine();
+    engine.setBehavior(builtInAppliedTabBehavior(3), builtInEffectiveHotkeys());
+    const controller = engine.registry.ensureController(video);
+    video.playbackRate = 1.5;
+    video.dispatchEvent(new Event('ratechange'));
+    for (let index = 0; index < 4; index += 1) {
+      vi.runOnlyPendingTimers();
+      video.playbackRate = 1.5;
+      video.dispatchEvent(new Event('ratechange'));
+    }
+    expect(controller.surrendered).toBe(true);
+
+    engine.setBehavior(builtInAppliedTabBehavior(3), {
+      ...builtInEffectiveHotkeys(),
+      increaseSpeed: {
+        code: 'KeyL',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+      },
+    });
+    expect(controller.surrendered).toBe(true);
+    expect(video.playbackRate).toBe(1.5);
   });
 });

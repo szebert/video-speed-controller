@@ -26,11 +26,14 @@ import type {
 import {
   canonicalizeBehaviorSettingChange,
   canonicalizeHotkeySettingChange,
+  prospectiveEffectiveHotkeys,
   resolveSiteBehavior,
   toEditableResolvedBehavior,
+  toEffectiveHotkeyMap,
   type BehaviorSettingChange,
   type HotkeySettingChange,
 } from '../settings/site-behavior';
+import { builtInEffectiveHotkeys, findHotkeyMapConflict } from '../settings/hotkey-binding';
 import { normalizeSiteHostname, siteResolutionUrl } from '../settings/site-hostname';
 import {
   persistGlobalBehaviorChanges,
@@ -285,6 +288,15 @@ export async function setHotkeySetting(
   }
 
   try {
+    const preview = await readBehaviorSettingsSnapshot(persistHostname, deps);
+    const current = toEffectiveHotkeyMap(preview.site?.hotkeys ?? preview.globalHotkeys);
+    const inherited =
+      message.scope.kind === 'site'
+        ? toEffectiveHotkeyMap(preview.globalHotkeys)
+        : builtInEffectiveHotkeys();
+    if (findHotkeyMapConflict(prospectiveEffectiveHotkeys(current, inherited, changes))) {
+      return { ok: false, error: 'Hotkey already used' };
+    }
     if (message.scope.kind === 'global') {
       await persistGlobalHotkeyChanges(changes, deps);
     } else {

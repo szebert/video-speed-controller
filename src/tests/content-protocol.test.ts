@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isTabSpeedAction, TAB_SPEED_ACTIONS } from '../core/controller-action';
 import {
   ApplyTabBehaviorRequestSchema,
   parseBackgroundToContent,
@@ -33,6 +34,15 @@ describe('content Mini protocol', () => {
         action: 'resetSpeed',
       }).data,
     ).toEqual({ type: 'DISPATCH_TAB_ACTION', action: 'resetSpeed' });
+    expect(TAB_SPEED_ACTIONS).toEqual(['increaseSpeed', 'decreaseSpeed', 'resetSpeed']);
+    expect(isTabSpeedAction('resetSpeed')).toBe(true);
+    expect(isTabSpeedAction('seekForward')).toBe(false);
+    expect(
+      CONTENT_TO_BACKGROUND.DISPATCH_TAB_ACTION.request.safeParse({
+        type: 'DISPATCH_TAB_ACTION',
+        action: 'seekForward',
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects missing or malformed known APPLY fields', () => {

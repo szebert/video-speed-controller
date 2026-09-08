@@ -48,6 +48,7 @@ describe('Hotkeys settings card', () => {
     onMutate: (change: HotkeySettingChange) => void,
     hotkeys = resolveSiteBehavior().hotkeys,
     selection: { kind: 'global' } | { kind: 'site'; hostname: string } = { kind: 'global' },
+    globalHotkeys = resolveSiteBehavior().hotkeys,
   ): Promise<void> {
     container = document.createElement('div');
     document.body.append(container);
@@ -57,6 +58,7 @@ describe('Hotkeys settings card', () => {
         <HotkeysSettingsCard
           selection={selection}
           hotkeys={hotkeys}
+          globalHotkeys={globalHotkeys}
           pending={false}
           resetBadgeText={selection.kind === 'site' ? 'Override' : 'Custom'}
           onMutate={onMutate}
@@ -247,5 +249,29 @@ describe('Hotkeys settings card', () => {
       action: 'decreaseSpeed',
       value: null,
     });
+  });
+
+  it('blocks inherit when the parent binding already belongs to another action', async () => {
+    const onMutate = vi.fn();
+    const builtIn = resolveSiteBehavior().hotkeys;
+    await renderCard(
+      onMutate,
+      {
+        decreaseSpeed: { value: { ...BUILT_IN_HOTKEYS.increaseSpeed }, source: 'site' },
+        increaseSpeed: {
+          value: { code: 'KeyA', ctrl: false, alt: false, shift: false, meta: false },
+          source: 'site',
+        },
+        resetSpeed: builtIn.resetSpeed,
+      },
+      { kind: 'site', hostname: 'www.youtube.com' },
+    );
+    const inheritIncrease = container.querySelector('[aria-label="Reset: Increase speed"]');
+    expect(inheritIncrease).toBeInstanceOf(HTMLButtonElement);
+    await act(async () => {
+      (inheritIncrease as HTMLButtonElement).click();
+    });
+    expect(onMutate).not.toHaveBeenCalled();
+    expect(container.textContent).toContain(hotkeyConflictMessage('decreaseSpeed'));
   });
 });
