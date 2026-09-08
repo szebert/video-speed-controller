@@ -280,6 +280,44 @@ describe('Options page', () => {
     expect(container.querySelector('h2')?.textContent).toBe('www.youtube.com');
   });
 
+  it('keeps a long custom-site list in the Sites region', async () => {
+    const customSites = Array.from({ length: 40 }, (_, index) => `site-${index}.example`);
+    sendMessage.mockImplementation(loadReply(snapshot(), customSites));
+    await renderApp();
+    const heading = [...container.querySelectorAll('p')].find(
+      (element) => element.textContent === 'Sites',
+    );
+    expect(heading).toBeTruthy();
+    const region = container.querySelector(`[aria-labelledby="${heading?.id}"]`);
+    expect(region?.getAttribute('role')).toBe('region');
+    expect(region?.className).toContain('overflow-y-auto');
+    expect(region?.querySelectorAll('li')).toHaveLength(40);
+    expect(region?.textContent).toContain('site-0.example');
+    expect(region?.textContent).toContain('site-39.example');
+  });
+
+  it('scrolls a deep-linked site into view in a long list', async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+      writable: true,
+    });
+    const customSites = Array.from({ length: 40 }, (_, index) => `site-${index}.example`);
+    sendMessage.mockImplementation(loadReply(snapshot('site-39.example'), customSites));
+    try {
+      await renderApp('chrome-extension://extid/options.html?site=site-39.example');
+      expect(container.querySelector('h2')?.textContent).toBe('site-39.example');
+      expect(
+        scrollIntoView.mock.instances.some(
+          (element) => element instanceof HTMLElement && element.textContent === 'site-39.example',
+        ),
+      ).toBe(true);
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+    }
+  });
+
   it('resets only speed from the speed controls without a confirmation', async () => {
     const state = snapshot();
     state.global.speed = { value: 1.5, source: 'global' };

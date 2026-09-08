@@ -105,13 +105,13 @@ export function App() {
         : null;
 
   return (
-    <div className="@container mx-auto flex min-h-svh w-full max-w-screen-xl flex-col">
+    <div className="@container mx-auto flex h-svh w-full max-w-screen-xl flex-col overflow-hidden">
       <Toaster />
-      <header className="flex items-center justify-between gap-3 p-3">
+      <header className="flex shrink-0 items-center justify-between gap-3 p-3">
         <h1 className="text-sm font-semibold">{t('popupTitle')}</h1>
         <ModeToggle />
       </header>
-      <Separator />
+      <Separator className="shrink-0" />
       <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] @3xl:grid-cols-[minmax(14rem,16rem)_minmax(0,1fr)] @3xl:grid-rows-none">
         <SettingsSidebar
           selection={selection}
@@ -123,7 +123,7 @@ export function App() {
           }}
         />
 
-        <main className="flex min-w-0 flex-col gap-6 overflow-y-auto p-6">
+        <main className="flex min-h-0 min-w-0 flex-col gap-6 overflow-y-auto overscroll-y-contain p-6">
           {selection.kind === 'settings' ? (
             <>
               <div className="flex flex-col gap-1">
