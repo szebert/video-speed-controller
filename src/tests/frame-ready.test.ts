@@ -73,7 +73,7 @@ describe('FRAME_READY', () => {
     expect(response).toEqual({ action: 'applied' });
     expect(readPayload).toHaveBeenCalledTimes(1);
     expect(readPayload).toHaveBeenCalledWith('https://www.youtube.com/watch', {
-      touchUsage: false,
+      touchUsage: true,
     });
     expect(apply).toHaveBeenCalledWith(3, seeded, undefined, { hotkeys });
     expect(tabStore.data['tab:3']).toEqual(seeded);

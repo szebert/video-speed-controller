@@ -6,6 +6,7 @@ import {
   applyBehaviorSettingChange,
   applyHotkeySettingChange,
   hasSemanticOverrides,
+  hotkeyChangesWouldConflict,
   inheritAllKnownSettings,
   mergeBehaviorOverrides,
   type BehaviorOverrides,
@@ -417,8 +418,12 @@ export async function persistGlobalBehaviorChange(
 export async function persistGlobalHotkeyChanges(
   changes: readonly HotkeySettingChange[],
   deps: BehaviorDefaultsDeps = {},
+  options: { rejectConflicts?: boolean } = {},
 ): Promise<void> {
   await persistGlobalBehaviorOverrides((current, at) => {
+    if (options.rejectConflicts && hotkeyChangesWouldConflict(current, {}, changes, 'built-in')) {
+      throw new Error('Hotkey already used');
+    }
     let next = current;
     for (const change of changes) {
       next = applyHotkeySettingChange(next, change, at);

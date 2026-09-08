@@ -3,10 +3,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createSettingsWriteCoalescer,
+  flushSettingsWriteQueues,
   SETTINGS_WRITE_COALESCE_MS,
+  settingsWriteQueuesBusy,
   type SettingsWriteBatch,
 } from '../entrypoints/options/coalesce-settings-writes';
-import type { BehaviorSettingChange } from '../settings/site-behavior';
+import type { BehaviorSettingChange, HotkeySettingChange } from '../settings/site-behavior';
 
 const speed = (value: number): BehaviorSettingChange => ({
   kind: 'value',
@@ -19,6 +21,16 @@ const overlay = (value: boolean): BehaviorSettingChange => ({
   field: 'overlayVisible',
   value,
 });
+
+const hotkey = (action: HotkeySettingChange['action'], code: string): HotkeySettingChange => ({
+  kind: 'hotkey-value',
+  action,
+  value: { code, ctrl: false, alt: false, shift: false, meta: false },
+});
+
+function fieldKey(change: BehaviorSettingChange): string {
+  return change.field;
+}
 
 function deferred<T>(): {
   promise: Promise<T>;
@@ -43,6 +55,7 @@ describe('settings write coalescer', () => {
   it('sends the first change immediately', async () => {
     const sent: SettingsWriteBatch[] = [];
     const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
       send: async (batch) => {
         sent.push(batch);
       },
@@ -61,6 +74,7 @@ describe('settings write coalescer', () => {
   it('keeps the latest value for a field before the leading drain', async () => {
     const sent: SettingsWriteBatch[] = [];
     const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
       send: async (batch) => {
         sent.push(batch);
       },
@@ -77,6 +91,7 @@ describe('settings write coalescer', () => {
     const sent: SettingsWriteBatch[] = [];
     const first = deferred<void>();
     const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
       send: async (batch) => {
         sent.push(batch);
         if (sent.length === 1) {
@@ -104,6 +119,7 @@ describe('settings write coalescer', () => {
     let maxInFlight = 0;
     const first = deferred<void>();
     const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
       send: async () => {
         inFlight += 1;
         maxInFlight = Math.max(maxInFlight, inFlight);
@@ -129,6 +145,7 @@ describe('settings write coalescer', () => {
     const sent: SettingsWriteBatch[] = [];
     const first = deferred<void>();
     const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
       send: async (batch) => {
         sent.push(batch);
         if (sent.length === 1) {
@@ -153,6 +170,7 @@ describe('settings write coalescer', () => {
   it('coalesces further quiet-period changes until the trailing timer', async () => {
     const sent: SettingsWriteBatch[] = [];
     const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
       send: async (batch) => {
         sent.push(batch);
       },
@@ -172,6 +190,7 @@ describe('settings write coalescer', () => {
   it('flush sends pending trailing changes immediately', async () => {
     const sent: SettingsWriteBatch[] = [];
     const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
       send: async (batch) => {
         sent.push(batch);
       },
@@ -183,5 +202,52 @@ describe('settings write coalescer', () => {
     await coalescer.flush();
     expect(sent).toHaveLength(2);
     expect(sent[1]?.changes).toEqual([speed(1.5)]);
+  });
+
+  it('keys hotkey writes by action', async () => {
+    const sent: SettingsWriteBatch<HotkeySettingChange>[] = [];
+    const coalescer = createSettingsWriteCoalescer<HotkeySettingChange>({
+      key: (change) => change.action,
+      send: async (batch) => {
+        sent.push(batch);
+      },
+    });
+    coalescer.enqueue({ kind: 'global' }, hotkey('decreaseSpeed', 'KeyA'));
+    coalescer.enqueue({ kind: 'global' }, hotkey('increaseSpeed', 'KeyB'));
+    coalescer.enqueue({ kind: 'global' }, hotkey('decreaseSpeed', 'KeyC'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(sent[0]?.changes).toEqual([
+      hotkey('decreaseSpeed', 'KeyC'),
+      hotkey('increaseSpeed', 'KeyB'),
+    ]);
+  });
+
+  it('flushes write queues in the given order and reports busy across them', async () => {
+    const sent: string[] = [];
+    const first = deferred<void>();
+    const firstQueue = createSettingsWriteCoalescer({
+      key: fieldKey,
+      send: async () => {
+        sent.push('first');
+        await first.promise;
+      },
+    });
+    const secondQueue = createSettingsWriteCoalescer({
+      key: fieldKey,
+      send: async () => {
+        sent.push('second');
+      },
+    });
+    firstQueue.enqueue({ kind: 'global' }, speed(1.25));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(sent).toEqual(['first']);
+    expect(settingsWriteQueuesBusy(firstQueue, secondQueue)).toBe(true);
+    secondQueue.enqueue({ kind: 'global' }, speed(1.5));
+    first.resolve();
+    await flushSettingsWriteQueues(firstQueue, secondQueue);
+    expect(sent).toEqual(['first', 'second']);
+    expect(settingsWriteQueuesBusy(firstQueue, secondQueue)).toBe(false);
   });
 });

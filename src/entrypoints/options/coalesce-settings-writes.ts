@@ -6,22 +6,42 @@ export const SETTINGS_WRITE_COALESCE_MS = 400;
 
 export type SettingsWriteScope = { kind: 'global' } | { kind: 'site'; hostname: string };
 
-export type SettingsWriteBatch = {
+export type SettingsWriteBatch<TChange = BehaviorSettingChange> = {
   scope: SettingsWriteScope;
-  changes: BehaviorSettingChange[];
+  changes: TChange[];
+};
+
+export type SettingsWriteQueue = {
+  flush: () => Promise<void>;
+  isBusy: () => boolean;
 };
 
 export function settingsWriteScopeId(scope: SettingsWriteScope): string {
   return scope.kind === 'global' ? 'global' : `site:${scope.hostname}`;
 }
 
-export function createSettingsWriteCoalescer(deps: {
-  send: (batch: SettingsWriteBatch) => Promise<void>;
+export async function flushSettingsWriteQueues(
+  ...queues: Array<SettingsWriteQueue | null | undefined>
+): Promise<void> {
+  for (const queue of queues) {
+    await queue?.flush();
+  }
+}
+
+export function settingsWriteQueuesBusy(
+  ...queues: Array<SettingsWriteQueue | null | undefined>
+): boolean {
+  return queues.some((queue) => queue?.isBusy());
+}
+
+export function createSettingsWriteCoalescer<TChange>(deps: {
+  key: (change: TChange) => string;
+  send: (batch: SettingsWriteBatch<TChange>) => Promise<void>;
   delayMs?: number;
   setTimeoutFn?: typeof setTimeout;
   clearTimeoutFn?: typeof clearTimeout;
 }): {
-  enqueue: (scope: SettingsWriteScope, change: BehaviorSettingChange) => void;
+  enqueue: (scope: SettingsWriteScope, change: TChange) => void;
   flush: () => Promise<void>;
   isBusy: () => boolean;
 } {
@@ -33,10 +53,10 @@ export function createSettingsWriteCoalescer(deps: {
   let drainChain: Promise<void> = Promise.resolve();
   let trailingTimer: ReturnType<typeof setTimeout> | null = null;
   let quietTimer: ReturnType<typeof setTimeout> | null = null;
-  const pending = new Map<string, { scope: SettingsWriteScope; change: BehaviorSettingChange }>();
+  const pending = new Map<string, { scope: SettingsWriteScope; change: TChange }>();
 
-  function pendingKey(scope: SettingsWriteScope, field: string): string {
-    return `${settingsWriteScopeId(scope)}\0${field}`;
+  function pendingKey(scope: SettingsWriteScope, itemKey: string): string {
+    return `${settingsWriteScopeId(scope)}\0${itemKey}`;
   }
 
   function clearTimer(timer: ReturnType<typeof setTimeout> | null): null {
@@ -59,7 +79,7 @@ export function createSettingsWriteCoalescer(deps: {
     }, delayMs);
   }
 
-  function takeScopeBatch(): SettingsWriteBatch | null {
+  function takeScopeBatch(): SettingsWriteBatch<TChange> | null {
     if (pending.size === 0) {
       return null;
     }
@@ -68,7 +88,7 @@ export function createSettingsWriteCoalescer(deps: {
       return null;
     }
     const id = settingsWriteScopeId(first.scope);
-    const changes: BehaviorSettingChange[] = [];
+    const changes: TChange[] = [];
     for (const [key, item] of [...pending.entries()]) {
       if (settingsWriteScopeId(item.scope) === id) {
         changes.push(item.change);
@@ -116,7 +136,7 @@ export function createSettingsWriteCoalescer(deps: {
 
   return {
     enqueue(scope, change) {
-      pending.set(pendingKey(scope, change.field), { scope, change });
+      pending.set(pendingKey(scope, deps.key(change)), { scope, change });
       if (inFlight) {
         return;
       }

@@ -118,6 +118,37 @@ describe('site settings storage', () => {
     });
   });
 
+  it('rejects a conflicting site hotkey persist under the storage lock', async () => {
+    const deps = pair(50);
+    const binding = {
+      code: 'KeyA',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      meta: false,
+    };
+    const results = await Promise.allSettled([
+      persistSiteHotkeyChanges(
+        'https://www.youtube.com/watch',
+        [{ kind: 'hotkey-value', action: 'decreaseSpeed', value: binding }],
+        deps,
+        { rejectConflicts: true },
+      ),
+      persistSiteHotkeyChanges(
+        'https://www.youtube.com/watch',
+        [{ kind: 'hotkey-value', action: 'increaseSpeed', value: binding }],
+        deps,
+        { rejectConflicts: true },
+      ),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect(rejected).toMatchObject({
+      status: 'rejected',
+      reason: { message: 'Hotkey already used' },
+    });
+  });
+
   it('does not rewrite source records solely because a display read resolved them', async () => {
     const deps = pair();
     const record = {

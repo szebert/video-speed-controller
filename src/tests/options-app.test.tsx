@@ -2102,6 +2102,74 @@ describe('Options page', () => {
     });
   });
 
+  it('flushes a pending hotkey write before loading another site', async () => {
+    let releaseSet!: (value: unknown) => void;
+    sendMessage.mockImplementation((message: { type?: string; hostname?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return Promise.resolve({
+          ok: true,
+          customSites: ['www.youtube.com', 'www.netflix.com'],
+        });
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return Promise.resolve(getOk(snapshot(message.hostname ?? 'www.youtube.com')));
+      }
+      return new Promise((resolve) => {
+        releaseSet = resolve;
+      });
+    });
+    await renderApp('chrome-extension://extid/options.html?site=www.youtube.com');
+    sendMessage.mockClear();
+    const recorder = container.querySelector('[aria-label="Record shortcut: Decrease speed"]');
+    await act(async () => {
+      click(recorder);
+    });
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code: 'KeyD',
+          key: 'd',
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    const netflix = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'www.netflix.com',
+    );
+    await act(async () => {
+      netflix?.click();
+    });
+    expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual(['SET_HOTKEY_SETTING']);
+    expect(sendMessage.mock.calls[0]?.[0]).toMatchObject({
+      type: 'SET_HOTKEY_SETTING',
+      scope: { kind: 'site', hostname: 'www.youtube.com' },
+      change: {
+        kind: 'hotkey-value',
+        action: 'decreaseSpeed',
+        value: { code: 'KeyD', ctrl: false, alt: false, shift: false, meta: false },
+      },
+    });
+    await act(async () => {
+      releaseSet({
+        ok: true,
+        state: snapshot('www.youtube.com'),
+        siteMembership: { hostname: 'www.youtube.com', customized: true },
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      });
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'GET_BEHAVIOR_SETTINGS',
+      hostname: 'www.netflix.com',
+    });
+  });
+
   it('sends one batched persist when two fields change before the first drain', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();

@@ -27,6 +27,8 @@ import {
 } from './behavior-fields';
 import {
   BUILT_IN_HOTKEYS,
+  builtInEffectiveHotkeys,
+  findHotkeyMapConflict,
   hotkeyBindingsEqual,
   isHotkeyBinding,
   type EffectiveHotkeyMap,
@@ -457,6 +459,20 @@ export function prospectiveEffectiveHotkeys(
     }
   }
   return next;
+}
+
+export function hotkeyChangesWouldConflict(
+  globalOverrides: BehaviorOverrides,
+  siteOverrides: BehaviorOverrides,
+  changes: readonly HotkeySettingChange[],
+  inherited: 'parent' | 'built-in' = 'parent',
+): boolean {
+  const current = toEffectiveHotkeys(resolveSiteBehavior(globalOverrides, siteOverrides));
+  const parent =
+    inherited === 'built-in'
+      ? builtInEffectiveHotkeys()
+      : toEffectiveHotkeys(resolveSiteBehavior(globalOverrides, {}));
+  return findHotkeyMapConflict(prospectiveEffectiveHotkeys(current, parent, changes)) != null;
 }
 
 export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavior {

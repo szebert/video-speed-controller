@@ -16,6 +16,7 @@ import {
   OVERLAY_OPACITY_MIN,
   overlayPositionFromGrid,
   overlayPositionToGrid,
+  hotkeyChangesWouldConflict,
   prospectiveEffectiveHotkeys,
   resolveSiteBehavior,
   toEffectiveBehavior,
@@ -119,6 +120,26 @@ describe('site behavior resolution', () => {
     ]);
     expect(remapped.decreaseSpeed).toEqual(current.increaseSpeed);
     expect(remapped.increaseSpeed).toEqual(current.increaseSpeed);
+    expect(
+      hotkeyChangesWouldConflict(
+        {},
+        {
+          hotkeys: {
+            decreaseSpeed: { kind: 'value', value: current.increaseSpeed, updatedAt: 1 },
+            increaseSpeed: { kind: 'value', value: current.decreaseSpeed, updatedAt: 1 },
+          },
+        },
+        [{ kind: 'hotkey-inherit', action: 'increaseSpeed' }],
+      ),
+    ).toBe(true);
+    expect(
+      hotkeyChangesWouldConflict(
+        {},
+        {},
+        [{ kind: 'hotkey-inherit', action: 'increaseSpeed' }],
+        'built-in',
+      ),
+    ).toBe(false);
   });
 
   it('clamps stored auto-hide delays outside 100ms–5min without dropping the override', () => {

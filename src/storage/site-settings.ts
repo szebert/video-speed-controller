@@ -39,6 +39,7 @@ import {
   withSpeedInherit,
   applyBehaviorSettingChange,
   applyHotkeySettingChange,
+  hotkeyChangesWouldConflict,
   hasValueOverrides,
   tombstoneExistingSiteSettings,
   type BehaviorSettingChange,
@@ -513,7 +514,11 @@ function generationWrite(
 
 async function persistMutatedSite(
   url: string,
-  mutate: (current: BehaviorOverrides, now: number) => BehaviorOverrides,
+  mutate: (
+    current: BehaviorOverrides,
+    now: number,
+    globalOverrides: BehaviorOverrides,
+  ) => BehaviorOverrides,
   deps: SiteSettingsDeps = {},
 ): Promise<void> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
@@ -552,7 +557,7 @@ async function persistMutatedSite(
     );
     const record: SiteSettingsV1 = {
       schemaVersion: 1,
-      overrides: mutate(loaded.mergedOverrides, issued.timestamp),
+      overrides: mutate(loaded.mergedOverrides, issued.timestamp, loaded.globalOverrides),
       lastUsedAt: loaded.now,
       generation: loaded.mergedGeneration.epoch,
     };
@@ -624,10 +629,17 @@ export async function persistSiteHotkeyChanges(
   url: string,
   changes: readonly HotkeySettingChange[],
   deps: SiteSettingsDeps = {},
+  options: { rejectConflicts?: boolean } = {},
 ): Promise<void> {
   await persistMutatedSite(
     url,
-    (current, at) => {
+    (current, at, globalOverrides) => {
+      if (
+        options.rejectConflicts &&
+        hotkeyChangesWouldConflict(globalOverrides, current, changes)
+      ) {
+        throw new Error('Hotkey already used');
+      }
       let next = current;
       for (const change of changes) {
         next = applyHotkeySettingChange(next, change, at);

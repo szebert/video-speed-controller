@@ -43,7 +43,7 @@ export async function handleFrameReady(
   let behavior: AppliedTabBehavior;
   let hotkeys: EffectiveHotkeyMap | undefined;
   if (pageUrl) {
-    const payload = await readPayload(pageUrl, { touchUsage: false });
+    const payload = await readPayload(pageUrl, { touchUsage: true });
     behavior = payload.behavior;
     hotkeys = payload.hotkeys;
   } else {

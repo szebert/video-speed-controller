@@ -34,6 +34,8 @@ import {
 } from '../../settings/site-behavior';
 import {
   createSettingsWriteCoalescer,
+  flushSettingsWriteQueues,
+  settingsWriteQueuesBusy,
   type SettingsWriteBatch,
   type SettingsWriteScope,
 } from './coalesce-settings-writes';
@@ -149,8 +151,14 @@ export function useBehaviorSettings() {
   const behaviorRef = useRef(null as ReturnType<typeof currentBehavior> | null);
   const snapshotHostnameRef = useRef<string | null>(null);
   const sendBatchRef = useRef<(batch: SettingsWriteBatch) => Promise<void>>(async () => {});
+  const sendHotkeyBatchRef = useRef<
+    (batch: SettingsWriteBatch<HotkeySettingChange>) => Promise<void>
+  >(async () => {});
   const [coalescer, setCoalescer] = useState<ReturnType<
-    typeof createSettingsWriteCoalescer
+    typeof createSettingsWriteCoalescer<BehaviorSettingChange>
+  > | null>(null);
+  const [hotkeyCoalescer, setHotkeyCoalescer] = useState<ReturnType<
+    typeof createSettingsWriteCoalescer<HotkeySettingChange>
   > | null>(null);
 
   const snapshotHostname = selection.kind === 'site' ? selection.hostname : pageHostname;
@@ -208,12 +216,18 @@ export function useBehaviorSettings() {
   }, [pageHostname]);
 
   useEffect(() => {
-    const queue = createSettingsWriteCoalescer({
+    const queue = createSettingsWriteCoalescer<BehaviorSettingChange>({
+      key: (change) => change.field,
       send: (batch) => sendBatchRef.current(batch),
     });
+    const hotkeyQueue = createSettingsWriteCoalescer<HotkeySettingChange>({
+      key: (change) => change.action,
+      send: (batch) => sendHotkeyBatchRef.current(batch),
+    });
     setCoalescer(queue);
+    setHotkeyCoalescer(hotkeyQueue);
     const flushHidden = (): void => {
-      void queue.flush();
+      void flushSettingsWriteQueues(queue, hotkeyQueue);
     };
     const onVisibility = (): void => {
       if (document.visibilityState === 'hidden') {
@@ -252,7 +266,7 @@ export function useBehaviorSettings() {
     options: {
       clearCustomSites?: boolean;
       sentChanges?: readonly BehaviorSettingChange[];
-      sentHotkey?: HotkeySettingChange;
+      sentHotkeys?: readonly HotkeySettingChange[];
     } = {},
   ): boolean {
     if (!response) {
@@ -278,13 +292,15 @@ export function useBehaviorSettings() {
       setSnapshot(response.state);
       if (options.sentChanges) {
         writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, options.sentChanges));
-      } else if (!options.sentHotkey) {
+      } else if (!options.sentHotkeys) {
         writeOptimistic({});
       }
-      if (options.sentHotkey) {
-        writeOptimisticHotkeys(
-          omitMatchingOptimisticHotkeys(optimisticHotkeysRef.current, options.sentHotkey),
-        );
+      if (options.sentHotkeys) {
+        let nextHotkeys = optimisticHotkeysRef.current;
+        for (const change of options.sentHotkeys) {
+          nextHotkeys = omitMatchingOptimisticHotkeys(nextHotkeys, change);
+        }
+        writeOptimisticHotkeys(nextHotkeys);
       } else if (!options.sentChanges) {
         writeOptimisticHotkeys({});
       }
@@ -296,7 +312,7 @@ export function useBehaviorSettings() {
         const membership = response.siteMembership;
         setCustomSites((current) => applyMembership(current, membership));
       }
-      if (!options.sentChanges && !options.sentHotkey) {
+      if (!options.sentChanges && !options.sentHotkeys) {
         clearAllDrafts();
         setSliderPreview(null);
       }
@@ -366,6 +382,46 @@ export function useBehaviorSettings() {
         writeOptimistic(omitMatchingOptimisticChanges(optimisticRef.current, batch.changes));
       }
     };
+    sendHotkeyBatchRef.current = async (batch: SettingsWriteBatch<HotkeySettingChange>) => {
+      const membership = batch.scope.kind === 'site';
+      const payload =
+        batch.changes.length === 1
+          ? {
+              type: 'SET_HOTKEY_SETTING' as const,
+              scope: batch.scope,
+              change: batch.changes[0],
+            }
+          : {
+              type: 'SET_HOTKEY_SETTING' as const,
+              scope: batch.scope,
+              changes: batch.changes,
+            };
+      try {
+        const response = await sendOptionsRequest(withSnapshotHostname(payload));
+        if (!applyResponse(response, { sentHotkeys: batch.changes }) || response?.ok === false) {
+          await recover(membership ? 'pane-and-sidebar' : 'pane');
+          let nextHotkeys = optimisticHotkeysRef.current;
+          for (const change of batch.changes) {
+            nextHotkeys = omitMatchingOptimisticHotkeys(nextHotkeys, change);
+          }
+          writeOptimisticHotkeys(nextHotkeys);
+        } else if (
+          membership &&
+          response?.ok &&
+          !('siteMembership' in response && response.siteMembership)
+        ) {
+          await recover('sidebar');
+        }
+      } catch {
+        reportActionError(t('settingsSaveError'));
+        await recover(membership ? 'pane-and-sidebar' : 'pane');
+        let nextHotkeys = optimisticHotkeysRef.current;
+        for (const change of batch.changes) {
+          nextHotkeys = omitMatchingOptimisticHotkeys(nextHotkeys, change);
+        }
+        writeOptimisticHotkeys(nextHotkeys);
+      }
+    };
     // Persist uses the latest apply/recover closures; those are recreated each
     // render and would retrigger this effect without changing behavior.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync refs and send
@@ -400,33 +456,7 @@ export function useBehaviorSettings() {
     }
     writeOptimisticHotkeys({ ...optimisticHotkeysRef.current, [change.action]: change });
     clearActionFeedback();
-    void (async () => {
-      try {
-        const response = await sendOptionsRequest(
-          withSnapshotHostname({
-            type: 'SET_HOTKEY_SETTING',
-            scope,
-            change,
-          }),
-        );
-        if (!applyResponse(response, { sentHotkey: change }) || response?.ok === false) {
-          await recover(scope.kind === 'site' ? 'pane-and-sidebar' : 'pane');
-          writeOptimisticHotkeys(
-            omitMatchingOptimisticHotkeys(optimisticHotkeysRef.current, change),
-          );
-        } else if (
-          scope.kind === 'site' &&
-          response?.ok &&
-          !('siteMembership' in response && response.siteMembership)
-        ) {
-          await recover('sidebar');
-        }
-      } catch {
-        reportActionError(t('settingsSaveError'));
-        await recover(scope.kind === 'site' ? 'pane-and-sidebar' : 'pane');
-        writeOptimisticHotkeys(omitMatchingOptimisticHotkeys(optimisticHotkeysRef.current, change));
-      }
-    })();
+    hotkeyCoalescer?.enqueue(scope, change);
   }
 
   function adjustDisplayedSpeed(direction: 1 | -1): void {
@@ -448,7 +478,7 @@ export function useBehaviorSettings() {
     setBlocking(true);
     clearActionFeedback();
     try {
-      await coalescer?.flush();
+      await flushSettingsWriteQueues(coalescer, hotkeyCoalescer);
       clearOptimistic();
       clearAllDrafts();
       setSliderPreview(null);
@@ -477,7 +507,7 @@ export function useBehaviorSettings() {
     setBlocking(true);
     clearActionFeedback();
     try {
-      await coalescer?.flush();
+      await flushSettingsWriteQueues(coalescer, hotkeyCoalescer);
       clearOptimistic();
       await work();
     } finally {
@@ -508,7 +538,7 @@ export function useBehaviorSettings() {
     setBlocking(true);
     clearActionFeedback();
     try {
-      await coalescer?.flush();
+      await flushSettingsWriteQueues(coalescer, hotkeyCoalescer);
       const response = await sendOptionsRequest({ type: 'EXPORT_BACKUP' });
       if (!response?.ok) {
         reportActionError(
@@ -591,14 +621,14 @@ export function useBehaviorSettings() {
       clearAllDrafts();
       setSliderPreview(null);
     };
-    if (!coalescer?.isBusy()) {
+    if (!settingsWriteQueuesBusy(coalescer, hotkeyCoalescer)) {
       applyPane();
       return;
     }
     void (async () => {
       setBlocking(true);
       try {
-        await coalescer.flush();
+        await flushSettingsWriteQueues(coalescer, hotkeyCoalescer);
         applyPane();
       } finally {
         setBlocking(false);
