@@ -22,6 +22,7 @@ function snapshot(): BehaviorSettingsSnapshot {
     overlayPosition: { value: OVERLAY_POSITION.TOP_CENTER, source: 'built-in' as const },
     overlayPositionButton: { value: true, source: 'built-in' as const },
     overlaySettingsButton: { value: true, source: 'built-in' as const },
+    overlayHotkeyHints: { value: true, source: 'built-in' as const },
     overlayAutoHide: { value: true, source: 'built-in' as const },
     overlayHoverHold: { value: false, source: 'built-in' as const },
     overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },

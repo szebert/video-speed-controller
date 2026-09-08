@@ -24,6 +24,7 @@ export type OverlaySwitchFieldName =
   | 'overlayVisible'
   | 'overlayPositionButton'
   | 'overlaySettingsButton'
+  | 'overlayHotkeyHints'
   | 'overlayAutoHide'
   | 'overlayHoverHold';
 export type RecoverKind = 'pane' | 'sidebar' | 'pane-and-sidebar';

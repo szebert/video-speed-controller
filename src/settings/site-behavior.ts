@@ -867,6 +867,7 @@ export function canonicalizeBehaviorSettingChange(
     case 'overlayVisible':
     case 'overlayPositionButton':
     case 'overlaySettingsButton':
+    case 'overlayHotkeyHints':
     case 'overlayAutoHide':
     case 'overlayHoverHold':
       return typeof change.value === 'boolean' ? change : null;

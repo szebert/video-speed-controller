@@ -231,6 +231,33 @@ test('hiding overlay chrome buttons removes them from the badge', async ({
   await expect.poll(async () => overlayButtonLabels(site)).toEqual(['Slower', 'Faster']);
 });
 
+async function overlayHotkeyHints(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('osvsc-overlay')].flatMap((host) =>
+      [...(host.shadowRoot?.querySelectorAll('.hotkey-hint') ?? [])].map(
+        (hint) => hint.textContent ?? '',
+      ),
+    ),
+  );
+}
+
+test('hiding shortcut hints removes captions from the overlay', async ({
+  context,
+  extensionId,
+  serviceWorker,
+  site,
+}) => {
+  const popup = await openPopup(context, extensionId, site, serviceWorker);
+  await enableSiteAt(popup, site, 1.25);
+  await site.locator('#v1').hover();
+  await expect.poll(async () => overlayHotkeyHints(site)).toEqual(['[', ']', '[', ']', '[', ']']);
+
+  const options = await openOptions(context, extensionId, '127.0.0.1');
+  await clickOptionsSwitch(options, 'Show shortcut hints');
+  await site.locator('#v1').hover();
+  await expect.poll(async () => overlayHotkeyHints(site)).toEqual([]);
+});
+
 test('hiding the options page flushes a trailing speed change', async ({
   context,
   extensionId,

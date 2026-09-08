@@ -79,6 +79,7 @@ export const EditableResolvedBehaviorSchema = z.object({
   overlayPosition: resolvedSettingSchema(OverlayPositionSchema),
   overlayPositionButton: resolvedSettingSchema(z.boolean()),
   overlaySettingsButton: resolvedSettingSchema(z.boolean()),
+  overlayHotkeyHints: resolvedSettingSchema(z.boolean()),
   overlayAutoHide: resolvedSettingSchema(z.boolean()),
   overlayHoverHold: resolvedSettingSchema(z.boolean()),
   overlayAutoHideDelayMs: resolvedSettingSchema(z.number()),

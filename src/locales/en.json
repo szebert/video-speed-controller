@@ -68,6 +68,8 @@
   "overlayPositionButtonDescription": "Show a button on the overlay for changing its position.",
   "overlaySettingsButton": "Show settings button",
   "overlaySettingsButtonDescription": "Show a button on the overlay that opens settings.",
+  "overlayHotkeyHints": "Show shortcut hints",
+  "overlayHotkeyHintsDescription": "Show keyboard shortcuts on overlay buttons.",
   "overlayMove": "Move overlay",
   "positionTopLeft": "Top left",
   "positionTopCenter": "Top center",

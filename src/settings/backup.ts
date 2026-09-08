@@ -81,6 +81,7 @@ const BackupV1FieldSchema = z.strictObject({
   overlayPosition: BackupV1OverlayPositionSchema.optional(),
   overlayPositionButton: z.boolean().optional(),
   overlaySettingsButton: z.boolean().optional(),
+  overlayHotkeyHints: z.boolean().optional(),
   overlayAutoHide: z.boolean().optional(),
   overlayHoverHold: z.boolean().optional(),
   overlayAutoHideDelayMs: BackupV1NonNegativeIntegerSchema.optional(),

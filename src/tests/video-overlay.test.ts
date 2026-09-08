@@ -805,6 +805,24 @@ describe('VideoOverlay', () => {
     expect(overlay.speedReadout?.getAttribute('aria-keyshortcuts')).toBeNull();
     expect(overlay.speedReadout?.querySelector('.hotkey-hint')).toBeNull();
 
+    overlay.setBehavior(
+      tabBehavior(1.25, { overlayAutoHide: false, overlayHotkeyHints: false }),
+      builtInEffectiveHotkeys(),
+    );
+    expect(slower?.getAttribute('aria-keyshortcuts')).toBe('[');
+    expect(faster?.getAttribute('aria-keyshortcuts')).toBe(']');
+    expect(slower?.querySelector('.hotkey-hint')).toBeNull();
+    expect(faster?.querySelector('.hotkey-hint')).toBeNull();
+
+    overlay.setBehavior(
+      tabBehavior(1.25, { overlayAutoHide: false, overlayHotkeyHints: true }),
+      builtInEffectiveHotkeys(),
+    );
+    expect(slower?.querySelectorAll('.hotkey-hint')).toHaveLength(1);
+    expect(faster?.querySelectorAll('.hotkey-hint')).toHaveLength(1);
+    expect(slower?.querySelector('.hotkey-hint')?.textContent).toBe('[');
+    expect(faster?.querySelector('.hotkey-hint')?.textContent).toBe(']');
+
     overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }), {
       ...builtInEffectiveHotkeys(),
       decreaseSpeed: {

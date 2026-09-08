@@ -52,6 +52,7 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayVisible).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlayPositionButton).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlaySettingsButton).toEqual({ value: true, source: 'built-in' });
+    expect(resolved.overlayHotkeyHints).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlayAutoHide).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlayHoverHold).toEqual({ value: false, source: 'built-in' });
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
@@ -608,12 +609,14 @@ describe('forward-compatible V1 parsers', () => {
       parseBehaviorOverrides({
         overlayPositionButton: { kind: 'value', value: false, updatedAt: 1 },
         overlaySettingsButton: { kind: 'value', value: true, updatedAt: 2 },
-        overlayHoverHold: { kind: 'value', value: false, updatedAt: 3 },
+        overlayHotkeyHints: { kind: 'value', value: false, updatedAt: 3 },
+        overlayHoverHold: { kind: 'value', value: false, updatedAt: 4 },
       }),
     ).toEqual({
       overlayPositionButton: { kind: 'value', value: false, updatedAt: 1 },
       overlaySettingsButton: { kind: 'value', value: true, updatedAt: 2 },
-      overlayHoverHold: { kind: 'value', value: false, updatedAt: 3 },
+      overlayHotkeyHints: { kind: 'value', value: false, updatedAt: 3 },
+      overlayHoverHold: { kind: 'value', value: false, updatedAt: 4 },
     });
   });
 });
@@ -787,6 +790,13 @@ describe('behavior setting changes', () => {
         value: true,
       }),
     ).toEqual({ kind: 'value', field: 'overlaySettingsButton', value: true });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayHotkeyHints',
+        value: false,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayHotkeyHints', value: false });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',

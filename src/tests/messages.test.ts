@@ -137,6 +137,13 @@ describe('parseBackgroundInbound', () => {
       accepted({
         type: 'SET_BEHAVIOR_SETTING',
         scope: { kind: 'global' },
+        change: { kind: 'value', field: 'overlayHotkeyHints', value: false },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
         change: { kind: 'value', field: 'overlayHoverHold', value: false },
       }),
     ).toBe(true);

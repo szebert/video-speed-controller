@@ -190,8 +190,8 @@ export class OverlayView {
     this.speedReadout.textContent = formatSpeed(behavior.targetSpeed);
     this.slower.disabled = !canAdjustSpeed(behavior.targetSpeed, -1, policy);
     this.faster.disabled = !canAdjustSpeed(behavior.targetSpeed, 1, policy);
-    syncHotkeyHint(this.slower, state.hotkeys?.decreaseSpeed ?? null);
-    syncHotkeyHint(this.faster, state.hotkeys?.increaseSpeed ?? null);
+    syncHotkeyHint(this.slower, state.hotkeys?.decreaseSpeed ?? null, behavior.overlayHotkeyHints);
+    syncHotkeyHint(this.faster, state.hotkeys?.increaseSpeed ?? null, behavior.overlayHotkeyHints);
 
     if (behavior.overlayPositionButton) {
       if (!this.move.isConnected) {
@@ -319,13 +319,20 @@ function createAdjustIcon(document: Document, direction: -1 | 1): SVGSVGElement 
   return svg;
 }
 
-function syncHotkeyHint(button: HTMLButtonElement, binding: HotkeyBinding | null): void {
+function syncHotkeyHint(
+  button: HTMLButtonElement,
+  binding: HotkeyBinding | null,
+  showHint: boolean,
+): void {
   button.querySelector('.hotkey-hint')?.remove();
   if (!binding) {
     button.removeAttribute('aria-keyshortcuts');
     return;
   }
   button.setAttribute('aria-keyshortcuts', ariaKeyshortcutsFromBinding(binding));
+  if (!showHint) {
+    return;
+  }
   const hint = button.ownerDocument.createElement('kbd');
   hint.className = 'hotkey-hint';
   hint.setAttribute('aria-hidden', 'true');

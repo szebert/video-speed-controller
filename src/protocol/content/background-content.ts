@@ -17,6 +17,7 @@ export const AppliedTabBehaviorSchema = z.object({
   overlayPosition: OverlayPositionSchema,
   overlayPositionButton: z.boolean(),
   overlaySettingsButton: z.boolean(),
+  overlayHotkeyHints: z.boolean(),
   overlayAutoHide: z.boolean(),
   overlayHoverHold: z.boolean(),
   overlayAutoHideDelayMs: z.number(),

@@ -48,6 +48,7 @@ export const behaviorValueSchemas = {
   overlayPosition: StoredOverlayPositionSchema,
   overlayPositionButton: z.boolean(),
   overlaySettingsButton: z.boolean(),
+  overlayHotkeyHints: z.boolean(),
   overlayAutoHide: z.boolean(),
   overlayHoverHold: z.boolean(),
   overlayAutoHideDelayMs: StoredNonNegativeIntegerSchema,

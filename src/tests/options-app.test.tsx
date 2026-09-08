@@ -22,6 +22,7 @@ function builtInBehavior() {
     overlayPosition: { value: OVERLAY_POSITION.TOP_CENTER, source: 'built-in' as const },
     overlayPositionButton: { value: true, source: 'built-in' as const },
     overlaySettingsButton: { value: true, source: 'built-in' as const },
+    overlayHotkeyHints: { value: true, source: 'built-in' as const },
     overlayAutoHide: { value: true, source: 'built-in' as const },
     overlayHoverHold: { value: false, source: 'built-in' as const },
     overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
@@ -838,6 +839,7 @@ describe('Options page', () => {
       'overlay-visible',
       'overlay-position-button',
       'overlay-settings-button',
+      'overlay-hotkey-hints',
       'overlay-auto-hide',
       'overlay-hover-hold',
     ]) {
@@ -857,6 +859,7 @@ describe('Options page', () => {
       'overlay-visible',
       'overlay-position-button',
       'overlay-settings-button',
+      'overlay-hotkey-hints',
       'overlay-auto-hide',
       'overlay-hover-hold',
     ]) {
@@ -876,7 +879,7 @@ describe('Options page', () => {
     }
   });
 
-  it('groups position and settings overlay buttons on one wide-screen row', async () => {
+  it('groups position, settings, and shortcut-hint overlay switches on one wide-screen row', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     const positionButton = container
@@ -885,9 +888,13 @@ describe('Options page', () => {
     const settingsButton = container
       .querySelector('#overlay-settings-button')
       ?.closest('[data-slot="field"]');
+    const hotkeyHints = container
+      .querySelector('#overlay-hotkey-hints')
+      ?.closest('[data-slot="field"]');
     expect(positionButton?.parentElement).toBe(settingsButton?.parentElement);
+    expect(settingsButton?.parentElement).toBe(hotkeyHints?.parentElement);
     expect(positionButton?.parentElement?.getAttribute('data-slot')).toBe('field-group');
-    expect(positionButton?.parentElement?.className).toContain('@md/field-group:grid-cols-2');
+    expect(positionButton?.parentElement?.className).toContain('@xl/field-group:grid-cols-3');
     expect(positionButton?.parentElement).not.toBe(
       container.querySelector('#overlay-auto-hide')?.closest('[data-slot="field"]')?.parentElement,
     );
@@ -967,6 +974,34 @@ describe('Options page', () => {
     });
   });
 
+  it('sends overlayHotkeyHints false from the Show shortcut hints switch', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    const toggle = container.querySelector('#overlay-hotkey-hints');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(toggle);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlayHotkeyHints', value: false },
+    });
+  });
+
   it('sends overlaySettingsButton false from the Show settings button switch', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
@@ -1042,6 +1077,8 @@ describe('Options page', () => {
     const settingsButton = container.querySelector('#overlay-settings-button');
     expect((positionButton as HTMLInputElement).disabled).toBe(true);
     expect((settingsButton as HTMLInputElement).disabled).toBe(true);
+    const hotkeyHints = container.querySelector('#overlay-hotkey-hints');
+    expect((hotkeyHints as HTMLInputElement).disabled).toBe(true);
     const opacity = container.querySelector(
       '[data-slot="slider"][aria-label="Opacity"] input[type="range"]',
     );

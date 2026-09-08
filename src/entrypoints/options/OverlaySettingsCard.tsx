@@ -182,7 +182,7 @@ export function OverlaySettingsCard({
               ))}
             </RadioGroup>
           </Field>
-          <FieldGroup className="grid grid-cols-1 gap-4 @md/field-group:grid-cols-2">
+          <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-3">
             <OverlaySwitchField
               id="overlay-position-button"
               name="overlayPositionButton"
@@ -202,6 +202,18 @@ export function OverlaySettingsCard({
               label={t('overlaySettingsButton')}
               description={t('overlaySettingsButtonDescription')}
               setting={behavior.overlaySettingsButton}
+              selection={selection}
+              disabled={overlayLocked}
+              resetBadgeText={resetBadgeText}
+              onMutate={onMutate}
+            />
+            <OverlaySwitchField
+              id="overlay-hotkey-hints"
+              name="overlayHotkeyHints"
+              field="overlayHotkeyHints"
+              label={t('overlayHotkeyHints')}
+              description={t('overlayHotkeyHintsDescription')}
+              setting={behavior.overlayHotkeyHints}
               selection={selection}
               disabled={overlayLocked}
               resetBadgeText={resetBadgeText}
