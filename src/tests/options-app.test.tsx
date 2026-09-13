@@ -1384,6 +1384,11 @@ describe('Options page', () => {
     );
     expect(titles.indexOf('Enable on all sites')).toBeGreaterThanOrEqual(0);
     expect(titles.indexOf('Export')).toBeGreaterThan(titles.indexOf('Enable on all sites'));
+    const allSitesCard = allSitesSwitch()?.closest('[data-slot="card"]');
+    expect(allSitesCard?.className).toContain('shrink-0');
+    const main = container.querySelector('main');
+    expect(main?.className).toContain('overflow-y-auto');
+    expect(main?.className.split(/\s+/)).not.toContain('flex');
     expect(allSitesSwitch()?.checked).toBe(false);
     expect(allSitesSwitch()?.disabled).toBe(false);
     expect(permissionsContains).toHaveBeenCalledWith({

@@ -126,145 +126,147 @@ export function App() {
           }}
         />
 
-        <main className="flex min-h-0 min-w-0 flex-col gap-6 overflow-y-auto overscroll-y-contain p-6">
-          {selection.kind === 'settings' ? (
-            <>
-              <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-semibold">{t('settingsTitle')}</h2>
-                <p className="text-sm text-muted-foreground">{t('settingsPageDescription')}</p>
-              </div>
-              <AllSitesAccessCard />
-              <BackupSettingsCards
-                pending={pending}
-                onExport={() => {
-                  void exportBackup();
+        <main className="min-h-0 min-w-0 overflow-y-auto overscroll-y-contain p-6">
+          <div className="flex flex-col gap-6">
+            {selection.kind === 'settings' ? (
+              <>
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-lg font-semibold">{t('settingsTitle')}</h2>
+                  <p className="text-sm text-muted-foreground">{t('settingsPageDescription')}</p>
+                </div>
+                <AllSitesAccessCard />
+                <BackupSettingsCards
+                  pending={pending}
+                  onExport={() => {
+                    void exportBackup();
+                  }}
+                  onImport={importBackup}
+                />
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('resetAllSettings')}</CardTitle>
+                    <CardDescription>{t('restoreSettingsToDefaults')}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <AlertDialogTrigger>
+                      <Button type="button" variant="destructive" isDisabled={pending}>
+                        {t('resetAllSettings')}
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{t('resetAllSettings')}</AlertDialogTitle>
+                          <AlertDialogDescription>{t('resetAllConfirm')}</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onPress={() => {
+                              void resetAll();
+                            }}
+                          >
+                            {t('confirmReset')}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialog>
+                    </AlertDialogTrigger>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <form
+                className="flex flex-col gap-6"
+                onSubmit={(event) => {
+                  event.preventDefault();
                 }}
-                onImport={importBackup}
-              />
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t('resetAllSettings')}</CardTitle>
-                  <CardDescription>{t('restoreSettingsToDefaults')}</CardDescription>
-                </CardHeader>
-                <CardContent>
+              >
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-lg font-semibold">
+                    {selection.kind === 'site' ? selection.hostname : t('settingsDefaults')}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {selection.kind === 'site'
+                      ? t('settingsSiteDescription')
+                      : t('settingsDefaultsDescription')}
+                  </p>
+                </div>
+
+                <FieldGroup>
+                  <PlaybackSettingsCard
+                    selection={selection}
+                    behavior={behavior}
+                    speed={speed}
+                    drafts={drafts}
+                    pending={pending}
+                    policy={policy}
+                    sliderPreview={sliderPreview}
+                    onMutate={(change) => {
+                      void mutate(change);
+                    }}
+                    onAdjustSpeed={adjustDisplayedSpeed}
+                    onPreviewSlider={setSliderPreview}
+                    onDraftChange={updateDraft}
+                    onCommitDecimal={commitDecimal}
+                  />
+                  <OverlaySettingsCard
+                    selection={selection}
+                    behavior={behavior}
+                    drafts={drafts}
+                    delaySeconds={delaySeconds}
+                    pending={pending}
+                    overlayLocked={overlayLocked}
+                    delayLocked={delayLocked}
+                    resetBadgeText={resetBadgeText}
+                    onMutate={(change) => {
+                      void mutate(change);
+                    }}
+                    onDraftChange={(value) => {
+                      updateDraft('delay', value);
+                    }}
+                    onCommitDelay={commitDelay}
+                  />
+                  <HotkeysSettingsCard
+                    selection={selection}
+                    behavior={behavior}
+                    hotkeys={hotkeys}
+                    drafts={drafts}
+                    hotkeyFlashDelaySeconds={hotkeyFlashDelaySeconds}
+                    pending={pending}
+                    hotkeyFlashDelayLocked={hotkeyFlashDelayLocked}
+                    resetBadgeText={resetBadgeText}
+                    onMutate={mutateHotkey}
+                    onMutateBehavior={(change) => {
+                      void mutate(change);
+                    }}
+                    onDraftChange={(value) => {
+                      updateDraft('hotkeyFlashDelay', value);
+                    }}
+                    onCommitHotkeyFlashDelay={commitHotkeyFlashDelay}
+                  />
+                </FieldGroup>
+
+                {paneAction ? (
                   <AlertDialogTrigger>
-                    <Button type="button" variant="destructive" isDisabled={pending}>
-                      {t('resetAllSettings')}
+                    <Button type="button" variant={paneAction.variant} isDisabled={pending}>
+                      {paneAction.label}
                     </Button>
                     <AlertDialog>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>{t('resetAllSettings')}</AlertDialogTitle>
-                        <AlertDialogDescription>{t('resetAllConfirm')}</AlertDialogDescription>
+                        <AlertDialogTitle>{paneAction.label}</AlertDialogTitle>
+                        <AlertDialogDescription>{paneAction.description}</AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                        <AlertDialogAction
-                          variant="destructive"
-                          onPress={() => {
-                            void resetAll();
-                          }}
-                        >
-                          {t('confirmReset')}
+                        <AlertDialogAction variant="destructive" onPress={paneAction.onConfirm}>
+                          {paneAction.confirm}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialog>
                   </AlertDialogTrigger>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <form
-              className="flex flex-col gap-6"
-              onSubmit={(event) => {
-                event.preventDefault();
-              }}
-            >
-              <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-semibold">
-                  {selection.kind === 'site' ? selection.hostname : t('settingsDefaults')}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {selection.kind === 'site'
-                    ? t('settingsSiteDescription')
-                    : t('settingsDefaultsDescription')}
-                </p>
-              </div>
-
-              <FieldGroup>
-                <PlaybackSettingsCard
-                  selection={selection}
-                  behavior={behavior}
-                  speed={speed}
-                  drafts={drafts}
-                  pending={pending}
-                  policy={policy}
-                  sliderPreview={sliderPreview}
-                  onMutate={(change) => {
-                    void mutate(change);
-                  }}
-                  onAdjustSpeed={adjustDisplayedSpeed}
-                  onPreviewSlider={setSliderPreview}
-                  onDraftChange={updateDraft}
-                  onCommitDecimal={commitDecimal}
-                />
-                <OverlaySettingsCard
-                  selection={selection}
-                  behavior={behavior}
-                  drafts={drafts}
-                  delaySeconds={delaySeconds}
-                  pending={pending}
-                  overlayLocked={overlayLocked}
-                  delayLocked={delayLocked}
-                  resetBadgeText={resetBadgeText}
-                  onMutate={(change) => {
-                    void mutate(change);
-                  }}
-                  onDraftChange={(value) => {
-                    updateDraft('delay', value);
-                  }}
-                  onCommitDelay={commitDelay}
-                />
-                <HotkeysSettingsCard
-                  selection={selection}
-                  behavior={behavior}
-                  hotkeys={hotkeys}
-                  drafts={drafts}
-                  hotkeyFlashDelaySeconds={hotkeyFlashDelaySeconds}
-                  pending={pending}
-                  hotkeyFlashDelayLocked={hotkeyFlashDelayLocked}
-                  resetBadgeText={resetBadgeText}
-                  onMutate={mutateHotkey}
-                  onMutateBehavior={(change) => {
-                    void mutate(change);
-                  }}
-                  onDraftChange={(value) => {
-                    updateDraft('hotkeyFlashDelay', value);
-                  }}
-                  onCommitHotkeyFlashDelay={commitHotkeyFlashDelay}
-                />
-              </FieldGroup>
-
-              {paneAction ? (
-                <AlertDialogTrigger>
-                  <Button type="button" variant={paneAction.variant} isDisabled={pending}>
-                    {paneAction.label}
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{paneAction.label}</AlertDialogTitle>
-                      <AlertDialogDescription>{paneAction.description}</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                      <AlertDialogAction variant="destructive" onPress={paneAction.onConfirm}>
-                        {paneAction.confirm}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialog>
-                </AlertDialogTrigger>
-              ) : null}
-            </form>
-          )}
+                ) : null}
+              </form>
+            )}
+          </div>
         </main>
       </div>
     </div>
