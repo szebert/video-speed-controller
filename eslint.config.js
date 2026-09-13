@@ -38,6 +38,13 @@ export default tseslint.config(
     ...reactHooks.configs.flat.recommended,
   },
   {
+    files: ['src/public/**/*.js'],
+    languageOptions: {
+      globals: globals.browser,
+      sourceType: 'script',
+    },
+  },
+  {
     files: [
       'e2e/**/*.{ts,mjs}',
       'scripts/**/*.mjs',

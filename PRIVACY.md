@@ -5,6 +5,7 @@ Open Source Video Speed Controller does not collect personal information, create
 ## What stays on your devices
 
 - **Per-site playback speed intent** may be stored in `chrome.storage.sync` as `site:<hostname>` → `{ schemaVersion, speed }`. If Chrome Sync is enabled, that hostname and speed preference can follow your Google account to your other Chrome profiles. It is never sent to the developer.
+- **Theme preference** (`light` / `dark` / `system`) may be stored in `chrome.storage.sync`. The popup and Settings pages also keep a copy in extension-origin `localStorage` so the first paint can match before sync storage is read.
 - **Per-tab effective speed** is kept in session storage on this browser only.
 - **Site access** is Chrome’s host-permission state. The extension does not keep a separate enabled-sites list.
 

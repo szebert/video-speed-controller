@@ -15,6 +15,9 @@ export type ThemePreference = 'dark' | 'light' | 'system';
 
 export const DEFAULT_THEME: ThemePreference = 'system';
 
+/** Paint cache only. Keep in sync with `src/public/theme-boot.js`. */
+export const THEME_PREFERENCE_CACHE_KEY = 'osvsc:theme-preference';
+
 export type ThemeRecordV1 = {
   schemaVersion: 1;
   preference?: ThemePreference;
@@ -126,10 +129,39 @@ export function resolveColorScheme(
   return preference;
 }
 
+export function readCachedThemePreference(
+  storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage,
+): ThemePreference {
+  if (!storage) {
+    return DEFAULT_THEME;
+  }
+  try {
+    const value = storage.getItem(THEME_PREFERENCE_CACHE_KEY);
+    return isThemePreference(value) ? value : DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+}
+
+function cacheThemePreference(
+  preference: ThemePreference,
+  storage: Pick<Storage, 'setItem'> | undefined = globalThis.localStorage,
+): void {
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.setItem(THEME_PREFERENCE_CACHE_KEY, preference);
+  } catch {
+    // Private mode or quota must not block painting.
+  }
+}
+
 export function applyTheme(
   preference: ThemePreference,
   root: HTMLElement = document.documentElement,
 ): void {
+  cacheThemePreference(preference);
   const systemDark =
     typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
   const scheme = resolveColorScheme(preference, systemDark);
