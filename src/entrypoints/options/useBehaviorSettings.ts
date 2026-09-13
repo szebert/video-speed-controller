@@ -157,12 +157,21 @@ export function useBehaviorSettings() {
     (batch: SettingsWriteBatch<HotkeySettingChange>) => Promise<void>
   >(async () => {});
   const mutationLaneRef = useRef(createSerialMutationLane());
-  const [coalescer, setCoalescer] = useState<ReturnType<
-    typeof createSettingsWriteCoalescer<BehaviorSettingChange>
-  > | null>(null);
-  const [hotkeyCoalescer, setHotkeyCoalescer] = useState<ReturnType<
-    typeof createSettingsWriteCoalescer<HotkeySettingChange>
-  > | null>(null);
+  // send*Ref is only read when a queued batch drains, never during render.
+  /* eslint-disable react-hooks/refs -- queue send is post-commit */
+  const [coalescer] = useState(() =>
+    createSettingsWriteCoalescer<BehaviorSettingChange>({
+      key: (change) => change.field,
+      send: (batch) => sendBatchRef.current(batch),
+    }),
+  );
+  const [hotkeyCoalescer] = useState(() =>
+    createSettingsWriteCoalescer<HotkeySettingChange>({
+      key: (change) => change.action,
+      send: (batch) => sendHotkeyBatchRef.current(batch),
+    }),
+  );
+  /* eslint-enable react-hooks/refs */
 
   const snapshotHostname = selection.kind === 'site' ? selection.hostname : pageHostname;
   const persisted = snapshot ? currentBehavior(snapshot, selection) : null;
@@ -219,18 +228,8 @@ export function useBehaviorSettings() {
   }, [pageHostname]);
 
   useEffect(() => {
-    const queue = createSettingsWriteCoalescer<BehaviorSettingChange>({
-      key: (change) => change.field,
-      send: (batch) => sendBatchRef.current(batch),
-    });
-    const hotkeyQueue = createSettingsWriteCoalescer<HotkeySettingChange>({
-      key: (change) => change.action,
-      send: (batch) => sendHotkeyBatchRef.current(batch),
-    });
-    setCoalescer(queue);
-    setHotkeyCoalescer(hotkeyQueue);
     const flushHidden = (): void => {
-      void flushSettingsWriteQueues(queue, hotkeyQueue);
+      void flushSettingsWriteQueues(coalescer, hotkeyCoalescer);
     };
     const onVisibility = (): void => {
       if (document.visibilityState === 'hidden') {
@@ -243,7 +242,7 @@ export function useBehaviorSettings() {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', flushHidden);
     };
-  }, []);
+  }, [coalescer, hotkeyCoalescer]);
 
   function writeOptimistic(
     next: Partial<Record<EditableBehaviorField, BehaviorSettingChange>>,
@@ -451,7 +450,7 @@ export function useBehaviorSettings() {
     );
     writeOptimistic({ ...optimisticRef.current, [change.field]: change });
     clearActionFeedback();
-    coalescer?.enqueue(scope, change);
+    coalescer.enqueue(scope, change);
   }
 
   function mutateHotkey(change: HotkeySettingChange): void {
@@ -463,7 +462,7 @@ export function useBehaviorSettings() {
     }
     writeOptimisticHotkeys({ ...optimisticHotkeysRef.current, [change.action]: change });
     clearActionFeedback();
-    hotkeyCoalescer?.enqueue(scope, change);
+    hotkeyCoalescer.enqueue(scope, change);
   }
 
   function adjustDisplayedSpeed(direction: 1 | -1): void {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { Page, Worker } from '@playwright/test';
+import { OVERLAY_POSITION } from '../src/settings/site-behavior';
 import {
   clickOptionsSwitch,
   confirmAlertDialog,
@@ -33,6 +34,26 @@ async function overlayVisibility(page: Page): Promise<string> {
     .locator('osvsc-overlay')
     .first()
     .evaluate((host) => (host as HTMLElement).style.visibility);
+}
+
+async function appliedTabField<K extends 'hotkeyFlash' | 'hotkeyFlashDelayMs' | 'overlayPosition'>(
+  serviceWorker: Worker,
+  field: K,
+): Promise<Array<boolean | number>> {
+  return serviceWorker.evaluate(async (name) => {
+    const items = await chrome.storage.session.get(null);
+    const values: Array<boolean | number> = [];
+    for (const [key, value] of Object.entries(items)) {
+      if (!key.startsWith('tab:') || !value || typeof value !== 'object') {
+        continue;
+      }
+      const current = (value as Record<string, unknown>)[name];
+      if (typeof current === 'boolean' || typeof current === 'number') {
+        values.push(current);
+      }
+    }
+    return values;
+  }, field);
 }
 
 async function enableSiteAt(popup: Page, site: Page, speed: number): Promise<void> {
@@ -141,6 +162,9 @@ test('global position applies on a site with no position override', async ({
   const options = await openOptions(context, extensionId, '127.0.0.1');
   await options.getByRole('button', { name: 'Global defaults', exact: true }).click();
   await options.getByText('Bottom left', { exact: true }).click();
+  await expect
+    .poll(async () => appliedTabField(serviceWorker, 'overlayPosition'))
+    .toContain(OVERLAY_POSITION.BOTTOM_LEFT);
   await expect.poll(async () => overlayTransform(site)).toMatch(/translate\(0(px)?, -100%\)/);
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.25×', '1.25×', '1.25×']);
 });
@@ -334,26 +358,6 @@ async function pressIncreaseSpeedHotkey(page: Page): Promise<void> {
       }),
     );
   });
-}
-
-async function appliedTabField<K extends 'hotkeyFlash' | 'hotkeyFlashDelayMs'>(
-  serviceWorker: Worker,
-  field: K,
-): Promise<Array<boolean | number>> {
-  return serviceWorker.evaluate(async (name) => {
-    const items = await chrome.storage.session.get(null);
-    const values: Array<boolean | number> = [];
-    for (const [key, value] of Object.entries(items)) {
-      if (!key.startsWith('tab:') || !value || typeof value !== 'object') {
-        continue;
-      }
-      const current = (value as Record<string, unknown>)[name];
-      if (typeof current === 'boolean' || typeof current === 'number') {
-        values.push(current);
-      }
-    }
-    return values;
-  }, field);
 }
 
 test('hotkey flash shows the new speed then hides', async ({

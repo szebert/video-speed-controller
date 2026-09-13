@@ -356,11 +356,18 @@ test('Settings opens the current site options page', async ({ context, openExten
 
 test('theme toggle switches the popup color scheme', async ({ site, openExtensionPopup }) => {
   const popup = await openExtensionPopup();
-  await expect(popup.locator('html')).toHaveClass(/dark/);
+  const html = popup.locator('html');
+
+  await popup.getByRole('button', { name: 'Change theme' }).click();
+  await expect(popup.getByRole('menuitemradio', { name: 'System' })).toBeChecked();
+
+  await popup.getByRole('menuitemradio', { name: 'Dark' }).click();
+  await expect(html).toHaveClass(/dark/);
+
   await popup.getByRole('button', { name: 'Change theme' }).click();
   await popup.getByRole('menuitemradio', { name: 'Light' }).click();
-  await expect(popup.locator('html')).toHaveClass(/light/);
-  await expect(popup.locator('html')).not.toHaveClass(/dark/);
+  await expect(html).toHaveClass(/light/);
+  await expect(html).not.toHaveClass(/dark/);
 
   await popup.getByRole('button', { name: 'Faster' }).click();
   await expect(popup.getByText('1.25×')).toBeVisible();
