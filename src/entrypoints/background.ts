@@ -25,7 +25,6 @@ import { setTheme } from '../background/set-theme';
 import { reconcilePendingGlobalReplicas } from '../storage/behavior-defaults';
 import { reconcilePendingSiteReplicas } from '../storage/site-settings';
 import { enqueueTabMutation } from '../background/tab-mutation-queue';
-import { flushPersistedSiteSpeeds } from '../background/coalesce-site-speed';
 import { authorizeBackgroundInbound } from '../background/authorize-inbound';
 import { parseBackgroundInbound } from '../protocol/schemas/background-inbound';
 import { restrictStorageAccess } from '../storage/restrict-access';
@@ -67,11 +66,6 @@ export default defineBackground(() => {
   chrome.tabs.onRemoved.addListener((tabId) => {
     void enqueueTabMutation(tabId, () => clearTabState(tabId)).catch((error) => {
       console.warn('Failed to clear tab state', error);
-    });
-  });
-  chrome.runtime.onSuspend.addListener(() => {
-    void flushPersistedSiteSpeeds().catch((error) => {
-      console.warn('Failed to flush site speed', error);
     });
   });
 

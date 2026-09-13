@@ -35,6 +35,8 @@ describe('site speed persist coalescer', () => {
     await coalescer.persist('https://example.com/watch', 1.25);
     expect(persist).toHaveBeenCalledTimes(1);
     expect(persist).toHaveBeenCalledWith('https://example.com/watch', 1.25);
+    await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS);
+    expect(persist).toHaveBeenCalledTimes(1);
   });
 
   it('returns after apply-time persist and writes only the latest trailing speed', async () => {
@@ -50,7 +52,7 @@ describe('site speed persist coalescer', () => {
     expect(persist).toHaveBeenLastCalledWith('https://example.com/b', 1.75);
   });
 
-  it('keeps one persist in flight and then writes the latest pending value', async () => {
+  it('does not persist again just because the leading write finished', async () => {
     const first = deferred<void>();
     const persist = vi.fn(async () => {
       if (persist.mock.calls.length === 1) {
@@ -65,17 +67,40 @@ describe('site speed persist coalescer', () => {
     expect(persist).toHaveBeenCalledTimes(1);
     first.resolve();
     await Promise.all([leading, during]);
+    expect(persist).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS - 1);
+    expect(persist).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
     expect(persist).toHaveBeenCalledTimes(2);
     expect(persist).toHaveBeenLastCalledWith('https://example.com/watch', 1.5);
   });
 
-  it('does not collapse different hostnames', async () => {
+  it('persists once during a long continuous stream and once after it stops', async () => {
+    const persist = vi.fn(async () => {});
+    const coalescer = createSiteSpeedPersistCoalescer({ persist });
+    await coalescer.persist('https://example.com/watch', 1);
+    expect(persist).toHaveBeenCalledTimes(1);
+
+    let speed = 1;
+    for (let elapsed = 50; elapsed <= 3000; elapsed += 50) {
+      await vi.advanceTimersByTimeAsync(50);
+      speed = Number((1 + elapsed / 1000).toFixed(3));
+      await coalescer.persist('https://example.com/watch', speed);
+      expect(persist).toHaveBeenCalledTimes(1);
+    }
+
+    await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS - 1);
+    expect(persist).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenLastCalledWith('https://example.com/watch', speed);
+  });
+
+  it('leads independently for different hostnames', async () => {
     const persist = vi.fn(async () => {});
     const coalescer = createSiteSpeedPersistCoalescer({ persist });
     await coalescer.persist('https://www.youtube.com/watch', 1.25);
     await coalescer.persist('https://www.netflix.com/watch', 1.5);
-    expect(persist).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS);
     expect(persist).toHaveBeenCalledTimes(2);
     expect(persist.mock.calls).toEqual([
       ['https://www.youtube.com/watch', 1.25],

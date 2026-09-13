@@ -3,20 +3,33 @@
 import { persistSiteSpeed } from '../storage/site-settings';
 import { getSiteKey } from '../storage/site-key';
 
-/** Same quiet window as options settings writes. */
+/** Quiet window after the last change before a burst writes its final speed. */
 export const SITE_SPEED_PERSIST_COALESCE_MS = 400;
 
 type PersistSiteSpeed = (url: string, speed: number) => Promise<void>;
 
-type PendingSiteSpeed = {
+type SiteSpeed = {
   url: string;
   speed: number;
+};
+
+type HostBurst = {
+  latest: SiteSpeed;
+  lastWritten: SiteSpeed | null;
+  active: boolean;
+  inFlight: boolean;
+  write: Promise<void>;
+  timer: ReturnType<typeof setTimeout> | null;
 };
 
 export type SiteSpeedPersistCoalescer = {
   persist: (url: string, speed: number) => Promise<void>;
   flush: () => Promise<void>;
 };
+
+function speedsEqual(left: SiteSpeed | null, right: SiteSpeed): boolean {
+  return left != null && left.url === right.url && Object.is(left.speed, right.speed);
+}
 
 export function createSiteSpeedPersistCoalescer(
   deps: {
@@ -30,78 +43,66 @@ export function createSiteSpeedPersistCoalescer(
   const delayMs = deps.delayMs ?? SITE_SPEED_PERSIST_COALESCE_MS;
   const schedule = deps.setTimeoutFn ?? setTimeout;
   const cancel = deps.clearTimeoutFn ?? clearTimeout;
-  let inFlight = false;
-  let quiet = true;
-  let drainChain: Promise<void> = Promise.resolve();
-  let trailingTimer: ReturnType<typeof setTimeout> | null = null;
-  let quietTimer: ReturnType<typeof setTimeout> | null = null;
-  const pending = new Map<string, PendingSiteSpeed>();
+  const bursts = new Map<string, HostBurst>();
 
-  function clearTimer(timer: ReturnType<typeof setTimeout> | null): null {
-    if (timer != null) {
-      cancel(timer);
-    }
-    return null;
-  }
-
-  function markBusy(): void {
-    quiet = false;
-    quietTimer = clearTimer(quietTimer);
-  }
-
-  function scheduleQuiet(): void {
-    quietTimer = clearTimer(quietTimer);
-    quietTimer = schedule(() => {
-      quietTimer = null;
-      quiet = true;
-    }, delayMs);
-  }
-
-  function takeNext(): PendingSiteSpeed | null {
-    const first = pending.entries().next().value;
-    if (!first) {
-      return null;
-    }
-    pending.delete(first[0]);
-    return first[1];
-  }
-
-  async function drainUnlocked(): Promise<void> {
-    if (inFlight) {
-      return;
-    }
-    const next = takeNext();
-    if (!next) {
-      scheduleQuiet();
-      return;
-    }
-    markBusy();
-    inFlight = true;
-    try {
-      await persistFn(next.url, next.speed);
-    } finally {
-      inFlight = false;
-    }
-    if (pending.size > 0) {
-      await drainUnlocked();
-    } else {
-      scheduleQuiet();
+  function clearTimer(burst: HostBurst): void {
+    if (burst.timer != null) {
+      cancel(burst.timer);
+      burst.timer = null;
     }
   }
 
-  function drain(): Promise<void> {
-    drainChain = drainChain.then(drainUnlocked, drainUnlocked);
-    return drainChain;
-  }
-
-  function scheduleTrailing(): void {
-    trailingTimer = clearTimer(trailingTimer);
-    trailingTimer = schedule(() => {
-      trailingTimer = null;
-      void drain().catch((error: unknown) => {
+  function scheduleTrailing(burst: HostBurst, hostname: string): void {
+    clearTimer(burst);
+    burst.timer = schedule(() => {
+      burst.timer = null;
+      void finishBurst(burst, hostname).catch((error: unknown) => {
         console.warn('Failed to persist siteSpeed', error);
       });
     }, delayMs);
+  }
+
+  async function persistSnapshot(burst: HostBurst): Promise<void> {
+    const snapshot = burst.latest;
+    if (speedsEqual(burst.lastWritten, snapshot)) {
+      return;
+    }
+    burst.inFlight = true;
+    const write = (async () => {
+      try {
+        await persistFn(snapshot.url, snapshot.speed);
+        burst.lastWritten = snapshot;
+      } finally {
+        burst.inFlight = false;
+      }
+    })();
+    burst.write = write;
+    await write;
+  }
+
+  async function finishBurst(burst: HostBurst, hostname: string): Promise<void> {
+    if (burst.inFlight) {
+      try {
+        await burst.write;
+      } catch {
+        // The leading persist() caller already received this rejection.
+      }
+    }
+    if (burst.timer != null) {
+      return;
+    }
+    if (!speedsEqual(burst.lastWritten, burst.latest)) {
+      await persistSnapshot(burst);
+    }
+    if (burst.timer != null) {
+      return;
+    }
+    if (!speedsEqual(burst.lastWritten, burst.latest)) {
+      scheduleTrailing(burst, hostname);
+      return;
+    }
+    burst.active = false;
+    bursts.delete(hostname);
   }
 
   return {
@@ -111,23 +112,44 @@ export function createSiteSpeedPersistCoalescer(
         await persistFn(url, speed);
         return;
       }
-      pending.set(siteKey.hostname, { url, speed });
-      if (inFlight) {
+      const hostname = siteKey.hostname;
+      const next = { url, speed };
+      let burst = bursts.get(hostname);
+      if (!burst) {
+        burst = {
+          latest: next,
+          lastWritten: null,
+          active: false,
+          inFlight: false,
+          write: Promise.resolve(),
+          timer: null,
+        };
+        bursts.set(hostname, burst);
+      }
+      burst.latest = next;
+      if (burst.active) {
+        scheduleTrailing(burst, hostname);
         return;
       }
-      if (quiet) {
-        markBusy();
-        await drain();
-        return;
+      burst.active = true;
+      try {
+        await persistSnapshot(burst);
+      } catch (error) {
+        burst.active = false;
+        bursts.delete(hostname);
+        throw error;
       }
-      scheduleTrailing();
+      if (burst.timer == null) {
+        scheduleTrailing(burst, hostname);
+      }
     },
     async flush() {
-      trailingTimer = clearTimer(trailingTimer);
-      if (!inFlight && pending.size === 0) {
-        return;
-      }
-      await drain();
+      await Promise.all(
+        [...bursts.entries()].map(async ([hostname, burst]) => {
+          clearTimer(burst);
+          await finishBurst(burst, hostname);
+        }),
+      );
     },
   };
 }
