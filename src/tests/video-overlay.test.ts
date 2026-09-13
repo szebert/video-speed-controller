@@ -487,7 +487,7 @@ describe('VideoOverlay', () => {
     expect(root?.querySelector('[aria-label="Bottom right"]')).toBeNull();
   });
 
-  it('keeps the overlay visible after opening the position picker', () => {
+  it('hides after opening the position picker when hover hold is off', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -499,9 +499,13 @@ describe('VideoOverlay', () => {
     expect(move).toBeInstanceOf(HTMLButtonElement);
     (move as HTMLButtonElement).click();
     expect(root?.querySelector('.position-picker')).not.toBeNull();
+    root
+      ?.querySelector('.controls-shell')
+      ?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
     vi.advanceTimersByTime(200);
     overlay.layout();
-    expect(overlay.host.style.visibility).toBe('visible');
+    expect(overlay.host.style.visibility).toBe('hidden');
+    expect(root?.querySelector('.position-picker')).toBeNull();
   });
 
   it('keeps the same Faster button across hide and reveal', () => {

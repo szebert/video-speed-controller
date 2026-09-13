@@ -299,9 +299,7 @@ export class OverlayView {
     const visible = this.state?.visible === true;
     const interactive =
       visible &&
-      (this.pickerOpen ||
-        this.focusWithin ||
-        (this.pointerWithin && (behavior?.overlayHoverHold ?? false)));
+      (this.focusWithin || (this.pointerWithin && (behavior?.overlayHoverHold ?? false)));
     if (this.lastInteractive === interactive) {
       return;
     }
