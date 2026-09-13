@@ -42,6 +42,7 @@ describe('VideoOverlay', () => {
     document.body.removeAttribute('style');
     document.head.querySelectorAll('style').forEach((node) => node.remove());
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('renders 1.25× after it is controlled', () => {
@@ -893,6 +894,35 @@ describe('VideoOverlay', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).not.toBeNull();
     vi.advanceTimersByTime(1);
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('does not let a stale flash hide timer remove a newer pulse', () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => {});
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, hotkeyFlashDelayMs: 5_000 }));
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1.25,
+      targetSpeed: 1.5,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    const host = document.querySelector(HOTKEY_FLASH_HOST_TAG);
+    expect(host?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent).toBe(
+      '1.50× (+0.25×)',
+    );
+    vi.advanceTimersByTime(200);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBe(host);
+    expect(host?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent).toBe(
+      '1.50× (+0.25×)',
+    );
   });
 
   it('uses hotkey flash opacity and ignores overlay opacity', () => {

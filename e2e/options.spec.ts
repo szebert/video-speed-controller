@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import type { Page } from '@playwright/test';
+import type { Page, Worker } from '@playwright/test';
 import {
   clickOptionsSwitch,
   confirmAlertDialog,
@@ -336,6 +336,26 @@ async function pressIncreaseSpeedHotkey(page: Page): Promise<void> {
   });
 }
 
+async function appliedTabField<K extends 'hotkeyFlash' | 'hotkeyFlashDelayMs'>(
+  serviceWorker: Worker,
+  field: K,
+): Promise<Array<boolean | number>> {
+  return serviceWorker.evaluate(async (name) => {
+    const items = await chrome.storage.session.get(null);
+    const values: Array<boolean | number> = [];
+    for (const [key, value] of Object.entries(items)) {
+      if (!key.startsWith('tab:') || !value || typeof value !== 'object') {
+        continue;
+      }
+      const current = (value as Record<string, unknown>)[name];
+      if (typeof current === 'boolean' || typeof current === 'number') {
+        values.push(current);
+      }
+    }
+    return values;
+  }, field);
+}
+
 test('hotkey flash shows the new speed then hides', async ({
   context,
   extensionId,
@@ -349,6 +369,9 @@ test('hotkey flash shows the new speed then hides', async ({
   await delay.fill('1');
   await delay.press('Enter');
   await expect(delay).toHaveValue('1');
+  await expect
+    .poll(async () => appliedTabField(serviceWorker, 'hotkeyFlashDelayMs'))
+    .toContain(1000);
   await site.bringToFront();
   await pressIncreaseSpeedHotkey(site);
   await expect
@@ -359,6 +382,7 @@ test('hotkey flash shows the new speed then hides', async ({
   await options.bringToFront();
   await clickOptionsSwitch(options, 'Show hotkey flash');
   await expect(options.getByRole('switch', { name: 'Show hotkey flash' })).not.toBeChecked();
+  await expect.poll(async () => appliedTabField(serviceWorker, 'hotkeyFlash')).toContain(false);
   await site.bringToFront();
   await pressIncreaseSpeedHotkey(site);
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.75×', '1.75×', '1.75×']);
