@@ -223,7 +223,7 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('visible');
   });
 
-  it('hides after the auto-hide delay and restarts on a later controlled setBehavior', () => {
+  it('hides after the auto-hide delay and stays hidden on a later speed APPLY', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -235,6 +235,37 @@ describe('VideoOverlay', () => {
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
     overlay.setBehavior(tabBehavior(1.5, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+  });
+
+  it('does not restart the auto-hide timer when only target speed changes', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setControlled(true);
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.layout();
+    vi.advanceTimersByTime(150);
+    overlay.setBehavior(tabBehavior(1.5, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('visible');
+    vi.advanceTimersByTime(50);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+  });
+
+  it('reveals from a later overlay auto-hide APPLY', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setControlled(true);
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.layout();
+    vi.advanceTimersByTime(200);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
@@ -313,7 +344,7 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
   });
 
-  it('hides at the built-in 2000ms delay and reveals on video move or focus', () => {
+  it('hides at the built-in 2000ms delay and reveals on pointer activity, not video focus', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -327,13 +358,11 @@ describe('VideoOverlay', () => {
     vi.advanceTimersByTime(1);
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
-    overlay.notifyActivity();
-    overlay.layout();
-    expect(overlay.host.style.visibility).toBe('visible');
-    vi.advanceTimersByTime(2_000);
+    video.dispatchEvent(new Event('focus'));
+    video.dispatchEvent(new Event('focusin'));
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('hidden');
-    video.dispatchEvent(new Event('focus'));
+    overlay.notifyActivity();
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
@@ -894,6 +923,29 @@ describe('VideoOverlay', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).not.toBeNull();
     vi.advanceTimersByTime(1);
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('keeps the overlay hidden when a hotkey APPLY flashes', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    vi.advanceTimersByTime(200);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)?.shadowRoot?.textContent).toContain(
+      '1.25× (+0.25×)',
+    );
   });
 
   it('does not let a stale flash hide timer remove a newer pulse', () => {

@@ -44,10 +44,24 @@ function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('visibility', 'hidden', 'important');
 }
 
+function overlayHidePolicyChanged(
+  previous: AppliedTabBehavior | null,
+  next: AppliedTabBehavior,
+): boolean {
+  if (previous == null) {
+    return true;
+  }
+  return (
+    previous.overlayVisible !== next.overlayVisible ||
+    previous.overlayAutoHide !== next.overlayAutoHide ||
+    previous.overlayAutoHideDelayMs !== next.overlayAutoHideDelayMs ||
+    previous.overlayHoverHold !== next.overlayHoverHold
+  );
+}
+
 export class VideoOverlay {
   readonly host: HTMLElement;
   private readonly view: OverlayView;
-  private readonly videoAbort = new AbortController();
   private behavior: AppliedTabBehavior | null = null;
   private hotkeys: EffectiveHotkeyMap | null = null;
   private controlled = false;
@@ -92,10 +106,6 @@ export class VideoOverlay {
     });
     shadow.append(this.view.element);
     document.documentElement.append(this.host);
-
-    const signal = this.videoAbort.signal;
-    video.addEventListener('focus', this.onLocalFocus, { signal });
-    video.addEventListener('focusin', this.onLocalFocus, { signal });
   }
 
   get speedReadout(): HTMLElement | null {
@@ -103,6 +113,7 @@ export class VideoOverlay {
   }
 
   setBehavior(behavior: AppliedTabBehavior, hotkeys?: EffectiveHotkeyMap): void {
+    const previous = this.behavior;
     this.behavior = behavior;
     if (hotkeys) {
       this.hotkeys = hotkeys;
@@ -113,7 +124,7 @@ export class VideoOverlay {
       this.syncFlashOpacity();
     }
     this.syncView();
-    if (this.controlled) {
+    if (this.controlled && overlayHidePolicyChanged(previous, behavior)) {
       this.restartAutoHide();
     }
     this.requestLayout();
@@ -205,7 +216,6 @@ export class VideoOverlay {
   destroy(): void {
     this.clearHideTimer();
     this.invalidateFlash();
-    this.videoAbort.abort();
     this.view.destroy();
     this.host.remove();
   }
@@ -230,11 +240,6 @@ export class VideoOverlay {
       hotkeys: this.hotkeys,
     });
   }
-
-  private readonly onLocalFocus = (): void => {
-    this.notifyActivity();
-    this.requestLayout();
-  };
 
   private evaluateVisibility(measureRect: () => DOMRect): DOMRect | null {
     if (this.isCheapHidden()) {

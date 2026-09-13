@@ -373,10 +373,12 @@ test('hotkey flash shows the new speed then hides', async ({
     .poll(async () => appliedTabField(serviceWorker, 'hotkeyFlashDelayMs'))
     .toContain(1000);
   await site.bringToFront();
+  await expect.poll(async () => overlayVisibility(site), { timeout: 5_000 }).toBe('hidden');
   await pressIncreaseSpeedHotkey(site);
   await expect
     .poll(async () => hotkeyFlashCopy(site))
     .toEqual(['1.50× (+0.25×)]', '1.50× (+0.25×)]', '1.50× (+0.25×)]']);
+  expect(await overlayVisibility(site)).toBe('hidden');
   await expect.poll(async () => hotkeyFlashCopy(site)).toEqual([]);
 
   await options.bringToFront();
