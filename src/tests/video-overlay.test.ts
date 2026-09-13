@@ -367,6 +367,30 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('visible');
   });
 
+  it('hides after a pointer click on Faster even if the pointer stays over the overlay', () => {
+    vi.useFakeTimers();
+    const adjustSpeed = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), { adjustSpeed });
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const faster = overlay.host.shadowRoot?.querySelector('[aria-label="Faster"]');
+    const shell = overlay.host.shadowRoot?.querySelector('.controls-shell');
+    expect(faster).toBeInstanceOf(HTMLButtonElement);
+    expect(shell).toBeInstanceOf(HTMLElement);
+    (faster as HTMLButtonElement).focus();
+    faster?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    expect(adjustSpeed).toHaveBeenCalledWith(1, video);
+    expect(overlay.host.shadowRoot?.activeElement).not.toBe(faster);
+    shell?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }));
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('visible');
+    vi.advanceTimersByTime(200);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+  });
+
   it('restarts auto-hide when plus or minus is pressed', () => {
     vi.useFakeTimers();
     const adjustSpeed = vi.fn();

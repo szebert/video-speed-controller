@@ -13,35 +13,6 @@ async function overlayBadgeTexts(page: Page): Promise<string[]> {
   );
 }
 
-async function clickOverlayControl(page: Page, label: 'Faster' | 'Slower'): Promise<void> {
-  await expect
-    .poll(async () =>
-      page.evaluate((name) => {
-        for (const host of document.querySelectorAll('osvsc-overlay')) {
-          if (host.shadowRoot?.querySelector(`[aria-label="${name}"]`) instanceof HTMLElement) {
-            return true;
-          }
-        }
-        return false;
-      }, label),
-    )
-    .toBe(true);
-  await page.evaluate((name) => {
-    for (const host of document.querySelectorAll('osvsc-overlay')) {
-      const button = host.shadowRoot?.querySelector(`[aria-label="${name}"]`);
-      if (button instanceof HTMLElement) {
-        button.click();
-        return;
-      }
-    }
-    throw new Error(`Missing ${name} overlay control`);
-  }, label);
-}
-
-async function clickOverlayFaster(page: Page): Promise<void> {
-  await clickOverlayControl(page, 'Faster');
-}
-
 test('Enable is available on the fixture site and Faster applies to every video', async ({
   site,
   openExtensionPopup,
@@ -244,7 +215,7 @@ test('overlay auto-hides and returns when the pointer moves over a video', async
 }) => {
   const popup = await openExtensionPopup();
   await applyOverlayEngine(popup, site);
-  await clickOverlayFaster(site);
+  await clickVisibleOverlayControl(site, 'Faster');
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.25×', '1.25×', '1.25×']);
   await expect
     .poll(async () =>

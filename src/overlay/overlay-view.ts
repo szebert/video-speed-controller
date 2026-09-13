@@ -73,10 +73,11 @@ export class OverlayView {
     this.slower.append(createAdjustIcon(document, -1));
     this.slower.addEventListener(
       'click',
-      () => {
+      (event) => {
         if (!this.slower.disabled) {
           this.callbacks.onAdjust(-1);
         }
+        blurAfterPointerClick(event);
       },
       { signal: this.abort.signal },
     );
@@ -88,10 +89,11 @@ export class OverlayView {
     this.faster.append(createAdjustIcon(document, 1));
     this.faster.addEventListener(
       'click',
-      () => {
+      (event) => {
         if (!this.faster.disabled) {
           this.callbacks.onAdjust(1);
         }
+        blurAfterPointerClick(event);
       },
       { signal: this.abort.signal },
     );
@@ -100,9 +102,10 @@ export class OverlayView {
     this.settings.append(createSettingsIcon(document));
     this.settings.addEventListener(
       'click',
-      () => {
+      (event) => {
         this.setPickerOpen(false);
         this.callbacks.onOpenSettings();
+        blurAfterPointerClick(event);
       },
       { signal: this.abort.signal },
     );
