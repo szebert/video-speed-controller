@@ -548,6 +548,15 @@ describe('Options page', () => {
       expect(container.textContent).toContain(label);
     }
     const radios = [...container.querySelectorAll('label, [role="radio"], input[type="radio"]')];
+    const positionRadios = radios.filter((radio) =>
+      labels.includes(radio.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
+    );
+    expect(positionRadios).toHaveLength(9);
+    for (const radio of positionRadios) {
+      const icon = radio.querySelector('svg');
+      expect(icon).not.toBeNull();
+      expect(icon?.getAttribute('aria-hidden')).toBe('true');
+    }
     const bottomRight = radios.find((radio) => radio.textContent?.trim() === 'Bottom right');
     expect(bottomRight).toBeTruthy();
     await act(async () => {

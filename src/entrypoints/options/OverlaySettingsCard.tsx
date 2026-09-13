@@ -26,6 +26,7 @@ import {
   type EditableResolvedBehavior,
   type OverlayPosition,
 } from '../../settings/site-behavior';
+import { OverlayPositionIcon } from './OverlayPositionIcon';
 import { BehaviorSwitchField, InputGroupInheritReset } from './options-fields';
 import {
   ownsOverride,
@@ -170,12 +171,13 @@ export function OverlaySettingsCard({
                 <RadioField key={option.value} value={String(option.value)} className="contents">
                   <RadioButton
                     className={cn(
-                      'rounded-md border border-border px-2 py-2 text-center text-xs',
+                      'flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-center text-xs',
                       showsInherited(selection, behavior.overlayPosition.source)
                         ? 'data-selected:bg-muted data-selected:text-muted-foreground'
                         : 'data-selected:bg-accent',
                     )}
                   >
+                    <OverlayPositionIcon position={option.value} className="size-6 shrink-0" />
                     {t(option.labelKey)}
                   </RadioButton>
                 </RadioField>
