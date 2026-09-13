@@ -134,4 +134,25 @@ describe('site speed persist coalescer', () => {
     const coalescer = createSiteSpeedPersistCoalescer({ persist });
     await expect(coalescer.persist('https://example.com/watch', 1.25)).rejects.toThrow('quota');
   });
+
+  it('does not persist a stale speed after a failed leading write and a newer burst', async () => {
+    const first = deferred<void>();
+    const persist = vi.fn(async (_url: string, speed: number) => {
+      if (speed === 1.25) {
+        await first.promise;
+        throw new Error('quota');
+      }
+    });
+    const coalescer = createSiteSpeedPersistCoalescer({ persist });
+    const leading = coalescer.persist('https://example.com/a', 1.25);
+    await Promise.resolve();
+    await Promise.resolve();
+    void coalescer.persist('https://example.com/b', 1.5);
+    first.resolve();
+    await expect(leading).rejects.toThrow('quota');
+    await coalescer.persist('https://example.com/c', 1.75);
+    await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS);
+    await vi.runOnlyPendingTimersAsync();
+    expect(persist.mock.calls.map(([, speed]) => speed)).toEqual([1.25, 1.75]);
+  });
 });

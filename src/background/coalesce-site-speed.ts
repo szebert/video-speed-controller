@@ -14,6 +14,7 @@ type SiteSpeed = {
 };
 
 type HostBurst = {
+  revision: number;
   latest: SiteSpeed;
   lastWritten: SiteSpeed | null;
   active: boolean;
@@ -28,7 +29,7 @@ export type SiteSpeedPersistCoalescer = {
 };
 
 function speedsEqual(left: SiteSpeed | null, right: SiteSpeed): boolean {
-  return left != null && left.url === right.url && Object.is(left.speed, right.speed);
+  return left != null && Object.is(left.speed, right.speed);
 }
 
 export function createSiteSpeedPersistCoalescer(
@@ -45,6 +46,10 @@ export function createSiteSpeedPersistCoalescer(
   const cancel = deps.clearTimeoutFn ?? clearTimeout;
   const bursts = new Map<string, HostBurst>();
 
+  function isCurrent(burst: HostBurst, hostname: string): boolean {
+    return bursts.get(hostname) === burst;
+  }
+
   function clearTimer(burst: HostBurst): void {
     if (burst.timer != null) {
       cancel(burst.timer);
@@ -52,17 +57,31 @@ export function createSiteSpeedPersistCoalescer(
     }
   }
 
+  function discardBurst(burst: HostBurst, hostname: string): void {
+    clearTimer(burst);
+    burst.active = false;
+    if (isCurrent(burst, hostname)) {
+      bursts.delete(hostname);
+    }
+  }
+
   function scheduleTrailing(burst: HostBurst, hostname: string): void {
     clearTimer(burst);
     burst.timer = schedule(() => {
       burst.timer = null;
+      if (!isCurrent(burst, hostname)) {
+        return;
+      }
       void finishBurst(burst, hostname).catch((error: unknown) => {
         console.warn('Failed to persist siteSpeed', error);
       });
     }, delayMs);
   }
 
-  async function persistSnapshot(burst: HostBurst): Promise<void> {
+  async function persistSnapshot(burst: HostBurst, hostname: string): Promise<void> {
+    if (!isCurrent(burst, hostname)) {
+      return;
+    }
     const snapshot = burst.latest;
     if (speedsEqual(burst.lastWritten, snapshot)) {
       return;
@@ -71,6 +90,9 @@ export function createSiteSpeedPersistCoalescer(
     const write = (async () => {
       try {
         await persistFn(snapshot.url, snapshot.speed);
+        if (!isCurrent(burst, hostname)) {
+          return;
+        }
         burst.lastWritten = snapshot;
       } finally {
         burst.inFlight = false;
@@ -88,11 +110,17 @@ export function createSiteSpeedPersistCoalescer(
         // The leading persist() caller already received this rejection.
       }
     }
+    if (!isCurrent(burst, hostname)) {
+      return;
+    }
     if (burst.timer != null) {
       return;
     }
     if (!speedsEqual(burst.lastWritten, burst.latest)) {
-      await persistSnapshot(burst);
+      await persistSnapshot(burst, hostname);
+    }
+    if (!isCurrent(burst, hostname)) {
+      return;
     }
     if (burst.timer != null) {
       return;
@@ -101,8 +129,7 @@ export function createSiteSpeedPersistCoalescer(
       scheduleTrailing(burst, hostname);
       return;
     }
-    burst.active = false;
-    bursts.delete(hostname);
+    discardBurst(burst, hostname);
   }
 
   return {
@@ -117,6 +144,7 @@ export function createSiteSpeedPersistCoalescer(
       let burst = bursts.get(hostname);
       if (!burst) {
         burst = {
+          revision: 0,
           latest: next,
           lastWritten: null,
           active: false,
@@ -127,17 +155,23 @@ export function createSiteSpeedPersistCoalescer(
         bursts.set(hostname, burst);
       }
       burst.latest = next;
+      burst.revision += 1;
+      const revision = burst.revision;
       if (burst.active) {
         scheduleTrailing(burst, hostname);
         return;
       }
       burst.active = true;
       try {
-        await persistSnapshot(burst);
+        await persistSnapshot(burst, hostname);
       } catch (error) {
-        burst.active = false;
-        bursts.delete(hostname);
+        if (isCurrent(burst, hostname) && burst.revision === revision) {
+          discardBurst(burst, hostname);
+        }
         throw error;
+      }
+      if (!isCurrent(burst, hostname)) {
+        return;
       }
       if (burst.timer == null) {
         scheduleTrailing(burst, hostname);
