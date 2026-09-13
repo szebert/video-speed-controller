@@ -15,7 +15,7 @@ function flashCardProps() {
   return {
     behavior: resolveSiteBehavior(),
     drafts: {},
-    hotkeyFlashDelaySeconds: '0.3',
+    hotkeyFlashDelaySeconds: '0.75',
     hotkeyFlashDelayLocked: false,
     onMutateBehavior() {},
     onDraftChange() {},

@@ -82,7 +82,7 @@ export const BEHAVIOR_FIELDS = {
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
   hotkeyFlashDelayMs: {
-    default: 300,
+    default: 750,
     category: 'hotkeys',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },

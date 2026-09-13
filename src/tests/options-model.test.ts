@@ -28,7 +28,7 @@ function snapshot(): BehaviorSettingsSnapshot {
     overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
     overlayOpacity: { value: 70, source: 'built-in' as const },
     hotkeyFlash: { value: true, source: 'built-in' as const },
-    hotkeyFlashDelayMs: { value: 300, source: 'built-in' as const },
+    hotkeyFlashDelayMs: { value: 750, source: 'built-in' as const },
     hotkeyFlashOpacity: { value: 70, source: 'built-in' as const },
   };
   const hotkeys = resolveSiteBehavior().hotkeys;

@@ -754,7 +754,7 @@ export function useBehaviorSettings() {
   const delaySeconds = behavior ? String(behavior.overlayAutoHideDelayMs.value / 1000) : '2';
   const hotkeyFlashDelaySeconds = behavior
     ? String(behavior.hotkeyFlashDelayMs.value / 1000)
-    : '0.3';
+    : '0.75';
   const policy = behavior ? speedPolicyFromResolved(behavior) : undefined;
   const overlayLocked = blocking || !overlayEnabled;
   const delayLocked = overlayLocked || !(behavior?.overlayAutoHide.value ?? true);

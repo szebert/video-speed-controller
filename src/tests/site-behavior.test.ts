@@ -62,7 +62,7 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
     expect(resolved.overlayOpacity).toEqual({ value: 70, source: 'built-in' });
     expect(resolved.hotkeyFlash).toEqual({ value: true, source: 'built-in' });
-    expect(resolved.hotkeyFlashDelayMs).toEqual({ value: 300, source: 'built-in' });
+    expect(resolved.hotkeyFlashDelayMs).toEqual({ value: 750, source: 'built-in' });
     expect(resolved.hotkeyFlashOpacity).toEqual({ value: 70, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
     expect(resolved.hotkeys).toEqual({

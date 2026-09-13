@@ -57,7 +57,7 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayOpacity).toBe(70);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlash).toBe(true);
-    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashDelayMs).toBe(300);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashDelayMs).toBe(750);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashOpacity).toBe(70);
   });
 
