@@ -10,6 +10,10 @@ import {
 } from '../core/applied-tab-behavior';
 import {
   BUILT_IN_SITE_BEHAVIOR,
+  HOTKEY_FLASH_DELAY_MS_MAX,
+  HOTKEY_FLASH_DELAY_MS_MIN,
+  HOTKEY_FLASH_OPACITY_MAX,
+  HOTKEY_FLASH_OPACITY_MIN,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
@@ -52,6 +56,9 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.overlayHoverHold).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayOpacity).toBe(70);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlash).toBe(true);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashDelayMs).toBe(300);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashOpacity).toBe(70);
   });
 
   it('clamps applied auto-hide delay to 100ms–5min', () => {
@@ -65,6 +72,16 @@ describe('applied tab behavior', () => {
     ).toBe(OVERLAY_AUTO_HIDE_DELAY_MS_MAX);
   });
 
+  it('clamps applied hotkey flash delay to 100ms–5s', () => {
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyFlashDelayMs: 0 }).hotkeyFlashDelayMs,
+    ).toBe(HOTKEY_FLASH_DELAY_MS_MIN);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyFlashDelayMs: 99_000 })
+        .hotkeyFlashDelayMs,
+    ).toBe(HOTKEY_FLASH_DELAY_MS_MAX);
+  });
+
   it('clamps applied overlay opacity to 1–100', () => {
     expect(
       toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayOpacity: 0 }).overlayOpacity,
@@ -72,6 +89,16 @@ describe('applied tab behavior', () => {
     expect(
       toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayOpacity: 150 }).overlayOpacity,
     ).toBe(OVERLAY_OPACITY_MAX);
+  });
+
+  it('clamps applied hotkey flash opacity to 1–100', () => {
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyFlashOpacity: 0 }).hotkeyFlashOpacity,
+    ).toBe(HOTKEY_FLASH_OPACITY_MIN);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyFlashOpacity: 150 })
+        .hotkeyFlashOpacity,
+    ).toBe(HOTKEY_FLASH_OPACITY_MAX);
   });
 
   it('rejects incomplete or invalid runtime records', () => {

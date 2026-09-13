@@ -69,6 +69,27 @@ export function canonicalizeOverlayOpacity(value: number): number {
   return Math.min(OVERLAY_OPACITY_MAX, Math.max(OVERLAY_OPACITY_MIN, Math.round(value)));
 }
 
+/** Shortest hotkey flash auto-hide delay the product accepts (0.1s). */
+export const HOTKEY_FLASH_DELAY_MS_MIN = 100;
+/** Longest hotkey flash auto-hide delay the product accepts (5s). */
+export const HOTKEY_FLASH_DELAY_MS_MAX = 5000;
+
+export function canonicalizeHotkeyFlashDelayMs(value: number): number {
+  return Math.min(
+    HOTKEY_FLASH_DELAY_MS_MAX,
+    Math.max(HOTKEY_FLASH_DELAY_MS_MIN, Math.round(value)),
+  );
+}
+
+/** Faintest hotkey flash opacity the product accepts (nearly invisible). */
+export const HOTKEY_FLASH_OPACITY_MIN = 1;
+/** Solid hotkey flash opacity the product accepts (no fade). */
+export const HOTKEY_FLASH_OPACITY_MAX = 100;
+
+export function canonicalizeHotkeyFlashOpacity(value: number): number {
+  return Math.min(HOTKEY_FLASH_OPACITY_MAX, Math.max(HOTKEY_FLASH_OPACITY_MIN, Math.round(value)));
+}
+
 export const OVERLAY_POSITION = {
   TOP_LEFT: 0,
   TOP_CENTER: 1,
@@ -397,6 +418,18 @@ function clampResolvedOverlayOpacity(setting: ResolvedSetting<number>): Resolved
   return value === setting.value ? setting : { ...setting, value };
 }
 
+function clampResolvedHotkeyFlashDelay(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeHotkeyFlashDelayMs(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
+function clampResolvedHotkeyFlashOpacity(
+  setting: ResolvedSetting<number>,
+): ResolvedSetting<number> {
+  const value = canonicalizeHotkeyFlashOpacity(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
 export function resolveSiteBehavior(
   globalOverrides: BehaviorOverrides = {},
   siteOverrides: BehaviorOverrides = {},
@@ -429,6 +462,8 @@ export function resolveSiteBehavior(
     resolved.overlayAutoHideDelayMs,
   );
   resolved.overlayOpacity = clampResolvedOverlayOpacity(resolved.overlayOpacity);
+  resolved.hotkeyFlashDelayMs = clampResolvedHotkeyFlashDelay(resolved.hotkeyFlashDelayMs);
+  resolved.hotkeyFlashOpacity = clampResolvedHotkeyFlashOpacity(resolved.hotkeyFlashOpacity);
   return resolved;
 }
 
@@ -862,6 +897,24 @@ export function canonicalizeBehaviorSettingChange(
         field: 'overlayOpacity',
         value: canonicalizeOverlayOpacity(change.value),
       };
+    case 'hotkeyFlashDelayMs':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'hotkeyFlashDelayMs',
+        value: canonicalizeHotkeyFlashDelayMs(change.value),
+      };
+    case 'hotkeyFlashOpacity':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'hotkeyFlashOpacity',
+        value: canonicalizeHotkeyFlashOpacity(change.value),
+      };
     case 'overlayPosition':
       return isOverlayPosition(change.value) ? change : null;
     case 'overlayVisible':
@@ -870,6 +923,7 @@ export function canonicalizeBehaviorSettingChange(
     case 'overlayHotkeyHints':
     case 'overlayAutoHide':
     case 'overlayHoverHold':
+    case 'hotkeyFlash':
       return typeof change.value === 'boolean' ? change : null;
     default:
       return assertNever(change);

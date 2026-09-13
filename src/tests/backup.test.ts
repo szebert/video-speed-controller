@@ -218,6 +218,61 @@ describe('backup format', () => {
     });
   });
 
+  it('accepts additive V1 hotkey flash fields and clamps the delay', () => {
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { hotkeyFlash: false, hotkeyFlashDelayMs: 0 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: {
+        formatVersion: 1,
+        global: { hotkeyFlash: false, hotkeyFlashDelayMs: 100 },
+        sites: {},
+      },
+    });
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { hotkeyFlashDelayMs: 99_000 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { hotkeyFlashDelayMs: 5000 }, sites: {} },
+    });
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { hotkeyFlashOpacity: 0 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { hotkeyFlashOpacity: 1 }, sites: {} },
+    });
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { hotkeyFlashOpacity: 150 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { hotkeyFlashOpacity: 100 }, sites: {} },
+    });
+  });
+
   it('accepts additive V1 overlayOpacity and clamps it', () => {
     expect(
       parseBackupText(

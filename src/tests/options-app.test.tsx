@@ -27,6 +27,9 @@ function builtInBehavior() {
     overlayHoverHold: { value: false, source: 'built-in' as const },
     overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
     overlayOpacity: { value: 70, source: 'built-in' as const },
+    hotkeyFlash: { value: true, source: 'built-in' as const },
+    hotkeyFlashDelayMs: { value: 300, source: 'built-in' as const },
+    hotkeyFlashOpacity: { value: 70, source: 'built-in' as const },
   };
 }
 
@@ -363,7 +366,14 @@ describe('Options page', () => {
     expect(container.querySelector('[aria-label="Reset: Speed step"]')).toBeNull();
     expect(container.querySelector('[aria-label="Reset: Maximum speed"]')).toBeNull();
     expect(container.querySelector('[aria-label="Reset: Auto-hide delay"]')).toBeNull();
-    for (const id of ['speed-min', 'speed-tick', 'speed-max', 'overlay-auto-hide-delay']) {
+    expect(container.querySelector('[aria-label="Reset: Flash auto-hide delay"]')).toBeNull();
+    for (const id of [
+      'speed-min',
+      'speed-tick',
+      'speed-max',
+      'overlay-auto-hide-delay',
+      'hotkey-flash-delay',
+    ]) {
       expect(container.querySelector(`#${id}`)?.classList.contains('text-muted-foreground')).toBe(
         true,
       );
@@ -910,7 +920,13 @@ describe('Options page', () => {
   it('places input descriptions under their input groups', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
-    for (const id of ['speed-min', 'speed-tick', 'speed-max', 'overlay-auto-hide-delay']) {
+    for (const id of [
+      'speed-min',
+      'speed-tick',
+      'speed-max',
+      'overlay-auto-hide-delay',
+      'hotkey-flash-delay',
+    ]) {
       const input = container.querySelector(`#${id}`);
       const group = input?.closest('[data-slot="input-group"]');
       expect(group?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
@@ -1009,6 +1025,128 @@ describe('Options page', () => {
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
       change: { kind: 'value', field: 'overlayHoverHold', value: true },
+    });
+  });
+
+  it('sends hotkeyFlash false from the Show hotkey flash switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const toggle = container.querySelector('#hotkey-flash');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(toggle);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyFlash', value: false },
+    });
+  });
+
+  it('clamps hotkey flash delay below 0.1 seconds to 100 ms', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const input = container.querySelector('#hotkey-flash-delay');
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      setInputValue(input, '0');
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      input.blur();
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyFlashDelayMs', value: 100 },
+    });
+  });
+
+  it('clamps hotkey flash delay above 5 seconds to 5000 ms', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const input = container.querySelector('#hotkey-flash-delay');
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      setInputValue(input, '99');
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      input.blur();
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyFlashDelayMs', value: 5000 },
+    });
+  });
+
+  it('disables flash delay when Show hotkey flash is off', async () => {
+    const hidden = snapshot();
+    hidden.global.hotkeyFlash = { value: false, source: 'global' };
+    sendMessage.mockImplementation(loadReply(hidden));
+    await renderApp();
+    const delay = container.querySelector('#hotkey-flash-delay');
+    expect(delay).toBeInstanceOf(HTMLInputElement);
+    expect((delay as HTMLInputElement).disabled).toBe(true);
+    const toggle = container.querySelector('#hotkey-flash');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    expect((toggle as HTMLInputElement).disabled).toBe(false);
+    const flashOpacity = container.querySelector(
+      '[data-slot="slider"][aria-label="Flash opacity"] input[type="range"]',
+    );
+    expect(flashOpacity).toBeInstanceOf(HTMLInputElement);
+    expect((flashOpacity as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('sends hotkey flash opacity from the slider', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Flash opacity"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyFlashOpacity', value: 69 },
+    });
+  });
+
+  it('inherits a global flash opacity override from the Reset badge', async () => {
+    const state = snapshot();
+    state.global.hotkeyFlashOpacity = { value: 40, source: 'global' };
+    sendMessage.mockImplementation(loadReply(state));
+    await renderApp();
+    expect(container.textContent).toContain('40%');
+    const { button, root } = resetBadge(container, 'Reset: Flash opacity');
+    expect(button).toBeTruthy();
+    expect(root?.textContent).toContain('Custom');
+    expect(root?.hasAttribute('data-active')).toBe(true);
+    await act(async () => {
+      click(button);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'inherit', field: 'hotkeyFlashOpacity' },
     });
   });
 
@@ -1117,6 +1255,17 @@ describe('Options page', () => {
     expect((settingsButton as HTMLInputElement).disabled).toBe(true);
     const hotkeyHints = container.querySelector('#overlay-hotkey-hints');
     expect((hotkeyHints as HTMLInputElement).disabled).toBe(true);
+    const hotkeyFlash = container.querySelector('#hotkey-flash');
+    expect(hotkeyFlash).toBeInstanceOf(HTMLInputElement);
+    expect((hotkeyFlash as HTMLInputElement).disabled).toBe(false);
+    const hotkeyFlashDelay = container.querySelector('#hotkey-flash-delay');
+    expect(hotkeyFlashDelay).toBeInstanceOf(HTMLInputElement);
+    expect((hotkeyFlashDelay as HTMLInputElement).disabled).toBe(false);
+    const flashOpacity = container.querySelector(
+      '[data-slot="slider"][aria-label="Flash opacity"] input[type="range"]',
+    );
+    expect(flashOpacity).toBeInstanceOf(HTMLInputElement);
+    expect((flashOpacity as HTMLInputElement).disabled).toBe(false);
     const opacity = container.querySelector(
       '[data-slot="slider"][aria-label="Opacity"] input[type="range"]',
     );

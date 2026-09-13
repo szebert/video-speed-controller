@@ -22,6 +22,9 @@ export const AppliedTabBehaviorSchema = z.object({
   overlayHoverHold: z.boolean(),
   overlayAutoHideDelayMs: z.number(),
   overlayOpacity: z.number(),
+  hotkeyFlash: z.boolean(),
+  hotkeyFlashDelayMs: z.number(),
+  hotkeyFlashOpacity: z.number(),
 });
 
 true satisfies Equal<z.infer<typeof AppliedTabBehaviorSchema>, AppliedTabBehavior>;

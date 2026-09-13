@@ -26,7 +26,7 @@ import {
   type EditableResolvedBehavior,
   type OverlayPosition,
 } from '../../settings/site-behavior';
-import { InputGroupInheritReset, OverlaySwitchField } from './options-fields';
+import { BehaviorSwitchField, InputGroupInheritReset } from './options-fields';
 import {
   ownsOverride,
   POSITION_OPTIONS,
@@ -69,7 +69,7 @@ export function OverlaySettingsCard({
       <CardContent>
         <FieldSet>
           <FieldLegend className="sr-only">{t('settingsOverlay')}</FieldLegend>
-          <OverlaySwitchField
+          <BehaviorSwitchField
             id="overlay-visible"
             name="overlayVisible"
             field="overlayVisible"
@@ -183,7 +183,7 @@ export function OverlaySettingsCard({
             </RadioGroup>
           </Field>
           <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-3">
-            <OverlaySwitchField
+            <BehaviorSwitchField
               id="overlay-position-button"
               name="overlayPositionButton"
               field="overlayPositionButton"
@@ -195,7 +195,7 @@ export function OverlaySettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutate}
             />
-            <OverlaySwitchField
+            <BehaviorSwitchField
               id="overlay-settings-button"
               name="overlaySettingsButton"
               field="overlaySettingsButton"
@@ -207,7 +207,7 @@ export function OverlaySettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutate}
             />
-            <OverlaySwitchField
+            <BehaviorSwitchField
               id="overlay-hotkey-hints"
               name="overlayHotkeyHints"
               field="overlayHotkeyHints"
@@ -221,7 +221,7 @@ export function OverlaySettingsCard({
             />
           </FieldGroup>
           <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-3">
-            <OverlaySwitchField
+            <BehaviorSwitchField
               id="overlay-auto-hide"
               name="overlayAutoHide"
               field="overlayAutoHide"
@@ -280,7 +280,7 @@ export function OverlaySettingsCard({
                 {t('overlayAutoHideDelayDescription')}
               </FieldDescription>
             </Field>
-            <OverlaySwitchField
+            <BehaviorSwitchField
               id="overlay-hover-hold"
               name="overlayHoverHold"
               field="overlayHoverHold"

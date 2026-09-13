@@ -8,6 +8,8 @@ import {
 } from '../settings/behavior-fields';
 import {
   BUILT_IN_SITE_BEHAVIOR,
+  canonicalizeHotkeyFlashDelayMs,
+  canonicalizeHotkeyFlashOpacity,
   canonicalizeOverlayAutoHideDelayMs,
   canonicalizeOverlayOpacity,
   isOverlayPosition,
@@ -51,6 +53,8 @@ export function toAppliedTabBehavior(
     targetSpeed,
     overlayAutoHideDelayMs: canonicalizeOverlayAutoHideDelayMs(fields.overlayAutoHideDelayMs),
     overlayOpacity: canonicalizeOverlayOpacity(fields.overlayOpacity),
+    hotkeyFlashDelayMs: canonicalizeHotkeyFlashDelayMs(fields.hotkeyFlashDelayMs),
+    hotkeyFlashOpacity: canonicalizeHotkeyFlashOpacity(fields.hotkeyFlashOpacity),
   };
 }
 

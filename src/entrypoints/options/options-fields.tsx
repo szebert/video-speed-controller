@@ -10,11 +10,11 @@ import {
   ownsOverride,
   resetFieldLabel,
   showsInherited,
-  type OverlaySwitchFieldName,
+  type BooleanBehaviorFieldName,
   type Selection,
 } from './options-model';
 
-export function OverlaySwitchField({
+export function BehaviorSwitchField({
   id,
   name,
   field,
@@ -28,7 +28,7 @@ export function OverlaySwitchField({
 }: {
   id: string;
   name: string;
-  field: OverlaySwitchFieldName;
+  field: BooleanBehaviorFieldName;
   label: string;
   description: string;
   setting: { value: boolean; source: SettingSource };

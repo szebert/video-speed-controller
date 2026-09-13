@@ -86,6 +86,9 @@ const BackupV1FieldSchema = z.strictObject({
   overlayHoverHold: z.boolean().optional(),
   overlayAutoHideDelayMs: BackupV1NonNegativeIntegerSchema.optional(),
   overlayOpacity: BackupV1NonNegativeIntegerSchema.optional(),
+  hotkeyFlash: z.boolean().optional(),
+  hotkeyFlashDelayMs: BackupV1NonNegativeIntegerSchema.optional(),
+  hotkeyFlashOpacity: BackupV1NonNegativeIntegerSchema.optional(),
 });
 
 // Adding an editable field must also add an optional V1 field.

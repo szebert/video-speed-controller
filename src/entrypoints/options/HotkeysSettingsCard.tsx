@@ -8,22 +8,40 @@ import {
   FieldContent,
   FieldDescription,
   FieldError,
+  FieldGroup,
   FieldWarning,
   FieldLabel,
   FieldLegend,
   FieldSet,
 } from '@/components/ui/field';
+import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
+import { Slider } from '@/components/ui/slider';
 import { readKeyboardLayoutMap } from '../../core/hotkey-format';
 import { t, type MessageKey } from '@/i18n/t';
+import { cn } from '@/lib/utils';
 import type { HotkeyBinding } from '../../settings/hotkey-binding';
 import {
+  canonicalizeHotkeyFlashOpacity,
   findSameSourceHotkeyConflict,
   findShadowedHotkey,
+  HOTKEY_FLASH_DELAY_MS_MAX,
+  HOTKEY_FLASH_DELAY_MS_MIN,
+  HOTKEY_FLASH_OPACITY_MAX,
+  HOTKEY_FLASH_OPACITY_MIN,
+  type BehaviorSettingChange,
+  type EditableResolvedBehavior,
   type HotkeySettingChange,
   type ResolvedHotkeyMap,
   type SiteHotkeyAction,
 } from '../../settings/site-behavior';
-import { ownsOverride, resetFieldLabel, showsInherited, type Selection } from './options-model';
+import { BehaviorSwitchField, InputGroupInheritReset } from './options-fields';
+import {
+  ownsOverride,
+  resetFieldLabel,
+  showsInherited,
+  type DraftKey,
+  type Selection,
+} from './options-model';
 import { ShortcutRecorder } from './ShortcutRecorder';
 
 const HOTKEY_ROWS = [
@@ -64,16 +82,30 @@ export function hotkeyShadowedMessage(action: SiteHotkeyAction): string {
 
 export function HotkeysSettingsCard({
   selection,
+  behavior,
   hotkeys,
+  drafts,
+  hotkeyFlashDelaySeconds,
   pending,
+  hotkeyFlashDelayLocked,
   resetBadgeText,
   onMutate,
+  onMutateBehavior,
+  onDraftChange,
+  onCommitHotkeyFlashDelay,
 }: {
   selection: Selection;
+  behavior: EditableResolvedBehavior;
   hotkeys: ResolvedHotkeyMap;
+  drafts: Partial<Record<DraftKey, string>>;
+  hotkeyFlashDelaySeconds: string;
   pending: boolean;
+  hotkeyFlashDelayLocked: boolean;
   resetBadgeText: string;
   onMutate: (change: HotkeySettingChange) => void;
+  onMutateBehavior: (change: BehaviorSettingChange) => void;
+  onDraftChange: (value: string) => void;
+  onCommitHotkeyFlashDelay: () => void;
 }) {
   const [layoutMap, setLayoutMap] = useState<ReadonlyMap<string, string> | undefined>();
   const [recordingAction, setRecordingAction] = useState<SiteHotkeyAction | null>(null);
@@ -130,6 +162,119 @@ export function HotkeysSettingsCard({
       <CardContent>
         <FieldSet>
           <FieldLegend className="sr-only">{t('settingsHotkeys')}</FieldLegend>
+          <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-2">
+            <BehaviorSwitchField
+              id="hotkey-flash"
+              name="hotkeyFlash"
+              field="hotkeyFlash"
+              label={t('hotkeyFlash')}
+              description={t('hotkeyFlashDescription')}
+              setting={behavior.hotkeyFlash}
+              selection={selection}
+              disabled={pending}
+              resetBadgeText={resetBadgeText}
+              onMutate={onMutateBehavior}
+            />
+            <Field data-disabled={hotkeyFlashDelayLocked || undefined}>
+              <FieldLabel htmlFor="hotkey-flash-delay">{t('hotkeyFlashDelay')}</FieldLabel>
+              <InputGroup isDisabled={hotkeyFlashDelayLocked}>
+                <InputGroupInput
+                  id="hotkey-flash-delay"
+                  className={cn(
+                    showsInherited(
+                      selection,
+                      behavior.hotkeyFlashDelayMs.source,
+                      drafts.hotkeyFlashDelay,
+                    ) && 'text-muted-foreground',
+                  )}
+                  name="hotkeyFlashDelay"
+                  type="number"
+                  inputMode="decimal"
+                  enterKeyHint="done"
+                  min={HOTKEY_FLASH_DELAY_MS_MIN / 1000}
+                  max={HOTKEY_FLASH_DELAY_MS_MAX / 1000}
+                  step={0.1}
+                  autoComplete="off"
+                  disabled={hotkeyFlashDelayLocked}
+                  value={drafts.hotkeyFlashDelay ?? hotkeyFlashDelaySeconds}
+                  aria-describedby="hotkey-flash-delay-help"
+                  onChange={(event) => {
+                    onDraftChange(event.target.value);
+                  }}
+                  onBlur={onCommitHotkeyFlashDelay}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      onCommitHotkeyFlashDelay();
+                    }
+                  }}
+                />
+                <InputGroupInheritReset
+                  active={ownsOverride(selection, behavior.hotkeyFlashDelayMs.source)}
+                  disabled={hotkeyFlashDelayLocked}
+                  label={resetFieldLabel(t('hotkeyFlashDelay'))}
+                  onReset={() => {
+                    onMutateBehavior({ kind: 'inherit', field: 'hotkeyFlashDelayMs' });
+                  }}
+                />
+              </InputGroup>
+              <FieldDescription id="hotkey-flash-delay-help">
+                {t('hotkeyFlashDelayDescription')}
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+          <Field data-disabled={hotkeyFlashDelayLocked || undefined}>
+            <div className="flex items-start justify-between gap-2">
+              <FieldContent>
+                <FieldLabel id="hotkey-flash-opacity-label">{t('hotkeyFlashOpacity')}</FieldLabel>
+                <FieldDescription id="hotkey-flash-opacity-help">
+                  {t('hotkeyFlashOpacityDescription')}
+                </FieldDescription>
+              </FieldContent>
+              <ResetBadge
+                active={ownsOverride(selection, behavior.hotkeyFlashOpacity.source)}
+                disabled={hotkeyFlashDelayLocked}
+                text={resetBadgeText}
+                label={resetFieldLabel(t('hotkeyFlashOpacity'))}
+                onReset={() => {
+                  onMutateBehavior({ kind: 'inherit', field: 'hotkeyFlashOpacity' });
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Slider
+                aria-label={t('hotkeyFlashOpacity')}
+                aria-labelledby="hotkey-flash-opacity-label"
+                aria-describedby="hotkey-flash-opacity-help"
+                isDisabled={hotkeyFlashDelayLocked}
+                minValue={HOTKEY_FLASH_OPACITY_MIN}
+                maxValue={HOTKEY_FLASH_OPACITY_MAX}
+                step={1}
+                formatOptions={{ style: 'unit', unit: 'percent', maximumFractionDigits: 0 }}
+                value={behavior.hotkeyFlashOpacity.value}
+                onChange={(value) => {
+                  const next = Array.isArray(value) ? value[0] : value;
+                  if (next == null) {
+                    return;
+                  }
+                  onMutateBehavior({
+                    kind: 'value',
+                    field: 'hotkeyFlashOpacity',
+                    value: canonicalizeHotkeyFlashOpacity(next),
+                  });
+                }}
+              />
+              <span
+                className={cn(
+                  'w-10 shrink-0 text-right text-sm tabular-nums',
+                  showsInherited(selection, behavior.hotkeyFlashOpacity.source) &&
+                    'text-muted-foreground',
+                )}
+              >
+                {`${behavior.hotkeyFlashOpacity.value}%`}
+              </span>
+            </div>
+          </Field>
           {HOTKEY_ROWS.map((row) => {
             const setting = hotkeys[row.action];
             const label = t(row.label);

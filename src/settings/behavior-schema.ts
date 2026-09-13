@@ -53,6 +53,9 @@ export const behaviorValueSchemas = {
   overlayHoverHold: z.boolean(),
   overlayAutoHideDelayMs: StoredNonNegativeIntegerSchema,
   overlayOpacity: StoredNonNegativeIntegerSchema,
+  hotkeyFlash: z.boolean(),
+  hotkeyFlashDelayMs: StoredNonNegativeIntegerSchema,
+  hotkeyFlashOpacity: StoredNonNegativeIntegerSchema,
 } satisfies BehaviorValueSchemaMap;
 
 true satisfies Equal<

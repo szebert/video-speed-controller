@@ -19,14 +19,15 @@ import { normalizeSiteHostname } from '../../settings/site-hostname';
 
 export type Selection =
   { kind: 'settings' } | { kind: 'global' } | { kind: 'site'; hostname: string };
-export type DraftKey = 'speedMin' | 'speedMax' | 'speedTick' | 'delay';
-export type OverlaySwitchFieldName =
+export type DraftKey = 'speedMin' | 'speedMax' | 'speedTick' | 'delay' | 'hotkeyFlashDelay';
+export type BooleanBehaviorFieldName =
   | 'overlayVisible'
   | 'overlayPositionButton'
   | 'overlaySettingsButton'
   | 'overlayHotkeyHints'
   | 'overlayAutoHide'
-  | 'overlayHoverHold';
+  | 'overlayHoverHold'
+  | 'hotkeyFlash';
 export type RecoverKind = 'pane' | 'sidebar' | 'pane-and-sidebar';
 
 export const POSITION_OPTIONS: { value: OverlayPosition; labelKey: Parameters<typeof t>[0] }[] = [

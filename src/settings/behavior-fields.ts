@@ -76,6 +76,21 @@ export const BEHAVIOR_FIELDS = {
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
+  hotkeyFlash: {
+    default: true,
+    category: 'hotkeys',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  hotkeyFlashDelayMs: {
+    default: 300,
+    category: 'hotkeys',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  hotkeyFlashOpacity: {
+    default: 70,
+    category: 'hotkeys',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
 } as const;
 
 export type BehaviorField = keyof typeof BEHAVIOR_FIELDS;

@@ -56,9 +56,9 @@ export function PlaybackSettingsCard({
   onMutate: (change: BehaviorSettingChange) => void;
   onAdjustSpeed: (direction: 1 | -1) => void;
   onPreviewSlider: (speed: number | null) => void;
-  onDraftChange: (key: Exclude<DraftKey, 'delay'>, value: string) => void;
+  onDraftChange: (key: Exclude<DraftKey, 'delay' | 'hotkeyFlashDelay'>, value: string) => void;
   onCommitDecimal: (
-    key: Exclude<DraftKey, 'delay'>,
+    key: Exclude<DraftKey, 'delay' | 'hotkeyFlashDelay'>,
     fallback: number,
     min: number,
     max: number,

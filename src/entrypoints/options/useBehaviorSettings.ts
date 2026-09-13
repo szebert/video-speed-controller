@@ -25,6 +25,7 @@ import {
 import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../../settings/migrate';
 import { backupExportFilename, backupFailureMessage } from './backup-file';
 import {
+  canonicalizeHotkeyFlashDelayMs,
   canonicalizeOverlayAutoHideDelayMs,
   speedPolicyFromResolved,
   type BehaviorSettingChange,
@@ -683,7 +684,7 @@ export function useBehaviorSettings() {
   }
 
   function commitDecimal(
-    key: Exclude<DraftKey, 'delay'>,
+    key: Exclude<DraftKey, 'delay' | 'hotkeyFlashDelay'>,
     fallback: number,
     min: number,
     max: number,
@@ -728,11 +729,36 @@ export function useBehaviorSettings() {
     });
   }
 
+  function commitHotkeyFlashDelay(): void {
+    const draft = takeDraft('hotkeyFlashDelay');
+    if (draft == null) {
+      return;
+    }
+    const seconds = Number(draft);
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return;
+    }
+    const confirmed = canonicalizeHotkeyFlashDelayMs(seconds * 1000);
+    const canonical = behaviorRef.current?.hotkeyFlashDelayMs.value;
+    if (canonical != null && confirmed === canonical) {
+      return;
+    }
+    mutate({
+      kind: 'value',
+      field: 'hotkeyFlashDelayMs',
+      value: confirmed,
+    });
+  }
+
   const speed = behavior ? (sliderPreview ?? behavior.speed.value) : 1;
   const delaySeconds = behavior ? String(behavior.overlayAutoHideDelayMs.value / 1000) : '2';
+  const hotkeyFlashDelaySeconds = behavior
+    ? String(behavior.hotkeyFlashDelayMs.value / 1000)
+    : '0.3';
   const policy = behavior ? speedPolicyFromResolved(behavior) : undefined;
   const overlayLocked = blocking || !overlayEnabled;
   const delayLocked = overlayLocked || !(behavior?.overlayAutoHide.value ?? true);
+  const hotkeyFlashDelayLocked = blocking || !(behavior?.hotkeyFlash.value ?? true);
   const resetBadgeText = selection.kind === 'site' ? t('settingOverride') : t('settingCustom');
 
   return {
@@ -753,9 +779,11 @@ export function useBehaviorSettings() {
     snapshotHostname,
     speed,
     delaySeconds,
+    hotkeyFlashDelaySeconds,
     policy,
     overlayLocked,
     delayLocked,
+    hotkeyFlashDelayLocked,
     resetBadgeText,
     mutate,
     mutateHotkey,
@@ -769,6 +797,7 @@ export function useBehaviorSettings() {
     importBackup,
     commitDecimal,
     commitDelay,
+    commitHotkeyFlashDelay,
     setSliderPreview,
   };
 }

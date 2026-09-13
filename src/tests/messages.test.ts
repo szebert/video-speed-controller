@@ -165,6 +165,27 @@ describe('parseBackgroundInbound', () => {
       accepted({
         type: 'SET_BEHAVIOR_SETTING',
         scope: { kind: 'global' },
+        change: { kind: 'value', field: 'hotkeyFlash', value: false },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'hotkeyFlashDelayMs', value: 1000 },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'hotkeyFlashOpacity', value: 40 },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
         changes: [
           { kind: 'value', field: 'speed', value: 1.25 },
           { kind: 'value', field: 'overlayVisible', value: false },

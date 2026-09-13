@@ -11,6 +11,10 @@ import {
   inheritAllKnownSettings,
   tombstoneExistingSiteSettings,
   mergeOverrideField,
+  HOTKEY_FLASH_DELAY_MS_MAX,
+  HOTKEY_FLASH_DELAY_MS_MIN,
+  HOTKEY_FLASH_OPACITY_MAX,
+  HOTKEY_FLASH_OPACITY_MIN,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
@@ -57,6 +61,9 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayHoverHold).toEqual({ value: false, source: 'built-in' });
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
     expect(resolved.overlayOpacity).toEqual({ value: 70, source: 'built-in' });
+    expect(resolved.hotkeyFlash).toEqual({ value: true, source: 'built-in' });
+    expect(resolved.hotkeyFlashDelayMs).toEqual({ value: 300, source: 'built-in' });
+    expect(resolved.hotkeyFlashOpacity).toEqual({ value: 70, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
     expect(resolved.hotkeys).toEqual({
       decreaseSpeed: {
@@ -256,6 +263,42 @@ describe('site behavior resolution', () => {
       ).overlayAutoHideDelayMs,
     ).toEqual({
       value: OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
+      source: 'global',
+    });
+  });
+
+  it('clamps stored hotkey flash delays outside 100ms–5s without dropping the override', () => {
+    expect(
+      resolveSiteBehavior({ hotkeyFlashDelayMs: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .hotkeyFlashDelayMs,
+    ).toEqual({
+      value: HOTKEY_FLASH_DELAY_MS_MIN,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior(
+        { hotkeyFlashDelayMs: { kind: 'value', value: 99_000, updatedAt: 10 } },
+        {},
+      ).hotkeyFlashDelayMs,
+    ).toEqual({
+      value: HOTKEY_FLASH_DELAY_MS_MAX,
+      source: 'global',
+    });
+  });
+
+  it('clamps stored hotkey flash opacity outside 1–100 without dropping the override', () => {
+    expect(
+      resolveSiteBehavior({ hotkeyFlashOpacity: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .hotkeyFlashOpacity,
+    ).toEqual({
+      value: HOTKEY_FLASH_OPACITY_MIN,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior({ hotkeyFlashOpacity: { kind: 'value', value: 150, updatedAt: 10 } }, {})
+        .hotkeyFlashOpacity,
+    ).toEqual({
+      value: HOTKEY_FLASH_OPACITY_MAX,
       source: 'global',
     });
   });
@@ -797,6 +840,48 @@ describe('behavior setting changes', () => {
         value: false,
       }),
     ).toEqual({ kind: 'value', field: 'overlayHotkeyHints', value: false });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyFlash',
+        value: false,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyFlash', value: false });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyFlashDelayMs',
+        value: 0,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyFlashDelayMs', value: HOTKEY_FLASH_DELAY_MS_MIN });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyFlashOpacity',
+        value: 40.4,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyFlashOpacity', value: 40 });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyFlashOpacity',
+        value: 0,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyFlashOpacity', value: HOTKEY_FLASH_OPACITY_MIN });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyFlashOpacity',
+        value: 150,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyFlashOpacity', value: HOTKEY_FLASH_OPACITY_MAX });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyFlashDelayMs',
+        value: 99_000,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyFlashDelayMs', value: HOTKEY_FLASH_DELAY_MS_MAX });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',

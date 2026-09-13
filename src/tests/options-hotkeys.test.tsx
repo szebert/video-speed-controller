@@ -11,6 +11,18 @@ import {
 import { BUILT_IN_HOTKEYS } from '../settings/hotkey-binding';
 import { resolveSiteBehavior, type HotkeySettingChange } from '../settings/site-behavior';
 
+function flashCardProps() {
+  return {
+    behavior: resolveSiteBehavior(),
+    drafts: {},
+    hotkeyFlashDelaySeconds: '0.3',
+    hotkeyFlashDelayLocked: false,
+    onMutateBehavior() {},
+    onDraftChange() {},
+    onCommitHotkeyFlashDelay() {},
+  };
+}
+
 function keydown(
   code: string,
   extras: KeyboardEventInit & { altGraph?: boolean } = {},
@@ -61,6 +73,7 @@ describe('Hotkeys settings card', () => {
           pending={false}
           resetBadgeText={selection.kind === 'site' ? 'Override' : 'Custom'}
           onMutate={onMutate}
+          {...flashCardProps()}
         />,
       );
     });
