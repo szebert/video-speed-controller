@@ -12,7 +12,7 @@ import {
 } from '../settings/site-behavior';
 import type { EffectiveHotkeyMap, HotkeyBinding } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
-import { formatSpeed, formatSpeedDelta } from './speed';
+import { canonicalizeSpeed, formatSpeed, formatSpeedDelta } from './speed';
 
 export const OVERLAY_HOST_TAG = 'osvsc-overlay';
 export const HOTKEY_FLASH_HOST_TAG = 'osvsc-hotkey-flash';
@@ -43,6 +43,15 @@ function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('box-sizing', 'border-box', 'important');
   host.style.setProperty('user-select', 'none', 'important');
   host.style.setProperty('visibility', 'hidden', 'important');
+}
+
+function flashSpeedLabel(payload: HotkeyFlashPayload): string {
+  const speed = formatSpeed(payload.targetSpeed);
+  const delta = canonicalizeSpeed(payload.targetSpeed - payload.previousTargetSpeed);
+  if (delta === 0) {
+    return speed;
+  }
+  return `${speed} ${formatSpeedDelta(delta)}`;
 }
 
 function overlayHidePolicyChanged(
@@ -307,9 +316,7 @@ export class VideoOverlay {
     pill.replaceChildren();
     const label = document.createElement('span');
     label.className = 'hotkey-flash-label';
-    label.textContent = `${formatSpeed(payload.targetSpeed)} ${formatSpeedDelta(
-      payload.targetSpeed - payload.previousTargetSpeed,
-    )}`;
+    label.textContent = flashSpeedLabel(payload);
     const hint = document.createElement('kbd');
     hint.className = 'hotkey-hint';
     hint.setAttribute('aria-hidden', 'true');

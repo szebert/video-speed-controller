@@ -956,6 +956,24 @@ describe('VideoOverlay', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
   });
 
+  it('omits a zero speed delta when a hotkey is already at the limit', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(4, { overlayAutoHide: false }));
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 4,
+      targetSpeed: 4,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    overlay.layout();
+    expect(
+      document
+        .querySelector(HOTKEY_FLASH_HOST_TAG)
+        ?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent,
+    ).toBe('4.00×');
+  });
+
   it('keeps the overlay hidden when a hotkey APPLY flashes', () => {
     vi.useFakeTimers();
     const video = sizedVideo();
