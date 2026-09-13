@@ -12,6 +12,7 @@
   --ring: #38bdf8;
   position: fixed;
   pointer-events: none;
+  user-select: none;
   z-index: 2147483647;
   margin: 0;
   padding: 0;
@@ -51,6 +52,7 @@
   font: inherit;
   line-height: inherit;
   cursor: pointer;
+  user-select: none;
 }
 
 .control:hover,
@@ -190,6 +192,8 @@
   border-inline: 1px solid var(--border);
   background: var(--muted);
   color: var(--muted-foreground);
+  pointer-events: none;
+  user-select: none;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }

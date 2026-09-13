@@ -202,6 +202,8 @@ describe('VideoOverlay', () => {
     const speedStyle = getComputedStyle(speed!);
     expect(speedStyle.fontSize).not.toBe('48px');
     expect(speedStyle.color).not.toBe('rgb(255, 0, 0)');
+    expect(overlay.host.style.userSelect).toBe('none');
+    expect(overlayCss).toContain('user-select: none');
     const sheetText = [...(overlay.host.shadowRoot?.querySelectorAll('style') ?? [])]
       .map((node) => node.textContent)
       .join('');
@@ -936,6 +938,7 @@ describe('VideoOverlay', () => {
     const pill = host?.shadowRoot?.querySelector('.hotkey-flash');
     expect(pill?.textContent).toBe('1.25× (+0.25×)]');
     expect(pill?.querySelector('.hotkey-hint')?.textContent).toBe(']');
+    expect((host as HTMLElement).style.userSelect).toBe('none');
     expect((pill as HTMLElement).style.opacity).toBe('0.7');
 
     overlay.showHotkeyFlash({

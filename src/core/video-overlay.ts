@@ -41,6 +41,7 @@ function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('margin', '0', 'important');
   host.style.setProperty('padding', '0', 'important');
   host.style.setProperty('box-sizing', 'border-box', 'important');
+  host.style.setProperty('user-select', 'none', 'important');
   host.style.setProperty('visibility', 'hidden', 'important');
 }
 
