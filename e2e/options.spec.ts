@@ -36,10 +36,9 @@ async function overlayVisibility(page: Page): Promise<string> {
     .evaluate((host) => (host as HTMLElement).style.visibility);
 }
 
-async function appliedTabField<K extends 'hotkeyFlash' | 'hotkeyFlashDelayMs' | 'overlayPosition'>(
-  serviceWorker: Worker,
-  field: K,
-): Promise<Array<boolean | number>> {
+async function appliedTabField<
+  K extends 'hotkeyFlash' | 'hotkeyFlashDelayMs' | 'hotkeyRepeat' | 'overlayPosition',
+>(serviceWorker: Worker, field: K): Promise<Array<boolean | number>> {
   return serviceWorker.evaluate(async (name) => {
     const items = await chrome.storage.session.get(null);
     const values: Array<boolean | number> = [];
@@ -393,4 +392,18 @@ test('hotkey flash shows the new speed then hides', async ({
   await pressIncreaseSpeedHotkey(site);
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.75×', '1.75×', '1.75×']);
   expect(await hotkeyFlashCopy(site)).toEqual([]);
+});
+
+test('options persist Enable key repeat to the tab', async ({
+  context,
+  extensionId,
+  serviceWorker,
+  site,
+}) => {
+  const popup = await openPopup(context, extensionId, site, serviceWorker);
+  await enableSiteAt(popup, site, 1.25);
+  const options = await openOptions(context, extensionId, '127.0.0.1');
+  await clickOptionsSwitch(options, 'Enable key repeat');
+  await expect(options.getByRole('switch', { name: 'Enable key repeat' })).toBeChecked();
+  await expect.poll(async () => appliedTabField(serviceWorker, 'hotkeyRepeat')).toContain(true);
 });

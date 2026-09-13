@@ -10,6 +10,8 @@ import {
   BUILT_IN_SITE_BEHAVIOR,
   canonicalizeHotkeyFlashDelayMs,
   canonicalizeHotkeyFlashOpacity,
+  canonicalizeHotkeyRepeatDelayMs,
+  canonicalizeHotkeyRepeatRate,
   canonicalizeOverlayAutoHideDelayMs,
   canonicalizeOverlayOpacity,
   isOverlayPosition,
@@ -55,6 +57,8 @@ export function toAppliedTabBehavior(
     overlayOpacity: canonicalizeOverlayOpacity(fields.overlayOpacity),
     hotkeyFlashDelayMs: canonicalizeHotkeyFlashDelayMs(fields.hotkeyFlashDelayMs),
     hotkeyFlashOpacity: canonicalizeHotkeyFlashOpacity(fields.hotkeyFlashOpacity),
+    hotkeyRepeatDelayMs: canonicalizeHotkeyRepeatDelayMs(fields.hotkeyRepeatDelayMs),
+    hotkeyRepeatRate: canonicalizeHotkeyRepeatRate(fields.hotkeyRepeatRate),
   };
 }
 

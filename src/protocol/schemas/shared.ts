@@ -87,6 +87,9 @@ export const EditableResolvedBehaviorSchema = z.object({
   hotkeyFlash: resolvedSettingSchema(z.boolean()),
   hotkeyFlashDelayMs: resolvedSettingSchema(z.number()),
   hotkeyFlashOpacity: resolvedSettingSchema(z.number()),
+  hotkeyRepeat: resolvedSettingSchema(z.boolean()),
+  hotkeyRepeatDelayMs: resolvedSettingSchema(z.number()),
+  hotkeyRepeatRate: resolvedSettingSchema(z.number()),
 }) satisfies z.ZodType<EditableResolvedBehavior>;
 
 true satisfies Equal<z.infer<typeof EditableResolvedBehaviorSchema>, EditableResolvedBehavior>;

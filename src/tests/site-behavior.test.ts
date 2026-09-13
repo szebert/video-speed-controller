@@ -15,6 +15,11 @@ import {
   HOTKEY_FLASH_DELAY_MS_MIN,
   HOTKEY_FLASH_OPACITY_MAX,
   HOTKEY_FLASH_OPACITY_MIN,
+  HOTKEY_REPEAT_DELAY_MS_MAX,
+  HOTKEY_REPEAT_DELAY_MS_MIN,
+  HOTKEY_REPEAT_RATE_MAX,
+  HOTKEY_REPEAT_RATE_MIN,
+  hotkeyRepeatsWhileHeld,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
@@ -64,6 +69,9 @@ describe('site behavior resolution', () => {
     expect(resolved.hotkeyFlash).toEqual({ value: true, source: 'built-in' });
     expect(resolved.hotkeyFlashDelayMs).toEqual({ value: 750, source: 'built-in' });
     expect(resolved.hotkeyFlashOpacity).toEqual({ value: 70, source: 'built-in' });
+    expect(resolved.hotkeyRepeat).toEqual({ value: false, source: 'built-in' });
+    expect(resolved.hotkeyRepeatDelayMs).toEqual({ value: 500, source: 'built-in' });
+    expect(resolved.hotkeyRepeatRate).toEqual({ value: 15, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
     expect(resolved.hotkeys).toEqual({
       decreaseSpeed: {
@@ -284,6 +292,55 @@ describe('site behavior resolution', () => {
       value: HOTKEY_FLASH_DELAY_MS_MAX,
       source: 'global',
     });
+  });
+
+  it('clamps stored hotkey repeat delay and snaps stored rate without dropping the override', () => {
+    expect(
+      resolveSiteBehavior({ hotkeyRepeatDelayMs: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .hotkeyRepeatDelayMs,
+    ).toEqual({
+      value: HOTKEY_REPEAT_DELAY_MS_MIN,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior(
+        { hotkeyRepeatDelayMs: { kind: 'value', value: 99_000, updatedAt: 10 } },
+        {},
+      ).hotkeyRepeatDelayMs,
+    ).toEqual({
+      value: HOTKEY_REPEAT_DELAY_MS_MAX,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior({ hotkeyRepeatRate: { kind: 'value', value: 14.73, updatedAt: 10 } }, {})
+        .hotkeyRepeatRate,
+    ).toEqual({
+      value: 14.5,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior({ hotkeyRepeatRate: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .hotkeyRepeatRate,
+    ).toEqual({
+      value: HOTKEY_REPEAT_RATE_MIN,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior({ hotkeyRepeatRate: { kind: 'value', value: 99, updatedAt: 10 } }, {})
+        .hotkeyRepeatRate,
+    ).toEqual({
+      value: HOTKEY_REPEAT_RATE_MAX,
+      source: 'global',
+    });
+  });
+
+  it('repeats Faster and Slower only when enabled; Reset never repeats', () => {
+    expect(hotkeyRepeatsWhileHeld('increaseSpeed', false)).toBe(false);
+    expect(hotkeyRepeatsWhileHeld('decreaseSpeed', false)).toBe(false);
+    expect(hotkeyRepeatsWhileHeld('resetSpeed', false)).toBe(false);
+    expect(hotkeyRepeatsWhileHeld('increaseSpeed', true)).toBe(true);
+    expect(hotkeyRepeatsWhileHeld('decreaseSpeed', true)).toBe(true);
+    expect(hotkeyRepeatsWhileHeld('resetSpeed', true)).toBe(false);
   });
 
   it('clamps stored hotkey flash opacity outside 1–100 without dropping the override', () => {
@@ -882,6 +939,31 @@ describe('behavior setting changes', () => {
         value: 99_000,
       }),
     ).toEqual({ kind: 'value', field: 'hotkeyFlashDelayMs', value: HOTKEY_FLASH_DELAY_MS_MAX });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyRepeat',
+        value: true,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyRepeat', value: true });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyRepeatDelayMs',
+        value: 0,
+      }),
+    ).toEqual({
+      kind: 'value',
+      field: 'hotkeyRepeatDelayMs',
+      value: HOTKEY_REPEAT_DELAY_MS_MIN,
+    });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyRepeatRate',
+        value: 14.73,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyRepeatRate', value: 14.5 });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',

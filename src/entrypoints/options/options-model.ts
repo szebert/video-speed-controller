@@ -19,7 +19,8 @@ import { normalizeSiteHostname } from '../../settings/site-hostname';
 
 export type Selection =
   { kind: 'settings' } | { kind: 'global' } | { kind: 'site'; hostname: string };
-export type DraftKey = 'speedMin' | 'speedMax' | 'speedTick' | 'delay' | 'hotkeyFlashDelay';
+export type DraftKey =
+  'speedMin' | 'speedMax' | 'speedTick' | 'delay' | 'hotkeyFlashDelay' | 'hotkeyRepeatDelay';
 export type BooleanBehaviorFieldName =
   | 'overlayVisible'
   | 'overlayPositionButton'
@@ -27,7 +28,8 @@ export type BooleanBehaviorFieldName =
   | 'overlayHotkeyHints'
   | 'overlayAutoHide'
   | 'overlayHoverHold'
-  | 'hotkeyFlash';
+  | 'hotkeyFlash'
+  | 'hotkeyRepeat';
 export type RecoverKind = 'pane' | 'sidebar' | 'pane-and-sidebar';
 
 export const POSITION_OPTIONS: { value: OverlayPosition; labelKey: Parameters<typeof t>[0] }[] = [

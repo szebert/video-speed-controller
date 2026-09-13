@@ -273,6 +273,25 @@ describe('backup format', () => {
     });
   });
 
+  it('accepts additive V1 hotkey repeat fields and canonicalizes them', () => {
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { hotkeyRepeat: true, hotkeyRepeatDelayMs: 0, hotkeyRepeatRate: 14.73 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: {
+        formatVersion: 1,
+        global: { hotkeyRepeat: true, hotkeyRepeatDelayMs: 250, hotkeyRepeatRate: 14.5 },
+        sites: {},
+      },
+    });
+  });
+
   it('accepts additive V1 overlayOpacity and clamps it', () => {
     expect(
       parseBackupText(

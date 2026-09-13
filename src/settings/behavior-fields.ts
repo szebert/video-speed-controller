@@ -91,6 +91,21 @@ export const BEHAVIOR_FIELDS = {
     category: 'hotkeys',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
+  hotkeyRepeat: {
+    default: false,
+    category: 'hotkeys',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  hotkeyRepeatDelayMs: {
+    default: 500,
+    category: 'hotkeys',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  hotkeyRepeatRate: {
+    default: 15,
+    category: 'hotkeys',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
 } as const;
 
 export type BehaviorField = keyof typeof BEHAVIOR_FIELDS;

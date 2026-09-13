@@ -44,10 +44,12 @@ export function App() {
     speed,
     delaySeconds,
     hotkeyFlashDelaySeconds,
+    hotkeyRepeatDelaySeconds,
     policy,
     overlayLocked,
     delayLocked,
     hotkeyFlashDelayLocked,
+    hotkeyRepeatLocked,
     resetBadgeText,
     mutate,
     mutateHotkey,
@@ -62,6 +64,7 @@ export function App() {
     commitDecimal,
     commitDelay,
     commitHotkeyFlashDelay,
+    commitHotkeyRepeatDelay,
     setSliderPreview,
   } = settings;
 
@@ -231,17 +234,20 @@ export function App() {
                     hotkeys={hotkeys}
                     drafts={drafts}
                     hotkeyFlashDelaySeconds={hotkeyFlashDelaySeconds}
+                    hotkeyRepeatDelaySeconds={hotkeyRepeatDelaySeconds}
                     pending={pending}
                     hotkeyFlashDelayLocked={hotkeyFlashDelayLocked}
+                    hotkeyRepeatLocked={hotkeyRepeatLocked}
                     resetBadgeText={resetBadgeText}
                     onMutate={mutateHotkey}
                     onMutateBehavior={(change) => {
                       void mutate(change);
                     }}
-                    onDraftChange={(value) => {
-                      updateDraft('hotkeyFlashDelay', value);
+                    onDraftChange={(key, value) => {
+                      updateDraft(key, value);
                     }}
                     onCommitHotkeyFlashDelay={commitHotkeyFlashDelay}
+                    onCommitHotkeyRepeatDelay={commitHotkeyRepeatDelay}
                   />
                 </FieldGroup>
 

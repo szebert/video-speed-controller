@@ -25,6 +25,9 @@ export const AppliedTabBehaviorSchema = z.object({
   hotkeyFlash: z.boolean(),
   hotkeyFlashDelayMs: z.number(),
   hotkeyFlashOpacity: z.number(),
+  hotkeyRepeat: z.boolean(),
+  hotkeyRepeatDelayMs: z.number(),
+  hotkeyRepeatRate: z.number(),
 });
 
 true satisfies Equal<z.infer<typeof AppliedTabBehaviorSchema>, AppliedTabBehavior>;

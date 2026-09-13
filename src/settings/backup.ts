@@ -89,6 +89,9 @@ const BackupV1FieldSchema = z.strictObject({
   hotkeyFlash: z.boolean().optional(),
   hotkeyFlashDelayMs: BackupV1NonNegativeIntegerSchema.optional(),
   hotkeyFlashOpacity: BackupV1NonNegativeIntegerSchema.optional(),
+  hotkeyRepeat: z.boolean().optional(),
+  hotkeyRepeatDelayMs: BackupV1NonNegativeIntegerSchema.optional(),
+  hotkeyRepeatRate: z.number().optional(),
 });
 
 // Adding an editable field must also add an optional V1 field.

@@ -30,6 +30,9 @@ function snapshot(): BehaviorSettingsSnapshot {
     hotkeyFlash: { value: true, source: 'built-in' as const },
     hotkeyFlashDelayMs: { value: 750, source: 'built-in' as const },
     hotkeyFlashOpacity: { value: 70, source: 'built-in' as const },
+    hotkeyRepeat: { value: false, source: 'built-in' as const },
+    hotkeyRepeatDelayMs: { value: 500, source: 'built-in' as const },
+    hotkeyRepeatRate: { value: 15, source: 'built-in' as const },
   };
   const hotkeys = resolveSiteBehavior().hotkeys;
   return {

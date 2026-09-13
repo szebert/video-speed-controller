@@ -186,6 +186,27 @@ describe('parseBackgroundInbound', () => {
       accepted({
         type: 'SET_BEHAVIOR_SETTING',
         scope: { kind: 'global' },
+        change: { kind: 'value', field: 'hotkeyRepeat', value: true },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'hotkeyRepeatDelayMs', value: 500 },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'hotkeyRepeatRate', value: 15 },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
         changes: [
           { kind: 'value', field: 'speed', value: 1.25 },
           { kind: 'value', field: 'overlayVisible', value: false },

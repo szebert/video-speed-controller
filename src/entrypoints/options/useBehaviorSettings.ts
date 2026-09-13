@@ -26,6 +26,7 @@ import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../../settings/migrate';
 import { backupExportFilename, backupFailureMessage } from './backup-file';
 import {
   canonicalizeHotkeyFlashDelayMs,
+  canonicalizeHotkeyRepeatDelayMs,
   canonicalizeOverlayAutoHideDelayMs,
   speedPolicyFromResolved,
   type BehaviorSettingChange,
@@ -683,7 +684,7 @@ export function useBehaviorSettings() {
   }
 
   function commitDecimal(
-    key: Exclude<DraftKey, 'delay' | 'hotkeyFlashDelay'>,
+    key: Exclude<DraftKey, 'delay' | 'hotkeyFlashDelay' | 'hotkeyRepeatDelay'>,
     fallback: number,
     min: number,
     max: number,
@@ -749,15 +750,40 @@ export function useBehaviorSettings() {
     });
   }
 
+  function commitHotkeyRepeatDelay(): void {
+    const draft = takeDraft('hotkeyRepeatDelay');
+    if (draft == null) {
+      return;
+    }
+    const seconds = Number(draft);
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return;
+    }
+    const confirmed = canonicalizeHotkeyRepeatDelayMs(seconds * 1000);
+    const canonical = behaviorRef.current?.hotkeyRepeatDelayMs.value;
+    if (canonical != null && confirmed === canonical) {
+      return;
+    }
+    mutate({
+      kind: 'value',
+      field: 'hotkeyRepeatDelayMs',
+      value: confirmed,
+    });
+  }
+
   const speed = behavior ? (sliderPreview ?? behavior.speed.value) : 1;
   const delaySeconds = behavior ? String(behavior.overlayAutoHideDelayMs.value / 1000) : '2';
   const hotkeyFlashDelaySeconds = behavior
     ? String(behavior.hotkeyFlashDelayMs.value / 1000)
     : '0.75';
+  const hotkeyRepeatDelaySeconds = behavior
+    ? String(behavior.hotkeyRepeatDelayMs.value / 1000)
+    : '0.5';
   const policy = behavior ? speedPolicyFromResolved(behavior) : undefined;
   const overlayLocked = blocking || !overlayEnabled;
   const delayLocked = overlayLocked || !(behavior?.overlayAutoHide.value ?? true);
   const hotkeyFlashDelayLocked = blocking || !(behavior?.hotkeyFlash.value ?? true);
+  const hotkeyRepeatLocked = blocking || !(behavior?.hotkeyRepeat.value ?? false);
   const resetBadgeText = selection.kind === 'site' ? t('settingOverride') : t('settingCustom');
 
   return {
@@ -779,10 +805,12 @@ export function useBehaviorSettings() {
     speed,
     delaySeconds,
     hotkeyFlashDelaySeconds,
+    hotkeyRepeatDelaySeconds,
     policy,
     overlayLocked,
     delayLocked,
     hotkeyFlashDelayLocked,
+    hotkeyRepeatLocked,
     resetBadgeText,
     mutate,
     mutateHotkey,
@@ -797,6 +825,7 @@ export function useBehaviorSettings() {
     commitDecimal,
     commitDelay,
     commitHotkeyFlashDelay,
+    commitHotkeyRepeatDelay,
     setSliderPreview,
   };
 }

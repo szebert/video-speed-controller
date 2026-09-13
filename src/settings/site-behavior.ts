@@ -90,6 +90,34 @@ export function canonicalizeHotkeyFlashOpacity(value: number): number {
   return Math.min(HOTKEY_FLASH_OPACITY_MAX, Math.max(HOTKEY_FLASH_OPACITY_MIN, Math.round(value)));
 }
 
+/** Shortest hold-to-repeat delay the product accepts (250 ms). */
+export const HOTKEY_REPEAT_DELAY_MS_MIN = 250;
+/** Longest hold-to-repeat delay the product accepts (1 s). */
+export const HOTKEY_REPEAT_DELAY_MS_MAX = 1000;
+
+export function canonicalizeHotkeyRepeatDelayMs(value: number): number {
+  return Math.min(
+    HOTKEY_REPEAT_DELAY_MS_MAX,
+    Math.max(HOTKEY_REPEAT_DELAY_MS_MIN, Math.round(value)),
+  );
+}
+
+/** Slowest hold-to-repeat rate the product accepts. */
+export const HOTKEY_REPEAT_RATE_MIN = 2.5;
+/** Fastest hold-to-repeat rate the product accepts. */
+export const HOTKEY_REPEAT_RATE_MAX = 30;
+
+export function canonicalizeHotkeyRepeatRate(value: number): number {
+  return Math.min(
+    HOTKEY_REPEAT_RATE_MAX,
+    Math.max(HOTKEY_REPEAT_RATE_MIN, Math.round(value * 2) / 2),
+  );
+}
+
+export function hotkeyRepeatIntervalMs(rate: number): number {
+  return Math.round(1000 / canonicalizeHotkeyRepeatRate(rate));
+}
+
 export const OVERLAY_POSITION = {
   TOP_LEFT: 0,
   TOP_CENTER: 1,
@@ -127,6 +155,21 @@ export const SITE_HOTKEY_ACTIONS = [
   'decreaseSpeed',
   'resetSpeed',
 ] as const satisfies readonly SiteHotkeyAction[];
+
+export const USER_REPEATABLE_ACTIONS = new Set<SiteHotkeyAction>([
+  'increaseSpeed',
+  'decreaseSpeed',
+]);
+
+/** Rewind / fast-forward will join this set when those actions exist. */
+export const ALWAYS_HOLDABLE_ACTIONS = new Set<SiteHotkeyAction>();
+
+export function hotkeyRepeatsWhileHeld(action: SiteHotkeyAction, enabled: boolean): boolean {
+  if (ALWAYS_HOLDABLE_ACTIONS.has(action)) {
+    return true;
+  }
+  return enabled && USER_REPEATABLE_ACTIONS.has(action);
+}
 
 export type SettingSource = 'built-in' | 'global' | 'site';
 
@@ -430,6 +473,16 @@ function clampResolvedHotkeyFlashOpacity(
   return value === setting.value ? setting : { ...setting, value };
 }
 
+function clampResolvedHotkeyRepeatDelay(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeHotkeyRepeatDelayMs(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
+function clampResolvedHotkeyRepeatRate(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeHotkeyRepeatRate(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
 export function resolveSiteBehavior(
   globalOverrides: BehaviorOverrides = {},
   siteOverrides: BehaviorOverrides = {},
@@ -464,6 +517,8 @@ export function resolveSiteBehavior(
   resolved.overlayOpacity = clampResolvedOverlayOpacity(resolved.overlayOpacity);
   resolved.hotkeyFlashDelayMs = clampResolvedHotkeyFlashDelay(resolved.hotkeyFlashDelayMs);
   resolved.hotkeyFlashOpacity = clampResolvedHotkeyFlashOpacity(resolved.hotkeyFlashOpacity);
+  resolved.hotkeyRepeatDelayMs = clampResolvedHotkeyRepeatDelay(resolved.hotkeyRepeatDelayMs);
+  resolved.hotkeyRepeatRate = clampResolvedHotkeyRepeatRate(resolved.hotkeyRepeatRate);
   return resolved;
 }
 
@@ -915,6 +970,24 @@ export function canonicalizeBehaviorSettingChange(
         field: 'hotkeyFlashOpacity',
         value: canonicalizeHotkeyFlashOpacity(change.value),
       };
+    case 'hotkeyRepeatDelayMs':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'hotkeyRepeatDelayMs',
+        value: canonicalizeHotkeyRepeatDelayMs(change.value),
+      };
+    case 'hotkeyRepeatRate':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'hotkeyRepeatRate',
+        value: canonicalizeHotkeyRepeatRate(change.value),
+      };
     case 'overlayPosition':
       return isOverlayPosition(change.value) ? change : null;
     case 'overlayVisible':
@@ -924,6 +997,7 @@ export function canonicalizeBehaviorSettingChange(
     case 'overlayAutoHide':
     case 'overlayHoverHold':
     case 'hotkeyFlash':
+    case 'hotkeyRepeat':
       return typeof change.value === 'boolean' ? change : null;
     default:
       return assertNever(change);

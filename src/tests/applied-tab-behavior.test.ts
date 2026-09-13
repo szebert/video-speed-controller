@@ -14,6 +14,10 @@ import {
   HOTKEY_FLASH_DELAY_MS_MIN,
   HOTKEY_FLASH_OPACITY_MAX,
   HOTKEY_FLASH_OPACITY_MIN,
+  HOTKEY_REPEAT_DELAY_MS_MAX,
+  HOTKEY_REPEAT_DELAY_MS_MIN,
+  HOTKEY_REPEAT_RATE_MAX,
+  HOTKEY_REPEAT_RATE_MIN,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
@@ -59,6 +63,9 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlash).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashDelayMs).toBe(750);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashOpacity).toBe(70);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeat).toBe(false);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatDelayMs).toBe(500);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatRate).toBe(15);
   });
 
   it('clamps applied auto-hide delay to 100ms–5min', () => {
@@ -89,6 +96,26 @@ describe('applied tab behavior', () => {
     expect(
       toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayOpacity: 150 }).overlayOpacity,
     ).toBe(OVERLAY_OPACITY_MAX);
+  });
+
+  it('clamps applied hotkey repeat delay and snaps applied rate', () => {
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyRepeatDelayMs: 0 })
+        .hotkeyRepeatDelayMs,
+    ).toBe(HOTKEY_REPEAT_DELAY_MS_MIN);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyRepeatDelayMs: 99_000 })
+        .hotkeyRepeatDelayMs,
+    ).toBe(HOTKEY_REPEAT_DELAY_MS_MAX);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyRepeatRate: 14.73 }).hotkeyRepeatRate,
+    ).toBe(14.5);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyRepeatRate: 0 }).hotkeyRepeatRate,
+    ).toBe(HOTKEY_REPEAT_RATE_MIN);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyRepeatRate: 99 }).hotkeyRepeatRate,
+    ).toBe(HOTKEY_REPEAT_RATE_MAX);
   });
 
   it('clamps applied hotkey flash opacity to 1–100', () => {

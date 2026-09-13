@@ -56,6 +56,9 @@ export const behaviorValueSchemas = {
   hotkeyFlash: z.boolean(),
   hotkeyFlashDelayMs: StoredNonNegativeIntegerSchema,
   hotkeyFlashOpacity: StoredNonNegativeIntegerSchema,
+  hotkeyRepeat: z.boolean(),
+  hotkeyRepeatDelayMs: StoredNonNegativeIntegerSchema,
+  hotkeyRepeatRate: z.number(),
 } satisfies BehaviorValueSchemaMap;
 
 true satisfies Equal<

@@ -30,6 +30,9 @@ function builtInBehavior() {
     hotkeyFlash: { value: true, source: 'built-in' as const },
     hotkeyFlashDelayMs: { value: 750, source: 'built-in' as const },
     hotkeyFlashOpacity: { value: 70, source: 'built-in' as const },
+    hotkeyRepeat: { value: false, source: 'built-in' as const },
+    hotkeyRepeatDelayMs: { value: 500, source: 'built-in' as const },
+    hotkeyRepeatRate: { value: 15, source: 'built-in' as const },
   };
 }
 
@@ -1156,6 +1159,113 @@ describe('Options page', () => {
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
       change: { kind: 'inherit', field: 'hotkeyFlashOpacity' },
+    });
+  });
+
+  it('sends hotkeyRepeat true from the Enable key repeat switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const toggle = container.querySelector('#hotkey-repeat');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(toggle);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyRepeat', value: true },
+    });
+  });
+
+  it('commits hotkey repeat delay values that are not on a 0.05s grid', async () => {
+    const enabled = snapshot();
+    enabled.global.hotkeyRepeat = { value: true, source: 'global' };
+    sendMessage.mockImplementation(loadReply(enabled));
+    await renderApp();
+    const delay = container.querySelector('#hotkey-repeat-delay');
+    expect(delay).toBeInstanceOf(HTMLInputElement);
+    expect((delay as HTMLInputElement).disabled).toBe(false);
+    await act(async () => {
+      if (!(delay instanceof HTMLInputElement)) {
+        return;
+      }
+      delay.focus();
+      setInputValue(delay, '0.333');
+      delay.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      delay.blur();
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyRepeatDelayMs', value: 333 },
+    });
+  });
+
+  it('clamps hotkey repeat delay below 0.25 seconds to 250 ms', async () => {
+    const enabled = snapshot();
+    enabled.global.hotkeyRepeat = { value: true, source: 'global' };
+    sendMessage.mockImplementation(loadReply(enabled));
+    await renderApp();
+    const delay = container.querySelector('#hotkey-repeat-delay');
+    expect(delay).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(delay instanceof HTMLInputElement)) {
+        return;
+      }
+      delay.focus();
+      setInputValue(delay, '0');
+      delay.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      delay.blur();
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyRepeatDelayMs', value: 250 },
+    });
+  });
+
+  it('disables repeat delay and rate when Enable key repeat is off', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const delay = container.querySelector('#hotkey-repeat-delay');
+    expect(delay).toBeInstanceOf(HTMLInputElement);
+    expect((delay as HTMLInputElement).disabled).toBe(true);
+    const rate = container.querySelector(
+      '[data-slot="slider"][aria-label="Repeat rate"] input[type="range"]',
+    );
+    expect(rate).toBeInstanceOf(HTMLInputElement);
+    expect((rate as HTMLInputElement).disabled).toBe(true);
+    const toggle = container.querySelector('#hotkey-repeat');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    expect((toggle as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('sends hotkey repeat rate from the slider', async () => {
+    const enabled = snapshot();
+    enabled.global.hotkeyRepeat = { value: true, source: 'global' };
+    sendMessage.mockImplementation(loadReply(enabled));
+    await renderApp();
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Repeat rate"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyRepeatRate', value: 14.5 },
     });
   });
 

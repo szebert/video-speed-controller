@@ -22,12 +22,17 @@ import { cn } from '@/lib/utils';
 import type { HotkeyBinding } from '../../settings/hotkey-binding';
 import {
   canonicalizeHotkeyFlashOpacity,
+  canonicalizeHotkeyRepeatRate,
   findSameSourceHotkeyConflict,
   findShadowedHotkey,
   HOTKEY_FLASH_DELAY_MS_MAX,
   HOTKEY_FLASH_DELAY_MS_MIN,
   HOTKEY_FLASH_OPACITY_MAX,
   HOTKEY_FLASH_OPACITY_MIN,
+  HOTKEY_REPEAT_DELAY_MS_MAX,
+  HOTKEY_REPEAT_DELAY_MS_MIN,
+  HOTKEY_REPEAT_RATE_MAX,
+  HOTKEY_REPEAT_RATE_MIN,
   type BehaviorSettingChange,
   type EditableResolvedBehavior,
   type HotkeySettingChange,
@@ -86,26 +91,32 @@ export function HotkeysSettingsCard({
   hotkeys,
   drafts,
   hotkeyFlashDelaySeconds,
+  hotkeyRepeatDelaySeconds,
   pending,
   hotkeyFlashDelayLocked,
+  hotkeyRepeatLocked,
   resetBadgeText,
   onMutate,
   onMutateBehavior,
   onDraftChange,
   onCommitHotkeyFlashDelay,
+  onCommitHotkeyRepeatDelay,
 }: {
   selection: Selection;
   behavior: EditableResolvedBehavior;
   hotkeys: ResolvedHotkeyMap;
   drafts: Partial<Record<DraftKey, string>>;
   hotkeyFlashDelaySeconds: string;
+  hotkeyRepeatDelaySeconds: string;
   pending: boolean;
   hotkeyFlashDelayLocked: boolean;
+  hotkeyRepeatLocked: boolean;
   resetBadgeText: string;
   onMutate: (change: HotkeySettingChange) => void;
   onMutateBehavior: (change: BehaviorSettingChange) => void;
-  onDraftChange: (value: string) => void;
+  onDraftChange: (key: 'hotkeyFlashDelay' | 'hotkeyRepeatDelay', value: string) => void;
   onCommitHotkeyFlashDelay: () => void;
+  onCommitHotkeyRepeatDelay: () => void;
 }) {
   const [layoutMap, setLayoutMap] = useState<ReadonlyMap<string, string> | undefined>();
   const [recordingAction, setRecordingAction] = useState<SiteHotkeyAction | null>(null);
@@ -199,7 +210,7 @@ export function HotkeysSettingsCard({
                   value={drafts.hotkeyFlashDelay ?? hotkeyFlashDelaySeconds}
                   aria-describedby="hotkey-flash-delay-help"
                   onChange={(event) => {
-                    onDraftChange(event.target.value);
+                    onDraftChange('hotkeyFlashDelay', event.target.value);
                   }}
                   onBlur={onCommitHotkeyFlashDelay}
                   onKeyDown={(event) => {
@@ -272,6 +283,118 @@ export function HotkeysSettingsCard({
                 )}
               >
                 {`${behavior.hotkeyFlashOpacity.value}%`}
+              </span>
+            </div>
+          </Field>
+          <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-2">
+            <BehaviorSwitchField
+              id="hotkey-repeat"
+              name="hotkeyRepeat"
+              field="hotkeyRepeat"
+              label={t('hotkeyRepeat')}
+              description={t('hotkeyRepeatDescription')}
+              setting={behavior.hotkeyRepeat}
+              selection={selection}
+              disabled={pending}
+              resetBadgeText={resetBadgeText}
+              onMutate={onMutateBehavior}
+            />
+            <Field data-disabled={hotkeyRepeatLocked || undefined}>
+              <FieldLabel htmlFor="hotkey-repeat-delay">{t('hotkeyRepeatDelay')}</FieldLabel>
+              <InputGroup isDisabled={hotkeyRepeatLocked}>
+                <InputGroupInput
+                  id="hotkey-repeat-delay"
+                  className={cn(
+                    showsInherited(
+                      selection,
+                      behavior.hotkeyRepeatDelayMs.source,
+                      drafts.hotkeyRepeatDelay,
+                    ) && 'text-muted-foreground',
+                  )}
+                  name="hotkeyRepeatDelay"
+                  type="number"
+                  inputMode="decimal"
+                  enterKeyHint="done"
+                  min={HOTKEY_REPEAT_DELAY_MS_MIN / 1000}
+                  max={HOTKEY_REPEAT_DELAY_MS_MAX / 1000}
+                  step={0.001}
+                  autoComplete="off"
+                  disabled={hotkeyRepeatLocked}
+                  value={drafts.hotkeyRepeatDelay ?? hotkeyRepeatDelaySeconds}
+                  aria-describedby="hotkey-repeat-delay-help"
+                  onChange={(event) => {
+                    onDraftChange('hotkeyRepeatDelay', event.target.value);
+                  }}
+                  onBlur={onCommitHotkeyRepeatDelay}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      onCommitHotkeyRepeatDelay();
+                    }
+                  }}
+                />
+                <InputGroupInheritReset
+                  active={ownsOverride(selection, behavior.hotkeyRepeatDelayMs.source)}
+                  disabled={hotkeyRepeatLocked}
+                  label={resetFieldLabel(t('hotkeyRepeatDelay'))}
+                  onReset={() => {
+                    onMutateBehavior({ kind: 'inherit', field: 'hotkeyRepeatDelayMs' });
+                  }}
+                />
+              </InputGroup>
+              <FieldDescription id="hotkey-repeat-delay-help">
+                {t('hotkeyRepeatDelayDescription')}
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+          <Field data-disabled={hotkeyRepeatLocked || undefined}>
+            <div className="flex items-start justify-between gap-2">
+              <FieldContent>
+                <FieldLabel id="hotkey-repeat-rate-label">{t('hotkeyRepeatRate')}</FieldLabel>
+                <FieldDescription id="hotkey-repeat-rate-help">
+                  {t('hotkeyRepeatRateDescription')}
+                </FieldDescription>
+              </FieldContent>
+              <ResetBadge
+                active={ownsOverride(selection, behavior.hotkeyRepeatRate.source)}
+                disabled={hotkeyRepeatLocked}
+                text={resetBadgeText}
+                label={resetFieldLabel(t('hotkeyRepeatRate'))}
+                onReset={() => {
+                  onMutateBehavior({ kind: 'inherit', field: 'hotkeyRepeatRate' });
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Slider
+                aria-label={t('hotkeyRepeatRate')}
+                aria-labelledby="hotkey-repeat-rate-label"
+                aria-describedby="hotkey-repeat-rate-help"
+                isDisabled={hotkeyRepeatLocked}
+                minValue={HOTKEY_REPEAT_RATE_MIN}
+                maxValue={HOTKEY_REPEAT_RATE_MAX}
+                step={0.5}
+                value={behavior.hotkeyRepeatRate.value}
+                onChange={(value) => {
+                  const next = Array.isArray(value) ? value[0] : value;
+                  if (next == null) {
+                    return;
+                  }
+                  onMutateBehavior({
+                    kind: 'value',
+                    field: 'hotkeyRepeatRate',
+                    value: canonicalizeHotkeyRepeatRate(next),
+                  });
+                }}
+              />
+              <span
+                className={cn(
+                  'w-14 shrink-0 text-right text-sm tabular-nums',
+                  showsInherited(selection, behavior.hotkeyRepeatRate.source) &&
+                    'text-muted-foreground',
+                )}
+              >
+                {`${behavior.hotkeyRepeatRate.value}/sec`}
               </span>
             </div>
           </Field>

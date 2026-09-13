@@ -33,6 +33,11 @@ function createEngine(actions?: OverlayActions): VideoSpeedEngine {
         return;
       }
       registry.setBehavior(behavior, nextHotkeys);
+      hotkeys?.setRepeatPolicy({
+        enabled: behavior.hotkeyRepeat,
+        delayMs: behavior.hotkeyRepeatDelayMs,
+        rate: behavior.hotkeyRepeatRate,
+      });
       if (nextHotkeys) {
         hotkeys?.setHotkeys(nextHotkeys);
       }

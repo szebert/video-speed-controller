@@ -16,10 +16,13 @@ function flashCardProps() {
     behavior: resolveSiteBehavior(),
     drafts: {},
     hotkeyFlashDelaySeconds: '0.75',
+    hotkeyRepeatDelaySeconds: '0.5',
     hotkeyFlashDelayLocked: false,
+    hotkeyRepeatLocked: true,
     onMutateBehavior() {},
     onDraftChange() {},
     onCommitHotkeyFlashDelay() {},
+    onCommitHotkeyRepeatDelay() {},
   };
 }
 
