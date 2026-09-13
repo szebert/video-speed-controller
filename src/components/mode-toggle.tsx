@@ -27,7 +27,7 @@ export function ModeToggle() {
     }
   };
 
-  const CurrentIcon = THEMES.find((item) => item.key === theme)?.Icon ?? MoonIcon;
+  const CurrentIcon = THEMES.find((item) => item.key === theme)?.Icon ?? MonitorIcon;
 
   return (
     <DropdownMenuTrigger>

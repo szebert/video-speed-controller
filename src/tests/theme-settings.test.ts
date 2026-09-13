@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
-import { DARK_DEFAULT, getStoredTheme, persistTheme, resolveColorScheme } from '../settings/theme';
+import { DEFAULT_THEME, getStoredTheme, persistTheme, resolveColorScheme } from '../settings/theme';
 import { memoryDurable } from './memory-store';
 
 describe('theme settings', () => {
-  it('defaults to dark when storage is empty, unreadable, or rejected', async () => {
+  it('defaults to system when storage is empty, unreadable, or rejected', async () => {
     const sync = memoryDurable();
-    await expect(getStoredTheme({ sync })).resolves.toBe(DARK_DEFAULT);
+    await expect(getStoredTheme({ sync })).resolves.toBe(DEFAULT_THEME);
     sync.data['pref:theme'] = { schemaVersion: 1, preference: 'nope' };
-    await expect(getStoredTheme({ sync })).resolves.toBe(DARK_DEFAULT);
+    await expect(getStoredTheme({ sync })).resolves.toBe(DEFAULT_THEME);
     await expect(
       getStoredTheme({
         sync: {
@@ -19,7 +19,7 @@ describe('theme settings', () => {
           },
         },
       }),
-    ).resolves.toBe(DARK_DEFAULT);
+    ).resolves.toBe(DEFAULT_THEME);
   });
 
   it('persists and reads a versioned preference', async () => {
@@ -32,7 +32,7 @@ describe('theme settings', () => {
     const sync = memoryDurable();
     const stored = { schemaVersion: 1, preference: 'garbage', futureField: 123 };
     sync.data['pref:theme'] = stored;
-    await expect(getStoredTheme({ sync })).resolves.toBe(DARK_DEFAULT);
+    await expect(getStoredTheme({ sync })).resolves.toBe(DEFAULT_THEME);
     expect(sync.data['pref:theme']).toEqual(stored);
     await persistTheme('light', { sync });
     expect(sync.data['pref:theme']).toEqual({
@@ -46,7 +46,7 @@ describe('theme settings', () => {
     const sync = memoryDurable();
     const stored = { schemaVersion: 2, preference: 'light', extra: true };
     sync.data['pref:theme'] = stored;
-    await expect(getStoredTheme({ sync })).resolves.toBe(DARK_DEFAULT);
+    await expect(getStoredTheme({ sync })).resolves.toBe(DEFAULT_THEME);
     await expect(persistTheme('dark', { sync })).rejects.toThrow(/newer version/i);
     expect(sync.data['pref:theme']).toEqual(stored);
   });

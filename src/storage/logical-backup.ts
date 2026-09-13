@@ -20,7 +20,7 @@ import {
   applyHotkeySettingChange,
   inheritAllKnownSettings,
 } from '../settings/site-behavior';
-import { DARK_DEFAULT, getStoredTheme, persistThemeUnlocked } from '../settings/theme';
+import { DEFAULT_THEME, getStoredTheme, persistThemeUnlocked } from '../settings/theme';
 import {
   persistGlobalBehaviorOverridesUnlocked,
   readGlobalBehaviorCopiesUnlocked,
@@ -148,7 +148,7 @@ async function importLogicalSettingsUnlocked(
   );
   skippedRecordCount += sites.skippedRecordCount;
 
-  const theme = mode === 'replace' ? (backup.theme ?? DARK_DEFAULT) : backup.theme;
+  const theme = mode === 'replace' ? (backup.theme ?? DEFAULT_THEME) : backup.theme;
   if (theme !== undefined) {
     try {
       await persistThemeUnlocked(theme, { sync: deps.sync });

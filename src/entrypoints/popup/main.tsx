@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { StrictMode } from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
 import { applyDocumentLocale, resolveLocale } from '@/i18n/locale';
-import { applyTheme, DARK_DEFAULT, getStoredTheme } from '@/settings/theme';
+import { applyTheme, DEFAULT_THEME, getStoredTheme } from '@/settings/theme';
 import { App } from './App';
 import '@/styles/globals.css';
 
@@ -17,7 +17,7 @@ if (!root) {
   throw new Error('Popup root is missing');
 }
 
-const initialTheme = await getStoredTheme().catch(() => DARK_DEFAULT);
+const initialTheme = await getStoredTheme().catch(() => DEFAULT_THEME);
 applyTheme(initialTheme);
 
 createRoot(root).render(

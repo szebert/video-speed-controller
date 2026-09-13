@@ -13,7 +13,7 @@ import { pickUnknownKeys, type OpaqueFields } from './opaque-fields';
 
 export type ThemePreference = 'dark' | 'light' | 'system';
 
-export const DARK_DEFAULT: ThemePreference = 'dark';
+export const DEFAULT_THEME: ThemePreference = 'system';
 
 export type ThemeRecordV1 = {
   schemaVersion: 1;
@@ -85,11 +85,11 @@ export async function getStoredTheme(deps: ThemeDeps = {}): Promise<ThemePrefere
     const result = await sync.get(THEME_KEY);
     const parsed = migrateThemeRecord(result[THEME_KEY]);
     if (parsed.status === 'ready') {
-      return parsed.record.preference ?? DARK_DEFAULT;
+      return parsed.record.preference ?? DEFAULT_THEME;
     }
-    return DARK_DEFAULT;
+    return DEFAULT_THEME;
   } catch {
-    return DARK_DEFAULT;
+    return DEFAULT_THEME;
   }
 }
 
