@@ -10,6 +10,7 @@ import { contentFailureMessage, sendContentRequest } from '../protocol/content/c
 import {
   AdjustSpeedRequestSchema,
   AdjustSpeedResponseSchema,
+  DispatchTabActionResponseSchema,
   CONTENT_TO_BACKGROUND,
   OpenOptionsPageResponseSchema,
   SetOverlayPositionResponseSchema,
@@ -117,6 +118,20 @@ describe('content Mini protocol', () => {
     });
     expect(AdjustSpeedResponseSchema.safeParse({ ok: true, targetSpeed: 1.25 }).data).toEqual({
       ok: true,
+      targetSpeed: 1.25,
+    });
+    expect(DispatchTabActionResponseSchema.safeParse({ ok: true, targetSpeed: 1.25 }).success).toBe(
+      false,
+    );
+    expect(
+      DispatchTabActionResponseSchema.safeParse({
+        ok: true,
+        previousTargetSpeed: 1,
+        targetSpeed: 1.25,
+      }).data,
+    ).toEqual({
+      ok: true,
+      previousTargetSpeed: 1,
       targetSpeed: 1.25,
     });
   });

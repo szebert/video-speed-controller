@@ -4,7 +4,7 @@ import type { OverlayActions } from '../overlay/types';
 import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 import { MediaController } from './media-controller';
-import { OVERLAY_HOST_TAG, VideoOverlay } from './video-overlay';
+import { isExtensionHost, VideoOverlay, type HotkeyFlashPayload } from './video-overlay';
 
 type RegistryEntry = {
   controller: MediaController;
@@ -33,6 +33,9 @@ export function collectVideos(root: Node): HTMLVideoElement[] {
 export function collectOpenShadowRoots(root: Node): ShadowRoot[] {
   const shadows: ShadowRoot[] = [];
   const visitElement = (element: Element): void => {
+    if (isExtensionHost(element)) {
+      return;
+    }
     if (element.shadowRoot) {
       shadows.push(element.shadowRoot);
     }
@@ -110,6 +113,15 @@ export class MediaRegistry {
     return this.rootObservers.size;
   }
 
+  flashHotkeyAction(payload: HotkeyFlashPayload): void {
+    if (this.destroyed || !this.currentBehavior?.hotkeyFlash) {
+      return;
+    }
+    for (const entry of this.entries.values()) {
+      entry.overlay.showHotkeyFlash(payload);
+    }
+  }
+
   destroy(): void {
     this.destroyed = true;
     this.latestPointer = null;
@@ -175,13 +187,13 @@ export class MediaRegistry {
 
     for (const record of records) {
       record.addedNodes.forEach((node) => {
-        if (node instanceof Element && node.localName === OVERLAY_HOST_TAG) {
+        if (isExtensionHost(node)) {
           return;
         }
         added.push(node);
       });
       record.removedNodes.forEach((node) => {
-        if (node instanceof Element && node.localName === OVERLAY_HOST_TAG) {
+        if (isExtensionHost(node)) {
           return;
         }
         for (const video of collectVideos(node)) {

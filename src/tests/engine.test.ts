@@ -10,6 +10,9 @@ describe('engine lifecycle', () => {
     destroyEngine();
     document.body.replaceChildren();
     document.documentElement.querySelectorAll('osvsc-overlay').forEach((node) => node.remove());
+    document.documentElement
+      .querySelectorAll('osvsc-hotkey-flash')
+      .forEach((node) => node.remove());
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -42,7 +45,11 @@ describe('engine lifecycle', () => {
   });
 
   it('does not dispatch compiled-in hotkeys until APPLY includes a map', async () => {
-    const sendMessage = vi.fn(async () => ({ ok: true, targetSpeed: 1 }));
+    const sendMessage = vi.fn(async () => ({
+      ok: true,
+      previousTargetSpeed: 2,
+      targetSpeed: 1,
+    }));
     vi.stubGlobal('chrome', { runtime: { sendMessage } });
     const engine = startEngine();
     engine.setBehavior(builtInAppliedTabBehavior(2));

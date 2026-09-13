@@ -8,6 +8,7 @@ import {
   DEFAULT_SPEED_POLICY,
   displaySpeed,
   formatSpeed,
+  formatSpeedDelta,
   isPolicyLimited,
   resolveEffectiveSpeed,
   sliderBounds,
@@ -27,6 +28,12 @@ describe('speed policy', () => {
     expect(formatSpeed(1)).toBe('1.00×');
     expect(formatSpeed(1.25)).toBe('1.25×');
     expect(formatSpeed(SPEED_MIN_SETTING_MIN)).toBe('0.0625×');
+  });
+
+  it('formats signed speed deltas with a × suffix', () => {
+    expect(formatSpeedDelta(0.25)).toBe('(+0.25×)');
+    expect(formatSpeedDelta(-0.25)).toBe('(−0.25×)');
+    expect(formatSpeedDelta(0)).toBe('(+0.00×)');
   });
 
   it('snaps the slider to 0.01 and keeps the ends', () => {

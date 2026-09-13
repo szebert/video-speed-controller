@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { OVERLAY_HOST_TAG, OVERLAY_INSET_PX, VideoOverlay } from '../core/video-overlay';
+import {
+  HOTKEY_FLASH_HOST_TAG,
+  OVERLAY_HOST_TAG,
+  OVERLAY_INSET_PX,
+  VideoOverlay,
+} from '../core/video-overlay';
 import { MediaRegistry } from '../core/media-registry';
 import { OverlayView } from '../overlay/overlay-view';
-import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
+import { BUILT_IN_HOTKEYS, builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -124,6 +129,9 @@ describe('media registry', () => {
     restoreResizeObserver = undefined;
     document.body.replaceChildren();
     document.documentElement.querySelectorAll(OVERLAY_HOST_TAG).forEach((node) => node.remove());
+    document.documentElement
+      .querySelectorAll(HOTKEY_FLASH_HOST_TAG)
+      .forEach((node) => node.remove());
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -764,5 +772,52 @@ describe('media registry', () => {
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 20, clientY: 30 }));
     expect(document.querySelectorAll(OVERLAY_HOST_TAG)).toHaveLength(0);
     expect(registry.size).toBe(0);
+  });
+
+  it('does not observe hotkey flash hosts', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const observersBefore = registry.observerCount;
+    const host = document.createElement(HOTKEY_FLASH_HOST_TAG);
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.append(document.createElement('div'));
+    document.documentElement.append(host);
+    registry['handleMutations']([
+      {
+        addedNodes: [host] as unknown as NodeList,
+        removedNodes: [] as unknown as NodeList,
+        type: 'childList',
+        target: document.documentElement,
+      } as unknown as MutationRecord,
+    ]);
+    expect(registry.observerCount).toBe(observersBefore);
+    host.remove();
+    registry['handleMutations']([
+      {
+        addedNodes: [] as unknown as NodeList,
+        removedNodes: [host] as unknown as NodeList,
+        type: 'childList',
+        target: document.documentElement,
+      } as unknown as MutationRecord,
+    ]);
+    expect(registry.observerCount).toBe(observersBefore);
+  });
+
+  it('does not flash after destroy', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const node = video();
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(1));
+    registry.ensureController(node);
+    registry.destroy();
+    registry.flashHotkeyAction({
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
   });
 });

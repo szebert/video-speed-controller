@@ -105,6 +105,12 @@ export function formatSpeed(speed: number): string {
   return `${whole}.${fraction.padEnd(2, '0')}×`;
 }
 
+export function formatSpeedDelta(delta: number): string {
+  const value = canonicalizeSpeed(delta);
+  const sign = value < 0 ? '−' : '+';
+  return `(${sign}${formatSpeed(Math.abs(value))})`;
+}
+
 export function sliderBounds(policy: SpeedPolicy = DEFAULT_SPEED_POLICY): {
   minValue: number;
   maxValue: number;

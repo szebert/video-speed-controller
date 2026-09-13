@@ -3,17 +3,46 @@
 import { OverlayView } from '../overlay/overlay-view';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
 import type { OverlayActions } from '../overlay/types';
+import { visualHotkeyParts } from './hotkey-format';
 import {
+  canonicalizeHotkeyFlashDelayMs,
+  canonicalizeHotkeyFlashOpacity,
   canonicalizeOverlayAutoHideDelayMs,
   overlayPositionToGrid,
 } from '../settings/site-behavior';
-import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
+import type { EffectiveHotkeyMap, HotkeyBinding } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
+import { formatSpeed, formatSpeedDelta } from './speed';
 
 export const OVERLAY_HOST_TAG = 'osvsc-overlay';
+export const HOTKEY_FLASH_HOST_TAG = 'osvsc-hotkey-flash';
 export const OVERLAY_INSET_PX = 8;
 export const OVERLAY_MIN_SIZE_PX = 2;
 export const OVERLAY_Z_INDEX = '2147483647';
+
+export function isExtensionHost(node: Node): boolean {
+  return (
+    node instanceof Element &&
+    (node.localName === OVERLAY_HOST_TAG || node.localName === HOTKEY_FLASH_HOST_TAG)
+  );
+}
+
+export type HotkeyFlashPayload = {
+  previousTargetSpeed: number;
+  targetSpeed: number;
+  binding: HotkeyBinding;
+};
+
+function styleExtensionHost(host: HTMLElement): void {
+  host.style.setProperty('all', 'initial', 'important');
+  host.style.setProperty('position', 'fixed', 'important');
+  host.style.setProperty('pointer-events', 'none', 'important');
+  host.style.setProperty('z-index', OVERLAY_Z_INDEX, 'important');
+  host.style.setProperty('margin', '0', 'important');
+  host.style.setProperty('padding', '0', 'important');
+  host.style.setProperty('box-sizing', 'border-box', 'important');
+  host.style.setProperty('visibility', 'hidden', 'important');
+}
 
 export class VideoOverlay {
   readonly host: HTMLElement;
@@ -26,6 +55,10 @@ export class VideoOverlay {
   private interactive = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private layoutVisible = false;
+  private flashHost: HTMLElement | null = null;
+  private flashPill: HTMLElement | null = null;
+  private flashGeneration = 0;
+  private flashTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     readonly video: HTMLVideoElement,
@@ -36,14 +69,7 @@ export class VideoOverlay {
   ) {
     const document = video.ownerDocument;
     this.host = document.createElement(OVERLAY_HOST_TAG);
-    this.host.style.setProperty('all', 'initial', 'important');
-    this.host.style.setProperty('position', 'fixed', 'important');
-    this.host.style.setProperty('pointer-events', 'none', 'important');
-    this.host.style.setProperty('z-index', OVERLAY_Z_INDEX, 'important');
-    this.host.style.setProperty('margin', '0', 'important');
-    this.host.style.setProperty('padding', '0', 'important');
-    this.host.style.setProperty('box-sizing', 'border-box', 'important');
-    this.host.style.setProperty('visibility', 'hidden', 'important');
+    styleExtensionHost(this.host);
 
     const shadow = this.host.attachShadow({ mode: 'open' });
     applyOverlayStyles(shadow);
@@ -81,6 +107,11 @@ export class VideoOverlay {
     if (hotkeys) {
       this.hotkeys = hotkeys;
     }
+    if (!behavior.hotkeyFlash) {
+      this.invalidateFlash();
+    } else {
+      this.syncFlashOpacity();
+    }
     this.syncView();
     if (this.controlled) {
       this.restartAutoHide();
@@ -94,6 +125,7 @@ export class VideoOverlay {
       this.interactive = false;
       this.clearHideTimer();
       this.autoHideExpired = false;
+      this.invalidateFlash();
       this.syncView();
       this.requestLayout();
       return;
@@ -101,6 +133,14 @@ export class VideoOverlay {
     this.restartAutoHide();
     this.syncView();
     this.requestLayout();
+  }
+
+  showHotkeyFlash(payload: HotkeyFlashPayload): void {
+    if (!this.controlled || !this.behavior) {
+      return;
+    }
+    const id = this.showFlash(payload);
+    this.startHideTimer(id, canonicalizeHotkeyFlashDelayMs(this.behavior.hotkeyFlashDelayMs));
   }
 
   notifyActivity(): void {
@@ -120,7 +160,12 @@ export class VideoOverlay {
   }
 
   layout(measureRect: () => DOMRect = () => this.video.getBoundingClientRect()): void {
-    const rect = this.evaluateVisibility(measureRect);
+    let cached: DOMRect | undefined;
+    const measure = (): DOMRect => {
+      cached ??= measureRect();
+      return cached;
+    };
+    const rect = this.evaluateVisibility(measure);
     const visible = rect != null;
     const changed = this.layoutVisible !== visible;
     this.layoutVisible = visible;
@@ -129,6 +174,7 @@ export class VideoOverlay {
       this.syncView(visible);
     }
     if (!visible || !this.behavior) {
+      this.layoutFlash(measure);
       return;
     }
     const { row, column } = overlayPositionToGrid(this.behavior.overlayPosition);
@@ -153,10 +199,12 @@ export class VideoOverlay {
       `translate(${translateX}, ${translateY})`,
       'important',
     );
+    this.layoutFlash(measure);
   }
 
   destroy(): void {
     this.clearHideTimer();
+    this.invalidateFlash();
     this.videoAbort.abort();
     this.view.destroy();
     this.host.remove();
@@ -238,5 +286,123 @@ export class VideoOverlay {
       clearTimeout(this.hideTimer);
       this.hideTimer = null;
     }
+  }
+
+  private showFlash(payload: HotkeyFlashPayload): number {
+    this.flashGeneration += 1;
+    const id = this.flashGeneration;
+    this.clearFlashTimer();
+    const host = this.ensureFlashHost();
+    const document = host.ownerDocument;
+    const pill = this.flashPill;
+    if (!pill) {
+      return id;
+    }
+    pill.replaceChildren();
+    const label = document.createElement('span');
+    label.className = 'hotkey-flash-label';
+    label.textContent = `${formatSpeed(payload.targetSpeed)} ${formatSpeedDelta(
+      payload.targetSpeed - payload.previousTargetSpeed,
+    )}`;
+    const hint = document.createElement('kbd');
+    hint.className = 'hotkey-hint';
+    hint.setAttribute('aria-hidden', 'true');
+    hint.textContent = visualHotkeyParts(payload.binding).join('\u2009');
+    pill.append(label, hint);
+    this.syncFlashOpacity();
+    this.requestLayout();
+    return id;
+  }
+
+  private startHideTimer(id: number, delayMs: number): void {
+    this.clearFlashTimer();
+    this.flashTimer = setTimeout(() => {
+      this.hideNow(id);
+    }, delayMs);
+  }
+
+  private hideNow(id: number): void {
+    if (id !== this.flashGeneration) {
+      return;
+    }
+    this.invalidateFlash();
+  }
+
+  private invalidateFlash(): void {
+    this.flashGeneration += 1;
+    this.clearFlashTimer();
+    this.removeFlashHost();
+  }
+
+  private ensureFlashHost(): HTMLElement {
+    if (this.flashHost?.isConnected && this.flashPill) {
+      return this.flashHost;
+    }
+    this.removeFlashHost();
+    const document = this.video.ownerDocument;
+    const host = document.createElement(HOTKEY_FLASH_HOST_TAG);
+    styleExtensionHost(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    applyOverlayStyles(shadow);
+    const pill = document.createElement('div');
+    pill.className = 'hotkey-flash';
+    pill.setAttribute('aria-hidden', 'true');
+    shadow.append(pill);
+    document.documentElement.append(host);
+    this.flashHost = host;
+    this.flashPill = pill;
+    return host;
+  }
+
+  private removeFlashHost(): void {
+    this.flashHost?.remove();
+    this.flashHost = null;
+    this.flashPill = null;
+  }
+
+  private clearFlashTimer(): void {
+    if (this.flashTimer != null) {
+      clearTimeout(this.flashTimer);
+      this.flashTimer = null;
+    }
+  }
+
+  private syncFlashOpacity(): void {
+    if (!this.flashPill || !this.behavior) {
+      return;
+    }
+    this.flashPill.style.opacity = `${canonicalizeHotkeyFlashOpacity(this.behavior.hotkeyFlashOpacity) / 100}`;
+  }
+
+  private layoutFlash(measureRect: () => DOMRect): void {
+    if (!this.flashHost) {
+      return;
+    }
+    const rect = this.evaluateFlashRect(measureRect);
+    this.flashHost.style.setProperty('visibility', rect ? 'visible' : 'hidden', 'important');
+    if (!rect) {
+      return;
+    }
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 4;
+    this.flashHost.style.setProperty('left', `${x}px`, 'important');
+    this.flashHost.style.setProperty('top', `${y}px`, 'important');
+    this.flashHost.style.setProperty('transform', 'translate(-50%, -50%)', 'important');
+  }
+
+  private evaluateFlashRect(measureRect: () => DOMRect): DOMRect | null {
+    if (
+      !this.controlled ||
+      !this.behavior?.hotkeyFlash ||
+      !this.flashHost ||
+      !this.video.isConnected
+    ) {
+      return null;
+    }
+    const rect = measureRect();
+    if (rect.width < OVERLAY_MIN_SIZE_PX || rect.height < OVERLAY_MIN_SIZE_PX) {
+      return null;
+    }
+    return rect;
   }
 }

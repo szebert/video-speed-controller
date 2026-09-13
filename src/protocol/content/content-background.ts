@@ -49,6 +49,19 @@ export const AdjustSpeedResponseSchema = z.union([
   }),
 ]);
 
+export const DispatchTabActionResponseSchema = z.union([
+  z.object({
+    ok: z.literal(true),
+    previousTargetSpeed: z.number(),
+    targetSpeed: z.number(),
+    persistError: z.optional(z.string()),
+  }),
+  z.object({
+    ok: z.literal(false),
+    error: z.string(),
+  }),
+]);
+
 export const SetOverlayPositionResponseSchema = z.union([
   z.object({
     ok: z.literal(true),
@@ -78,7 +91,7 @@ export const CONTENT_TO_BACKGROUND = {
   ADJUST_SPEED: { request: AdjustSpeedRequestSchema, response: AdjustSpeedResponseSchema },
   DISPATCH_TAB_ACTION: {
     request: DispatchTabActionRequestSchema,
-    response: AdjustSpeedResponseSchema,
+    response: DispatchTabActionResponseSchema,
   },
   SET_OVERLAY_POSITION: {
     request: SetOverlayPositionRequestSchema,
@@ -97,7 +110,7 @@ export const CONTENT_TO_BACKGROUND = {
 
 export type AdjustSpeedRequest = z.infer<typeof AdjustSpeedRequestSchema>;
 export type DispatchTabActionRequest = z.infer<typeof DispatchTabActionRequestSchema>;
-export type DispatchTabActionResponse = AdjustSpeedResponse;
+export type DispatchTabActionResponse = z.infer<typeof DispatchTabActionResponseSchema>;
 export type SetOverlayPositionRequest = z.infer<typeof SetOverlayPositionRequestSchema>;
 export type OpenOptionsPageRequest = z.infer<typeof OpenOptionsPageRequestSchema>;
 export type FrameReadyRequest = z.infer<typeof FrameReadyRequestSchema>;

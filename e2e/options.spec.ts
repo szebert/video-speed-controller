@@ -58,7 +58,8 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   await expect(options.getByRole('tab')).toHaveCount(0);
   await expect(options.getByRole('button', { name: 'Reset defaults' })).toBeEnabled();
   await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeEnabled();
-  await expect(options.getByRole('slider', { name: 'Opacity' })).toBeVisible();
+  await expect(options.getByRole('slider', { name: 'Opacity', exact: true })).toBeVisible();
+  await expect(options.getByRole('slider', { name: 'Flash opacity' })).toBeVisible();
   await expect(options.getByRole('button', { name: 'Reset ALL Settings' })).toHaveCount(0);
 
   await options.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -311,4 +312,55 @@ test('hiding the overlay keeps videos playing at the current speed', async ({
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
     )
     .toBe(1.25);
+});
+
+async function hotkeyFlashCopy(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('osvsc-hotkey-flash')].map(
+      (host) => host.shadowRoot?.querySelector('.hotkey-flash')?.textContent ?? '',
+    ),
+  );
+}
+
+async function pressIncreaseSpeedHotkey(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: ']',
+        code: 'BracketRight',
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      }),
+    );
+  });
+}
+
+test('hotkey flash shows the new speed then hides', async ({
+  context,
+  extensionId,
+  serviceWorker,
+  site,
+}) => {
+  const popup = await openPopup(context, extensionId, site, serviceWorker);
+  await enableSiteAt(popup, site, 1.25);
+  const options = await openOptions(context, extensionId, '127.0.0.1');
+  const delay = options.locator('#hotkey-flash-delay');
+  await delay.fill('1');
+  await delay.press('Enter');
+  await expect(delay).toHaveValue('1');
+  await site.bringToFront();
+  await pressIncreaseSpeedHotkey(site);
+  await expect
+    .poll(async () => hotkeyFlashCopy(site))
+    .toEqual(['1.50× (+0.25×)]', '1.50× (+0.25×)]', '1.50× (+0.25×)]']);
+  await expect.poll(async () => hotkeyFlashCopy(site)).toEqual([]);
+
+  await options.bringToFront();
+  await clickOptionsSwitch(options, 'Show hotkey flash');
+  await expect(options.getByRole('switch', { name: 'Show hotkey flash' })).not.toBeChecked();
+  await site.bringToFront();
+  await pressIncreaseSpeedHotkey(site);
+  await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.75×', '1.75×', '1.75×']);
+  expect(await hotkeyFlashCopy(site)).toEqual([]);
 });

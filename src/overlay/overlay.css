@@ -193,3 +193,44 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+
+.hotkey-flash {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+  transition: opacity 0.12s ease-out;
+  transition-behavior: allow-discrete;
+}
+
+@starting-style {
+  .hotkey-flash {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hotkey-flash {
+    transition-duration: 0.01s;
+  }
+
+  @starting-style {
+    .hotkey-flash {
+      opacity: 1;
+    }
+  }
+}

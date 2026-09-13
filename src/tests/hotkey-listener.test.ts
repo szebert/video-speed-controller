@@ -10,7 +10,7 @@ describe('HotkeyListener', () => {
 
   beforeEach(() => {
     sendMessage.mockReset();
-    sendMessage.mockResolvedValue({ ok: true, targetSpeed: 1.25 });
+    sendMessage.mockResolvedValue({ ok: true, previousTargetSpeed: 1, targetSpeed: 1.25 });
     vi.stubGlobal('chrome', { runtime: { sendMessage } });
   });
 
@@ -20,10 +20,7 @@ describe('HotkeyListener', () => {
 
   it('stays inert until a map is applied and ignores key repeat', () => {
     const registry = new MediaRegistry(document);
-    const listener = new HotkeyListener(window, () => ({
-      registry,
-      source: { kind: 'hotkey' },
-    }));
+    const listener = new HotkeyListener(window, () => registry);
     window.dispatchEvent(
       new KeyboardEvent('keydown', {
         code: 'BracketLeft',

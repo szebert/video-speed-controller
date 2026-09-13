@@ -5,7 +5,8 @@ import {
   matchHotkeyAction,
   type EffectiveHotkeyMap,
 } from '../settings/hotkey-binding';
-import { executeControllerAction, type ControllerActionContext } from './execute-controller-action';
+import { executeControllerAction } from './execute-controller-action';
+import type { MediaRegistry } from './media-registry';
 
 export class HotkeyListener {
   private map: EffectiveHotkeyMap | null = null;
@@ -13,7 +14,7 @@ export class HotkeyListener {
 
   constructor(
     private readonly target: Window,
-    private readonly resolveContext: () => ControllerActionContext,
+    private readonly resolveRegistry: () => MediaRegistry,
   ) {
     target.addEventListener('keydown', this.onKeyDown, {
       capture: true,
@@ -49,6 +50,13 @@ export class HotkeyListener {
     if (event.repeat) {
       return;
     }
-    void executeControllerAction(action, this.resolveContext());
+    const binding = this.map[action];
+    if (!binding) {
+      return;
+    }
+    void executeControllerAction(action, {
+      resolveRegistry: this.resolveRegistry,
+      source: { kind: 'hotkey', binding },
+    });
   };
 }

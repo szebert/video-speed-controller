@@ -41,7 +41,7 @@ const overlayActions: OverlayActions = {
       return;
     }
     void executeControllerAction(direction === 1 ? 'increaseSpeed' : 'decreaseSpeed', {
-      registry: engine.registry,
+      resolveRegistry: () => getActiveEngine()?.registry ?? engine.registry,
       source: { kind: 'overlay', video },
     });
   },

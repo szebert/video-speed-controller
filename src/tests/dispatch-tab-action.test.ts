@@ -39,10 +39,10 @@ describe('dispatchTabAction', () => {
     const deps = { tabStore, apply, persist, ensure: vi.fn() };
     await expect(
       dispatchTabAction(sender({ id: 4, url: 'https://example.com/watch' }), 'increaseSpeed', deps),
-    ).resolves.toEqual({ ok: true, targetSpeed: 1.25 });
+    ).resolves.toEqual({ ok: true, previousTargetSpeed: 1, targetSpeed: 1.25 });
     await expect(
       dispatchTabAction(sender({ id: 4, url: 'https://example.com/watch' }), 'decreaseSpeed', deps),
-    ).resolves.toEqual({ ok: true, targetSpeed: 1 });
+    ).resolves.toEqual({ ok: true, previousTargetSpeed: 1.25, targetSpeed: 1 });
     expect(persist).toHaveBeenCalledTimes(2);
   });
 
@@ -56,7 +56,7 @@ describe('dispatchTabAction', () => {
       'resetSpeed',
       { tabStore, apply, persist, ensure: vi.fn() },
     );
-    expect(result).toEqual({ ok: true, targetSpeed: 1 });
+    expect(result).toEqual({ ok: true, previousTargetSpeed: 1.75, targetSpeed: 1 });
     expect(tabStore.data['tab:4']).toEqual(tabBehavior(1));
     expect(apply).toHaveBeenCalledWith(4, tabBehavior(1));
     expect(persist).not.toHaveBeenCalled();

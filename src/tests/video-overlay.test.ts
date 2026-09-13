@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
+import { BUILT_IN_HOTKEYS, builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import {
+  HOTKEY_FLASH_HOST_TAG,
   OVERLAY_HOST_TAG,
   OVERLAY_INSET_PX,
   OVERLAY_Z_INDEX,
@@ -34,6 +35,9 @@ describe('VideoOverlay', () => {
   afterEach(() => {
     document.body.replaceChildren();
     document.documentElement.querySelectorAll(OVERLAY_HOST_TAG).forEach((node) => node.remove());
+    document.documentElement
+      .querySelectorAll(HOTKEY_FLASH_HOST_TAG)
+      .forEach((node) => node.remove());
     document.documentElement.removeAttribute('style');
     document.body.removeAttribute('style');
     document.head.querySelectorAll('style').forEach((node) => node.remove());
@@ -849,5 +853,137 @@ describe('VideoOverlay', () => {
     ).toBeNull();
     expect(root?.querySelector('[aria-label="Faster"]')?.querySelector('.hotkey-hint')).toBeNull();
     expect(overlay.speedReadout?.querySelector('.hotkey-hint')).toBeNull();
+  });
+
+  it('shows a replaceable flash between top-center and center', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo({ left: 10, top: 20, width: 200, height: 100 });
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayVisible: false, hotkeyFlashDelayMs: 200 }),
+    );
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    overlay.layout();
+    const host = document.querySelector(HOTKEY_FLASH_HOST_TAG);
+    expect(host).toBeInstanceOf(HTMLElement);
+    expect((host as HTMLElement).style.visibility).toBe('visible');
+    expect((host as HTMLElement).style.left).toBe('110px');
+    expect((host as HTMLElement).style.top).toBe('45px');
+    expect((host as HTMLElement).style.transform).toBe('translate(-50%, -50%)');
+    const pill = host?.shadowRoot?.querySelector('.hotkey-flash');
+    expect(pill?.textContent).toBe('1.25× (+0.25×)]');
+    expect(pill?.querySelector('.hotkey-hint')?.textContent).toBe(']');
+    expect((pill as HTMLElement).style.opacity).toBe('0.7');
+
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1.25,
+      targetSpeed: 1.5,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    expect(document.querySelectorAll(HOTKEY_FLASH_HOST_TAG)).toHaveLength(1);
+    expect(host?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent).toBe(
+      '1.50× (+0.25×)',
+    );
+    vi.advanceTimersByTime(199);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).not.toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('uses hotkey flash opacity and ignores overlay opacity', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlayOpacity: 40,
+        hotkeyFlashOpacity: 20,
+      }),
+    );
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    const pill = document
+      .querySelector(HOTKEY_FLASH_HOST_TAG)
+      ?.shadowRoot?.querySelector('.hotkey-flash');
+    expect(pill).toBeInstanceOf(HTMLElement);
+    expect((pill as HTMLElement).style.opacity).toBe('0.2');
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlayOpacity: 100,
+        hotkeyFlashOpacity: 55,
+      }),
+    );
+    expect((pill as HTMLElement).style.opacity).toBe('0.55');
+  });
+
+  it('hides the flash immediately when the toggle turns off and ignores a later delay APPLY', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).not.toBeNull();
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, hotkeyFlashDelayMs: 5_000 }));
+    vi.advanceTimersByTime(200);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1.25,
+      targetSpeed: 1.5,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    overlay.setBehavior(tabBehavior(1.5, { overlayAutoHide: false, hotkeyFlash: false }));
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('recreates a flash host after setControlled(false) removes it', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).not.toBeNull();
+    overlay.setControlled(false);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1.25,
+      targetSpeed: 1.5,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).not.toBeNull();
+    overlay.destroy();
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('does not flash when the overlay is not controlled', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.showHotkeyFlash({
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
   });
 });
