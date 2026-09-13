@@ -58,7 +58,7 @@
   "hotkeyFlashOpacity": "Flash opacity",
   "hotkeyFlashOpacityDescription": "How opaque the hotkey flash appears over videos.",
   "hotkeyRepeat": "Enable key repeat",
-  "hotkeyRepeatDescription": "Allow repeating the same command multiple times while the key is held down.",
+  "hotkeyRepeatDescription": "Allow most hotkeys to repeat the same command multiple times while the key is held down.",
   "hotkeyRepeatDelay": "Repeat delay",
   "hotkeyRepeatDelayDescription": "Wait before repeating. 0.25s to 1s.",
   "hotkeyRepeatRate": "Repeat rate",

@@ -56,6 +56,10 @@ describe('HotkeyListener', () => {
   afterEach(() => {
     listener.destroy();
     registry.destroy();
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -282,6 +286,57 @@ describe('HotkeyListener', () => {
       type: 'DISPATCH_TAB_ACTION',
       action: 'decreaseSpeed',
     });
+  });
+
+  it('cancels the hold when chrome.runtime.sendMessage rejects', async () => {
+    listener.setHotkeys(builtInEffectiveHotkeys());
+    enableRepeat();
+    sendMessage.mockRejectedValue(new Error('Extension context invalidated'));
+    window.dispatchEvent(keydown('BracketRight', { key: ']' }));
+    await expect(executeMock.mock.results[0]?.value).rejects.toThrow(
+      'Extension context invalidated',
+    );
+    sendMessage.mockReset();
+    sendMessage.mockResolvedValue({ ok: true, previousTargetSpeed: 1, targetSpeed: 1.25 });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('cancels when the document becomes hidden', async () => {
+    listener.setHotkeys(builtInEffectiveHotkeys());
+    enableRepeat();
+    window.dispatchEvent(keydown('BracketRight', { key: ']' }));
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    sendMessage.mockClear();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(sendMessage).not.toHaveBeenCalled();
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
+  });
+
+  it('cancels when the held binding changes', async () => {
+    listener.setHotkeys(builtInEffectiveHotkeys());
+    enableRepeat();
+    window.dispatchEvent(keydown('BracketRight', { key: ']' }));
+    listener.setHotkeys({
+      ...builtInEffectiveHotkeys(),
+      increaseSpeed: {
+        code: 'KeyF',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        meta: false,
+      },
+    });
+    sendMessage.mockClear();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it('does not cancel a hold when the same repeat policy is applied again', async () => {

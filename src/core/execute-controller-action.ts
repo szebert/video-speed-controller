@@ -39,5 +39,6 @@ export async function executeControllerAction(
     });
   } catch (error) {
     console.warn('DISPATCH_TAB_ACTION failed', error);
+    throw error;
   }
 }

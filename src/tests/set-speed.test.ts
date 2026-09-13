@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  resetSiteSpeedPersistCoalescerForTests,
+  SITE_SPEED_PERSIST_COALESCE_MS,
+} from '../background/coalesce-site-speed';
 import { setSpeed } from '../background/set-speed';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import type { TabStateStore } from '../storage/tab-state';
@@ -28,6 +32,11 @@ function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
 }
 
 describe('setSpeed', () => {
+  afterEach(() => {
+    resetSiteSpeedPersistCoalescerForTests();
+    vi.useRealTimers();
+  });
+
   it('preserves existing overlay fields', async () => {
     const tabStore = memoryTabStore();
     const previous = tabBehavior(2, {
@@ -156,5 +165,35 @@ describe('setSpeed', () => {
       readOverlay: async () => tabBehavior(1, { overlayAutoHide: true }),
     });
     expect(tabStore.data['tab:1']).toEqual(tabBehavior(1.5, { overlayAutoHide: true }));
+  });
+
+  it('applies each speed immediately and coalesces durable persist', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const persist = vi.fn(async () => {});
+    resetSiteSpeedPersistCoalescerForTests({ persist });
+    const tabStore = memoryTabStore();
+    await tabStore.set({ 'tab:1': tabBehavior(1) });
+    const apply = vi.fn();
+    await expect(
+      setSpeed(1, 'https://example.com/watch', 1.25, {
+        tabStore,
+        apply,
+        ensure: vi.fn(),
+      }),
+    ).resolves.toEqual({ ok: true, targetSpeed: 1.25 });
+    expect(persist).toHaveBeenCalledTimes(1);
+    await expect(
+      setSpeed(1, 'https://example.com/watch', 1.5, {
+        tabStore,
+        apply,
+        ensure: vi.fn(),
+      }),
+    ).resolves.toEqual({ ok: true, targetSpeed: 1.5 });
+    expect(tabStore.data['tab:1']).toEqual(tabBehavior(1.5));
+    expect(apply).toHaveBeenLastCalledWith(1, tabBehavior(1.5));
+    expect(persist).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS);
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenLastCalledWith('https://example.com/watch', 1.5);
   });
 });

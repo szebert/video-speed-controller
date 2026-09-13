@@ -9,6 +9,7 @@ import {
 } from '../storage/site-settings';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { readOverlaySeed, type OverlaySeed } from './applied-behavior';
+import { flushPersistedSiteSpeeds } from './coalesce-site-speed';
 import { applyTabBehavior } from './broadcast';
 import { ensureCurrentTabEngine, type ScriptInjector } from './inject';
 
@@ -73,6 +74,7 @@ export async function resetSiteSpeed(
   }
 
   try {
+    await flushPersistedSiteSpeeds();
     const persistInherit =
       deps.persistInherit ??
       ((targetUrl: string) => persistSiteSpeedInherit(targetUrl, deps.storage));

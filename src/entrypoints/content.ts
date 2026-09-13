@@ -43,6 +43,8 @@ const overlayActions: OverlayActions = {
     void executeControllerAction(direction === 1 ? 'increaseSpeed' : 'decreaseSpeed', {
       resolveRegistry: () => getActiveEngine()?.registry ?? engine.registry,
       source: { kind: 'overlay', video },
+    }).catch(() => {
+      // executeControllerAction already logs transport failures.
     });
   },
   setOverlayPosition(position) {

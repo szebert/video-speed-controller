@@ -3,10 +3,11 @@
 import { canonicalizeSpeed, clampSpeed, type SpeedPolicy } from '../core/speed';
 import { speedPolicyFromApplied, type AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type { SetSpeedResponse } from '../protocol/schemas/popup-background';
-import { persistSiteSpeed, type SiteSettingsDeps } from '../storage/site-settings';
+import type { SiteSettingsDeps } from '../storage/site-settings';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { readOverlaySeed, type OverlaySeed } from './applied-behavior';
 import { applyTabBehavior } from './broadcast';
+import { persistSiteSpeedCoalesced } from './coalesce-site-speed';
 import { ensureCurrentTabEngine, type ScriptInjector } from './inject';
 
 export type SetSpeedDeps = {
@@ -67,7 +68,7 @@ export async function setSpeed(
   }
 
   try {
-    const persist = deps.persist ?? persistSiteSpeed;
+    const persist = deps.persist ?? persistSiteSpeedCoalesced;
     await persist(url, canonical);
     return { ok: true, targetSpeed: canonical };
   } catch (error) {

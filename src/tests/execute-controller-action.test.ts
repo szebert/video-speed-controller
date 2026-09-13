@@ -90,6 +90,17 @@ describe('executeControllerAction', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
   });
 
+  it('rejects when chrome.runtime.sendMessage rejects', async () => {
+    sendMessage.mockRejectedValue(new Error('Extension context invalidated'));
+    await expect(
+      executeControllerAction('increaseSpeed', {
+        resolveRegistry: () => registry,
+        source: { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed },
+      }),
+    ).rejects.toThrow('Extension context invalidated');
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
   it('flashes the active engine when the pre-dispatch registry was destroyed', async () => {
     registry.destroy();
     const engine = startEngine();

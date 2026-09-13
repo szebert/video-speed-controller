@@ -25,6 +25,10 @@ import {
 } from '../storage/site-settings';
 import * as siteSettings from '../storage/site-settings';
 import { resetStorageMutationQueue } from '../storage/storage-mutation-queue';
+import {
+  persistSiteSpeedCoalesced,
+  resetSiteSpeedPersistCoalescerForTests,
+} from '../background/coalesce-site-speed';
 import { resetTabMutationQueue } from '../background/tab-mutation-queue';
 import { memoryDurable } from './memory-store';
 
@@ -56,6 +60,8 @@ describe('behavior settings API', () => {
   });
 
   afterEach(() => {
+    resetSiteSpeedPersistCoalescerForTests();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -87,6 +93,20 @@ describe('behavior settings API', () => {
         { url: 'https://example.com/' },
       ),
     ).resolves.toEqual({ ok: false, error: 'Unauthorized' });
+  });
+
+  it('flushes coalesced site speeds before export', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const persist = vi.fn(async () => {});
+    resetSiteSpeedPersistCoalescerForTests({ persist });
+    await persistSiteSpeedCoalesced('https://www.youtube.com/watch', 1.25);
+    void persistSiteSpeedCoalesced('https://www.youtube.com/watch', 1.75);
+    expect(persist).toHaveBeenCalledTimes(1);
+    await expect(exportBehaviorBackup(extensionSender(), stores())).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenLastCalledWith('https://www.youtube.com/watch', 1.75);
   });
 
   it('returns a global-only snapshot when hostname is omitted', async () => {

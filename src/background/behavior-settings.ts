@@ -50,6 +50,7 @@ import {
   resolveSiteBehaviorForUrl,
   type SiteSettingsDeps,
 } from '../storage/site-settings';
+import { flushPersistedSiteSpeeds } from './coalesce-site-speed';
 import { isExtensionPageSender } from './extension-page-sender';
 import {
   reapplyBehaviorSettings,
@@ -156,6 +157,7 @@ export async function getBehaviorSettings(
     return hostname;
   }
   try {
+    await flushPersistedSiteSpeeds();
     return { ok: true, state: await readBehaviorSettingsSnapshot(hostname.hostname, deps) };
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to read settings') };
@@ -219,6 +221,7 @@ export async function setBehaviorSetting(
   }
 
   try {
+    await flushPersistedSiteSpeeds();
     if (message.scope.kind === 'global') {
       await persistGlobalBehaviorChanges(changes, deps);
     } else {
@@ -285,6 +288,7 @@ export async function setHotkeySetting(
   }
 
   try {
+    await flushPersistedSiteSpeeds();
     if (message.scope.kind === 'global') {
       await persistGlobalHotkeyChanges(changes, deps, { rejectConflicts: true });
     } else {
@@ -339,6 +343,7 @@ export async function deleteSiteBehaviorSettings(
   }
 
   try {
+    await flushPersistedSiteSpeeds();
     await deleteSiteSettings(hostname, deps);
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to delete site settings') };
@@ -368,6 +373,7 @@ export async function resetGlobalBehaviorSettings(
   }
 
   try {
+    await flushPersistedSiteSpeeds();
     await resetGlobalBehaviorOverrides(deps);
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to reset default settings') };
@@ -395,6 +401,7 @@ export async function resetAllBehaviorSettings(
   }
 
   try {
+    await flushPersistedSiteSpeeds();
     const globalOutcome = await resetGlobalBehaviorOverrides(deps, { ifUnsupported: 'skip' });
     const sites = await deleteAllSiteSettings(deps);
     const skippedRecordCount = (globalOutcome === 'skipped' ? 1 : 0) + sites.skippedRecordCount;
@@ -417,6 +424,7 @@ export async function exportBehaviorBackup(
     return { ok: false, error: 'Unauthorized' };
   }
   try {
+    await flushPersistedSiteSpeeds();
     return { ok: true, backupText: await exportLogicalBackupText(deps) };
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to export settings') };
@@ -436,6 +444,7 @@ export async function importBehaviorBackup(
     return snapshot;
   }
   try {
+    await flushPersistedSiteSpeeds();
     const imported = await importLogicalSettings(message.backupText, message.mode, deps);
     const customSites = await listCustomSiteHostnames(deps);
     const result = await afterPersist(

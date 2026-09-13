@@ -200,7 +200,9 @@ export class HotkeyListener {
   }
 
   private dispatchOnce(action: SiteHotkeyAction, binding: HotkeyBinding): void {
-    void this.execute(action, binding);
+    void this.execute(action, binding).catch(() => {
+      // executeControllerAction already logs transport failures.
+    });
   }
 
   private execute(action: SiteHotkeyAction, binding: HotkeyBinding): Promise<void> {
