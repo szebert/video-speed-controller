@@ -52,6 +52,7 @@ describe('tab-target queue races', () => {
           applied.push(behavior.targetSpeed);
         },
         ensure: async () => undefined,
+        reconcilePermissions: async () => [],
       }),
     );
     const set = enqueueTabMutation(1, () =>

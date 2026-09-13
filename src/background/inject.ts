@@ -112,6 +112,8 @@ export async function ensureCurrentTabEngine(
     return;
   }
 
+  // Avoid webNavigation just to enumerate children. If all-frame probing fails,
+  // ensure frame 0 and let a later speed action or navigation retry the rest.
   const top = await probeFrames(scripting, { tabId, frameIds: [0] });
   if (!top?.some((entry) => entry.result === true)) {
     await injectFiles(scripting, { tabId, frameIds: [0] });

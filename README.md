@@ -39,7 +39,7 @@ Then in Chrome open `chrome://extensions`, enable Developer mode, and **Load unp
 
 Enable OS VSC on a site from the popup. Streamer sites without a native speed control (for example Max) are **verified behavior** after you sign in — they are not Store SEO copy. Netflix, YouTube, and similar players should be checked the same way: enable the site, then confirm existing videos change without a reload.
 
-A Chrome Site access grant on an already-loaded page updates registration only. The engine starts on reload/navigation, or immediately when you use a popup speed control.
+Enable on an already-loaded page injects the engine immediately so overlay and page hotkeys work without a popup speed change. A Chrome Site access grant on an open tab does the same for matching pages.
 
 ## Scripts
 

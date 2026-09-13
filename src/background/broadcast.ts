@@ -13,7 +13,7 @@ export type TabMessenger = {
   sendMessage: (tabId: number, message: unknown) => Promise<unknown>;
 };
 
-function isNoReceiverError(error: unknown): boolean {
+export function isNoReceiverError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return (
     message.includes('Receiving end does not exist') ||

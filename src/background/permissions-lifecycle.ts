@@ -4,6 +4,7 @@ import { reconcileContentScripts } from '../access/content-registration';
 import { selectHttpHttpsHostPatterns, type HostPattern } from '../access/site-access';
 import { createKeyedMutationQueue } from '../storage/keyed-mutation-queue';
 import { broadcastReconcileAccess } from './broadcast';
+import { ensureEnginesOnGrantedTabs } from './ensure-granted-tabs';
 
 export const PERMISSIONS_RECONCILE_LOCK = 'permissions:reconcile';
 
@@ -27,9 +28,15 @@ export function schedulePermissionsReconcile(
   label: string,
   reconcile: () => Promise<HostPattern[]> = onPermissionsChanged,
 ): void {
-  void enqueuePermissionsReconcile(reconcile).catch((error) => {
-    console.warn(`${label} permission reconciliation failed`, error);
-  });
+  void enqueuePermissionsReconcile(reconcile)
+    .then((allowed) =>
+      ensureEnginesOnGrantedTabs(allowed).catch((error) => {
+        console.warn(`${label} granted-tab injection failed`, error);
+      }),
+    )
+    .catch((error) => {
+      console.warn(`${label} permission reconciliation failed`, error);
+    });
 }
 
 export function resetPermissionsReconcileQueue(): void {

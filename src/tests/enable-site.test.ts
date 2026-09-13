@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { enableSite } from '../background/enable-site';
+import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import type { TabStateStore } from '../storage/tab-state';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -26,22 +27,75 @@ function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
   };
 }
 
+const applyOptions = { ignoreNoReceiver: false };
+
 describe('ENABLE_SITE', () => {
   it('seeds full applied behavior without writing durable storage', async () => {
     const tabStore = memoryTabStore();
     const persist = vi.fn();
     const seeded = tabBehavior(3.25);
     const apply = vi.fn();
+    const reconcilePermissions = vi.fn(async () => []);
     const result = await enableSite(2, 'https://www.youtube.com/watch', {
       tabStore,
       readBehavior: vi.fn(async () => seeded),
       apply,
       ensure: vi.fn(),
+      reconcilePermissions,
     });
     expect(result).toEqual({ ok: true, targetSpeed: 3.25 });
     expect(tabStore.data['tab:2']).toEqual(seeded);
-    expect(apply).toHaveBeenCalledWith(2, seeded);
+    expect(reconcilePermissions).toHaveBeenCalledOnce();
+    expect(apply).toHaveBeenCalledWith(2, seeded, undefined, applyOptions);
     expect(persist).not.toHaveBeenCalled();
+  });
+
+  it('applies hotkeys after permission reconcile so page shortcuts work on Enable', async () => {
+    const tabStore = memoryTabStore();
+    const apply = vi.fn();
+    const hotkeys = builtInEffectiveHotkeys();
+    const order: string[] = [];
+    const result = await enableSite(2, 'https://www.youtube.com/watch', {
+      tabStore,
+      readPayload: vi.fn(async () => {
+        order.push('payload');
+        return { behavior: tabBehavior(1.25), hotkeys };
+      }),
+      apply,
+      ensure: async () => {
+        order.push('ensure');
+      },
+      reconcilePermissions: async () => {
+        order.push('reconcile');
+        return [];
+      },
+    });
+    expect(result).toEqual({ ok: true, targetSpeed: 1.25 });
+    expect(order).toEqual(['reconcile', 'payload', 'ensure']);
+    expect(apply).toHaveBeenCalledWith(2, tabBehavior(1.25), undefined, {
+      ignoreNoReceiver: false,
+      hotkeys,
+    });
+  });
+
+  it('retries inject when APPLY has no receiver yet', async () => {
+    const tabStore = memoryTabStore();
+    const ensure = vi.fn();
+    const apply = vi.fn(async () => {
+      if (apply.mock.calls.length === 1) {
+        throw new Error('Could not establish connection. Receiving end does not exist.');
+      }
+    });
+    const result = await enableSite(2, 'https://www.youtube.com/watch', {
+      tabStore,
+      readBehavior: vi.fn(async () => tabBehavior(1)),
+      apply,
+      ensure,
+      reconcilePermissions: async () => [],
+    });
+    expect(result).toEqual({ ok: true, targetSpeed: 1 });
+    expect(ensure).toHaveBeenCalledTimes(2);
+    expect(apply).toHaveBeenCalledTimes(2);
   });
 
   it('reapplies existing full tab state', async () => {
@@ -55,10 +109,11 @@ describe('ENABLE_SITE', () => {
       readBehavior,
       apply,
       ensure: vi.fn(),
+      reconcilePermissions: async () => [],
     });
     expect(result).toEqual({ ok: true, targetSpeed: 1.75 });
     expect(readBehavior).not.toHaveBeenCalled();
-    expect(apply).toHaveBeenCalledWith(2, existing);
+    expect(apply).toHaveBeenCalledWith(2, existing, undefined, applyOptions);
     expect(tabStore.data['tab:2']).toEqual(existing);
   });
 
@@ -73,6 +128,7 @@ describe('ENABLE_SITE', () => {
       }),
       apply,
       ensure,
+      reconcilePermissions: async () => [],
     });
     expect(result).toEqual({ ok: false, error: 'offline' });
     expect(tabStore.data['tab:2']).toBeUndefined();
@@ -89,6 +145,7 @@ describe('ENABLE_SITE', () => {
         throw new Error('send failed');
       },
       ensure: vi.fn(),
+      reconcilePermissions: async () => [],
     });
     expect(result).toEqual({ ok: false, error: 'send failed' });
     expect(tabStore.data['tab:2']).toBeUndefined();
@@ -103,6 +160,7 @@ describe('ENABLE_SITE', () => {
       ensure: vi.fn(async () => {
         throw new Error('top-frame injection failed');
       }),
+      reconcilePermissions: async () => [],
     });
     expect(result.ok).toBe(false);
     expect(tabStore.data['tab:2']).toBeUndefined();
