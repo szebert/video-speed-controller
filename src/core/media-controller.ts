@@ -44,7 +44,9 @@ export class MediaController {
   setTarget(speed: number): void {
     const takingOwnership = this.targetSpeed == null || this.surrendered;
     if (takingOwnership) {
-      this.restoreRate = this.video.playbackRate;
+      // A live transport session is a temporary physical rate, not the page
+      // baseline. Prefer the surrendered page rate captured when FF started.
+      this.restoreRate = this.transport?.pageRate ?? this.video.playbackRate;
     }
     this.targetSpeed = speed;
     this.retryCount = 0;

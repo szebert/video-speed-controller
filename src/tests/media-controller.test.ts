@@ -324,6 +324,38 @@ describe('MediaController temporary transport rate', () => {
     vi.useRealTimers();
   });
 
+  it('pauses a video it resumed even after the element is detached', () => {
+    const video = pausableVideo(true);
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    controller.beginTemporaryRate(3, { resumePlayback: true });
+    expect(video.paused).toBe(false);
+
+    video.remove();
+    controller.destroy();
+    expect(video.paused).toBe(true);
+  });
+
+  it('does not capture the temporary rate as the destroy baseline', () => {
+    vi.useFakeTimers();
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    surrender(video, 1.5);
+    const session = controller.beginTemporaryRate(3)!;
+    expect(video.playbackRate).toBe(3);
+
+    controller.setTarget(2.5);
+    expect(video.playbackRate).toBe(3);
+
+    controller.endTemporaryRate(session);
+    expect(video.playbackRate).toBe(2.5);
+
+    controller.destroy();
+    expect(video.playbackRate).toBe(1.5);
+    vi.useRealTimers();
+  });
+
   it('ends an active session on destroy and restores the page baseline', () => {
     const video = pausableVideo(true);
     video.playbackRate = 1.25;

@@ -6,6 +6,7 @@ import {
   formatSkipSeconds,
   jumpToEnd,
   jumpToStart,
+  safePause,
   seekableRange,
   seekBy,
   togglePlayback,
@@ -151,6 +152,14 @@ describe('media navigation', () => {
     expect(jumpToEnd(video)).toBe(false);
     expect(togglePlayback(video)).toBeNull();
     expect(video.currentTime).toBe(10);
+  });
+
+  it('can still pause after the video is detached', () => {
+    const video = stubVideo({ currentTime: 10, duration: 60, paused: false });
+    const pause = vi.spyOn(video, 'pause').mockImplementation(() => undefined);
+    video.remove();
+    safePause(video);
+    expect(pause).toHaveBeenCalledTimes(1);
   });
 
   it('toggles playback and swallows a rejected play()', async () => {

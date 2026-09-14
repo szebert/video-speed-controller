@@ -217,14 +217,17 @@ export class MediaRegistry {
   }
 
   private largestVideo(accept: (video: HTMLVideoElement) => boolean): HTMLVideoElement | null {
+    const viewport = this.view;
+    if (!viewport) {
+      return null;
+    }
     let best: HTMLVideoElement | null = null;
     let bestArea = 0;
     for (const video of this.entries.keys()) {
-      if (!video.isConnected || !accept(video)) {
+      if (!video.isConnected || !accept(video) || isStyleHidden(viewport, video)) {
         continue;
       }
-      const rect = video.getBoundingClientRect();
-      const area = rect.width * rect.height;
+      const area = visibleViewportArea(video.getBoundingClientRect(), viewport);
       if (area <= 0) {
         continue;
       }
@@ -457,4 +460,19 @@ export class MediaRegistry {
     }
     this.layoutRaf = null;
   }
+}
+
+function isStyleHidden(view: Window, video: HTMLVideoElement): boolean {
+  const style = view.getComputedStyle(video);
+  return style.display === 'none' || style.visibility === 'hidden';
+}
+
+/** Intersect the layout box with the viewport. Offscreen area does not count. */
+function visibleViewportArea(
+  rect: DOMRect,
+  viewport: { innerWidth: number; innerHeight: number },
+): number {
+  const visibleWidth = Math.min(rect.right, viewport.innerWidth) - Math.max(rect.left, 0);
+  const visibleHeight = Math.min(rect.bottom, viewport.innerHeight) - Math.max(rect.top, 0);
+  return Math.max(0, visibleWidth) * Math.max(0, visibleHeight);
 }

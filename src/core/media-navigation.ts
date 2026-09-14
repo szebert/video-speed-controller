@@ -153,14 +153,12 @@ export function safePlay(video: HTMLVideoElement): Promise<void> {
   return Promise.resolve();
 }
 
+/** Cleanup may run after the element has left the document. */
 export function safePause(video: HTMLVideoElement): void {
-  if (!isLiveMedia(video)) {
-    return;
-  }
   try {
     video.pause();
   } catch {
-    // Detached or sourceless media. Treat as a no-op.
+    // Sourceless media. Treat as a no-op.
   }
 }
 

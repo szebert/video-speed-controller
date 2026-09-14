@@ -903,6 +903,31 @@ describe('media registry', () => {
     expect(registry.resolveHotkeyTarget()).toBe(playing);
   });
 
+  it('prefers an on-screen paused video over a larger off-screen playing one', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const offscreenPlaying = video({ left: 2000, top: 0, width: 640, height: 360 });
+    const onscreenPaused = video({ left: 0, top: 0, width: 320, height: 180 });
+    Object.defineProperty(offscreenPlaying, 'paused', { configurable: true, value: false });
+    document.body.append(offscreenPlaying, onscreenPaused);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+    expect(registry.resolveHotkeyTarget()).toBe(onscreenPaused);
+  });
+
+  it('ignores a visibility-hidden video when ranking visible area', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const hiddenPlaying = video({ left: 0, top: 0, width: 640, height: 360 });
+    const visiblePaused = video({ left: 0, top: 0, width: 160, height: 90 });
+    hiddenPlaying.style.visibility = 'hidden';
+    Object.defineProperty(hiddenPlaying, 'paused', { configurable: true, value: false });
+    document.body.append(hiddenPlaying, visiblePaused);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+    expect(registry.resolveHotkeyTarget()).toBe(visiblePaused);
+  });
+
   it('falls back to a single zero-sized video and reports none when empty', () => {
     const registry = new MediaRegistry(document);
     registries.push(registry);
