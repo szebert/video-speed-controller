@@ -212,7 +212,7 @@ export const USER_REPEATABLE_ACTIONS = new Set<SiteHotkeyAction>([
 ]);
 
 /** Press-and-hold sessions. Independent of the optional hold-to-repeat toggle. */
-export const HOLD_ACTIONS = new Set<SiteHotkeyAction>(['fastForward']);
+export const HOLD_ACTIONS = new Set<SiteHotkeyAction>(['fastForward', 'rewind']);
 
 /** Bindable scaffolding that must never execute in this release. */
 export const DISABLED_ACTIONS = new Set<SiteHotkeyAction>(['rewind']);

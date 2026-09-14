@@ -47,6 +47,7 @@ export class HotkeyListener {
   private map: EffectiveHotkeyMap | null = null;
   private policy: HotkeyRepeatPolicy = DEFAULT_REPEAT_POLICY;
   private held: HeldHotkey | null = null;
+  private targetObserver: MutationObserver | null = null;
   private readonly abort = new AbortController();
 
   constructor(
@@ -123,6 +124,10 @@ export class HotkeyListener {
       // Bindable scaffolding. Leave the key to the page instead of eating it.
       return;
     }
+    const video = isMediaNavigationAction(action) ? this.resolveTarget() : null;
+    if (isMediaNavigationAction(action) && !isLiveMedia(video)) {
+      return;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
     if (event.repeat) {
@@ -133,7 +138,6 @@ export class HotkeyListener {
       return;
     }
     this.cancelHeld();
-    const video = isMediaNavigationAction(action) ? this.resolveTarget() : null;
     if (mode === 'once') {
       this.dispatchOnce(action, binding, video);
       return;
@@ -175,7 +179,27 @@ export class HotkeyListener {
   ): HeldHotkey {
     const held: HeldHotkey = { action, binding, mode, video, inFlight: false };
     this.held = held;
+    this.watchHeldVideo(video);
     return held;
+  }
+
+  private watchHeldVideo(video: HTMLVideoElement | null): void {
+    this.unwatchHeldVideo();
+    if (!video) {
+      return;
+    }
+    const observer = new MutationObserver(() => {
+      if (!video.isConnected) {
+        this.cancelHeld();
+      }
+    });
+    observer.observe(video.ownerDocument.documentElement, { childList: true, subtree: true });
+    this.targetObserver = observer;
+  }
+
+  private unwatchHeldVideo(): void {
+    this.targetObserver?.disconnect();
+    this.targetObserver = null;
   }
 
   private resolveTarget(): HTMLVideoElement | null {
@@ -206,11 +230,19 @@ export class HotkeyListener {
     if (this.held !== held || held.inFlight) {
       return;
     }
+    if (held.video && !held.video.isConnected) {
+      this.cancelHeld();
+      return;
+    }
     this.dispatchHeld(held);
   }
 
   private dispatchHeld(held: HeldHotkey): void {
     if (this.held !== held) {
+      return;
+    }
+    if (held.video && !held.video.isConnected) {
+      this.cancelHeld();
       return;
     }
     held.inFlight = true;
@@ -271,6 +303,7 @@ export class HotkeyListener {
       return;
     }
     this.held = null;
+    this.unwatchHeldVideo();
     if (held.delayTimer != null) {
       this.target.clearTimeout(held.delayTimer);
     }
@@ -290,4 +323,8 @@ export class HotkeyListener {
       (!binding.meta || event.metaKey)
     );
   }
+}
+
+function isLiveMedia(video: HTMLVideoElement | null): video is HTMLVideoElement {
+  return video != null && video.isConnected;
 }

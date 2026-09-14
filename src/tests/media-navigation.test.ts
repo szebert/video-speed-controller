@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   effectiveSkipSeconds,
   formatSkipSeconds,
@@ -57,10 +57,15 @@ function stubVideo(options: {
       }),
     });
   }
+  document.body.append(video);
   return video;
 }
 
 describe('media navigation', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
   it('uses the configured skip distance unless scaling is enabled', () => {
     expect(effectiveSkipSeconds(5, 1, false)).toBe(5);
     expect(effectiveSkipSeconds(5, 2, false)).toBe(5);
@@ -132,10 +137,20 @@ describe('media navigation', () => {
     expect(jumpToStart(unknown)).toBe(false);
     expect(jumpToEnd(unknown)).toBe(false);
 
-    const detached = stubVideo({ currentTime: 10, duration: 60, seekThrows: true });
-    expect(seekBy(detached, 5)).toBeNull();
-    expect(jumpToStart(detached)).toBe(false);
-    expect(jumpToEnd(detached)).toBe(false);
+    const throwing = stubVideo({ currentTime: 10, duration: 60, seekThrows: true });
+    expect(seekBy(throwing, 5)).toBeNull();
+    expect(jumpToStart(throwing)).toBe(false);
+    expect(jumpToEnd(throwing)).toBe(false);
+  });
+
+  it('no-ops when the video has been disconnected', () => {
+    const video = stubVideo({ currentTime: 10, duration: 60, paused: false });
+    video.remove();
+    expect(seekBy(video, 5)).toBeNull();
+    expect(jumpToStart(video)).toBe(false);
+    expect(jumpToEnd(video)).toBe(false);
+    expect(togglePlayback(video)).toBeNull();
+    expect(video.currentTime).toBe(10);
   });
 
   it('toggles playback and swallows a rejected play()', async () => {

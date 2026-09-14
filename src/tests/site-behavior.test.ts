@@ -19,6 +19,7 @@ import {
   HOTKEY_REPEAT_DELAY_MS_MIN,
   HOTKEY_REPEAT_RATE_MAX,
   HOTKEY_REPEAT_RATE_MIN,
+  HOLD_ACTIONS,
   hotkeyActionMode,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
@@ -423,6 +424,7 @@ describe('site behavior resolution', () => {
   it('holds fast forward regardless of repeat, and keeps rewind disabled', () => {
     expect(hotkeyActionMode('fastForward', false)).toBe('hold');
     expect(hotkeyActionMode('fastForward', true)).toBe('hold');
+    expect(HOLD_ACTIONS.has('rewind')).toBe(true);
     expect(hotkeyActionMode('rewind', false)).toBe('disabled');
     expect(hotkeyActionMode('rewind', true)).toBe('disabled');
   });

@@ -27,6 +27,41 @@ export function decideRateChange(input: {
   if (input.surrendered) {
     return { kind: 'ignore' };
   }
+  const decision = decideRateDefense(input);
+  if (decision.kind !== 'retry') {
+    return decision;
+  }
+  if (decision.retryCount > MAX_RATE_RETRIES) {
+    return { kind: 'adopt' };
+  }
+  return decision;
+}
+
+/**
+ * Temporary transport never adopts. A persistent player can keep changing the
+ * rate, but the session stays live and we keep writing it back.
+ */
+export function decideTemporaryRateChange(input: {
+  currentRate: number;
+  targetSpeed: number;
+  lastWrittenRate?: number;
+  retryCount: number;
+}): Extract<ArbitrationDecision, { kind: 'echo' | 'match' | 'retry' }> {
+  const decision = decideRateDefense(input);
+  if (decision.kind !== 'retry') {
+    return decision;
+  }
+  // Cycle the backoff so retries cannot be exhausted.
+  const retryCount = decision.retryCount > MAX_RATE_RETRIES ? 1 : decision.retryCount;
+  return { kind: 'retry', retryCount, delayMs: nextBackoffMs(retryCount) };
+}
+
+function decideRateDefense(input: {
+  currentRate: number;
+  targetSpeed: number;
+  lastWrittenRate?: number;
+  retryCount: number;
+}): Extract<ArbitrationDecision, { kind: 'echo' | 'match' | 'retry' }> {
   if (input.lastWrittenRate != null && ratesAlmostEqual(input.currentRate, input.lastWrittenRate)) {
     return { kind: 'echo' };
   }
@@ -34,8 +69,5 @@ export function decideRateChange(input: {
     return { kind: 'match' };
   }
   const retryCount = input.retryCount + 1;
-  if (retryCount <= MAX_RATE_RETRIES) {
-    return { kind: 'retry', retryCount, delayMs: nextBackoffMs(retryCount) };
-  }
-  return { kind: 'adopt' };
+  return { kind: 'retry', retryCount, delayMs: nextBackoffMs(retryCount) };
 }

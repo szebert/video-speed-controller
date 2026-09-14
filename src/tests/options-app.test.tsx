@@ -956,6 +956,28 @@ describe('Options page', () => {
     );
   });
 
+  it('treats a negative fast-forward draft as a positive magnitude', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const input = container.querySelector('#fast-forward-speed');
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      setInputValue(input, '-5');
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      input.blur();
+    });
+    await flushHiddenWrites();
+    expect(sentBehaviorChanges()).toEqual(
+      expect.arrayContaining([{ kind: 'value', field: 'fastForwardSpeed', value: 5 }]),
+    );
+  });
+
   it('sends skipScaleWithPlaybackRate true from its switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();

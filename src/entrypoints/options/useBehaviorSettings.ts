@@ -25,9 +25,11 @@ import {
 import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../../settings/migrate';
 import { backupExportFilename, backupFailureMessage } from './backup-file';
 import {
+  canonicalizeFastForwardSpeed,
   canonicalizeHotkeyFlashDelayMs,
   canonicalizeHotkeyRepeatDelayMs,
   canonicalizeOverlayAutoHideDelayMs,
+  canonicalizeSkipSeconds,
   speedPolicyFromResolved,
   type BehaviorSettingChange,
   type EditableBehaviorField,
@@ -697,7 +699,12 @@ export function useBehaviorSettings() {
     if (!Number.isFinite(parsed)) {
       return;
     }
-    const confirmed = clampPolicyNumber(parsed, min, max);
+    const confirmed =
+      key === 'fastForwardSpeed'
+        ? canonicalizeFastForwardSpeed(parsed)
+        : key === 'skipBackSeconds' || key === 'skipForwardSeconds'
+          ? canonicalizeSkipSeconds(parsed)
+          : clampPolicyNumber(parsed, min, max);
     if (confirmed === fallback) {
       return;
     }

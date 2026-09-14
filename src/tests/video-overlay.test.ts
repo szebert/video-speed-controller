@@ -156,6 +156,31 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.transform).toBe('translate(-100%, -100%)');
   });
 
+  it('updates the host transform after auto-hide has already expired', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    expect(overlay.host.style.transform).toBe('translate(-50%, 0)');
+    vi.advanceTimersByTime(200);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: true,
+        overlayAutoHideDelayMs: 200,
+        overlayPosition: OVERLAY_POSITION.BOTTOM_RIGHT,
+      }),
+    );
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    expect(overlay.host.style.transform).toBe('translate(-100%, -100%)');
+    overlay.destroy();
+  });
+
   it('applies overlay opacity to the controls shell', () => {
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
@@ -1210,6 +1235,7 @@ describe('VideoOverlay', () => {
     expect(rewind.hasAttribute('aria-keyshortcuts')).toBe(false);
     expect(rewind.querySelector('.hotkey-hint')).toBeNull();
     rewind.click();
+    rewind.dispatchEvent(new Event('pointerdown'));
     expect(mediaAction).not.toHaveBeenCalled();
   });
 

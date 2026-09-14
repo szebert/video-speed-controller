@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MediaController } from '../core/media-controller';
 
 function surrender(video: HTMLVideoElement, playerRate: number): void {
@@ -117,6 +117,7 @@ describe('MediaController isolation', () => {
 
 function pausableVideo(paused: boolean): HTMLVideoElement {
   const video = document.createElement('video');
+  document.body.append(video);
   let value = paused;
   Object.defineProperty(video, 'paused', {
     configurable: true,
@@ -133,6 +134,10 @@ function pausableVideo(paused: boolean): HTMLVideoElement {
 }
 
 describe('MediaController temporary transport rate', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
   it('overrides the target while active and restores it on end', () => {
     const video = document.createElement('video');
     const controller = new MediaController(video);
@@ -210,10 +215,17 @@ describe('MediaController temporary transport rate', () => {
     vi.runOnlyPendingTimers();
     expect(video.playbackRate).toBe(3);
 
-    // A relentless page cannot make a transport session hand over ownership.
+    // A relentless page cannot make a transport session hand over ownership
+    // or stop the temporary rate from being written back.
     surrender(video, 1.5);
+    for (let index = 0; index < 8; index += 1) {
+      video.playbackRate = 1.5;
+      video.dispatchEvent(new Event('ratechange'));
+      vi.runOnlyPendingTimers();
+    }
     expect(controller.surrendered).toBe(false);
     expect(controller.temporaryRate).toBe(3);
+    expect(video.playbackRate).toBe(3);
 
     controller.endTemporaryRate(session);
     expect(video.playbackRate).toBe(2);
@@ -251,13 +263,18 @@ describe('MediaController temporary transport rate', () => {
 
   it('cannot be resurrected by a play() that resolves after the session ended', async () => {
     const video = document.createElement('video');
+    document.body.append(video);
     let paused = true;
     Object.defineProperty(video, 'paused', { configurable: true, get: () => paused });
     let resolvePlay: (() => void) | undefined;
     vi.spyOn(video, 'play').mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise<void>((resolve, reject) => {
           resolvePlay = () => {
+            if (paused) {
+              reject(new DOMException('The play() request was interrupted', 'AbortError'));
+              return;
+            }
             paused = false;
             resolve();
           };
@@ -279,7 +296,32 @@ describe('MediaController temporary transport rate', () => {
     controller.endTemporaryRate(session);
     expect(controller.temporaryRate).toBeNull();
     expect(video.playbackRate).toBe(2);
+    expect(video.paused).toBe(true);
     controller.destroy();
+  });
+
+  it('restores the captured page rate when the controller was already surrendered', () => {
+    vi.useFakeTimers();
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    surrender(video, 1.5);
+    expect(controller.surrendered).toBe(true);
+
+    const first = controller.beginTemporaryRate(3)!;
+    expect(video.playbackRate).toBe(3);
+    const second = controller.beginTemporaryRate(4)!;
+    expect(video.playbackRate).toBe(4);
+
+    controller.endTemporaryRate(first);
+    expect(video.playbackRate).toBe(4);
+    controller.endTemporaryRate(second);
+    expect(video.playbackRate).toBe(1.5);
+    expect(controller.surrendered).toBe(true);
+
+    controller.destroy();
+    expect(video.playbackRate).toBe(1.5);
+    vi.useRealTimers();
   });
 
   it('ends an active session on destroy and restores the page baseline', () => {

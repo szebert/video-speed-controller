@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
-import { decideRateChange, MAX_RATE_RETRIES } from '../core/arbitration';
+import { decideRateChange, decideTemporaryRateChange, MAX_RATE_RETRIES } from '../core/arbitration';
 
 describe('per-video arbitration', () => {
   it('treats our own writes as echo and unexpected rates as local adopt after retries', () => {
@@ -35,5 +35,26 @@ describe('per-video arbitration', () => {
     }
     expect(retryCount).toBe(MAX_RATE_RETRIES);
     expect(decision).toEqual({ kind: 'adopt' });
+  });
+
+  it('never adopts a temporary transport rate', () => {
+    let retryCount = 0;
+    let lastKind: string | undefined;
+    for (let index = 0; index < MAX_RATE_RETRIES + 4; index += 1) {
+      const decision = decideTemporaryRateChange({
+        currentRate: 1.5,
+        targetSpeed: 3,
+        lastWrittenRate: 3,
+        retryCount,
+      });
+      lastKind = decision.kind;
+      expect(decision.kind).toBe('retry');
+      if (decision.kind === 'retry') {
+        retryCount = decision.retryCount;
+      }
+    }
+    expect(lastKind).toBe('retry');
+    expect(retryCount).toBeGreaterThan(0);
+    expect(retryCount).toBeLessThanOrEqual(MAX_RATE_RETRIES);
   });
 });

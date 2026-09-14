@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { decideRateChange, ratesAlmostEqual } from './arbitration';
+import { decideRateChange, decideTemporaryRateChange, ratesAlmostEqual } from './arbitration';
 import { safePause, safePlay } from './media-navigation';
 
 export type OwnershipChangeHandler = (owned: boolean) => void;
@@ -13,6 +13,11 @@ type TransportState = {
   rate: number;
   /** Set when a session resumed a paused video, so ending restores pause. */
   startedPlayback: boolean;
+  /**
+   * Page rate captured when the controller was already surrendered. Owned
+   * sessions restore `targetSpeed` instead.
+   */
+  pageRate: number | null;
 };
 
 export class MediaController {
@@ -78,6 +83,8 @@ export class MediaController {
       id,
       rate,
       startedPlayback: this.transport?.startedPlayback ?? false,
+      // Capture before writeRate so a surrendered start restores the page, not 3×.
+      pageRate: this.transport?.pageRate ?? (this.surrendered ? this.video.playbackRate : null),
     };
     this.retryCount = 0;
     this.clearRetry();
@@ -107,6 +114,8 @@ export class MediaController {
     this.clearRetry();
     if (this.targetSpeed != null && !this.surrendered) {
       this.writeRate(this.targetSpeed);
+    } else if (transport.pageRate != null) {
+      this.writeRate(transport.pageRate);
     }
     if (transport.startedPlayback) {
       // Also aborts a play() that has not resolved yet.
@@ -161,15 +170,15 @@ export class MediaController {
     }
   };
 
-  // A transport session is evaluated against its own rate and never surrenders
-  // ownership: the temporary rate is not what the page is being judged against.
+  // A transport session is evaluated against its own rate and never surrenders:
+  // the temporary rate is not what the page is being judged against, and adopt
+  // is not a legal outcome.
   private defendTemporaryRate(transport: TransportState): void {
-    const decision = decideRateChange({
+    const decision = decideTemporaryRateChange({
       currentRate: this.video.playbackRate,
       targetSpeed: transport.rate,
       lastWrittenRate: this.lastWrittenRate,
       retryCount: this.retryCount,
-      surrendered: false,
     });
     if (decision.kind !== 'retry') {
       return;

@@ -314,6 +314,32 @@ describe('executeControllerAction', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
   });
 
+  it('does not skip a disconnected video, but still ends a fast forward hold', async () => {
+    seekable(video, { currentTime: 30, duration: 120, paused: false });
+    registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false }));
+    const hold = {};
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'start',
+      hold,
+    });
+    expect(video.playbackRate).toBe(3);
+
+    video.remove();
+    await executeControllerAction('skipForward', { resolveRegistry: () => registry, source });
+    expect(video.currentTime).toBe(30);
+
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'end',
+      hold,
+    });
+    expect(video.playbackRate).toBe(1.5);
+  });
+
   it('does nothing when navigation has no resolved target', async () => {
     await executeControllerAction('skipForward', {
       resolveRegistry: () => registry,

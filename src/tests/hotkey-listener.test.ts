@@ -73,12 +73,16 @@ describe('HotkeyListener', () => {
     executeMock.mockClear();
     vi.stubGlobal('chrome', { runtime: { sendMessage } });
     registry = new MediaRegistry(document);
+    const video = document.createElement('video');
+    document.body.append(video);
+    registry.ensureController(video);
     listener = new HotkeyListener(window, () => registry);
   });
 
   afterEach(() => {
     listener.destroy();
     registry.destroy();
+    document.body.replaceChildren();
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       value: 'visible',
@@ -469,6 +473,7 @@ describe('HotkeyListener', () => {
   it('locks the navigation target on the initial keydown', async () => {
     const first = document.createElement('video');
     const second = document.createElement('video');
+    document.body.append(first, second);
     const resolve = vi
       .spyOn(registry, 'resolveHotkeyTarget')
       .mockReturnValueOnce(first)
@@ -487,10 +492,43 @@ describe('HotkeyListener', () => {
   it('does not consume a navigation key when the registry cannot resolve a target', () => {
     vi.spyOn(registry, 'resolveHotkeyTarget').mockReturnValue(null);
     listener.setHotkeys(navigationMap());
-    window.dispatchEvent(keydown('KeyK'));
-    expect(navigationCalls()).toEqual([['skipForward', 'press']]);
-    expect(executeMock.mock.calls[0]?.[1].source).toMatchObject({ video: null });
+    const event = keydown('KeyK');
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(executeMock).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('cancels a locked repeat when the target disconnects', async () => {
+    const video = document.createElement('video');
+    document.body.append(video);
+    vi.spyOn(registry, 'resolveHotkeyTarget').mockReturnValue(video);
+    listener.setHotkeys(navigationMap());
+    enableRepeat(500, 15);
+    window.dispatchEvent(keydown('KeyJ'));
+    expect(navigationCalls()).toEqual([['skipBack', 'press']]);
+
+    executeMock.mockClear();
+    video.remove();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(navigationCalls()).toEqual([]);
+  });
+
+  it('ends a fast forward hold when the locked target disconnects', async () => {
+    const video = document.createElement('video');
+    document.body.append(video);
+    vi.spyOn(registry, 'resolveHotkeyTarget').mockReturnValue(video);
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyL'));
+    expect(navigationCalls()).toEqual([['fastForward', 'start']]);
+
+    video.remove();
+    await Promise.resolve();
+    expect(navigationCalls()).toEqual([
+      ['fastForward', 'start'],
+      ['fastForward', 'end'],
+    ]);
   });
 
   it('does not cancel a hold when the same repeat policy is applied again', async () => {

@@ -69,7 +69,14 @@ export function effectiveSkipSeconds(
   return roundSeconds(configured * rate);
 }
 
+function isLiveMedia(video: HTMLVideoElement): boolean {
+  return video.isConnected;
+}
+
 function writeCurrentTime(video: HTMLVideoElement, seconds: number): boolean {
+  if (!isLiveMedia(video)) {
+    return false;
+  }
   try {
     video.currentTime = seconds;
     return true;
@@ -80,7 +87,7 @@ function writeCurrentTime(video: HTMLVideoElement, seconds: number): boolean {
 
 /** Seeks by a signed delta, clamped to the usable range. */
 export function seekBy(video: HTMLVideoElement, deltaSeconds: number): SkipResult | null {
-  if (!Number.isFinite(deltaSeconds)) {
+  if (!isLiveMedia(video) || !Number.isFinite(deltaSeconds)) {
     return null;
   }
   const range = seekableRange(video);
@@ -103,6 +110,9 @@ export function seekBy(video: HTMLVideoElement, deltaSeconds: number): SkipResul
 
 /** Seeks to the start of the usable range, which may not be 0 on DVR streams. */
 export function jumpToStart(video: HTMLVideoElement): boolean {
+  if (!isLiveMedia(video)) {
+    return false;
+  }
   const range = seekableRange(video);
   if (!range) {
     return false;
@@ -115,6 +125,9 @@ export function jumpToStart(video: HTMLVideoElement): boolean {
  * has no end to jump to, even when a DVR window is seekable.
  */
 export function jumpToEnd(video: HTMLVideoElement): boolean {
+  if (!isLiveMedia(video)) {
+    return false;
+  }
   const duration = video.duration;
   if (!Number.isFinite(duration) || duration <= 0) {
     return false;
@@ -126,6 +139,9 @@ export function jumpToEnd(video: HTMLVideoElement): boolean {
 
 /** Starts playback, swallowing the autoplay rejection browsers may produce. */
 export function safePlay(video: HTMLVideoElement): Promise<void> {
+  if (!isLiveMedia(video)) {
+    return Promise.resolve();
+  }
   try {
     const result = video.play();
     if (result && typeof result.then === 'function') {
@@ -138,6 +154,9 @@ export function safePlay(video: HTMLVideoElement): Promise<void> {
 }
 
 export function safePause(video: HTMLVideoElement): void {
+  if (!isLiveMedia(video)) {
+    return;
+  }
   try {
     video.pause();
   } catch {
@@ -147,6 +166,9 @@ export function safePause(video: HTMLVideoElement): void {
 
 /** Toggles playback and reports which way it went, for action feedback. */
 export function togglePlayback(video: HTMLVideoElement): PlaybackToggle | null {
+  if (!isLiveMedia(video)) {
+    return null;
+  }
   try {
     if (video.paused) {
       void safePlay(video);

@@ -160,6 +160,9 @@ export class VideoOverlay {
       this.syncFlashOpacity();
     }
     this.syncView();
+    // Transform is grid-only: apply even when auto-hide has already hidden the
+    // host, so a later position APPLY is not stuck on the previous anchor.
+    this.applyPositionTransform();
     if (this.controlled && overlayHidePolicyChanged(previous, behavior)) {
       this.restartAutoHide();
     }
@@ -220,6 +223,7 @@ export class VideoOverlay {
     if (changed) {
       this.syncView(visible);
     }
+    this.applyPositionTransform();
     if (!visible || !this.behavior) {
       this.layoutFlash(measure);
       return;
@@ -237,16 +241,24 @@ export class VideoOverlay {
         : row === 1
           ? rect.top + rect.height / 2
           : rect.bottom - OVERLAY_INSET_PX;
-    const translateX = column === 0 ? '0' : column === 1 ? '-50%' : '-100%';
-    const translateY = row === 0 ? '0' : row === 1 ? '-50%' : '-100%';
     this.host.style.setProperty('left', `${x}px`, 'important');
     this.host.style.setProperty('top', `${y}px`, 'important');
+    this.layoutFlash(measure);
+  }
+
+  /** Grid translate is independent of the video rect and of visibility. */
+  private applyPositionTransform(): void {
+    if (!this.behavior) {
+      return;
+    }
+    const { row, column } = overlayPositionToGrid(this.behavior.overlayPosition);
+    const translateX = column === 0 ? '0' : column === 1 ? '-50%' : '-100%';
+    const translateY = row === 0 ? '0' : row === 1 ? '-50%' : '-100%';
     this.host.style.setProperty(
       'transform',
       `translate(${translateX}, ${translateY})`,
       'important',
     );
-    this.layoutFlash(measure);
   }
 
   destroy(): void {

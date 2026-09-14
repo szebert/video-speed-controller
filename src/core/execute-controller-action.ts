@@ -89,8 +89,12 @@ function executeMediaNavigation(
   if (!video) {
     return;
   }
-  const registry = context.resolveRegistry();
   const phase = context.phase ?? 'press';
+  // `end` must still close a tokenized hold after the element is removed.
+  if (!video.isConnected && phase !== 'end') {
+    return;
+  }
+  const registry = context.resolveRegistry();
   const feedback = runMediaNavigation(action, phase, video, registry, context.hold);
   if (!feedback || context.source.kind !== 'hotkey') {
     return;
