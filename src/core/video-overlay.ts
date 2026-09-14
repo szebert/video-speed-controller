@@ -27,11 +27,21 @@ export function isExtensionHost(node: Node): boolean {
   );
 }
 
-export type HotkeyFlashPayload = {
-  previousTargetSpeed: number;
-  targetSpeed: number;
-  binding: HotkeyBinding;
-};
+// Tab-wide speed flash keeps its own shape. Media-local navigation carries
+// already-localized text so this module stays free of action-specific copy.
+export type HotkeyFlashPayload =
+  | {
+      kind: 'speed';
+      previousTargetSpeed: number;
+      targetSpeed: number;
+      binding: HotkeyBinding;
+    }
+  | {
+      kind: 'navigation';
+      label: string;
+      detail?: string;
+      binding: HotkeyBinding;
+    };
 
 function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('all', 'initial', 'important');
@@ -45,7 +55,10 @@ function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('visibility', 'hidden', 'important');
 }
 
-function flashSpeedLabel(payload: HotkeyFlashPayload): string {
+function flashLabel(payload: HotkeyFlashPayload): string {
+  if (payload.kind === 'navigation') {
+    return payload.detail ? `${payload.label} ${payload.detail}` : payload.label;
+  }
   const speed = formatSpeed(payload.targetSpeed);
   const delta = canonicalizeSpeed(payload.targetSpeed - payload.previousTargetSpeed);
   if (delta === 0) {
@@ -83,6 +96,7 @@ export class VideoOverlay {
   private flashPill: HTMLElement | null = null;
   private flashGeneration = 0;
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly abort = new AbortController();
 
   constructor(
     readonly video: HTMLVideoElement,
@@ -102,6 +116,11 @@ export class VideoOverlay {
         this.restartAutoHide();
         this.actions.adjustSpeed(direction, this.video);
       },
+      onMediaAction: (action, phase) => {
+        this.restartAutoHide();
+        // `this` is the hold identity: one overlay owns at most one hold.
+        this.actions.mediaAction?.(action, phase, this.video, this);
+      },
       onSetPosition: (position) => {
         this.restartAutoHide();
         this.actions.setOverlayPosition?.(position);
@@ -116,6 +135,13 @@ export class VideoOverlay {
     });
     shadow.append(this.view.element);
     document.documentElement.append(this.host);
+
+    const onPlaybackChange = (): void => {
+      this.syncView();
+    };
+    for (const type of ['play', 'pause', 'ended'] as const) {
+      video.addEventListener(type, onPlaybackChange, { signal: this.abort.signal });
+    }
   }
 
   get speedReadout(): HTMLElement | null {
@@ -224,8 +250,10 @@ export class VideoOverlay {
   }
 
   destroy(): void {
+    this.abort.abort();
     this.clearHideTimer();
     this.invalidateFlash();
+    // Ends any live hold before the controls disappear.
     this.view.destroy();
     this.host.remove();
   }
@@ -247,6 +275,7 @@ export class VideoOverlay {
     this.view.update({
       behavior: this.behavior,
       visible,
+      paused: this.video.paused,
       hotkeys: this.hotkeys,
     });
   }
@@ -316,7 +345,7 @@ export class VideoOverlay {
     pill.replaceChildren();
     const label = document.createElement('span');
     label.className = 'hotkey-flash-label';
-    label.textContent = flashSpeedLabel(payload);
+    label.textContent = flashLabel(payload);
     const hint = document.createElement('kbd');
     hint.className = 'hotkey-hint';
     hint.setAttribute('aria-hidden', 'true');

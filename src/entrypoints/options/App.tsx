@@ -22,6 +22,7 @@ import { t } from '@/i18n/t';
 import { AllSitesAccessCard } from './AllSitesAccessCard';
 import { BackupSettingsCards } from './BackupSettingsCards';
 import { HotkeysSettingsCard } from './HotkeysSettingsCard';
+import { NavigationSettingsCard } from './NavigationSettingsCard';
 import { OverlaySettingsCard } from './OverlaySettingsCard';
 import { PlaybackSettingsCard } from './PlaybackSettingsCard';
 import { SettingsSidebar } from './SettingsSidebar';
@@ -227,6 +228,18 @@ export function App() {
                       updateDraft('delay', value);
                     }}
                     onCommitDelay={commitDelay}
+                  />
+                  <NavigationSettingsCard
+                    selection={selection}
+                    behavior={behavior}
+                    drafts={drafts}
+                    pending={pending}
+                    resetBadgeText={resetBadgeText}
+                    onMutate={(change) => {
+                      void mutate(change);
+                    }}
+                    onDraftChange={updateDraft}
+                    onCommitDecimal={commitDecimal}
                   />
                   <HotkeysSettingsCard
                     selection={selection}

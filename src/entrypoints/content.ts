@@ -47,6 +47,20 @@ const overlayActions: OverlayActions = {
       // executeControllerAction already logs transport failures.
     });
   },
+  mediaAction(action, phase, video, hold) {
+    const engine = getActiveEngine();
+    if (!engine) {
+      return;
+    }
+    void executeControllerAction(action, {
+      resolveRegistry: () => getActiveEngine()?.registry ?? engine.registry,
+      source: { kind: 'overlay', video },
+      phase,
+      hold,
+    }).catch(() => {
+      // executeControllerAction already logs transport failures.
+    });
+  },
   setOverlayPosition(position) {
     void sendOverlayIntent({
       type: 'SET_OVERLAY_POSITION',

@@ -71,16 +71,23 @@ const BackupV1OverlayPositionSchema = z.literal([
   0, 1, 2, 3, 4, 5, 6, 7, 8,
 ]) satisfies z.ZodType<OverlayPosition>;
 
+// Key order mirrors BEHAVIOR_FIELDS so registry parity holds. Navigation
+// fields are additive V1: older files omit them and resolve to the defaults.
 const BackupV1FieldSchema = z.strictObject({
-  // Original V1 fields.
   speed: z.number().optional(),
   speedMin: z.number().optional(),
   speedMax: z.number().optional(),
   speedTick: z.number().optional(),
+  skipBackSeconds: z.number().optional(),
+  skipForwardSeconds: z.number().optional(),
+  skipScaleWithPlaybackRate: z.boolean().optional(),
+  rewindSpeed: z.number().optional(),
+  fastForwardSpeed: z.number().optional(),
   overlayVisible: z.boolean().optional(),
   overlayPosition: BackupV1OverlayPositionSchema.optional(),
   overlayPositionButton: z.boolean().optional(),
   overlaySettingsButton: z.boolean().optional(),
+  overlayNavigationBar: z.boolean().optional(),
   overlayHotkeyHints: z.boolean().optional(),
   overlayAutoHide: z.boolean().optional(),
   overlayHoverHold: z.boolean().optional(),
@@ -109,6 +116,13 @@ const BackupV1HotkeysSchema = z.strictObject({
   increaseSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   decreaseSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   resetSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpToStart: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  rewind: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  skipBack: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  playPause: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  skipForward: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  fastForward: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpToEnd: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
 }) satisfies z.ZodType<LogicalHotkeyValues>;
 
 const BackupV1ScopeSchema = BackupV1FieldSchema.extend({

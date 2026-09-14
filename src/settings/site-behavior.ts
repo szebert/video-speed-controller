@@ -26,7 +26,7 @@ import {
   type NumberBehaviorField,
 } from './behavior-fields';
 import {
-  BUILT_IN_HOTKEYS,
+  builtInEffectiveHotkeys,
   emptyEffectiveHotkeys,
   hotkeyBindingsEqual,
   isHotkeyBinding,
@@ -118,6 +118,37 @@ export function hotkeyRepeatIntervalMs(rate: number): number {
   return Math.round(1000 / canonicalizeHotkeyRepeatRate(rate));
 }
 
+/** Shortest skip distance the product accepts. */
+export const SKIP_SECONDS_MIN = 0.1;
+/** Longest skip distance the product accepts (1 hour). */
+export const SKIP_SECONDS_MAX = 3600;
+const SKIP_SECONDS_SCALE = 1000;
+
+/** Fractional skips stay valid so scaled and custom values such as 2.5s work. */
+export function canonicalizeSkipSeconds(value: number): number {
+  const clamped = Math.min(SKIP_SECONDS_MAX, Math.max(SKIP_SECONDS_MIN, value));
+  return Math.round(clamped * SKIP_SECONDS_SCALE) / SKIP_SECONDS_SCALE;
+}
+
+// Transport rates are signed playback rates, clamped to the magnitudes Chromium
+// accepts. Assigning outside kMinPlaybackRate..kMaxPlaybackRate throws.
+export const TRANSPORT_RATE_MAGNITUDE_MIN = SPEED_MIN_SETTING_MIN;
+export const TRANSPORT_RATE_MAGNITUDE_MAX = SPEED_MAX_SETTING_MAX;
+
+/** Fast forward is strictly positive; a non-positive input is a magnitude. */
+export function canonicalizeFastForwardSpeed(value: number): number {
+  return clampPolicyNumber(
+    Math.abs(value),
+    TRANSPORT_RATE_MAGNITUDE_MIN,
+    TRANSPORT_RATE_MAGNITUDE_MAX,
+  );
+}
+
+/** Rewind is strictly negative; a non-negative input is a magnitude. */
+export function canonicalizeRewindSpeed(value: number): number {
+  return -canonicalizeFastForwardSpeed(value);
+}
+
 export const OVERLAY_POSITION = {
   TOP_LEFT: 0,
   TOP_CENTER: 1,
@@ -148,27 +179,57 @@ export function overlayPositionFromGrid(row: GridIndex, column: GridIndex): Over
   return (row * 3 + column) as OverlayPosition;
 }
 
-export type SiteHotkeyAction = 'increaseSpeed' | 'decreaseSpeed' | 'resetSpeed';
+export type SiteHotkeyAction =
+  | 'increaseSpeed'
+  | 'decreaseSpeed'
+  | 'resetSpeed'
+  | 'jumpToStart'
+  | 'rewind'
+  | 'skipBack'
+  | 'playPause'
+  | 'skipForward'
+  | 'fastForward'
+  | 'jumpToEnd';
 
 export const SITE_HOTKEY_ACTIONS = [
   'increaseSpeed',
   'decreaseSpeed',
   'resetSpeed',
+  'jumpToStart',
+  'rewind',
+  'skipBack',
+  'playPause',
+  'skipForward',
+  'fastForward',
+  'jumpToEnd',
 ] as const satisfies readonly SiteHotkeyAction[];
 
 export const USER_REPEATABLE_ACTIONS = new Set<SiteHotkeyAction>([
   'increaseSpeed',
   'decreaseSpeed',
+  'skipBack',
+  'skipForward',
 ]);
 
-/** Rewind / fast-forward will join this set when those actions exist. */
-export const ALWAYS_HOLDABLE_ACTIONS = new Set<SiteHotkeyAction>();
+/** Press-and-hold sessions. Independent of the optional hold-to-repeat toggle. */
+export const HOLD_ACTIONS = new Set<SiteHotkeyAction>(['fastForward']);
 
-export function hotkeyRepeatsWhileHeld(action: SiteHotkeyAction, enabled: boolean): boolean {
-  if (ALWAYS_HOLDABLE_ACTIONS.has(action)) {
-    return true;
+/** Bindable scaffolding that must never execute in this release. */
+export const DISABLED_ACTIONS = new Set<SiteHotkeyAction>(['rewind']);
+
+export type HotkeyActionMode = 'once' | 'repeat' | 'hold' | 'disabled';
+
+export function hotkeyActionMode(
+  action: SiteHotkeyAction,
+  repeatEnabled: boolean,
+): HotkeyActionMode {
+  if (DISABLED_ACTIONS.has(action)) {
+    return 'disabled';
   }
-  return enabled && USER_REPEATABLE_ACTIONS.has(action);
+  if (HOLD_ACTIONS.has(action)) {
+    return 'hold';
+  }
+  return repeatEnabled && USER_REPEATABLE_ACTIONS.has(action) ? 'repeat' : 'once';
 }
 
 export type SettingSource = 'built-in' | 'global' | 'site';
@@ -227,11 +288,9 @@ export type ResolvedSiteBehavior = {
 };
 
 export const BUILT_IN_SITE_BEHAVIOR = {
-  hotkeys: {
-    decreaseSpeed: { ...BUILT_IN_HOTKEYS.decreaseSpeed },
-    increaseSpeed: { ...BUILT_IN_HOTKEYS.increaseSpeed },
-    resetSpeed: { ...BUILT_IN_HOTKEYS.resetSpeed },
-  },
+  // Every action, including the unbound navigation actions. Do not hand-build
+  // a speed-only map: missing keys resolve to undefined instead of null.
+  hotkeys: builtInEffectiveHotkeys(),
   ...Object.fromEntries(
     EDITABLE_BEHAVIOR_FIELDS.map((field) => [field, BEHAVIOR_FIELDS[field].default]),
   ),
@@ -483,6 +542,21 @@ function clampResolvedHotkeyRepeatRate(setting: ResolvedSetting<number>): Resolv
   return value === setting.value ? setting : { ...setting, value };
 }
 
+function clampResolvedSkipSeconds(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeSkipSeconds(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
+function clampResolvedRewindSpeed(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeRewindSpeed(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
+function clampResolvedFastForwardSpeed(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeFastForwardSpeed(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
 export function resolveSiteBehavior(
   globalOverrides: BehaviorOverrides = {},
   siteOverrides: BehaviorOverrides = {},
@@ -519,6 +593,10 @@ export function resolveSiteBehavior(
   resolved.hotkeyFlashOpacity = clampResolvedHotkeyFlashOpacity(resolved.hotkeyFlashOpacity);
   resolved.hotkeyRepeatDelayMs = clampResolvedHotkeyRepeatDelay(resolved.hotkeyRepeatDelayMs);
   resolved.hotkeyRepeatRate = clampResolvedHotkeyRepeatRate(resolved.hotkeyRepeatRate);
+  resolved.skipBackSeconds = clampResolvedSkipSeconds(resolved.skipBackSeconds);
+  resolved.skipForwardSeconds = clampResolvedSkipSeconds(resolved.skipForwardSeconds);
+  resolved.rewindSpeed = clampResolvedRewindSpeed(resolved.rewindSpeed);
+  resolved.fastForwardSpeed = clampResolvedFastForwardSpeed(resolved.fastForwardSpeed);
   return resolved;
 }
 
@@ -988,14 +1066,60 @@ export function canonicalizeBehaviorSettingChange(
         field: 'hotkeyRepeatRate',
         value: canonicalizeHotkeyRepeatRate(change.value),
       };
+    case 'skipBackSeconds':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value <= 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'skipBackSeconds',
+        value: canonicalizeSkipSeconds(change.value),
+      };
+    case 'skipForwardSeconds':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value <= 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'skipForwardSeconds',
+        value: canonicalizeSkipSeconds(change.value),
+      };
+    case 'rewindSpeed':
+      if (
+        typeof change.value !== 'number' ||
+        !Number.isFinite(change.value) ||
+        change.value === 0
+      ) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'rewindSpeed',
+        value: canonicalizeRewindSpeed(change.value),
+      };
+    case 'fastForwardSpeed':
+      if (
+        typeof change.value !== 'number' ||
+        !Number.isFinite(change.value) ||
+        change.value === 0
+      ) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'fastForwardSpeed',
+        value: canonicalizeFastForwardSpeed(change.value),
+      };
     case 'overlayPosition':
       return isOverlayPosition(change.value) ? change : null;
     case 'overlayVisible':
     case 'overlayPositionButton':
     case 'overlaySettingsButton':
+    case 'overlayNavigationBar':
     case 'overlayHotkeyHints':
     case 'overlayAutoHide':
     case 'overlayHoverHold':
+    case 'skipScaleWithPlaybackRate':
     case 'hotkeyFlash':
     case 'hotkeyRepeat':
       return typeof change.value === 'boolean' ? change : null;

@@ -18,10 +18,16 @@ function builtInBehavior() {
     speedMin: { value: 0.25, source: 'built-in' as const },
     speedMax: { value: 4, source: 'built-in' as const },
     speedTick: { value: 0.25, source: 'built-in' as const },
+    skipBackSeconds: { value: 5, source: 'built-in' as const },
+    skipForwardSeconds: { value: 10, source: 'built-in' as const },
+    skipScaleWithPlaybackRate: { value: false, source: 'built-in' as const },
+    rewindSpeed: { value: -1, source: 'built-in' as const },
+    fastForwardSpeed: { value: 3, source: 'built-in' as const },
     overlayVisible: { value: true, source: 'built-in' as const },
     overlayPosition: { value: OVERLAY_POSITION.TOP_CENTER, source: 'built-in' as const },
     overlayPositionButton: { value: true, source: 'built-in' as const },
     overlaySettingsButton: { value: true, source: 'built-in' as const },
+    overlayNavigationBar: { value: false, source: 'built-in' as const },
     overlayHotkeyHints: { value: true, source: 'built-in' as const },
     overlayAutoHide: { value: true, source: 'built-in' as const },
     overlayHoverHold: { value: false, source: 'built-in' as const },
@@ -155,6 +161,16 @@ describe('Options page', () => {
 
   function permissionError(): Element | null {
     return container.querySelector('[data-slot="field-error"]');
+  }
+
+  /** Flattens single and coalesced SET_BEHAVIOR_SETTING payloads into changes. */
+  function sentBehaviorChanges(): unknown[] {
+    return sendMessage.mock.calls.flatMap(([message]) => {
+      if (message?.type !== 'SET_BEHAVIOR_SETTING') {
+        return [];
+      }
+      return message.changes ?? [message.change];
+    });
   }
 
   function deleteSiteButton(): HTMLButtonElement | undefined {
@@ -862,6 +878,113 @@ describe('Options page', () => {
       scope: { kind: 'global' },
       change: { kind: 'value', field: 'speedTick', value: 0.05 },
     });
+  });
+
+  it('sends overlayNavigationBar true from the Show navigation bar switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const navigationSwitch = container.querySelector('#overlay-navigation-bar');
+    expect(navigationSwitch).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(navigationSwitch);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlayNavigationBar', value: true },
+    });
+  });
+
+  it('persists independent skip distances and a fast-forward speed', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const commit = async (id: string, value: string): Promise<void> => {
+      const input = container.querySelector(id);
+      expect(input).toBeInstanceOf(HTMLInputElement);
+      await act(async () => {
+        if (!(input instanceof HTMLInputElement)) {
+          return;
+        }
+        input.focus();
+        setInputValue(input, value);
+        input.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+        );
+        input.blur();
+      });
+    };
+
+    await commit('#skip-back-seconds', '2.5');
+    await commit('#skip-forward-seconds', '30');
+    await commit('#fast-forward-speed', '5');
+    await flushHiddenWrites();
+    expect(sentBehaviorChanges()).toEqual(
+      expect.arrayContaining([
+        { kind: 'value', field: 'skipBackSeconds', value: 2.5 },
+        { kind: 'value', field: 'skipForwardSeconds', value: 30 },
+        { kind: 'value', field: 'fastForwardSpeed', value: 5 },
+      ]),
+    );
+  });
+
+  it('clamps a skip distance and a fast-forward speed to their limits', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const commit = async (id: string, value: string): Promise<void> => {
+      const input = container.querySelector(id);
+      await act(async () => {
+        if (!(input instanceof HTMLInputElement)) {
+          return;
+        }
+        input.focus();
+        setInputValue(input, value);
+        input.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+        );
+        input.blur();
+      });
+    };
+
+    await commit('#skip-forward-seconds', '99999');
+    await commit('#fast-forward-speed', '99');
+    await flushHiddenWrites();
+    expect(sentBehaviorChanges()).toEqual(
+      expect.arrayContaining([
+        { kind: 'value', field: 'skipForwardSeconds', value: 3600 },
+        { kind: 'value', field: 'fastForwardSpeed', value: 16 },
+      ]),
+    );
+  });
+
+  it('sends skipScaleWithPlaybackRate true from its switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const scaleSwitch = container.querySelector('#skip-scale-with-playback-rate');
+    expect(scaleSwitch).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(scaleSwitch);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'skipScaleWithPlaybackRate', value: true },
+    });
+  });
+
+  it('shows the stored rewind speed as read-only scaffolding', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const rewind = container.querySelector('#rewind-speed');
+    expect(rewind).toBeInstanceOf(HTMLInputElement);
+    expect((rewind as HTMLInputElement).value).toBe('-1');
+    expect((rewind as HTMLInputElement).disabled).toBe(true);
+    expect((rewind as HTMLInputElement).readOnly).toBe(true);
+    await act(async () => {
+      setInputValue(rewind as HTMLInputElement, '-2');
+    });
+    expect(sendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'SET_BEHAVIOR_SETTING' }),
+    );
   });
 
   it('sends overlayVisible false from the Show overlay switch', async () => {

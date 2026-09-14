@@ -18,4 +18,24 @@ describe('behavior field registry', () => {
     ).toEqual([...EDITABLE_BEHAVIOR_FIELDS]);
     expect(LogicalBackupSchema.shape.global.shape).toHaveProperty('hotkeys');
   });
+
+  it('files navigation fields under the existing playback and overlay categories', () => {
+    for (const field of [
+      'skipBackSeconds',
+      'skipForwardSeconds',
+      'skipScaleWithPlaybackRate',
+      'rewindSpeed',
+      'fastForwardSpeed',
+    ] as const) {
+      expect(BEHAVIOR_FIELDS[field].category).toBe('playback');
+      expect(BEHAVIOR_FIELDS[field].reapply).toEqual({
+        global: 'preserve-target',
+        site: 'preserve-target',
+      });
+    }
+    expect(BEHAVIOR_FIELDS.overlayNavigationBar.category).toBe('overlay');
+    expect(new Set(Object.values(BEHAVIOR_FIELDS).map((field) => field.category))).toEqual(
+      new Set(['playback', 'overlay', 'hotkeys']),
+    );
+  });
 });

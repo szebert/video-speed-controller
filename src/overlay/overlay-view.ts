@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
+import type { MediaNavigationAction } from '../core/controller-action';
 import { ariaKeyshortcutsFromBinding, visualHotkeyParts } from '../core/hotkey-format';
 import { canAdjustSpeed, formatSpeed } from '../core/speed';
 import { t, type MessageKey } from '../i18n/t';
 import type { HotkeyBinding } from '../settings/hotkey-binding';
 import {
   canonicalizeOverlayOpacity,
+  DISABLED_ACTIONS,
+  HOLD_ACTIONS,
   overlayPositionToGrid,
   type OverlayPosition,
 } from '../settings/site-behavior';
@@ -26,6 +29,17 @@ const POSITION_LABELS = [
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+/** Required left-to-right order of the navigation row. */
+const NAVIGATION_BUTTONS = [
+  { action: 'jumpToStart', label: 'navJumpToStart' },
+  { action: 'rewind', label: 'navRewind' },
+  { action: 'skipBack', label: 'navSkipBack' },
+  { action: 'playPause', label: 'navPlay' },
+  { action: 'skipForward', label: 'navSkipForward' },
+  { action: 'fastForward', label: 'navFastForward' },
+  { action: 'jumpToEnd', label: 'navJumpToEnd' },
+] as const satisfies readonly { action: MediaNavigationAction; label: MessageKey }[];
+
 export class OverlayView {
   readonly element: HTMLDivElement;
   readonly speedReadout: HTMLDivElement;
@@ -37,6 +51,9 @@ export class OverlayView {
   private readonly slower: HTMLButtonElement;
   private readonly faster: HTMLButtonElement;
   private readonly settings: HTMLButtonElement;
+  private navigationBar: HTMLDivElement | null = null;
+  private navigationButtons: Map<MediaNavigationAction, HTMLButtonElement> | null = null;
+  private readonly activeHolds = new Set<() => void>();
   private picker: HTMLDivElement | null = null;
   private pickerOpen = false;
   private pointerWithin = false;
@@ -155,6 +172,8 @@ export class OverlayView {
   update(state: OverlayViewState): void {
     this.state = state;
     if (!state.visible) {
+      // A hold cannot outlive the controls that started it.
+      this.releaseHolds();
       this.pointerWithin = false;
       this.focusWithin = false;
       this.setPickerOpen(false);
@@ -169,9 +188,19 @@ export class OverlayView {
   }
 
   destroy(): void {
+    this.releaseHolds();
     this.abort.abort();
     this.picker = null;
+    this.navigationBar = null;
+    this.navigationButtons = null;
     this.element.remove();
+  }
+
+  /** Ends every live hold, so teardown cannot strand a temporary rate. */
+  private releaseHolds(): void {
+    for (const end of [...this.activeHolds]) {
+      end();
+    }
   }
 
   private createChromeButton(className: string, label: string): HTMLButtonElement {
@@ -190,6 +219,7 @@ export class OverlayView {
     const { behavior } = state;
     const policy = speedPolicyFromApplied(behavior);
     this.element.style.opacity = `${canonicalizeOverlayOpacity(behavior.overlayOpacity) / 100}`;
+    this.element.dataset.column = `${overlayPositionToGrid(behavior.overlayPosition).column}`;
     this.speedReadout.textContent = formatSpeed(behavior.targetSpeed);
     this.slower.disabled = !canAdjustSpeed(behavior.targetSpeed, -1, policy);
     this.faster.disabled = !canAdjustSpeed(behavior.targetSpeed, 1, policy);
@@ -213,11 +243,164 @@ export class OverlayView {
       this.settings.remove();
     }
 
+    this.syncNavigation(state);
+
     if (this.pickerOpen && state.visible && behavior.overlayPositionButton) {
       this.renderPicker();
     } else {
       this.removePicker();
     }
+  }
+
+  private syncNavigation(state: OverlayViewState): void {
+    const { behavior } = state;
+    if (!behavior.overlayNavigationBar) {
+      this.removeNavigationBar();
+      return;
+    }
+    const buttons = this.ensureNavigationBar();
+    for (const { action } of NAVIGATION_BUTTONS) {
+      const button = buttons.get(action);
+      if (!button) {
+        continue;
+      }
+      if (action === 'playPause') {
+        const label = t(state.paused ? 'navPlay' : 'navPause');
+        button.setAttribute('aria-label', label);
+        button.replaceChildren(
+          state.paused ? createPlayIcon(this.document) : createPauseIcon(this.document),
+        );
+      }
+      const binding = button.disabled ? null : (state.hotkeys?.[action] ?? null);
+      syncHotkeyHint(button, binding, behavior.overlayHotkeyHints);
+    }
+  }
+
+  private ensureNavigationBar(): Map<MediaNavigationAction, HTMLButtonElement> {
+    const existing = this.navigationButtons;
+    if (this.navigationBar?.isConnected && existing) {
+      return existing;
+    }
+    const bar = this.document.createElement('div');
+    bar.className = 'controls controls-nav';
+    bar.setAttribute('role', 'group');
+    const buttons = new Map<MediaNavigationAction, HTMLButtonElement>();
+    for (const { action, label } of NAVIGATION_BUTTONS) {
+      const button = HOLD_ACTIONS.has(action)
+        ? this.createHoldButton(action, t(label))
+        : this.createPressButton(action, t(label));
+      if (DISABLED_ACTIONS.has(action)) {
+        button.disabled = true;
+      }
+      button.append(createNavigationIcon(this.document, action));
+      buttons.set(action, button);
+      bar.append(button);
+    }
+    this.navigationBar = bar;
+    this.navigationButtons = buttons;
+    this.element.insertBefore(bar, this.picker);
+    return buttons;
+  }
+
+  private removeNavigationBar(): void {
+    if (!this.navigationBar) {
+      return;
+    }
+    // The row is going away while a pointer or key may still be down.
+    this.releaseHolds();
+    this.navigationBar.remove();
+    this.navigationBar = null;
+    this.navigationButtons = null;
+  }
+
+  private createPressButton(action: MediaNavigationAction, label: string): HTMLButtonElement {
+    const button = this.createChromeButton('control control-nav', label);
+    button.addEventListener(
+      'click',
+      (event) => {
+        if (!button.disabled) {
+          this.callbacks.onMediaAction(action, 'press');
+        }
+        blurAfterPointerClick(event);
+      },
+      { signal: this.abort.signal },
+    );
+    return button;
+  }
+
+  // Press starts the action and release ends it, so a click never fires it once.
+  private createHoldButton(action: MediaNavigationAction, label: string): HTMLButtonElement {
+    const button = this.createChromeButton('control control-nav', label);
+    const signal = this.abort.signal;
+    let holding = false;
+    const end = (): void => {
+      if (!holding) {
+        return;
+      }
+      holding = false;
+      this.activeHolds.delete(end);
+      this.callbacks.onMediaAction(action, 'end');
+      this.notifyInteractive();
+    };
+    const start = (): void => {
+      if (holding || button.disabled) {
+        return;
+      }
+      holding = true;
+      this.activeHolds.add(end);
+      this.callbacks.onMediaAction(action, 'start');
+      this.notifyInteractive();
+    };
+    button.addEventListener(
+      'pointerdown',
+      (event) => {
+        if (button.disabled) {
+          return;
+        }
+        try {
+          button.setPointerCapture(event.pointerId);
+        } catch {
+          // Capture is a convenience; the document-level end paths still run.
+        }
+        start();
+      },
+      { signal },
+    );
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'] as const) {
+      button.addEventListener(type, end, { signal });
+    }
+    button.addEventListener(
+      'click',
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        blurAfterPointerClick(event);
+      },
+      { signal },
+    );
+    button.addEventListener(
+      'keydown',
+      (event) => {
+        if (event.repeat || !isActivationKey(event)) {
+          return;
+        }
+        event.preventDefault();
+        start();
+      },
+      { signal },
+    );
+    button.addEventListener(
+      'keyup',
+      (event) => {
+        if (!isActivationKey(event)) {
+          return;
+        }
+        event.preventDefault();
+        end();
+      },
+      { signal },
+    );
+    return button;
   }
 
   private togglePicker(): void {
@@ -297,9 +480,12 @@ export class OverlayView {
   private notifyInteractive(): void {
     const behavior = this.state?.behavior;
     const visible = this.state?.visible === true;
+    // A live hold keeps the overlay interactive even when hover-hold is off.
     const interactive =
       visible &&
-      (this.focusWithin || (this.pointerWithin && (behavior?.overlayHoverHold ?? false)));
+      (this.focusWithin ||
+        this.activeHolds.size > 0 ||
+        (this.pointerWithin && (behavior?.overlayHoverHold ?? false)));
     if (this.lastInteractive === interactive) {
       return;
     }
@@ -341,6 +527,10 @@ function syncHotkeyHint(
   button.append(hint);
 }
 
+function isActivationKey(event: KeyboardEvent): boolean {
+  return event.key === ' ' || event.key === 'Spacebar' || event.key === 'Enter';
+}
+
 function blurAfterPointerClick(event: MouseEvent): void {
   if (event.detail === 0 || !(event.currentTarget instanceof HTMLElement)) {
     return;
@@ -380,6 +570,54 @@ function createMoveIcon(document: Document): SVGSVGElement {
     ['path', { d: 'M9 3v18' }],
     ['path', { d: 'M15 3v18' }],
   ]);
+}
+
+function createPlayIcon(document: Document): SVGSVGElement {
+  return createSvg(document, [['polygon', { points: '6 3 20 12 6 21 6 3' }]]);
+}
+
+function createPauseIcon(document: Document): SVGSVGElement {
+  return createSvg(document, [
+    ['rect', { x: '6', y: '4', width: '4', height: '16', rx: '1' }],
+    ['rect', { x: '14', y: '4', width: '4', height: '16', rx: '1' }],
+  ]);
+}
+
+function createNavigationIcon(document: Document, action: MediaNavigationAction): SVGSVGElement {
+  switch (action) {
+    case 'jumpToStart':
+      return createSvg(document, [
+        ['polygon', { points: '19 20 9 12 19 4 19 20' }],
+        ['path', { d: 'M5 19V5' }],
+      ]);
+    case 'rewind':
+      return createSvg(document, [
+        ['polygon', { points: '11 19 2 12 11 5 11 19' }],
+        ['polygon', { points: '22 19 13 12 22 5 22 19' }],
+      ]);
+    case 'skipBack':
+      return createSvg(document, [
+        ['path', { d: 'm11 17-5-5 5-5' }],
+        ['path', { d: 'm18 17-5-5 5-5' }],
+      ]);
+    case 'playPause':
+      return createPlayIcon(document);
+    case 'skipForward':
+      return createSvg(document, [
+        ['path', { d: 'm6 17 5-5-5-5' }],
+        ['path', { d: 'm13 17 5-5-5-5' }],
+      ]);
+    case 'fastForward':
+      return createSvg(document, [
+        ['polygon', { points: '2 19 11 12 2 5 2 19' }],
+        ['polygon', { points: '13 19 22 12 13 5 13 19' }],
+      ]);
+    case 'jumpToEnd':
+      return createSvg(document, [
+        ['polygon', { points: '5 4 15 12 5 20 5 4' }],
+        ['path', { d: 'M19 5v14' }],
+      ]);
+  }
 }
 
 function createSettingsIcon(document: Document): SVGSVGElement {

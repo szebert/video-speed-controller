@@ -10,12 +10,13 @@ import {
 import {
   canonicalizeHotkeyRepeatDelayMs,
   canonicalizeHotkeyRepeatRate,
+  hotkeyActionMode,
   hotkeyRepeatIntervalMs,
-  hotkeyRepeatsWhileHeld,
   type SiteHotkeyAction,
 } from '../settings/site-behavior';
+import { isMediaNavigationAction, type ControllerActionPhase } from './controller-action';
 import { executeControllerAction } from './execute-controller-action';
-import type { MediaRegistry } from './media-registry';
+import type { MediaRegistry, TransportHoldOwner } from './media-registry';
 
 export type HotkeyRepeatPolicy = {
   enabled: boolean;
@@ -26,9 +27,14 @@ export type HotkeyRepeatPolicy = {
 type HeldHotkey = {
   action: SiteHotkeyAction;
   binding: HotkeyBinding;
+  /** `repeat` drives timers; `hold` runs one start and one matching end. */
+  mode: 'repeat' | 'hold';
+  /** Target locked on the initial keydown. Repeat ticks never reselect. */
+  video: HTMLVideoElement | null;
   delayTimer?: number;
   intervalTimer?: number;
   inFlight: boolean;
+  ended?: boolean;
 };
 
 const DEFAULT_REPEAT_POLICY: HotkeyRepeatPolicy = {
@@ -112,6 +118,11 @@ export class HotkeyListener {
     if (!action) {
       return;
     }
+    const mode = hotkeyActionMode(action, this.policy.enabled);
+    if (mode === 'disabled') {
+      // Bindable scaffolding. Leave the key to the page instead of eating it.
+      return;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
     if (event.repeat) {
@@ -121,13 +132,17 @@ export class HotkeyListener {
     if (!binding) {
       return;
     }
-    const repeatable = hotkeyRepeatsWhileHeld(action, this.policy.enabled);
     this.cancelHeld();
-    if (!repeatable) {
-      this.dispatchOnce(action, binding);
+    const video = isMediaNavigationAction(action) ? this.resolveTarget() : null;
+    if (mode === 'once') {
+      this.dispatchOnce(action, binding, video);
       return;
     }
-    const held = this.beginHold(action, binding);
+    if (mode === 'hold') {
+      this.dispatchHold(this.beginHold(action, binding, 'hold', video), 'start');
+      return;
+    }
+    const held = this.beginHold(action, binding, 'repeat', video);
     this.startDelayTimer(held);
     this.dispatchHeld(held);
   };
@@ -152,10 +167,23 @@ export class HotkeyListener {
     }
   };
 
-  private beginHold(action: SiteHotkeyAction, binding: HotkeyBinding): HeldHotkey {
-    const held: HeldHotkey = { action, binding, inFlight: false };
+  private beginHold(
+    action: SiteHotkeyAction,
+    binding: HotkeyBinding,
+    mode: 'repeat' | 'hold',
+    video: HTMLVideoElement | null,
+  ): HeldHotkey {
+    const held: HeldHotkey = { action, binding, mode, video, inFlight: false };
     this.held = held;
     return held;
+  }
+
+  private resolveTarget(): HTMLVideoElement | null {
+    try {
+      return this.resolveRegistry().resolveHotkeyTarget();
+    } catch {
+      return null;
+    }
   }
 
   private startDelayTimer(held: HeldHotkey): void {
@@ -186,7 +214,7 @@ export class HotkeyListener {
       return;
     }
     held.inFlight = true;
-    void this.execute(held.action, held.binding)
+    void this.execute(held.action, held.binding, held.video, 'press')
       .catch(() => {
         if (this.held === held) {
           this.cancelHeld();
@@ -199,16 +227,41 @@ export class HotkeyListener {
       });
   }
 
-  private dispatchOnce(action: SiteHotkeyAction, binding: HotkeyBinding): void {
-    void this.execute(action, binding).catch(() => {
+  // Exactly one start and one end per hold, whichever cancel path runs first.
+  private dispatchHold(held: HeldHotkey, phase: 'start' | 'end'): void {
+    if (phase === 'end') {
+      if (held.ended) {
+        return;
+      }
+      held.ended = true;
+    }
+    void this.execute(held.action, held.binding, held.video, phase, held).catch(() => {
       // executeControllerAction already logs transport failures.
     });
   }
 
-  private execute(action: SiteHotkeyAction, binding: HotkeyBinding): Promise<void> {
+  private dispatchOnce(
+    action: SiteHotkeyAction,
+    binding: HotkeyBinding,
+    video: HTMLVideoElement | null,
+  ): void {
+    void this.execute(action, binding, video, 'press').catch(() => {
+      // executeControllerAction already logs transport failures.
+    });
+  }
+
+  private execute(
+    action: SiteHotkeyAction,
+    binding: HotkeyBinding,
+    video: HTMLVideoElement | null,
+    phase: ControllerActionPhase,
+    hold?: TransportHoldOwner,
+  ): Promise<void> {
     return executeControllerAction(action, {
       resolveRegistry: this.resolveRegistry,
-      source: { kind: 'hotkey', binding },
+      source: { kind: 'hotkey', binding, video },
+      phase,
+      ...(hold ? { hold } : {}),
     });
   }
 
@@ -223,6 +276,9 @@ export class HotkeyListener {
     }
     if (held.intervalTimer != null) {
       this.target.clearInterval(held.intervalTimer);
+    }
+    if (held.mode === 'hold') {
+      this.dispatchHold(held, 'end');
     }
   }
 

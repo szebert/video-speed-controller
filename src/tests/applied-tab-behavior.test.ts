@@ -22,6 +22,9 @@ import {
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
   OVERLAY_OPACITY_MIN,
+  SKIP_SECONDS_MAX,
+  SKIP_SECONDS_MIN,
+  TRANSPORT_RATE_MAGNITUDE_MAX,
 } from '../settings/site-behavior';
 import { getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { tabBehavior } from './tab-behavior-fixture';
@@ -66,6 +69,31 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeat).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatDelayMs).toBe(500);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatRate).toBe(15);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlayNavigationBar).toBe(false);
+    expect(BUILT_IN_SITE_BEHAVIOR.skipBackSeconds).toBe(5);
+    expect(BUILT_IN_SITE_BEHAVIOR.skipForwardSeconds).toBe(10);
+    expect(BUILT_IN_SITE_BEHAVIOR.skipScaleWithPlaybackRate).toBe(false);
+    expect(BUILT_IN_SITE_BEHAVIOR.rewindSpeed).toBe(-1);
+    expect(BUILT_IN_SITE_BEHAVIOR.fastForwardSpeed).toBe(3);
+  });
+
+  it('clamps applied skip distances and keeps transport rates signed', () => {
+    const applied = (overrides: Partial<typeof BUILT_IN_SITE_BEHAVIOR>) =>
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, ...overrides });
+    expect(applied({ skipBackSeconds: 0 }).skipBackSeconds).toBe(SKIP_SECONDS_MIN);
+    expect(applied({ skipForwardSeconds: 99_999 }).skipForwardSeconds).toBe(SKIP_SECONDS_MAX);
+    expect(applied({ rewindSpeed: 2 }).rewindSpeed).toBe(-2);
+    expect(applied({ rewindSpeed: -99 }).rewindSpeed).toBe(-TRANSPORT_RATE_MAGNITUDE_MAX);
+    expect(applied({ fastForwardSpeed: -5 }).fastForwardSpeed).toBe(5);
+    expect(applied({ fastForwardSpeed: 99 }).fastForwardSpeed).toBe(TRANSPORT_RATE_MAGNITUDE_MAX);
+  });
+
+  it('rejects a session record missing or mistyping a navigation field', () => {
+    const missing: Record<string, unknown> = { ...tabBehavior(1.25) };
+    delete missing.skipForwardSeconds;
+    expect(isAppliedTabBehavior(missing)).toBe(false);
+    expect(isAppliedTabBehavior({ ...tabBehavior(1.25), overlayNavigationBar: 1 })).toBe(false);
+    expect(isAppliedTabBehavior({ ...tabBehavior(1.25), rewindSpeed: '-1' })).toBe(false);
   });
 
   it('clamps applied auto-hide delay to 100ms–5min', () => {

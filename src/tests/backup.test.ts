@@ -319,6 +319,66 @@ describe('backup format', () => {
     });
   });
 
+  it('accepts additive V1 navigation fields, clamping distances and signing transport rates', () => {
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: {
+            skipBackSeconds: 2.5,
+            skipForwardSeconds: 99_999,
+            skipScaleWithPlaybackRate: true,
+            rewindSpeed: 2,
+            fastForwardSpeed: -5,
+            overlayNavigationBar: true,
+          },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: {
+        formatVersion: 1,
+        global: {
+          skipBackSeconds: 2.5,
+          skipForwardSeconds: 3600,
+          skipScaleWithPlaybackRate: true,
+          rewindSpeed: -2,
+          fastForwardSpeed: 5,
+          overlayNavigationBar: true,
+        },
+        sites: {},
+      },
+    });
+    // A distance or rate outside the domain is a bad file, not something to clamp.
+    for (const global of [{ skipBackSeconds: 0 }, { rewindSpeed: 0 }, { fastForwardSpeed: 0 }]) {
+      expect(parseBackupText(JSON.stringify({ formatVersion: 1, global, sites: {} }))).toEqual({
+        status: 'invalid',
+        error: BACKUP_INVALID,
+      });
+    }
+  });
+
+  it('round-trips navigation hotkey bindings and explicit unbinds', () => {
+    const backup: LogicalBackup = {
+      formatVersion: 1,
+      global: {
+        hotkeys: {
+          skipBack: { code: 'KeyJ', ctrl: false, alt: false, shift: false, meta: false },
+          skipForward: { code: 'KeyK', ctrl: false, alt: false, shift: false, meta: false },
+          fastForward: { code: 'KeyL', ctrl: false, alt: false, shift: false, meta: false },
+        },
+      },
+      sites: {
+        'netflix.com': {
+          hotkeys: { playPause: null },
+        },
+      },
+    };
+    const text = serializeBackup(backup);
+    expect(parseBackupText(text)).toEqual({ status: 'ready', backup });
+  });
+
   it('still imports and reserializes the original complete V1 fixture', () => {
     const text = readBackupFixture('backup-v1-complete.json');
     expect(parseBackupText(text)).toEqual({ status: 'ready', backup: COMPLETE_BACKUP_V1 });

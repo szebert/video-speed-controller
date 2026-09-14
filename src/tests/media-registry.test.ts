@@ -814,10 +814,169 @@ describe('media registry', () => {
     registry.ensureController(node);
     registry.destroy();
     registry.flashHotkeyAction({
+      kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
     });
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('flashes navigation feedback on only its own video', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const first = video();
+    const second = video();
+    document.body.append(first, second);
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    registry.ensureController(first);
+    registry.ensureController(second);
+    const firstFlash = vi.spyOn(registry.getOverlay(first)!, 'showHotkeyFlash');
+    const secondFlash = vi.spyOn(registry.getOverlay(second)!, 'showHotkeyFlash');
+
+    registry.flashHotkeyActionOn(first, {
+      kind: 'navigation',
+      label: 'Skip forward',
+      detail: '10s',
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    expect(firstFlash).toHaveBeenCalledTimes(1);
+    expect(secondFlash).not.toHaveBeenCalled();
+
+    registry.flashHotkeyAction({
+      kind: 'speed',
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    expect(firstFlash).toHaveBeenCalledTimes(2);
+    expect(secondFlash).toHaveBeenCalledTimes(1);
+  });
+
+  it('picks the picture-in-picture video as the hotkey target', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const small = video({ left: 0, top: 0, width: 40, height: 20 });
+    const large = video({ left: 0, top: 0, width: 640, height: 360 });
+    document.body.append(small, large);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+    Object.defineProperty(document, 'pictureInPictureElement', {
+      configurable: true,
+      value: small,
+    });
+    expect(registry.resolveHotkeyTarget()).toBe(small);
+    Object.defineProperty(document, 'pictureInPictureElement', {
+      configurable: true,
+      value: null,
+    });
+    expect(registry.resolveHotkeyTarget()).toBe(large);
+  });
+
+  it('prefers a focused video inside an open shadow root', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const large = video({ left: 0, top: 0, width: 640, height: 360 });
+    const host = document.createElement('div');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const shadowVideo = video({ left: 0, top: 0, width: 80, height: 45 });
+    shadowVideo.tabIndex = 0;
+    shadow.append(shadowVideo);
+    document.body.append(large, host);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+    expect(registry.resolveHotkeyTarget()).toBe(large);
+
+    shadowVideo.focus();
+    expect(registry.resolveHotkeyTarget()).toBe(shadowVideo);
+  });
+
+  it('prefers the largest playing video over a larger paused one', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const paused = video({ left: 0, top: 0, width: 640, height: 360 });
+    const playing = video({ left: 0, top: 0, width: 320, height: 180 });
+    Object.defineProperty(playing, 'paused', { configurable: true, value: false });
+    document.body.append(paused, playing);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+    expect(registry.resolveHotkeyTarget()).toBe(playing);
+  });
+
+  it('falls back to a single zero-sized video and reports none when empty', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    expect(registry.resolveHotkeyTarget()).toBeNull();
+
+    const hidden = video({ left: 0, top: 0, width: 0, height: 0 });
+    document.body.append(hidden);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+    expect(registry.resolveHotkeyTarget()).toBe(hidden);
+
+    registry.destroy();
+    expect(registry.resolveHotkeyTarget()).toBeNull();
+  });
+
+  it('replaces a transport hold and ignores the replaced owner', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const node = video();
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(1.5));
+    registry.start();
+    const first = {};
+    const second = {};
+
+    expect(registry.beginTransportHold(node, first, 3, {})).toBe(true);
+    expect(node.playbackRate).toBe(3);
+    expect(registry.beginTransportHold(node, second, 4, {})).toBe(true);
+    expect(node.playbackRate).toBe(4);
+
+    registry.endTransportHold(node, first);
+    expect(node.playbackRate).toBe(4);
+    registry.endTransportHold(node, second);
+    expect(node.playbackRate).toBe(1.5);
+  });
+
+  it('refuses a transport hold on a disconnected video and after destroy', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const node = video();
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(1.5));
+    registry.start();
+    const owner = {};
+
+    node.remove();
+    expect(registry.beginTransportHold(node, owner, 3, {})).toBe(false);
+    document.body.append(node);
+    expect(registry.beginTransportHold(node, owner, 3, {})).toBe(true);
+
+    registry.destroy();
+    expect(registry.beginTransportHold(node, owner, 3, {})).toBe(false);
+  });
+
+  it('ends a hold when its video leaves the document', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const node = video();
+    node.playbackRate = 1;
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(2));
+    registry.start();
+    registry.beginTransportHold(node, {}, 3, {});
+    expect(node.playbackRate).toBe(3);
+
+    node.remove();
+    registry['handleMutations']([
+      {
+        addedNodes: [] as unknown as NodeList,
+        removedNodes: [node] as unknown as NodeList,
+        type: 'childList',
+        target: document.body,
+      } as unknown as MutationRecord,
+    ]);
+    expect(node.playbackRate).toBe(1);
   });
 });

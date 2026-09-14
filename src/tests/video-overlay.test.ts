@@ -904,9 +904,9 @@ describe('VideoOverlay', () => {
     expect(chord?.childElementCount).toBe(0);
 
     overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }), {
+      ...builtInEffectiveHotkeys(),
       decreaseSpeed: null,
       increaseSpeed: null,
-      resetSpeed: builtInEffectiveHotkeys().resetSpeed,
     });
     expect(
       root?.querySelector('[aria-label="Slower"]')?.getAttribute('aria-keyshortcuts'),
@@ -924,6 +924,7 @@ describe('VideoOverlay', () => {
     );
     overlay.setControlled(true);
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -942,6 +943,7 @@ describe('VideoOverlay', () => {
     expect((pill as HTMLElement).style.opacity).toBe('0.7');
 
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1.25,
       targetSpeed: 1.5,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -962,6 +964,7 @@ describe('VideoOverlay', () => {
     overlay.setBehavior(tabBehavior(4, { overlayAutoHide: false }));
     overlay.setControlled(true);
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 4,
       targetSpeed: 4,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -986,6 +989,7 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('hidden');
     overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: true, overlayAutoHideDelayMs: 200 }));
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -1005,12 +1009,14 @@ describe('VideoOverlay', () => {
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
     overlay.setControlled(true);
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
     });
     overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, hotkeyFlashDelayMs: 5_000 }));
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1.25,
       targetSpeed: 1.5,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -1038,6 +1044,7 @@ describe('VideoOverlay', () => {
     );
     overlay.setControlled(true);
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -1064,6 +1071,7 @@ describe('VideoOverlay', () => {
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
     overlay.setControlled(true);
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -1074,6 +1082,7 @@ describe('VideoOverlay', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
 
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1.25,
       targetSpeed: 1.5,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -1088,6 +1097,7 @@ describe('VideoOverlay', () => {
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
     overlay.setControlled(true);
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -1097,6 +1107,7 @@ describe('VideoOverlay', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
     overlay.setControlled(true);
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1.25,
       targetSpeed: 1.5,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -1111,10 +1122,266 @@ describe('VideoOverlay', () => {
     const overlay = new VideoOverlay(video, () => overlay.layout());
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
     overlay.showHotkeyFlash({
+      kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
       binding: BUILT_IN_HOTKEYS.increaseSpeed,
     });
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('shows the navigation row as a second row only when it is enabled', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    expect(root?.querySelector('.controls-nav')).toBeNull();
+
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.layout();
+    const shell = root?.querySelector('.controls-shell');
+    expect([...(shell?.children ?? [])].map((node) => node.className)).toEqual([
+      'controls',
+      'controls controls-nav',
+    ]);
+    expect(
+      [...(root?.querySelectorAll('.controls-nav .control-nav') ?? [])].map((node) =>
+        node.getAttribute('aria-label'),
+      ),
+    ).toEqual([
+      'Jump to start',
+      'Rewind',
+      'Skip back',
+      'Play',
+      'Skip forward',
+      'Fast forward',
+      'Jump to end',
+    ]);
+
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.layout();
+    expect(root?.querySelector('.controls-nav')).toBeNull();
+  });
+
+  it('reports one-shot navigation presses against its own video', () => {
+    const mediaAction = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      mediaAction,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    (root?.querySelector('[aria-label="Skip forward"]') as HTMLButtonElement).click();
+    expect(mediaAction).toHaveBeenCalledWith('skipForward', 'press', video, overlay);
+    (root?.querySelector('[aria-label="Jump to start"]') as HTMLButtonElement).click();
+    expect(mediaAction).toHaveBeenLastCalledWith('jumpToStart', 'press', video, overlay);
+  });
+
+  it('keeps rewind visible but inert', () => {
+    const mediaAction = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      mediaAction,
+    });
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlayNavigationBar: true,
+        overlayHotkeyHints: true,
+      }),
+      {
+        ...builtInEffectiveHotkeys(),
+        rewind: { code: 'KeyH', ctrl: false, alt: false, shift: false, meta: false },
+      },
+    );
+    overlay.setControlled(true);
+    overlay.layout();
+    const rewind = overlay.host.shadowRoot?.querySelector(
+      '[aria-label="Rewind"]',
+    ) as HTMLButtonElement;
+    expect(rewind.disabled).toBe(true);
+    // A bound-but-disabled action must not advertise a shortcut.
+    expect(rewind.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(rewind.querySelector('.hotkey-hint')).toBeNull();
+    rewind.click();
+    expect(mediaAction).not.toHaveBeenCalled();
+  });
+
+  it('starts fast forward on pointer down and ends it on release', () => {
+    const mediaAction = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      mediaAction,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const button = overlay.host.shadowRoot?.querySelector(
+      '[aria-label="Fast forward"]',
+    ) as HTMLButtonElement;
+    button.setPointerCapture = () => undefined;
+    button.dispatchEvent(new Event('pointerdown'));
+    expect(mediaAction).toHaveBeenCalledWith('fastForward', 'start', video, overlay);
+    button.dispatchEvent(new Event('pointerdown'));
+    expect(mediaAction).toHaveBeenCalledTimes(1);
+
+    button.dispatchEvent(new Event('pointerup'));
+    expect(mediaAction).toHaveBeenLastCalledWith('fastForward', 'end', video, overlay);
+    button.dispatchEvent(new Event('pointerup'));
+    expect(mediaAction).toHaveBeenCalledTimes(2);
+  });
+
+  it('holds fast forward from the keyboard and never fires a click', () => {
+    const mediaAction = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      mediaAction,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const button = overlay.host.shadowRoot?.querySelector(
+      '[aria-label="Fast forward"]',
+    ) as HTMLButtonElement;
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', cancelable: true }));
+    button.dispatchEvent(
+      new KeyboardEvent('keydown', { key: ' ', repeat: true, cancelable: true }),
+    );
+    expect(mediaAction).toHaveBeenCalledTimes(1);
+    expect(mediaAction).toHaveBeenCalledWith('fastForward', 'start', video, overlay);
+    button.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', cancelable: true }));
+    expect(mediaAction).toHaveBeenLastCalledWith('fastForward', 'end', video, overlay);
+
+    mediaAction.mockClear();
+    button.click();
+    expect(mediaAction).not.toHaveBeenCalled();
+  });
+
+  it('ends a live fast forward hold when the row, overlay, or view goes away', () => {
+    const mediaAction = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      mediaAction,
+    });
+    const navigationOn = tabBehavior(1, {
+      overlayAutoHide: false,
+      overlayNavigationBar: true,
+    });
+    overlay.setBehavior(navigationOn);
+    overlay.setControlled(true);
+    overlay.layout();
+    const holdFastForward = (): void => {
+      const button = overlay.host.shadowRoot?.querySelector(
+        '[aria-label="Fast forward"]',
+      ) as HTMLButtonElement;
+      button.setPointerCapture = () => undefined;
+      button.dispatchEvent(new Event('pointerdown'));
+    };
+    const phases = (): string[] => mediaAction.mock.calls.map(([, phase]) => phase);
+
+    holdFastForward();
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    expect(phases()).toEqual(['start', 'end']);
+
+    mediaAction.mockClear();
+    overlay.setBehavior(navigationOn);
+    holdFastForward();
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true, overlayVisible: false }),
+    );
+    expect(phases()).toEqual(['start', 'end']);
+
+    mediaAction.mockClear();
+    overlay.setBehavior(navigationOn);
+    overlay.layout();
+    holdFastForward();
+    overlay.destroy();
+    expect(phases()).toEqual(['start', 'end']);
+  });
+
+  it('tracks the play and pause state of its own video', () => {
+    const video = sizedVideo();
+    let paused = true;
+    Object.defineProperty(video, 'paused', { configurable: true, get: () => paused });
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    expect(root?.querySelector('[aria-label="Play"]')).toBeInstanceOf(HTMLButtonElement);
+
+    paused = false;
+    video.dispatchEvent(new Event('play'));
+    expect(root?.querySelector('[aria-label="Play"]')).toBeNull();
+    expect(root?.querySelector('[aria-label="Pause"]')).toBeInstanceOf(HTMLButtonElement);
+
+    paused = true;
+    video.dispatchEvent(new Event('pause'));
+    expect(root?.querySelector('[aria-label="Play"]')).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  it('shows navigation hotkey hints only for bound actions', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlayNavigationBar: true,
+        overlayHotkeyHints: true,
+      }),
+      {
+        ...builtInEffectiveHotkeys(),
+        skipForward: { code: 'KeyK', ctrl: false, alt: false, shift: false, meta: false },
+      },
+    );
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    const skipForward = root?.querySelector('[aria-label="Skip forward"]') as HTMLButtonElement;
+    const skipBack = root?.querySelector('[aria-label="Skip back"]') as HTMLButtonElement;
+    expect(skipForward.querySelector('.hotkey-hint')?.textContent).toBe('K');
+    expect(skipForward.getAttribute('aria-keyshortcuts')).toBe('K');
+    expect(skipBack.querySelector('.hotkey-hint')).toBeNull();
+    expect(skipBack.hasAttribute('aria-keyshortcuts')).toBe(false);
+  });
+
+  it('keeps the overlay visible while a fast forward hold is live', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      mediaAction() {},
+    });
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: true,
+        overlayAutoHideDelayMs: 200,
+        overlayNavigationBar: true,
+      }),
+    );
+    overlay.setControlled(true);
+    overlay.layout();
+    const button = overlay.host.shadowRoot?.querySelector(
+      '[aria-label="Fast forward"]',
+    ) as HTMLButtonElement;
+    button.setPointerCapture = () => undefined;
+    button.dispatchEvent(new Event('pointerdown'));
+    vi.advanceTimersByTime(400);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('visible');
+
+    button.dispatchEvent(new Event('pointerup'));
+    vi.advanceTimersByTime(400);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
   });
 });

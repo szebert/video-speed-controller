@@ -3,12 +3,16 @@
 import type { OverlayActions } from '../overlay/types';
 import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
-import { MediaController } from './media-controller';
+import type { TransportHoldOwner } from './controller-action';
+import { MediaController, type TransportSession } from './media-controller';
 import { isExtensionHost, VideoOverlay, type HotkeyFlashPayload } from './video-overlay';
+
+export type { TransportHoldOwner };
 
 type RegistryEntry = {
   controller: MediaController;
   overlay: VideoOverlay;
+  hold?: { owner: TransportHoldOwner; session: TransportSession };
 };
 
 function isVideoElement(node: Node): node is HTMLVideoElement {
@@ -28,6 +32,19 @@ export function collectVideos(root: Node): HTMLVideoElement[] {
     videos.push(...root.querySelectorAll('video'));
   }
   return videos;
+}
+
+/**
+ * Deepest focused element across open shadow boundaries. This repo discovers
+ * videos inside open shadow roots, where `document.activeElement` only reports
+ * the outermost host.
+ */
+export function composedActiveElement(document: Document): Element | null {
+  let active = document.activeElement;
+  while (active?.shadowRoot?.activeElement) {
+    active = active.shadowRoot.activeElement;
+  }
+  return active;
 }
 
 export function collectOpenShadowRoots(root: Node): ShadowRoot[] {
@@ -113,6 +130,11 @@ export class MediaRegistry {
     return this.rootObservers.size;
   }
 
+  get behavior(): AppliedTabBehavior | null {
+    return this.currentBehavior;
+  }
+
+  /** Tab-wide feedback: speed actions apply to every video in the frame. */
   flashHotkeyAction(payload: HotkeyFlashPayload): void {
     if (this.destroyed || !this.currentBehavior?.hotkeyFlash) {
       return;
@@ -120,6 +142,98 @@ export class MediaRegistry {
     for (const entry of this.entries.values()) {
       entry.overlay.showHotkeyFlash(payload);
     }
+  }
+
+  /** Media-local feedback: navigation actions only touch their own video. */
+  flashHotkeyActionOn(video: HTMLVideoElement, payload: HotkeyFlashPayload): void {
+    if (this.destroyed || !this.currentBehavior?.hotkeyFlash) {
+      return;
+    }
+    this.entries.get(video)?.overlay.showHotkeyFlash(payload);
+  }
+
+  /**
+   * Starts a temporary transport rate for `owner`, replacing any hold on this
+   * video. The replaced owner's `endTransportHold` becomes a no-op.
+   */
+  beginTransportHold(
+    video: HTMLVideoElement,
+    owner: TransportHoldOwner,
+    rate: number,
+    options: { resumePlayback?: boolean } = { resumePlayback: true },
+  ): boolean {
+    if (this.destroyed || !video.isConnected) {
+      return false;
+    }
+    const entry = this.ensureEntry(video);
+    const session = entry.controller.beginTemporaryRate(rate, options);
+    if (!session) {
+      return false;
+    }
+    entry.hold = { owner, session };
+    return true;
+  }
+
+  /** Ends the hold only when `owner` still owns the active session. */
+  endTransportHold(video: HTMLVideoElement, owner: TransportHoldOwner): void {
+    const entry = this.entries.get(video);
+    if (entry?.hold?.owner !== owner) {
+      return;
+    }
+    const { session } = entry.hold;
+    entry.hold = undefined;
+    entry.controller.endTemporaryRate(session);
+  }
+
+  /**
+   * Picks the single video a media-local hotkey acts on in this frame. Frame
+   * local by design: the content script runs in every frame.
+   */
+  resolveHotkeyTarget(): HTMLVideoElement | null {
+    if (this.destroyed || this.entries.size === 0) {
+      return null;
+    }
+    const pictureInPicture = this.document.pictureInPictureElement;
+    if (pictureInPicture instanceof HTMLVideoElement && this.entries.has(pictureInPicture)) {
+      return pictureInPicture;
+    }
+    const focused = composedActiveElement(this.document);
+    if (focused instanceof HTMLVideoElement && this.entries.has(focused)) {
+      return focused;
+    }
+    const playing = this.largestVideo((video) => !video.paused && !video.ended);
+    if (playing) {
+      return playing;
+    }
+    const visible = this.largestVideo(() => true);
+    if (visible) {
+      return visible;
+    }
+    if (this.entries.size === 1) {
+      const [only] = this.entries.keys();
+      return only ?? null;
+    }
+    return null;
+  }
+
+  private largestVideo(accept: (video: HTMLVideoElement) => boolean): HTMLVideoElement | null {
+    let best: HTMLVideoElement | null = null;
+    let bestArea = 0;
+    for (const video of this.entries.keys()) {
+      if (!video.isConnected || !accept(video)) {
+        continue;
+      }
+      const rect = video.getBoundingClientRect();
+      const area = rect.width * rect.height;
+      if (area <= 0) {
+        continue;
+      }
+      if (area > bestArea) {
+        best = video;
+        bestArea = area;
+      }
+    }
+    return best;
   }
 
   destroy(): void {
@@ -237,7 +351,10 @@ export class MediaRegistry {
     }
     this.resizeObserver.unobserve(video);
     this.entries.delete(video);
+    entry.hold = undefined;
     entry.overlay.destroy();
+    // destroy() ends any active transport session, so a disconnected video
+    // never stays stuck at a temporary rate.
     entry.controller.destroy();
   }
 

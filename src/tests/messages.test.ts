@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
+import { MEDIA_NAVIGATION_ACTIONS } from '../core/controller-action';
 import { parseBackgroundToContent } from '../protocol/content/background-content';
 import { CONTENT_TO_BACKGROUND } from '../protocol/content/content-background';
 import { parseBackgroundInbound } from '../protocol/schemas/background-inbound';
@@ -203,6 +204,32 @@ describe('parseBackgroundInbound', () => {
         change: { kind: 'value', field: 'hotkeyRepeatRate', value: 15 },
       }),
     ).toBe(true);
+    for (const change of [
+      { kind: 'value', field: 'skipBackSeconds', value: 5 },
+      { kind: 'value', field: 'skipForwardSeconds', value: 10 },
+      { kind: 'value', field: 'skipScaleWithPlaybackRate', value: true },
+      { kind: 'value', field: 'rewindSpeed', value: -1 },
+      { kind: 'value', field: 'fastForwardSpeed', value: 3 },
+      { kind: 'value', field: 'overlayNavigationBar', value: true },
+    ]) {
+      expect(accepted({ type: 'SET_BEHAVIOR_SETTING', scope: { kind: 'global' }, change })).toBe(
+        true,
+      );
+    }
+    for (const action of MEDIA_NAVIGATION_ACTIONS) {
+      expect(
+        accepted({
+          type: 'SET_HOTKEY_SETTING',
+          scope: { kind: 'global' },
+          change: {
+            kind: 'hotkey-value',
+            action,
+            value: { code: 'KeyK', ctrl: false, alt: false, shift: false, meta: false },
+          },
+        }),
+      ).toBe(true);
+      expect(accepted({ type: 'DISPATCH_TAB_ACTION', action })).toBe(false);
+    }
     expect(
       accepted({
         type: 'SET_BEHAVIOR_SETTING',

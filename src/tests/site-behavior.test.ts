@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SPEED_POLICY } from '../core/speed';
-import { matchHotkeyAction } from '../settings/hotkey-binding';
+import { DEFAULT_SPEED_POLICY, SPEED_MAX_SETTING_MAX, SPEED_MIN_SETTING_MIN } from '../core/speed';
+import { emptyEffectiveHotkeys, matchHotkeyAction } from '../settings/hotkey-binding';
 import {
   applyBehaviorSettingChange,
   canonicalizeBehaviorSettingChange,
@@ -19,7 +19,7 @@ import {
   HOTKEY_REPEAT_DELAY_MS_MIN,
   HOTKEY_REPEAT_RATE_MAX,
   HOTKEY_REPEAT_RATE_MIN,
-  hotkeyRepeatsWhileHeld,
+  hotkeyActionMode,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
@@ -35,6 +35,7 @@ import {
   isOverride,
   isOverlayPosition,
   OVERLAY_POSITION,
+  SITE_HOTKEY_ACTIONS,
   SITE_INHERIT_SYNC_RETENTION_MS,
   withSpeedInherit,
   withSpeedValue,
@@ -74,6 +75,9 @@ describe('site behavior resolution', () => {
     expect(resolved.hotkeyRepeatRate).toEqual({ value: 15, source: 'built-in' });
     expect(toEffectiveBehavior(resolved).speed).toBe(resolved.speed.value);
     expect(resolved.hotkeys).toEqual({
+      ...Object.fromEntries(
+        SITE_HOTKEY_ACTIONS.map((action) => [action, { value: null, source: 'built-in' }]),
+      ),
       decreaseSpeed: {
         value: { code: 'BracketLeft', ctrl: false, alt: false, shift: false, meta: false },
         source: 'built-in',
@@ -193,6 +197,7 @@ describe('site behavior resolution', () => {
     expect(resolved.hotkeys.increaseSpeed.source).toBe('built-in');
     const runtime = toEffectiveHotkeys(resolved);
     expect(runtime).toEqual({
+      ...emptyEffectiveHotkeys(),
       decreaseSpeed: {
         code: 'BracketRight',
         ctrl: false,
@@ -242,6 +247,7 @@ describe('site behavior resolution', () => {
       },
     );
     expect(toEffectiveHotkeys(tied)).toEqual({
+      ...emptyEffectiveHotkeys(),
       decreaseSpeed: null,
       increaseSpeed: null,
       resetSpeed: {
@@ -334,13 +340,91 @@ describe('site behavior resolution', () => {
     });
   });
 
-  it('repeats Faster and Slower only when enabled; Reset never repeats', () => {
-    expect(hotkeyRepeatsWhileHeld('increaseSpeed', false)).toBe(false);
-    expect(hotkeyRepeatsWhileHeld('decreaseSpeed', false)).toBe(false);
-    expect(hotkeyRepeatsWhileHeld('resetSpeed', false)).toBe(false);
-    expect(hotkeyRepeatsWhileHeld('increaseSpeed', true)).toBe(true);
-    expect(hotkeyRepeatsWhileHeld('decreaseSpeed', true)).toBe(true);
-    expect(hotkeyRepeatsWhileHeld('resetSpeed', true)).toBe(false);
+  it('repeats speed and skip actions only when enabled; Reset never repeats', () => {
+    for (const action of ['increaseSpeed', 'decreaseSpeed', 'skipBack', 'skipForward'] as const) {
+      expect(hotkeyActionMode(action, false)).toBe('once');
+      expect(hotkeyActionMode(action, true)).toBe('repeat');
+    }
+    for (const action of ['resetSpeed', 'jumpToStart', 'jumpToEnd', 'playPause'] as const) {
+      expect(hotkeyActionMode(action, false)).toBe('once');
+      expect(hotkeyActionMode(action, true)).toBe('once');
+    }
+  });
+
+  it('defaults navigation to 5s back, 10s forward, −1× rewind, and 3× fast forward', () => {
+    const resolved = resolveSiteBehavior();
+    expect(resolved.overlayNavigationBar).toEqual({ value: false, source: 'built-in' });
+    expect(resolved.skipBackSeconds).toEqual({ value: 5, source: 'built-in' });
+    expect(resolved.skipForwardSeconds).toEqual({ value: 10, source: 'built-in' });
+    expect(resolved.skipScaleWithPlaybackRate).toEqual({ value: false, source: 'built-in' });
+    expect(resolved.rewindSpeed).toEqual({ value: -1, source: 'built-in' });
+    expect(resolved.fastForwardSpeed).toEqual({ value: 3, source: 'built-in' });
+  });
+
+  it('keeps rewind negative and fast forward positive within Chromium bounds', () => {
+    const canonicalize = (field: 'rewindSpeed' | 'fastForwardSpeed', value: number) =>
+      canonicalizeBehaviorSettingChange({ kind: 'value', field, value });
+
+    expect(canonicalize('rewindSpeed', 2)).toEqual({
+      kind: 'value',
+      field: 'rewindSpeed',
+      value: -2,
+    });
+    expect(canonicalize('rewindSpeed', -99)).toEqual({
+      kind: 'value',
+      field: 'rewindSpeed',
+      value: -SPEED_MAX_SETTING_MAX,
+    });
+    expect(canonicalize('rewindSpeed', -0.01)).toEqual({
+      kind: 'value',
+      field: 'rewindSpeed',
+      value: -SPEED_MIN_SETTING_MIN,
+    });
+    expect(canonicalize('fastForwardSpeed', -3)).toEqual({
+      kind: 'value',
+      field: 'fastForwardSpeed',
+      value: 3,
+    });
+    expect(canonicalize('fastForwardSpeed', 99)).toEqual({
+      kind: 'value',
+      field: 'fastForwardSpeed',
+      value: SPEED_MAX_SETTING_MAX,
+    });
+    expect(canonicalize('rewindSpeed', 0)).toBeNull();
+    expect(canonicalize('fastForwardSpeed', 0)).toBeNull();
+    expect(canonicalize('fastForwardSpeed', Number.NaN)).toBeNull();
+  });
+
+  it('accepts fractional skip seconds and clamps stored values on resolve', () => {
+    expect(
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'skipBackSeconds', value: 2.5 }),
+    ).toEqual({ kind: 'value', field: 'skipBackSeconds', value: 2.5 });
+    expect(
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'skipForwardSeconds', value: 0 }),
+    ).toBeNull();
+    expect(
+      resolveSiteBehavior({ skipBackSeconds: { kind: 'value', value: 99_999, updatedAt: 1 } }, {}),
+    ).toMatchObject({ skipBackSeconds: { value: 3600, source: 'global' } });
+    expect(
+      resolveSiteBehavior({ rewindSpeed: { kind: 'value', value: 4, updatedAt: 1 } }, {}),
+    ).toMatchObject({ rewindSpeed: { value: -4, source: 'global' } });
+  });
+
+  it('inherits navigation values from global to site', () => {
+    const resolved = resolveSiteBehavior(
+      { skipForwardSeconds: { kind: 'value', value: 30, updatedAt: 1 } },
+      { fastForwardSpeed: { kind: 'value', value: 8, updatedAt: 2 } },
+    );
+    expect(resolved.skipForwardSeconds).toEqual({ value: 30, source: 'global' });
+    expect(resolved.fastForwardSpeed).toEqual({ value: 8, source: 'site' });
+    expect(resolved.skipBackSeconds).toEqual({ value: 5, source: 'built-in' });
+  });
+
+  it('holds fast forward regardless of repeat, and keeps rewind disabled', () => {
+    expect(hotkeyActionMode('fastForward', false)).toBe('hold');
+    expect(hotkeyActionMode('fastForward', true)).toBe('hold');
+    expect(hotkeyActionMode('rewind', false)).toBe('disabled');
+    expect(hotkeyActionMode('rewind', true)).toBe('disabled');
   });
 
   it('clamps stored hotkey flash opacity outside 1–100 without dropping the override', () => {
@@ -1002,10 +1086,10 @@ describe('behavior setting changes', () => {
     expect(Object.keys(inheritAllKnownSettings(5)).sort()).toEqual(
       [...EDITABLE_BEHAVIOR_FIELDS, 'hotkeys'].sort(),
     );
-    expect(inheritAllKnownSettings(5).hotkeys).toEqual({
-      increaseSpeed: { kind: 'inherit', updatedAt: 5 },
-      decreaseSpeed: { kind: 'inherit', updatedAt: 5 },
-      resetSpeed: { kind: 'inherit', updatedAt: 5 },
-    });
+    expect(inheritAllKnownSettings(5).hotkeys).toEqual(
+      Object.fromEntries(
+        SITE_HOTKEY_ACTIONS.map((action) => [action, { kind: 'inherit', updatedAt: 5 }]),
+      ),
+    );
   });
 });

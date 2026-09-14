@@ -82,6 +82,18 @@ export function OverlaySettingsCard({
             resetBadgeText={resetBadgeText}
             onMutate={onMutate}
           />
+          <BehaviorSwitchField
+            id="overlay-navigation-bar"
+            name="overlayNavigationBar"
+            field="overlayNavigationBar"
+            label={t('overlayNavigationBar')}
+            description={t('overlayNavigationBarDescription')}
+            setting={behavior.overlayNavigationBar}
+            selection={selection}
+            disabled={overlayLocked}
+            resetBadgeText={resetBadgeText}
+            onMutate={onMutate}
+          />
           <Field data-disabled={overlayLocked || undefined}>
             <div className="flex items-start justify-between gap-2">
               <FieldContent>

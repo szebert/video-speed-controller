@@ -297,12 +297,12 @@ describe('Hotkeys settings card', () => {
     await renderCard(
       onMutate,
       {
+        ...builtIn,
         decreaseSpeed: { value: { ...BUILT_IN_HOTKEYS.increaseSpeed }, source: 'site' },
         increaseSpeed: {
           value: { code: 'KeyA', ctrl: false, alt: false, shift: false, meta: false },
           source: 'site',
         },
-        resetSpeed: builtIn.resetSpeed,
       },
       { kind: 'site', hostname: 'www.youtube.com' },
     );
@@ -314,15 +314,90 @@ describe('Hotkeys settings card', () => {
     expect(onMutate).toHaveBeenCalledWith({ kind: 'hotkey-inherit', action: 'increaseSpeed' });
   });
 
+  it('lists the navigation actions unbound after the speed actions', async () => {
+    await renderCard(vi.fn());
+    expect(
+      [...container.querySelectorAll('[data-slot="field-label"]')]
+        .map((node) => node.textContent)
+        .slice(-10),
+    ).toEqual([
+      'Decrease speed',
+      'Increase speed',
+      'Reset speed',
+      'Jump to start',
+      'Rewind',
+      'Skip back',
+      'Play / Pause',
+      'Skip forward',
+      'Fast forward',
+      'Jump to end',
+    ]);
+    for (const label of ['Jump to start', 'Skip back', 'Fast forward']) {
+      expect(
+        container.querySelector(`[aria-label="Record shortcut: ${label}"]`)?.textContent,
+      ).toContain('None');
+    }
+  });
+
+  it('records a navigation shortcut and blocks one already used at the same scope', async () => {
+    const onMutate = vi.fn();
+    const builtIn = resolveSiteBehavior().hotkeys;
+    await renderCard(onMutate, {
+      ...builtIn,
+      increaseSpeed: { value: { ...BUILT_IN_HOTKEYS.increaseSpeed }, source: 'global' },
+    });
+    const skipForward = container.querySelector(
+      '[aria-label="Record shortcut: Skip forward"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      skipForward.click();
+    });
+    await flush();
+    await act(async () => {
+      window.dispatchEvent(keydown('BracketRight', { key: ']' }));
+    });
+    expect(onMutate).not.toHaveBeenCalled();
+    expect(container.textContent).toContain(hotkeyConflictMessage('increaseSpeed'));
+
+    await act(async () => {
+      skipForward.click();
+    });
+    await flush();
+    await act(async () => {
+      window.dispatchEvent(keydown('KeyK', { key: 'k' }));
+    });
+    expect(onMutate).toHaveBeenCalledWith({
+      kind: 'hotkey-value',
+      action: 'skipForward',
+      value: { code: 'KeyK', ctrl: false, alt: false, shift: false, meta: false },
+    });
+  });
+
+  it('keeps the rewind row visible but not recordable', async () => {
+    const onMutate = vi.fn();
+    await renderCard(onMutate);
+    const rewind = container.querySelector(
+      '[aria-label="Record shortcut: Rewind"]',
+    ) as HTMLButtonElement;
+    expect(rewind.disabled).toBe(true);
+    expect(container.textContent).toContain('Rewind support is not enabled yet.');
+    await act(async () => {
+      rewind.click();
+    });
+    await flush();
+    expect(rewind.dataset.recording).toBeUndefined();
+    expect(onMutate).not.toHaveBeenCalled();
+  });
+
   it('warns when an inherited binding is shadowed by a more specific override', async () => {
     const onMutate = vi.fn();
     const builtIn = resolveSiteBehavior().hotkeys;
     await renderCard(
       onMutate,
       {
+        ...builtIn,
         decreaseSpeed: { value: { ...BUILT_IN_HOTKEYS.increaseSpeed }, source: 'site' },
         increaseSpeed: { value: { ...BUILT_IN_HOTKEYS.increaseSpeed }, source: 'global' },
-        resetSpeed: builtIn.resetSpeed,
       },
       { kind: 'site', hostname: 'www.youtube.com' },
     );

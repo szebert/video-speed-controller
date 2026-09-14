@@ -121,6 +121,7 @@ describe('content import isolation', () => {
     expect(files).toContain('access/site-access.ts');
     expect(files).toContain('protocol/content/client.ts');
     expect(files).toContain('overlay/overlay-view.ts');
+    expect(files).toContain('core/media-navigation.ts');
     expect(files).not.toContain('settings/behavior-schema.ts');
     expect(files).not.toContain('protocol/schemas/shared.ts');
   });

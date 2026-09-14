@@ -16,10 +16,14 @@ Add an optional second row of per-video controls to the overlay.
 
 Initial scope:
 
+- Jump to start / end
 - Play / pause
-- Seek backward / forward
-- Configurable seek interval, defaulting to 5 seconds
-- Global → Site settings for control visibility and seek interval
+- Skip backward / forward, with independent distances defaulting to 5s and 10s
+- Optional scaling of skip distance by the current playback speed
+- Hold-to-fast-forward at a configurable temporary speed, defaulting to 3×
+- Rewind as visible-but-disabled scaffolding, with a stored −1× speed
+- Assignable hotkeys with overlay hint chips, unbound by default
+- Global → Site settings for row visibility, skip distances, and transport speeds
 - Keyboard and screen-reader accessible controls
 
 ### Overlay customization
@@ -39,7 +43,6 @@ media-controls milestone.
 - Fullscreen and Picture-in-Picture controls
 - Caption toggle and track selection when supported by the video
 - Loop and A-B loop controls
-- Jump to beginning / end
 - Optional video information panel
 
 ## Exploring
@@ -47,7 +50,7 @@ media-controls milestone.
 Ideas that need more product and compatibility work before committing to an
 implementation:
 
-- Hold-to-rewind / hold-to-fast-forward interactions
+- Smooth reverse playback for hold-to-rewind
 - Rich buffered-range visualization
 - More advanced overlay layout and grouping
 

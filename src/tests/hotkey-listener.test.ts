@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeControllerAction } from '../core/execute-controller-action';
 import { HotkeyListener } from '../core/hotkey-listener';
 import { MediaRegistry } from '../core/media-registry';
-import { builtInEffectiveHotkeys } from '../settings/hotkey-binding';
+import {
+  builtInEffectiveHotkeys,
+  type EffectiveHotkeyMap,
+  type HotkeyBinding,
+} from '../settings/hotkey-binding';
 
 vi.mock('../core/execute-controller-action', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../core/execute-controller-action')>();
@@ -36,6 +40,25 @@ function keyup(code: string, extras: KeyboardEventInit = {}): KeyboardEvent {
     cancelable: true,
     ...extras,
   });
+}
+
+function binding(code: string): HotkeyBinding {
+  return { code, ctrl: false, alt: false, shift: false, meta: false };
+}
+
+/** Navigation actions have no built-in bindings, so tests assign their own. */
+function navigationMap(): EffectiveHotkeyMap {
+  return {
+    ...builtInEffectiveHotkeys(),
+    rewind: binding('KeyH'),
+    skipBack: binding('KeyJ'),
+    skipForward: binding('KeyK'),
+    fastForward: binding('KeyL'),
+  };
+}
+
+function navigationCalls(): Array<[string, string | undefined]> {
+  return executeMock.mock.calls.map(([action, context]) => [action, context.phase]);
 }
 
 describe('HotkeyListener', () => {
@@ -336,6 +359,137 @@ describe('HotkeyListener', () => {
     });
     sendMessage.mockClear();
     await vi.advanceTimersByTimeAsync(2000);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('runs skips once, or repeats them when repeat is enabled', async () => {
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyK'));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(navigationCalls()).toEqual([['skipForward', 'press']]);
+
+    executeMock.mockClear();
+    enableRepeat(500, 15);
+    window.dispatchEvent(keydown('KeyJ'));
+    expect(navigationCalls()).toEqual([['skipBack', 'press']]);
+    await vi.advanceTimersByTimeAsync(567);
+    expect(navigationCalls()).toEqual([
+      ['skipBack', 'press'],
+      ['skipBack', 'press'],
+      ['skipBack', 'press'],
+    ]);
+    window.dispatchEvent(keyup('KeyJ'));
+    executeMock.mockClear();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(navigationCalls()).toEqual([]);
+  });
+
+  it('holds fast forward from keydown to keyup under the same owner', async () => {
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyL'));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(navigationCalls()).toEqual([['fastForward', 'start']]);
+
+    window.dispatchEvent(keyup('KeyL'));
+    expect(navigationCalls()).toEqual([
+      ['fastForward', 'start'],
+      ['fastForward', 'end'],
+    ]);
+    const [start, end] = executeMock.mock.calls;
+    expect(start?.[1].hold).toBeDefined();
+    expect(end?.[1].hold).toBe(start?.[1].hold);
+  });
+
+  it('holds fast forward the same way when repeat is enabled', async () => {
+    listener.setHotkeys(navigationMap());
+    enableRepeat(500, 15);
+    window.dispatchEvent(keydown('KeyL'));
+    await vi.advanceTimersByTimeAsync(2000);
+    window.dispatchEvent(keyup('KeyL'));
+    expect(navigationCalls()).toEqual([
+      ['fastForward', 'start'],
+      ['fastForward', 'end'],
+    ]);
+  });
+
+  it('ends a fast forward hold exactly once per teardown path', async () => {
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyL'));
+    window.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(keyup('KeyL'));
+    expect(navigationCalls()).toEqual([
+      ['fastForward', 'start'],
+      ['fastForward', 'end'],
+    ]);
+
+    executeMock.mockClear();
+    window.dispatchEvent(keydown('KeyL'));
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(navigationCalls()).toEqual([
+      ['fastForward', 'start'],
+      ['fastForward', 'end'],
+    ]);
+
+    executeMock.mockClear();
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
+    window.dispatchEvent(keydown('KeyL'));
+    listener.destroy();
+    expect(navigationCalls()).toEqual([
+      ['fastForward', 'start'],
+      ['fastForward', 'end'],
+    ]);
+  });
+
+  it('ends a fast forward hold when another navigation key replaces it', () => {
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyL'));
+    window.dispatchEvent(keydown('KeyK'));
+    expect(navigationCalls()).toEqual([
+      ['fastForward', 'start'],
+      ['fastForward', 'end'],
+      ['skipForward', 'press'],
+    ]);
+  });
+
+  it('leaves a rewind key to the page because rewind cannot run yet', () => {
+    listener.setHotkeys(navigationMap());
+    const event = keydown('KeyH');
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(executeMock).not.toHaveBeenCalled();
+  });
+
+  it('locks the navigation target on the initial keydown', async () => {
+    const first = document.createElement('video');
+    const second = document.createElement('video');
+    const resolve = vi
+      .spyOn(registry, 'resolveHotkeyTarget')
+      .mockReturnValueOnce(first)
+      .mockReturnValue(second);
+    listener.setHotkeys(navigationMap());
+    enableRepeat(500, 15);
+    window.dispatchEvent(keydown('KeyJ'));
+    await vi.advanceTimersByTimeAsync(567);
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(executeMock.mock.calls).toHaveLength(3);
+    for (const [, context] of executeMock.mock.calls) {
+      expect(context.source).toMatchObject({ kind: 'hotkey', video: first });
+    }
+  });
+
+  it('does not consume a navigation key when the registry cannot resolve a target', () => {
+    vi.spyOn(registry, 'resolveHotkeyTarget').mockReturnValue(null);
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyK'));
+    expect(navigationCalls()).toEqual([['skipForward', 'press']]);
+    expect(executeMock.mock.calls[0]?.[1].source).toMatchObject({ video: null });
     expect(sendMessage).not.toHaveBeenCalled();
   });
 

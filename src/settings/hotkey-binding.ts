@@ -40,6 +40,12 @@ const REJECTED_HOTKEY_CODES = new Set([
   'OSRight',
 ]);
 
+/** Actions that ship with a keyboard shortcut. Navigation actions do not. */
+type BuiltInHotkeyAction = 'decreaseSpeed' | 'increaseSpeed' | 'resetSpeed';
+
+// Speed-only on purpose. Every SiteHotkeyAction resolves through
+// builtInEffectiveHotkeys(), which returns null for unbound actions. Indexing
+// this map by an arbitrary action would yield undefined.
 export const BUILT_IN_HOTKEYS = {
   decreaseSpeed: {
     code: 'BracketLeft',
@@ -62,7 +68,7 @@ export const BUILT_IN_HOTKEYS = {
     shift: false,
     meta: false,
   },
-} as const satisfies EffectiveHotkeyMap;
+} as const satisfies Record<BuiltInHotkeyAction, HotkeyBinding>;
 
 export function isAssignableHotkeyCode(code: unknown): code is string {
   return typeof code === 'string' && code.length > 0 && !REJECTED_HOTKEY_CODES.has(code);
@@ -104,16 +110,27 @@ export function hotkeyBindingsEqual(
   );
 }
 
+// Both maps list every SiteHotkeyAction. Keys are written out rather than
+// derived from SITE_HOTKEY_ACTIONS so site-behavior can call
+// builtInEffectiveHotkeys() without a runtime import cycle.
 export function emptyEffectiveHotkeys(): EffectiveHotkeyMap {
   return {
     decreaseSpeed: null,
     increaseSpeed: null,
     resetSpeed: null,
+    jumpToStart: null,
+    rewind: null,
+    skipBack: null,
+    playPause: null,
+    skipForward: null,
+    fastForward: null,
+    jumpToEnd: null,
   };
 }
 
 export function builtInEffectiveHotkeys(): EffectiveHotkeyMap {
   return {
+    ...emptyEffectiveHotkeys(),
     decreaseSpeed: { ...BUILT_IN_HOTKEYS.decreaseSpeed },
     increaseSpeed: { ...BUILT_IN_HOTKEYS.increaseSpeed },
     resetSpeed: { ...BUILT_IN_HOTKEYS.resetSpeed },

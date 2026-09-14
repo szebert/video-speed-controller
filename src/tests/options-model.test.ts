@@ -18,10 +18,16 @@ function snapshot(): BehaviorSettingsSnapshot {
     speedMin: { value: 0.25, source: 'built-in' as const },
     speedMax: { value: 4, source: 'built-in' as const },
     speedTick: { value: 0.25, source: 'built-in' as const },
+    skipBackSeconds: { value: 5, source: 'built-in' as const },
+    skipForwardSeconds: { value: 10, source: 'built-in' as const },
+    skipScaleWithPlaybackRate: { value: false, source: 'built-in' as const },
+    rewindSpeed: { value: -1, source: 'built-in' as const },
+    fastForwardSpeed: { value: 3, source: 'built-in' as const },
     overlayVisible: { value: true, source: 'built-in' as const },
     overlayPosition: { value: OVERLAY_POSITION.TOP_CENTER, source: 'built-in' as const },
     overlayPositionButton: { value: true, source: 'built-in' as const },
     overlaySettingsButton: { value: true, source: 'built-in' as const },
+    overlayNavigationBar: { value: false, source: 'built-in' as const },
     overlayHotkeyHints: { value: true, source: 'built-in' as const },
     overlayAutoHide: { value: true, source: 'built-in' as const },
     overlayHoverHold: { value: false, source: 'built-in' as const },
@@ -140,5 +146,51 @@ describe('optimistic options state', () => {
       },
     };
     expect(omitMatchingOptimisticHotkeys(pending, pending.decreaseSpeed)).toEqual({});
+  });
+
+  it('reverts a navigation hotkey to unbound because it has no built-in binding', () => {
+    const state = snapshot();
+    const assigned = applyOptimisticHotkeyChange(
+      state.globalHotkeys,
+      {
+        kind: 'hotkey-value',
+        action: 'skipForward',
+        value: { code: 'KeyK', ctrl: false, alt: false, shift: false, meta: false },
+      },
+      { kind: 'global' },
+      state,
+    );
+    expect(assigned.skipForward).toEqual({
+      value: { code: 'KeyK', ctrl: false, alt: false, shift: false, meta: false },
+      source: 'global',
+    });
+    expect(
+      applyOptimisticHotkeyChange(
+        assigned,
+        { kind: 'hotkey-inherit', action: 'skipForward' },
+        { kind: 'global' },
+        state,
+      ).skipForward,
+    ).toEqual({ value: null, source: 'built-in' });
+  });
+
+  it('inherits a navigation field from global and from built-in', () => {
+    const state = snapshot();
+    expect(
+      applyOptimisticChange(
+        state.site!.behavior,
+        { kind: 'value', field: 'skipForwardSeconds', value: 30 },
+        { kind: 'site', hostname: 'www.youtube.com' },
+        state,
+      ).skipForwardSeconds,
+    ).toEqual({ value: 30, source: 'site' });
+    expect(
+      applyOptimisticChange(
+        { ...state.global, fastForwardSpeed: { value: 8, source: 'global' } },
+        { kind: 'inherit', field: 'fastForwardSpeed' },
+        { kind: 'global' },
+        state,
+      ).fastForwardSpeed,
+    ).toEqual({ value: 3, source: 'built-in' });
   });
 });

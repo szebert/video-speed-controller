@@ -2,7 +2,11 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { readAppliedTabPayload } from '../background/applied-behavior';
-import { EDITABLE_BEHAVIOR_FIELDS, OVERLAY_POSITION } from '../settings/site-behavior';
+import {
+  EDITABLE_BEHAVIOR_FIELDS,
+  OVERLAY_POSITION,
+  SITE_HOTKEY_ACTIONS,
+} from '../settings/site-behavior';
 import {
   persistGlobalBehaviorChange,
   persistGlobalBehaviorOverrides,
@@ -101,11 +105,11 @@ describe('global behavior defaults', () => {
     for (const field of EDITABLE_BEHAVIOR_FIELDS) {
       expect(overrides[field]).toEqual({ kind: 'inherit', updatedAt: 200 });
     }
-    expect(overrides.hotkeys).toEqual({
-      increaseSpeed: { kind: 'inherit', updatedAt: 200 },
-      decreaseSpeed: { kind: 'inherit', updatedAt: 200 },
-      resetSpeed: { kind: 'inherit', updatedAt: 200 },
-    });
+    expect(overrides.hotkeys).toEqual(
+      Object.fromEntries(
+        SITE_HOTKEY_ACTIONS.map((action) => [action, { kind: 'inherit', updatedAt: 200 }]),
+      ),
+    );
     expect(sync.data['defaults:site-behavior']).toMatchObject({ overrides });
   });
 

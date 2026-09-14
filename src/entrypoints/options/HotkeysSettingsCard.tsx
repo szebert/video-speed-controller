@@ -49,7 +49,15 @@ import {
 } from './options-model';
 import { ShortcutRecorder } from './ShortcutRecorder';
 
-const HOTKEY_ROWS = [
+type HotkeyRow = {
+  action: SiteHotkeyAction;
+  label: MessageKey;
+  description: MessageKey;
+  /** Rewind keeps its row and reset badge, but cannot be recorded yet. */
+  recordingDisabled?: boolean;
+};
+
+const HOTKEY_ROWS: readonly HotkeyRow[] = [
   {
     action: 'decreaseSpeed',
     label: 'hotkeyDecreaseSpeed',
@@ -65,16 +73,55 @@ const HOTKEY_ROWS = [
     label: 'hotkeyResetSpeed',
     description: 'hotkeyResetSpeedDescription',
   },
-] as const satisfies readonly {
-  action: SiteHotkeyAction;
-  label: MessageKey;
-  description: MessageKey;
-}[];
+  {
+    action: 'jumpToStart',
+    label: 'hotkeyJumpToStart',
+    description: 'hotkeyJumpToStartDescription',
+  },
+  {
+    action: 'rewind',
+    label: 'hotkeyRewind',
+    description: 'hotkeyRewindDescription',
+    recordingDisabled: true,
+  },
+  {
+    action: 'skipBack',
+    label: 'hotkeySkipBack',
+    description: 'hotkeySkipBackDescription',
+  },
+  {
+    action: 'playPause',
+    label: 'hotkeyPlayPause',
+    description: 'hotkeyPlayPauseDescription',
+  },
+  {
+    action: 'skipForward',
+    label: 'hotkeySkipForward',
+    description: 'hotkeySkipForwardDescription',
+  },
+  {
+    action: 'fastForward',
+    label: 'hotkeyFastForward',
+    description: 'hotkeyFastForwardDescription',
+  },
+  {
+    action: 'jumpToEnd',
+    label: 'hotkeyJumpToEnd',
+    description: 'hotkeyJumpToEndDescription',
+  },
+];
 
 const ACTION_LABEL: Record<SiteHotkeyAction, MessageKey> = {
   decreaseSpeed: 'hotkeyDecreaseSpeed',
   increaseSpeed: 'hotkeyIncreaseSpeed',
   resetSpeed: 'hotkeyResetSpeed',
+  jumpToStart: 'hotkeyJumpToStart',
+  rewind: 'hotkeyRewind',
+  skipBack: 'hotkeySkipBack',
+  playPause: 'hotkeyPlayPause',
+  skipForward: 'hotkeySkipForward',
+  fastForward: 'hotkeyFastForward',
+  jumpToEnd: 'hotkeyJumpToEnd',
 };
 
 export function hotkeyConflictMessage(action: SiteHotkeyAction): string {
@@ -401,6 +448,7 @@ export function HotkeysSettingsCard({
           {HOTKEY_ROWS.map((row) => {
             const setting = hotkeys[row.action];
             const label = t(row.label);
+            const rowDisabled = pending || row.recordingDisabled === true;
             const inherited = showsInherited(selection, setting.source);
             const conflict = conflictAction[row.action];
             const shadowedBy = findShadowedHotkey(hotkeys, row.action);
@@ -411,7 +459,7 @@ export function HotkeysSettingsCard({
                 key={row.action}
                 orientation="horizontal"
                 className="min-w-0"
-                data-disabled={pending || undefined}
+                data-disabled={rowDisabled || undefined}
                 data-invalid={conflict ? true : undefined}
                 data-warning={!conflict && (shadowedBy || takeover) ? true : undefined}
               >
@@ -429,7 +477,7 @@ export function HotkeysSettingsCard({
                 <div className="flex max-w-full flex-wrap-reverse items-center justify-end gap-2">
                   <ResetBadge
                     active={ownsOverride(selection, setting.source)}
-                    disabled={pending}
+                    disabled={rowDisabled}
                     text={resetBadgeText}
                     label={resetFieldLabel(label)}
                     onReset={() => {
@@ -442,7 +490,7 @@ export function HotkeysSettingsCard({
                     label={label}
                     binding={setting.value}
                     muted={inherited}
-                    disabled={pending}
+                    disabled={rowDisabled}
                     recording={recordingAction === row.action}
                     layoutMap={layoutMap}
                     onRecordingChange={(next) => {

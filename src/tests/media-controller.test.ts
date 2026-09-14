@@ -114,3 +114,184 @@ describe('MediaController isolation', () => {
     vi.useRealTimers();
   });
 });
+
+function pausableVideo(paused: boolean): HTMLVideoElement {
+  const video = document.createElement('video');
+  let value = paused;
+  Object.defineProperty(video, 'paused', {
+    configurable: true,
+    get: () => value,
+  });
+  vi.spyOn(video, 'play').mockImplementation(() => {
+    value = false;
+    return Promise.resolve();
+  });
+  vi.spyOn(video, 'pause').mockImplementation(() => {
+    value = true;
+  });
+  return video;
+}
+
+describe('MediaController temporary transport rate', () => {
+  it('overrides the target while active and restores it on end', () => {
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+
+    const session = controller.beginTemporaryRate(3);
+    expect(session).not.toBeNull();
+    expect(video.playbackRate).toBe(3);
+    expect(controller.targetSpeed).toBe(2);
+    expect(controller.temporaryRate).toBe(3);
+
+    controller.endTemporaryRate(session!);
+    expect(video.playbackRate).toBe(2);
+    expect(controller.temporaryRate).toBeNull();
+    controller.destroy();
+  });
+
+  it('defers a target changed mid-session until the session ends', () => {
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    const session = controller.beginTemporaryRate(3)!;
+
+    controller.setTarget(1.5);
+    expect(video.playbackRate).toBe(3);
+
+    controller.endTemporaryRate(session);
+    expect(video.playbackRate).toBe(1.5);
+    controller.destroy();
+  });
+
+  it('ends only the session that owns the token', () => {
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    const first = controller.beginTemporaryRate(3)!;
+    const second = controller.beginTemporaryRate(4)!;
+    expect(video.playbackRate).toBe(4);
+
+    controller.endTemporaryRate(first);
+    expect(video.playbackRate).toBe(4);
+    expect(controller.temporaryRate).toBe(4);
+
+    controller.endTemporaryRate(second);
+    expect(video.playbackRate).toBe(2);
+
+    // A second end for the same token cannot reset the rate again.
+    controller.setTarget(1.5);
+    controller.endTemporaryRate(second);
+    expect(video.playbackRate).toBe(1.5);
+    controller.destroy();
+  });
+
+  it('rejects a non-positive or non-finite rate', () => {
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    expect(controller.beginTemporaryRate(0)).toBeNull();
+    expect(controller.beginTemporaryRate(-1)).toBeNull();
+    expect(controller.beginTemporaryRate(Number.NaN)).toBeNull();
+    expect(controller.temporaryRate).toBeNull();
+    expect(video.playbackRate).toBe(2);
+    controller.destroy();
+  });
+
+  it('reasserts the temporary rate without surrendering ownership', () => {
+    vi.useFakeTimers();
+    const video = document.createElement('video');
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    const session = controller.beginTemporaryRate(3)!;
+
+    video.playbackRate = 1.5;
+    video.dispatchEvent(new Event('ratechange'));
+    vi.runOnlyPendingTimers();
+    expect(video.playbackRate).toBe(3);
+
+    // A relentless page cannot make a transport session hand over ownership.
+    surrender(video, 1.5);
+    expect(controller.surrendered).toBe(false);
+    expect(controller.temporaryRate).toBe(3);
+
+    controller.endTemporaryRate(session);
+    expect(video.playbackRate).toBe(2);
+    expect(controller.surrendered).toBe(false);
+    controller.destroy();
+    vi.useRealTimers();
+  });
+
+  it('restores the paused state it resumed from', () => {
+    const video = pausableVideo(true);
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+
+    const session = controller.beginTemporaryRate(3, { resumePlayback: true })!;
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBe(3);
+
+    controller.endTemporaryRate(session);
+    expect(video.paused).toBe(true);
+    expect(video.playbackRate).toBe(2);
+    controller.destroy();
+  });
+
+  it('leaves an already playing video playing', () => {
+    const video = pausableVideo(false);
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    const session = controller.beginTemporaryRate(3, { resumePlayback: true })!;
+    expect(video.play).not.toHaveBeenCalled();
+
+    controller.endTemporaryRate(session);
+    expect(video.paused).toBe(false);
+    controller.destroy();
+  });
+
+  it('cannot be resurrected by a play() that resolves after the session ended', async () => {
+    const video = document.createElement('video');
+    let paused = true;
+    Object.defineProperty(video, 'paused', { configurable: true, get: () => paused });
+    let resolvePlay: (() => void) | undefined;
+    vi.spyOn(video, 'play').mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePlay = () => {
+            paused = false;
+            resolve();
+          };
+        }),
+    );
+    const pause = vi.spyOn(video, 'pause').mockImplementation(() => {
+      paused = true;
+    });
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+
+    const session = controller.beginTemporaryRate(3, { resumePlayback: true })!;
+    controller.endTemporaryRate(session);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(video.playbackRate).toBe(2);
+
+    resolvePlay?.();
+    await Promise.resolve();
+    controller.endTemporaryRate(session);
+    expect(controller.temporaryRate).toBeNull();
+    expect(video.playbackRate).toBe(2);
+    controller.destroy();
+  });
+
+  it('ends an active session on destroy and restores the page baseline', () => {
+    const video = pausableVideo(true);
+    video.playbackRate = 1.25;
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    controller.beginTemporaryRate(3, { resumePlayback: true });
+    expect(video.paused).toBe(false);
+
+    controller.destroy();
+    expect(video.paused).toBe(true);
+    expect(video.playbackRate).toBe(1.25);
+  });
+});

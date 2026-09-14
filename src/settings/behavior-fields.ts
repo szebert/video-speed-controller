@@ -31,6 +31,32 @@ export const BEHAVIOR_FIELDS = {
     category: 'playback',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
+  skipBackSeconds: {
+    default: 5,
+    category: 'playback',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  skipForwardSeconds: {
+    default: 10,
+    category: 'playback',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  skipScaleWithPlaybackRate: {
+    default: false,
+    category: 'playback',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  // Signed reverse rate. Stored now; rewind cannot execute in this release.
+  rewindSpeed: {
+    default: -1,
+    category: 'playback',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  fastForwardSpeed: {
+    default: 3,
+    category: 'playback',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
   overlayVisible: {
     default: true,
     category: 'overlay',
@@ -48,6 +74,11 @@ export const BEHAVIOR_FIELDS = {
   },
   overlaySettingsButton: {
     default: true,
+    category: 'overlay',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  overlayNavigationBar: {
+    default: false,
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },

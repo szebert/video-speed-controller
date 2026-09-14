@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isTabSpeedAction, TAB_SPEED_ACTIONS } from '../core/controller-action';
+import {
+  isTabSpeedAction,
+  MEDIA_NAVIGATION_ACTIONS,
+  TAB_SPEED_ACTIONS,
+} from '../core/controller-action';
 import {
   ApplyTabBehaviorRequestSchema,
   parseBackgroundToContent,
@@ -15,6 +19,7 @@ import {
   OpenOptionsPageResponseSchema,
   SetOverlayPositionResponseSchema,
 } from '../protocol/content/content-background';
+import { emptyEffectiveHotkeys } from '../settings/hotkey-binding';
 import { tabBehavior } from './tab-behavior-fixture';
 
 describe('content Mini protocol', () => {
@@ -44,6 +49,16 @@ describe('content Mini protocol', () => {
         action: 'seekForward',
       }).success,
     ).toBe(false);
+    // Media-local navigation stays out of the tab-wide speed RPC.
+    for (const action of MEDIA_NAVIGATION_ACTIONS) {
+      expect(isTabSpeedAction(action)).toBe(false);
+      expect(
+        CONTENT_TO_BACKGROUND.DISPATCH_TAB_ACTION.request.safeParse({
+          type: 'DISPATCH_TAB_ACTION',
+          action,
+        }).success,
+      ).toBe(false);
+    }
   });
 
   it('rejects missing or malformed known APPLY fields', () => {
@@ -80,6 +95,7 @@ describe('content Mini protocol', () => {
         type: 'APPLY_TAB_BEHAVIOR',
         behavior: tabBehavior(1.5),
         hotkeys: {
+          ...emptyEffectiveHotkeys(),
           decreaseSpeed: {
             code: 'BracketLeft',
             ctrl: false,
@@ -94,7 +110,6 @@ describe('content Mini protocol', () => {
             shift: false,
             meta: false,
           },
-          resetSpeed: null,
           extra: true,
         },
       }),
@@ -102,9 +117,9 @@ describe('content Mini protocol', () => {
       type: 'APPLY_TAB_BEHAVIOR',
       behavior: tabBehavior(1.5),
       hotkeys: {
+        ...emptyEffectiveHotkeys(),
         decreaseSpeed: { code: 'BracketLeft', ctrl: false, alt: false, shift: false, meta: false },
         increaseSpeed: { code: 'BracketRight', ctrl: false, alt: false, shift: false, meta: false },
-        resetSpeed: null,
       },
     });
   });

@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUILT_IN_HOTKEYS,
+  builtInEffectiveHotkeys,
+  emptyEffectiveHotkeys,
   findHotkeyConflict,
   findHotkeyMapConflict,
   hotkeyBindingFromEvent,
@@ -12,6 +14,7 @@ import {
   isTypingContext,
   matchHotkeyAction,
 } from '../settings/hotkey-binding';
+import { BUILT_IN_SITE_BEHAVIOR, SITE_HOTKEY_ACTIONS } from '../settings/site-behavior';
 
 function keydown(
   code: string,
@@ -52,11 +55,7 @@ describe('hotkey bindings', () => {
   });
 
   it('matches and conflicts on the prospective effective map', () => {
-    const map = {
-      decreaseSpeed: { ...BUILT_IN_HOTKEYS.decreaseSpeed },
-      increaseSpeed: { ...BUILT_IN_HOTKEYS.increaseSpeed },
-      resetSpeed: { ...BUILT_IN_HOTKEYS.resetSpeed },
-    };
+    const map = builtInEffectiveHotkeys();
     expect(matchHotkeyAction(map, keydown('BracketLeft'))).toBe('decreaseSpeed');
     expect(matchHotkeyAction(map, keydown('BracketRight'))).toBe('increaseSpeed');
     expect(matchHotkeyAction(map, keydown('Backslash'))).toBe('resetSpeed');
@@ -87,6 +86,26 @@ describe('hotkey bindings', () => {
         decreaseSpeed: { ...BUILT_IN_HOTKEYS.increaseSpeed },
       }),
     ).toBe('increaseSpeed');
+  });
+
+  it('lists every action with navigation actions unbound', () => {
+    const navigationActions = [
+      'jumpToStart',
+      'rewind',
+      'skipBack',
+      'playPause',
+      'skipForward',
+      'jumpToEnd',
+      'fastForward',
+    ] as const;
+    for (const map of [emptyEffectiveHotkeys(), builtInEffectiveHotkeys()]) {
+      expect(Object.keys(map).sort()).toEqual([...SITE_HOTKEY_ACTIONS].sort());
+      for (const action of navigationActions) {
+        expect(map[action]).toBeNull();
+      }
+    }
+    expect(builtInEffectiveHotkeys().increaseSpeed).toEqual(BUILT_IN_HOTKEYS.increaseSpeed);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeys).toEqual(builtInEffectiveHotkeys());
   });
 
   it('builds a binding from a key event and skips typing contexts', () => {

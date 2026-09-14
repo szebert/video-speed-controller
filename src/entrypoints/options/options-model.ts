@@ -2,7 +2,7 @@
 
 import type { BehaviorSettingsSnapshot } from '../../protocol/schemas/shared';
 import { t } from '@/i18n/t';
-import { BUILT_IN_HOTKEYS, hotkeyBindingsEqual } from '../../settings/hotkey-binding';
+import { builtInEffectiveHotkeys, hotkeyBindingsEqual } from '../../settings/hotkey-binding';
 import {
   BUILT_IN_SITE_BEHAVIOR,
   OVERLAY_POSITION,
@@ -20,14 +20,24 @@ import { normalizeSiteHostname } from '../../settings/site-hostname';
 export type Selection =
   { kind: 'settings' } | { kind: 'global' } | { kind: 'site'; hostname: string };
 export type DraftKey =
-  'speedMin' | 'speedMax' | 'speedTick' | 'delay' | 'hotkeyFlashDelay' | 'hotkeyRepeatDelay';
+  | 'speedMin'
+  | 'speedMax'
+  | 'speedTick'
+  | 'skipBackSeconds'
+  | 'skipForwardSeconds'
+  | 'fastForwardSpeed'
+  | 'delay'
+  | 'hotkeyFlashDelay'
+  | 'hotkeyRepeatDelay';
 export type BooleanBehaviorFieldName =
   | 'overlayVisible'
   | 'overlayPositionButton'
   | 'overlaySettingsButton'
+  | 'overlayNavigationBar'
   | 'overlayHotkeyHints'
   | 'overlayAutoHide'
   | 'overlayHoverHold'
+  | 'skipScaleWithPlaybackRate'
   | 'hotkeyFlash'
   | 'hotkeyRepeat';
 export type RecoverKind = 'pane' | 'sidebar' | 'pane-and-sidebar';
@@ -162,9 +172,11 @@ export function applyOptimisticHotkeyChange(
     if (selection.kind === 'site') {
       return { ...hotkeys, [change.action]: snapshot.globalHotkeys[change.action] };
     }
+    // Navigation actions have no built-in binding. Reading BUILT_IN_HOTKEYS
+    // directly would yield undefined for them.
     return {
       ...hotkeys,
-      [change.action]: { value: { ...BUILT_IN_HOTKEYS[change.action] }, source: 'built-in' },
+      [change.action]: { value: builtInEffectiveHotkeys()[change.action], source: 'built-in' },
     };
   }
   return {

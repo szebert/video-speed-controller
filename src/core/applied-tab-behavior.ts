@@ -8,12 +8,15 @@ import {
 } from '../settings/behavior-fields';
 import {
   BUILT_IN_SITE_BEHAVIOR,
+  canonicalizeFastForwardSpeed,
   canonicalizeHotkeyFlashDelayMs,
   canonicalizeHotkeyFlashOpacity,
   canonicalizeHotkeyRepeatDelayMs,
   canonicalizeHotkeyRepeatRate,
   canonicalizeOverlayAutoHideDelayMs,
   canonicalizeOverlayOpacity,
+  canonicalizeRewindSpeed,
+  canonicalizeSkipSeconds,
   isOverlayPosition,
   type SiteBehavior,
 } from '../settings/site-behavior';
@@ -59,6 +62,10 @@ export function toAppliedTabBehavior(
     hotkeyFlashOpacity: canonicalizeHotkeyFlashOpacity(fields.hotkeyFlashOpacity),
     hotkeyRepeatDelayMs: canonicalizeHotkeyRepeatDelayMs(fields.hotkeyRepeatDelayMs),
     hotkeyRepeatRate: canonicalizeHotkeyRepeatRate(fields.hotkeyRepeatRate),
+    skipBackSeconds: canonicalizeSkipSeconds(fields.skipBackSeconds),
+    skipForwardSeconds: canonicalizeSkipSeconds(fields.skipForwardSeconds),
+    rewindSpeed: canonicalizeRewindSpeed(fields.rewindSpeed),
+    fastForwardSpeed: canonicalizeFastForwardSpeed(fields.fastForwardSpeed),
   };
 }
 
