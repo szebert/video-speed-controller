@@ -85,7 +85,7 @@
   "speedMin": "Minimum speed",
   "speedMinDescription": "Slowest allowed speed. 0.0625× to 1.00×.",
   "speedMax": "Maximum speed",
-  "speedMaxDescription": "Fastest allowed speed. 2.00× to 16.00×.",
+  "speedMaxDescription": "Fastest allowed speed. 1.00× to 16.00×.",
   "speedTick": "Speed step",
   "speedTickDescription": "Amount Faster and Slower change the speed. 0.0005× to 1.00×.",
   "settingsNavigation": "Navigation",

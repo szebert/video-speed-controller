@@ -944,6 +944,9 @@ describe('behavior setting changes', () => {
       canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMax', value: 20 }),
     ).toEqual({ kind: 'value', field: 'speedMax', value: 16 });
     expect(
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMax', value: 0.5 }),
+    ).toEqual({ kind: 'value', field: 'speedMax', value: 1 });
+    expect(
       canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMin', value: 0.01 }),
     ).toEqual({ kind: 'value', field: 'speedMin', value: 0.0625 });
     expect(

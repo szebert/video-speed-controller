@@ -9,7 +9,7 @@ export type SpeedPolicy = {
 /** Chromium `HTMLMediaElement.kMinPlaybackRate`. Values below this throw. */
 export const SPEED_MIN_SETTING_MIN = 0.0625;
 export const SPEED_MIN_SETTING_MAX = 1;
-export const SPEED_MAX_SETTING_MIN = 2;
+export const SPEED_MAX_SETTING_MIN = 1;
 /** Chromium `HTMLMediaElement.kMaxPlaybackRate`. Values above this throw. */
 export const SPEED_MAX_SETTING_MAX = 16;
 /** Faster/Slower increment. Independent of the playbackRate floor. */
