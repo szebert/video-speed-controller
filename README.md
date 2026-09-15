@@ -25,7 +25,7 @@ See [ROADMAP.md](ROADMAP.md) for planned and exploratory features.
 
 ## Install (development)
 
-Requirements: Node.js 22+ and pnpm 12.3.4.
+Requirements: Node.js 22+ and pnpm 12.4.1.
 
 ```bash
 pnpm install
