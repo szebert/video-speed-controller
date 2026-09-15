@@ -113,13 +113,13 @@ export function App() {
     <>
       <Toaster />
       <div className="flex h-full w-full justify-center overflow-hidden overscroll-none">
-        <div className="flex h-full w-full min-w-0 max-w-md flex-col overflow-hidden md:w-fit md:max-w-none">
+        <div className="flex h-full w-full min-w-0 max-w-md flex-col overflow-hidden md:w-fit md:max-w-none lg:w-full lg:max-w-6xl">
           <header className="flex shrink-0 items-center justify-between gap-3 p-3">
             <AppTitle />
             <ModeToggle />
           </header>
           <Separator className="shrink-0" />
-          <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[auto_auto] md:grid-rows-none">
+          <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[auto_auto] lg:grid-cols-[auto_minmax(0,1fr)] md:grid-rows-none">
             <SettingsSidebar
               selection={selection}
               customSites={customSites}
@@ -130,7 +130,7 @@ export function App() {
               }}
             />
 
-            <main className="min-h-0 min-w-0 w-full max-w-md overflow-x-hidden overflow-y-auto overscroll-none md:min-w-md md:shrink-0 p-6">
+            <main className="min-h-0 min-w-0 w-full max-w-md overflow-x-hidden overflow-y-auto overscroll-none md:min-w-md md:shrink-0 lg:min-w-0 lg:w-full lg:max-w-4xl lg:shrink p-6">
               <div className="flex w-full flex-col gap-6">
                 {selection.kind === 'settings' ? (
                   <>

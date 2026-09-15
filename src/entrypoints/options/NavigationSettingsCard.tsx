@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field';
 import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
 import { t } from '@/i18n/t';
 import {
@@ -12,7 +19,12 @@ import {
   type BehaviorSettingChange,
   type EditableResolvedBehavior,
 } from '../../settings/site-behavior';
-import { BehaviorSwitchField, OptionsNumberField } from './options-fields';
+import {
+  BehaviorSwitchField,
+  OPTIONS_FIELD_GRID,
+  OPTIONS_FIELD_SPAN,
+  OptionsNumberField,
+} from './options-fields';
 import {
   ownsOverride,
   resetFieldLabel,
@@ -88,66 +100,69 @@ export function NavigationSettingsCard({
       <CardContent>
         <FieldSet>
           <FieldLegend className="sr-only">{t('settingsNavigation')}</FieldLegend>
-          {numberField(
-            'skipBackSeconds',
-            'skip-back-seconds',
-            t('skipBackSeconds'),
-            t('skipBackSecondsDescription'),
-            SKIP_SECONDS_MIN,
-            SKIP_SECONDS_MAX,
-            0.5,
-          )}
-          {numberField(
-            'skipForwardSeconds',
-            'skip-forward-seconds',
-            t('skipForwardSeconds'),
-            t('skipForwardSecondsDescription'),
-            SKIP_SECONDS_MIN,
-            SKIP_SECONDS_MAX,
-            0.5,
-          )}
-          <BehaviorSwitchField
-            id="skip-scale-with-playback-rate"
-            name="skipScaleWithPlaybackRate"
-            field="skipScaleWithPlaybackRate"
-            label={t('skipScaleWithPlaybackRate')}
-            description={t('skipScaleWithPlaybackRateDescription')}
-            setting={behavior.skipScaleWithPlaybackRate}
-            selection={selection}
-            disabled={pending}
-            resetBadgeText={resetBadgeText}
-            onMutate={onMutate}
-          />
-          {numberField(
-            'fastForwardSpeed',
-            'fast-forward-speed',
-            t('fastForwardSpeed'),
-            t('fastForwardSpeedDescription'),
-            TRANSPORT_RATE_MAGNITUDE_MIN,
-            TRANSPORT_RATE_MAGNITUDE_MAX,
-            0.25,
-          )}
-          {/* Scaffolding: the value is stored, but rewind cannot run yet. */}
-          <Field data-disabled>
-            <FieldLabel htmlFor="rewind-speed">{t('rewindSpeed')}</FieldLabel>
-            <InputGroup isDisabled>
-              <InputGroupInput
-                id="rewind-speed"
-                className="text-muted-foreground"
-                name="rewindSpeed"
-                type="number"
-                inputMode="decimal"
-                autoComplete="off"
-                disabled
-                readOnly
-                value={String(behavior.rewindSpeed.value)}
-                aria-describedby="rewind-speed-help"
-              />
-            </InputGroup>
-            <FieldDescription id="rewind-speed-help">
-              {t('rewindSpeedDescription')}
-            </FieldDescription>
-          </Field>
+          <FieldGroup className={OPTIONS_FIELD_GRID}>
+            {numberField(
+              'skipBackSeconds',
+              'skip-back-seconds',
+              t('skipBackSeconds'),
+              t('skipBackSecondsDescription'),
+              SKIP_SECONDS_MIN,
+              SKIP_SECONDS_MAX,
+              0.5,
+            )}
+            {numberField(
+              'skipForwardSeconds',
+              'skip-forward-seconds',
+              t('skipForwardSeconds'),
+              t('skipForwardSecondsDescription'),
+              SKIP_SECONDS_MIN,
+              SKIP_SECONDS_MAX,
+              0.5,
+            )}
+            <BehaviorSwitchField
+              id="skip-scale-with-playback-rate"
+              name="skipScaleWithPlaybackRate"
+              field="skipScaleWithPlaybackRate"
+              label={t('skipScaleWithPlaybackRate')}
+              description={t('skipScaleWithPlaybackRateDescription')}
+              setting={behavior.skipScaleWithPlaybackRate}
+              selection={selection}
+              disabled={pending}
+              resetBadgeText={resetBadgeText}
+              className={OPTIONS_FIELD_SPAN}
+              onMutate={onMutate}
+            />
+            {numberField(
+              'fastForwardSpeed',
+              'fast-forward-speed',
+              t('fastForwardSpeed'),
+              t('fastForwardSpeedDescription'),
+              TRANSPORT_RATE_MAGNITUDE_MIN,
+              TRANSPORT_RATE_MAGNITUDE_MAX,
+              0.25,
+            )}
+            {/* Scaffolding: the value is stored, but rewind cannot run yet. */}
+            <Field data-disabled>
+              <FieldLabel htmlFor="rewind-speed">{t('rewindSpeed')}</FieldLabel>
+              <InputGroup isDisabled>
+                <InputGroupInput
+                  id="rewind-speed"
+                  className="text-muted-foreground"
+                  name="rewindSpeed"
+                  type="number"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  disabled
+                  readOnly
+                  value={String(behavior.rewindSpeed.value)}
+                  aria-describedby="rewind-speed-help"
+                />
+              </InputGroup>
+              <FieldDescription id="rewind-speed-help">
+                {t('rewindSpeedDescription')}
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
         </FieldSet>
       </CardContent>
     </Card>

@@ -23,6 +23,9 @@ import {
   type Selection,
 } from './options-model';
 
+export const OPTIONS_FIELD_GRID = 'lg:grid lg:grid-cols-2 lg:items-start';
+export const OPTIONS_FIELD_SPAN = 'lg:col-span-2';
+
 export function BehaviorSwitchField({
   id,
   name,
@@ -33,6 +36,7 @@ export function BehaviorSwitchField({
   selection,
   disabled,
   resetBadgeText,
+  className,
   onMutate,
 }: {
   id: string;
@@ -44,11 +48,16 @@ export function BehaviorSwitchField({
   selection: Selection;
   disabled: boolean;
   resetBadgeText: string;
+  className?: string;
   onMutate: (change: BehaviorSettingChange) => void;
 }) {
   const helpId = `${id}-help`;
   return (
-    <Field orientation="horizontal" className="min-w-0" data-disabled={disabled || undefined}>
+    <Field
+      orientation="horizontal"
+      className={cn('min-w-0', className)}
+      data-disabled={disabled || undefined}
+    >
       <FieldContent className="min-w-0 flex-[1_1_12rem]">
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <FieldDescription id={helpId}>{description}</FieldDescription>
@@ -96,6 +105,7 @@ export function OptionsNumberField({
   muted,
   resetActive,
   resetLabel,
+  className,
   onDraftChange,
   onCommit,
   onReset,
@@ -112,13 +122,14 @@ export function OptionsNumberField({
   muted?: boolean;
   resetActive: boolean;
   resetLabel: string;
+  className?: string;
   onDraftChange: (value: string) => void;
   onCommit: () => void;
   onReset: () => void;
 }) {
   const helpId = `${id}-help`;
   return (
-    <Field data-disabled={disabled || undefined}>
+    <Field className={className} data-disabled={disabled || undefined}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <InputGroup isDisabled={disabled}>
         <InputGroupInput

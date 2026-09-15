@@ -237,6 +237,9 @@ describe('Options page', () => {
     expect(
       [...container.querySelectorAll('[role="tab"]')].map((element) => element.textContent),
     ).toEqual(['Playback', 'Overlay', 'Navigation', 'Hotkeys']);
+    expect(container.querySelector('[data-slot="field-group"]')?.className).toContain(
+      'lg:grid-cols-2',
+    );
     expect(container.textContent).toContain('Customize the default speed and range.');
     await selectTab('Overlay');
     expect(container.textContent).toContain('Customize how the overlay appears on videos.');
@@ -1163,7 +1166,7 @@ describe('Options page', () => {
     }
   });
 
-  it('keeps overlay options on their own rows', async () => {
+  it('lays out overlay options in a two-column field group', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     await selectTab('Overlay');
@@ -1178,8 +1181,8 @@ describe('Options page', () => {
     expect(positionButton?.parentElement).toBe(settingsButton?.parentElement);
     expect(settingsButton?.parentElement).toBe(autoHide?.parentElement);
     expect(autoHide?.parentElement).toBe(buttonFlash?.parentElement);
-    expect(positionButton?.parentElement?.getAttribute('data-slot')).toBe('field-set');
-    expect(positionButton?.parentElement?.className).not.toContain('grid-cols');
+    expect(positionButton?.parentElement?.getAttribute('data-slot')).toBe('field-group');
+    expect(positionButton?.parentElement?.className).toContain('lg:grid-cols-2');
   });
 
   it('sends overlayPositionButton false from the Show position button switch', async () => {
@@ -1756,9 +1759,13 @@ describe('Options page', () => {
     expect(main?.className).toContain('overflow-x-hidden');
     expect(main?.className).toContain('overscroll-none');
     expect(main?.className).toContain('max-w-md');
+    expect(main?.className).toContain('lg:max-w-4xl');
     expect(container.querySelector('aside')?.className).toContain('md:w-64');
     expect(main?.className.split(/\s+/)).not.toContain('flex');
-    const viewport = container.querySelector('header')?.parentElement?.parentElement;
+    const shell = container.querySelector('header')?.parentElement;
+    expect(shell?.className).toContain('max-w-md');
+    expect(shell?.className).toContain('lg:max-w-6xl');
+    const viewport = shell?.parentElement;
     expect(viewport?.className).toContain('overflow-hidden');
     expect(viewport?.className).toContain('overscroll-none');
     expect(allSitesSwitch()?.checked).toBe(false);

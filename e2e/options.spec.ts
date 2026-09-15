@@ -91,7 +91,9 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   await options.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(options.getByRole('heading', { name: 'Settings' })).toBeVisible();
   await expect(options.getByRole('tab')).toHaveCount(0);
-  await expect(options.getByText('Enable on all sites', { exact: true })).toBeVisible();
+  await expect(
+    options.locator('[data-slot="card-title"]').filter({ hasText: /^Enable on all sites$/ }),
+  ).toBeVisible();
   await expect(options.getByRole('switch', { name: 'Enable on all sites' })).toBeVisible();
   await expect(options.getByText('Requires broader site access')).toBeVisible();
   await expect(options.getByRole('button', { name: 'Reset ALL Settings' })).toBeVisible();
