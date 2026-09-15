@@ -43,6 +43,11 @@ export type HotkeyFlashPayload =
       binding: HotkeyBinding;
     };
 
+/** Hold-to-transport flashes stay up until `releaseHeldHotkeyFlash`. */
+export type HotkeyFlashShowOptions = {
+  hold?: boolean;
+};
+
 function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('all', 'initial', 'important');
   host.style.setProperty('position', 'fixed', 'important');
@@ -96,6 +101,7 @@ export class VideoOverlay {
   private flashPill: HTMLElement | null = null;
   private flashGeneration = 0;
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
+  private flashHeld = false;
   private readonly abort = new AbortController();
 
   constructor(
@@ -185,12 +191,31 @@ export class VideoOverlay {
     this.requestLayout();
   }
 
-  showHotkeyFlash(payload: HotkeyFlashPayload): void {
+  showHotkeyFlash(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
     if (!this.controlled || !this.behavior) {
       return;
     }
     const id = this.showFlash(payload);
+    this.flashHeld = options?.hold === true;
+    if (this.flashHeld) {
+      return;
+    }
     this.startHideTimer(id, canonicalizeHotkeyFlashDelayMs(this.behavior.hotkeyFlashDelayMs));
+  }
+
+  /** Starts the auto-hide delay only for a flash that is currently held. */
+  releaseHeldHotkeyFlash(): void {
+    if (!this.flashHeld || !this.behavior) {
+      return;
+    }
+    this.flashHeld = false;
+    if (!this.flashHost) {
+      return;
+    }
+    this.startHideTimer(
+      this.flashGeneration,
+      canonicalizeHotkeyFlashDelayMs(this.behavior.hotkeyFlashDelayMs),
+    );
   }
 
   notifyActivity(): void {
@@ -384,6 +409,7 @@ export class VideoOverlay {
 
   private invalidateFlash(): void {
     this.flashGeneration += 1;
+    this.flashHeld = false;
     this.clearFlashTimer();
     this.removeFlashHost();
   }

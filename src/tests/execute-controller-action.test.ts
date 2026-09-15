@@ -89,6 +89,7 @@ describe('executeControllerAction', () => {
     document.documentElement
       .querySelectorAll(HOTKEY_FLASH_HOST_TAG)
       .forEach((node) => node.remove());
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -270,6 +271,78 @@ describe('executeControllerAction', () => {
     });
     expect(video.playbackRate).toBe(1.5);
     expect(video.paused).toBe(true);
+  });
+
+  it('keeps the fast forward flash for the whole hold, then uses the delay', async () => {
+    vi.useFakeTimers();
+    seekable(video, { currentTime: 10, duration: 120, paused: false });
+    registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    const hold = {};
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'start',
+      hold,
+    });
+    expect(flashText()).toBe('Fast forward 3.00×');
+    vi.advanceTimersByTime(1_000);
+    expect(flashText()).toBe('Fast forward 3.00×');
+
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'end',
+      hold,
+    });
+    expect(flashText()).toBe('Fast forward 3.00×');
+    vi.advanceTimersByTime(199);
+    expect(flashText()).toBe('Fast forward 3.00×');
+    vi.advanceTimersByTime(1);
+    expect(flashText()).toBeUndefined();
+    vi.useRealTimers();
+  });
+
+  it('does not hide a held flash when a replaced owner ends', async () => {
+    vi.useFakeTimers();
+    seekable(video, { currentTime: 10, duration: 120, paused: false });
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    const first = {};
+    const second = {};
+    const hotkey = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    const overlay = { kind: 'overlay', video } as const;
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source: hotkey,
+      phase: 'start',
+      hold: first,
+    });
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source: overlay,
+      phase: 'start',
+      hold: second,
+    });
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source: hotkey,
+      phase: 'end',
+      hold: first,
+    });
+    vi.advanceTimersByTime(1_000);
+    expect(flashText()).toBe('Fast forward 3.00×');
+    expect(video.playbackRate).toBe(3);
+
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source: overlay,
+      phase: 'end',
+      hold: second,
+    });
+    vi.advanceTimersByTime(200);
+    expect(flashText()).toBeUndefined();
+    expect(video.playbackRate).toBe(1);
+    vi.useRealTimers();
   });
 
   it('ignores a fast forward end from a replaced hold owner', async () => {

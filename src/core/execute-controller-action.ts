@@ -39,7 +39,7 @@ export type ControllerActionContext = {
 };
 
 /** Localized text for the navigation hotkey flash. */
-type NavigationFeedback = { label: string; detail?: string };
+type NavigationFeedback = { label: string; detail?: string; hold?: true };
 
 export async function executeControllerAction(
   action: ControllerAction,
@@ -99,12 +99,16 @@ function executeMediaNavigation(
   if (!feedback || context.source.kind !== 'hotkey') {
     return;
   }
-  registry.flashHotkeyActionOn(video, {
-    kind: 'navigation',
-    label: feedback.label,
-    ...(feedback.detail !== undefined ? { detail: feedback.detail } : {}),
-    binding: context.source.binding,
-  });
+  registry.flashHotkeyActionOn(
+    video,
+    {
+      kind: 'navigation',
+      label: feedback.label,
+      ...(feedback.detail !== undefined ? { detail: feedback.detail } : {}),
+      binding: context.source.binding,
+    },
+    feedback.hold ? { hold: true } : undefined,
+  );
 }
 
 function runMediaNavigation(
@@ -188,5 +192,10 @@ function runFastForward(
   if (!behavior || !registry.beginTransportHold(video, hold, behavior.fastForwardSpeed)) {
     return null;
   }
-  return { label: t('navFastForward'), detail: formatSpeed(behavior.fastForwardSpeed) };
+  // Stay visible for the whole press. endTransportHold starts the hide delay.
+  return {
+    label: t('navFastForward'),
+    detail: formatSpeed(behavior.fastForwardSpeed),
+    hold: true,
+  };
 }

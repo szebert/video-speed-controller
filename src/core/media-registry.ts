@@ -5,7 +5,12 @@ import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 import type { TransportHoldOwner } from './controller-action';
 import { MediaController, type TransportSession } from './media-controller';
-import { isExtensionHost, VideoOverlay, type HotkeyFlashPayload } from './video-overlay';
+import {
+  isExtensionHost,
+  VideoOverlay,
+  type HotkeyFlashPayload,
+  type HotkeyFlashShowOptions,
+} from './video-overlay';
 
 export type { TransportHoldOwner };
 
@@ -135,21 +140,25 @@ export class MediaRegistry {
   }
 
   /** Tab-wide feedback: speed actions apply to every video in the frame. */
-  flashHotkeyAction(payload: HotkeyFlashPayload): void {
+  flashHotkeyAction(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
     if (this.destroyed || !this.currentBehavior?.hotkeyFlash) {
       return;
     }
     for (const entry of this.entries.values()) {
-      entry.overlay.showHotkeyFlash(payload);
+      entry.overlay.showHotkeyFlash(payload, options);
     }
   }
 
   /** Media-local feedback: navigation actions only touch their own video. */
-  flashHotkeyActionOn(video: HTMLVideoElement, payload: HotkeyFlashPayload): void {
+  flashHotkeyActionOn(
+    video: HTMLVideoElement,
+    payload: HotkeyFlashPayload,
+    options?: HotkeyFlashShowOptions,
+  ): void {
     if (this.destroyed || !this.currentBehavior?.hotkeyFlash) {
       return;
     }
-    this.entries.get(video)?.overlay.showHotkeyFlash(payload);
+    this.entries.get(video)?.overlay.showHotkeyFlash(payload, options);
   }
 
   /**
@@ -175,14 +184,17 @@ export class MediaRegistry {
   }
 
   /** Ends the hold only when `owner` still owns the active session. */
-  endTransportHold(video: HTMLVideoElement, owner: TransportHoldOwner): void {
+  endTransportHold(video: HTMLVideoElement, owner: TransportHoldOwner): boolean {
     const entry = this.entries.get(video);
     if (entry?.hold?.owner !== owner) {
-      return;
+      return false;
     }
     const { session } = entry.hold;
     entry.hold = undefined;
     entry.controller.endTemporaryRate(session);
+    // A replaced hold's later `end` must not start the hide timer.
+    entry.overlay.releaseHeldHotkeyFlash();
+    return true;
   }
 
   /**

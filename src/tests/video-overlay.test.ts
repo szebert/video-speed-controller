@@ -1026,6 +1026,82 @@ describe('VideoOverlay', () => {
     );
   });
 
+  it('keeps a held flash until release, then uses the auto-hide delay', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash(
+      {
+        kind: 'navigation',
+        label: 'Fast forward',
+        detail: '3.00×',
+        binding: BUILT_IN_HOTKEYS.increaseSpeed,
+      },
+      { hold: true },
+    );
+    overlay.layout();
+    vi.advanceTimersByTime(5_000);
+    const host = document.querySelector(HOTKEY_FLASH_HOST_TAG);
+    expect(host?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent).toBe(
+      'Fast forward 3.00×',
+    );
+    overlay.releaseHeldHotkeyFlash();
+    vi.advanceTimersByTime(199);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBe(host);
+    vi.advanceTimersByTime(1);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('does not restart a timed flash when releaseHeldHotkeyFlash is called', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      kind: 'speed',
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    overlay.releaseHeldHotkeyFlash();
+    vi.advanceTimersByTime(200);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('lets a later timed flash replace a held flash', () => {
+    vi.useFakeTimers();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash(
+      {
+        kind: 'navigation',
+        label: 'Fast forward',
+        detail: '3.00×',
+        binding: BUILT_IN_HOTKEYS.increaseSpeed,
+      },
+      { hold: true },
+    );
+    overlay.showHotkeyFlash({
+      kind: 'speed',
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    vi.advanceTimersByTime(199);
+    expect(
+      document
+        .querySelector(HOTKEY_FLASH_HOST_TAG)
+        ?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent,
+    ).toBe('1.25× (+0.25×)');
+    vi.advanceTimersByTime(1);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
   it('does not let a stale flash hide timer remove a newer pulse', () => {
     vi.useFakeTimers();
     vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => {});
