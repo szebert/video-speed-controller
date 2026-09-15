@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { cn } from 'cn';
 import {
   SliderFill,
   Slider as SliderPrimitive,
@@ -7,8 +8,6 @@ import {
   SliderTrack,
   type SliderProps as SliderPrimitiveProps,
 } from 'react-aria-components';
-
-import { cn } from '@/lib/utils';
 
 type SliderValue = number | number[];
 type SliderProps<T extends SliderValue = SliderValue> = Omit<

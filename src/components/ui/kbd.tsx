@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import type * as React from 'react';
+import { cn } from 'cn';
 import { Keyboard as KbdPrimitive } from 'react-aria-components';
-
-import { cn } from '@/lib/utils';
 
 function Kbd({ className, ...props }: React.ComponentProps<'kbd'>) {
   return (

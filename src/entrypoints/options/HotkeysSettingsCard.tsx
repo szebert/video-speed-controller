@@ -16,7 +16,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { readKeyboardLayoutMap } from '../../core/hotkey-format';
 import { t, type MessageKey } from '@/i18n/t';
-import { cn } from '@/lib/utils';
+import { cn } from 'cn';
 import type { HotkeyBinding } from '../../settings/hotkey-binding';
 import {
   canonicalizeHotkeyRepeatRate,
@@ -316,15 +316,13 @@ export function HotkeysSettingsCard({
                 <FieldContent className="min-w-0 flex-[1_1_12rem]">
                   <FieldLabel htmlFor={`hotkey-${row.action}`}>{label}</FieldLabel>
                   <FieldDescription id={helpId}>{t(row.description)}</FieldDescription>
-                  <div className="min-h-[1lh]">
-                    {conflict ? <FieldError>{conflict}</FieldError> : null}
-                    {!conflict && shadowedBy ? (
-                      <FieldWarning>{hotkeyShadowedMessage(shadowedBy)}</FieldWarning>
-                    ) : null}
-                    {takeover && !conflict && !shadowedBy ? (
-                      <FieldWarning>{t('hotkeyBrowserTookShortcut')}</FieldWarning>
-                    ) : null}
-                  </div>
+                  {conflict ? <FieldError>{conflict}</FieldError> : null}
+                  {!conflict && shadowedBy ? (
+                    <FieldWarning>{hotkeyShadowedMessage(shadowedBy)}</FieldWarning>
+                  ) : null}
+                  {takeover && !conflict && !shadowedBy ? (
+                    <FieldWarning>{t('hotkeyBrowserTookShortcut')}</FieldWarning>
+                  ) : null}
                 </FieldContent>
                 <div className="flex max-w-full flex-wrap-reverse items-center justify-end gap-2">
                   <ResetBadge

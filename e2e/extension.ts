@@ -69,8 +69,8 @@ export async function clickOptionsSwitch(page: Page, name: string): Promise<void
     .click();
 }
 
-export async function confirmAlertDialog(page: Page, action: string): Promise<void> {
-  await page.getByRole('alertdialog').getByRole('button', { name: action, exact: true }).click();
+export async function confirmDialog(page: Page, action: string): Promise<void> {
+  await page.getByRole('dialog').getByRole('button', { name: action, exact: true }).click();
 }
 
 export async function openPopup(

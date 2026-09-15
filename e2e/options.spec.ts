@@ -4,7 +4,7 @@ import type { Page, Worker } from '@playwright/test';
 import { OVERLAY_POSITION } from '../src/settings/site-behavior';
 import {
   clickOptionsSwitch,
-  confirmAlertDialog,
+  confirmDialog,
   expect,
   openOptions,
   openPopup,
@@ -146,7 +146,7 @@ test('site auto-hide off stays visible and deleting the site restores the timeou
   await expect.poll(async () => overlayVisibility(site)).toBe('visible');
 
   await options.getByRole('button', { name: 'Delete site settings' }).click();
-  await confirmAlertDialog(options, 'Delete');
+  await confirmDialog(options, 'Delete');
   await expect.poll(async () => overlayVisibility(site), { timeout: 5_000 }).toBe('hidden');
 });
 
@@ -216,7 +216,7 @@ test('site speed 1.5 updates videos overlay and popup, then delete restores 1.00
   await expect(popup.getByText('1.50×')).toBeVisible();
 
   await options.getByRole('button', { name: 'Delete site settings' }).click();
-  await confirmAlertDialog(options, 'Delete');
+  await confirmDialog(options, 'Delete');
   await expect(options.getByText('1.00×', { exact: true })).toBeVisible();
   await expect
     .poll(async () =>

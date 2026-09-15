@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import * as React from 'react';
+import { cn } from 'cn';
 import { composeRenderProps, Input as InputPrimitive } from 'react-aria-components';
-
-import { cn } from '@/lib/utils';
 
 function Input({ className, type, ...props }: React.ComponentProps<typeof InputPrimitive>) {
   return (

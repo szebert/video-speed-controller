@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { cn } from 'cn';
 import { LabelContext, Label as LabelPrimitive, type LabelProps } from 'react-aria-components';
-
-import { cn } from '@/lib/utils';
 
 function Label({ className, htmlFor, slot, ...props }: LabelProps) {
   const label = (

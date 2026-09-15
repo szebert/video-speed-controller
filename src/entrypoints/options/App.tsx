@@ -3,17 +3,16 @@
 import { AlertCircleIcon, Trash2Icon } from 'lucide-react';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldGroup } from '@/components/ui/field';
@@ -154,30 +153,28 @@ export function App() {
                         <CardDescription>{t('restoreSettingsToDefaults')}</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <AlertDialogTrigger>
+                        <DialogTrigger>
                           <Button type="button" variant="destructive" isDisabled={pending}>
                             {t('resetAllSettings')}
                           </Button>
-                          <AlertDialog>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{t('resetAllSettings')}</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {t('resetAllConfirm')}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                              <AlertDialogAction
+                          <Dialog showCloseButton={false}>
+                            <DialogHeader>
+                              <DialogTitle>{t('resetAllSettings')}</DialogTitle>
+                              <DialogDescription>{t('resetAllConfirm')}</DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                              <DialogClose variant="outline">{t('cancel')}</DialogClose>
+                              <DialogClose
                                 variant="destructive"
                                 onPress={() => {
                                   void resetAll();
                                 }}
                               >
                                 {t('confirmReset')}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialog>
-                        </AlertDialogTrigger>
+                              </DialogClose>
+                            </DialogFooter>
+                          </Dialog>
+                        </DialogTrigger>
                       </CardContent>
                     </Card>
                   </>
@@ -194,7 +191,7 @@ export function App() {
                           {selection.kind === 'site' ? selection.hostname : t('settingsDefaults')}
                         </h2>
                         {paneAction ? (
-                          <AlertDialogTrigger>
+                          <DialogTrigger>
                             <Button
                               type="button"
                               variant="destructive"
@@ -204,24 +201,19 @@ export function App() {
                             >
                               <Trash2Icon />
                             </Button>
-                            <AlertDialog>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>{paneAction.label}</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  {paneAction.description}
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                                <AlertDialogAction
-                                  variant="destructive"
-                                  onPress={paneAction.onConfirm}
-                                >
+                            <Dialog showCloseButton={false}>
+                              <DialogHeader>
+                                <DialogTitle>{paneAction.label}</DialogTitle>
+                                <DialogDescription>{paneAction.description}</DialogDescription>
+                              </DialogHeader>
+                              <DialogFooter>
+                                <DialogClose variant="outline">{t('cancel')}</DialogClose>
+                                <DialogClose variant="destructive" onPress={paneAction.onConfirm}>
                                   {paneAction.confirm}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialog>
-                          </AlertDialogTrigger>
+                                </DialogClose>
+                              </DialogFooter>
+                            </Dialog>
+                          </DialogTrigger>
                         ) : null}
                       </div>
                       <p className="text-sm text-muted-foreground">

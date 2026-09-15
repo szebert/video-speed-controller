@@ -156,7 +156,7 @@ describe('Options page', () => {
   }
 
   function dialogAction(label: string): Element | undefined {
-    return [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
+    return [...document.querySelectorAll('[data-slot="dialog"] button')].find(
       (button) => button.textContent === label,
     );
   }
@@ -1668,9 +1668,7 @@ describe('Options page', () => {
     expect(sendMessage).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: 'RESET_ALL_BEHAVIOR' }),
     );
-    const confirm = [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
-      (button) => button.textContent === 'Reset',
-    );
+    const confirm = dialogAction('Reset');
     expect(confirm).toBeTruthy();
     await act(async () => {
       click(confirm ?? null);
@@ -1692,8 +1690,6 @@ describe('Options page', () => {
     );
     expect(titles.indexOf('Enable on all sites')).toBeGreaterThanOrEqual(0);
     expect(titles.indexOf('Export')).toBeGreaterThan(titles.indexOf('Enable on all sites'));
-    const allSitesCard = allSitesSwitch()?.closest('[data-slot="card"]');
-    expect(allSitesCard?.className).toContain('shrink-0');
     const main = container.querySelector('main');
     expect(main?.className).toContain('overflow-y-auto');
     expect(main?.className).toContain('overflow-x-hidden');
@@ -2019,9 +2015,7 @@ describe('Options page', () => {
     expect(sendMessage).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: 'IMPORT_BACKUP' }),
     );
-    const confirm = [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
-      (button) => button.textContent === 'Import',
-    );
+    const confirm = dialogAction('Import');
     await act(async () => {
       confirm?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
@@ -2479,9 +2473,7 @@ describe('Options page', () => {
       }
       throw new Error('channel closed');
     });
-    const confirm = [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
-      (button) => button.textContent === 'Reset',
-    );
+    const confirm = dialogAction('Reset');
     await act(async () => {
       click(confirm ?? null);
     });
@@ -2964,9 +2956,7 @@ describe('Options page', () => {
     await act(async () => {
       resetAll?.click();
     });
-    const confirm = [...document.querySelectorAll('[data-slot="alert-dialog-action"]')].find(
-      (button) => button.textContent === 'Reset',
-    );
+    const confirm = dialogAction('Reset');
     await act(async () => {
       click(confirm ?? null);
     });

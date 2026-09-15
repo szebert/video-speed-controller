@@ -16,7 +16,7 @@ import {
   SPEED_SLIDER_STEP,
   type SpeedPolicy,
 } from '@/core/speed';
-import { cn } from '@/lib/utils';
+import { cn } from 'cn';
 
 type SpeedControlsProps = {
   displaySpeed: number;

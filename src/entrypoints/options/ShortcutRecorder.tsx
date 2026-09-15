@@ -7,7 +7,7 @@ import { ButtonGroup } from '@/components/ui/button-group';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import { visualHotkeyParts } from '../../core/hotkey-format';
 import { t } from '@/i18n/t';
-import { cn } from '@/lib/utils';
+import { cn } from 'cn';
 import { hotkeyBindingFromEvent, type HotkeyBinding } from '../../settings/hotkey-binding';
 
 export function ShortcutRecorder({

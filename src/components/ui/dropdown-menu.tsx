@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { cva } from 'class-variance-authority';
+import { cn } from 'cn';
 import {
   composeRenderProps,
   Header as HeaderPrimitive,
@@ -15,8 +16,6 @@ import {
   type MenuItemProps as MenuItemPrimitiveProps,
   type MenuSectionProps as MenuSectionPrimitiveProps,
 } from 'react-aria-components';
-
-import { cn } from '@/lib/utils';
 import { CheckIcon, ChevronRightIcon } from 'lucide-react';
 
 function DropdownMenuTrigger({ ...props }: React.ComponentProps<typeof MenuTriggerPrimitive>) {
@@ -169,7 +168,7 @@ function DropdownMenuSubTrigger({
       {composeRenderProps(children, (children) => (
         <>
           {children}
-          <ChevronRightIcon className="ms-auto rtl:rotate-180" />
+          <ChevronRightIcon className="rtl:rotate-180 ms-auto" />
         </>
       ))}
     </MenuItemPrimitive>

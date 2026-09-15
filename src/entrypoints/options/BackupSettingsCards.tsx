@@ -4,14 +4,13 @@ import { useRef, useState } from 'react';
 import { FileJsonIcon, XIcon } from 'lucide-react';
 import { DropZone } from 'react-aria-components';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Dialog,
+  DialogClose,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Attachment,
   AttachmentAction,
@@ -25,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { t } from '@/i18n/t';
-import { cn } from '@/lib/utils';
+import { cn } from 'cn';
 import { formatBackupFileSize, readAndParseBackupFile, type StagedBackupFile } from './backup-file';
 
 type BackupSettingsCardsProps = {
@@ -193,7 +192,8 @@ export function BackupSettingsCards({ pending, onExport, onImport }: BackupSetti
               {t('importReplace')}
             </Button>
           </ButtonGroup>
-          <AlertDialog
+          <Dialog
+            showCloseButton={false}
             isOpen={pendingImport != null}
             onOpenChange={(open) => {
               if (!open) {
@@ -201,17 +201,17 @@ export function BackupSettingsCards({ pending, onExport, onImport }: BackupSetti
               }
             }}
           >
-            <AlertDialogHeader>
-              <AlertDialogTitle>
+            <DialogHeader>
+              <DialogTitle>
                 {pendingImport === 'replace' ? t('importReplace') : t('importMerge')}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
+              </DialogTitle>
+              <DialogDescription>
                 {pendingImport === 'replace' ? t('importReplaceConfirm') : t('importMergeConfirm')}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-              <AlertDialogAction
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose variant="outline">{t('cancel')}</DialogClose>
+              <DialogClose
                 variant={pendingImport === 'replace' ? 'destructive' : 'default'}
                 onPress={() => {
                   if (!pendingImport || staged?.status !== 'ready') {
@@ -228,9 +228,9 @@ export function BackupSettingsCards({ pending, onExport, onImport }: BackupSetti
                 }}
               >
                 {t('confirmImport')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialog>
+              </DialogClose>
+            </DialogFooter>
+          </Dialog>
         </CardContent>
       </Card>
     </>

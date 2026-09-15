@@ -13,7 +13,7 @@ import {
 import { RadioButton, RadioField, RadioGroup } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { t } from '@/i18n/t';
-import { cn } from '@/lib/utils';
+import { cn } from 'cn';
 import {
   canonicalizeFlashOpacity,
   canonicalizeOverlayOpacity,

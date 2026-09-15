@@ -4,7 +4,7 @@ import { useId, useLayoutEffect, useRef } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { t } from '@/i18n/t';
-import { cn } from '@/lib/utils';
+import { cn } from 'cn';
 import type { Selection } from './options-model';
 
 export function SettingsSidebar({

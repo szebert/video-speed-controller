@@ -10,7 +10,7 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group';
 import { Switch } from '@/components/ui/switch';
-import { cn } from '@/lib/utils';
+import { cn } from 'cn';
 import type { BehaviorSettingChange, SettingSource } from '../../settings/site-behavior';
 import {
   handleNumberInputKeyDown,
