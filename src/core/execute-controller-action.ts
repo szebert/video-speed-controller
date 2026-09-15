@@ -38,7 +38,7 @@ export type ControllerActionContext = {
   hold?: TransportHoldOwner;
 };
 
-/** Localized text for the navigation hotkey flash. */
+/** Localized text for the navigation flash. */
 type NavigationFeedback = { label: string; detail?: string; hold?: true };
 
 export async function executeControllerAction(
@@ -62,17 +62,23 @@ export async function executeControllerAction(
     if (failure) {
       console.warn('DISPATCH_TAB_ACTION failed', failure);
     }
-    if (!response.ok || context.source.kind !== 'hotkey') {
+    if (!response.ok) {
       return;
     }
     // Resolve after DISPATCH. setSpeed re-injects the content script, which
     // invalidates the engine that started this call.
-    context.resolveRegistry().flashHotkeyAction({
-      kind: 'speed',
+    const registry = context.resolveRegistry();
+    const payload = {
+      kind: 'speed' as const,
       previousTargetSpeed: response.previousTargetSpeed,
       targetSpeed: response.targetSpeed,
-      binding: context.source.binding,
-    });
+      action,
+    };
+    if (context.source.kind === 'hotkey') {
+      registry.flashHotkeyAction({ ...payload, binding: context.source.binding });
+      return;
+    }
+    registry.flashButtonAction(payload);
   } catch (error) {
     console.warn('DISPATCH_TAB_ACTION failed', error);
     throw error;
@@ -96,19 +102,21 @@ function executeMediaNavigation(
   }
   const registry = context.resolveRegistry();
   const feedback = runMediaNavigation(action, phase, video, registry, context.hold);
-  if (!feedback || context.source.kind !== 'hotkey') {
+  if (!feedback) {
     return;
   }
-  registry.flashHotkeyActionOn(
-    video,
-    {
-      kind: 'navigation',
-      label: feedback.label,
-      ...(feedback.detail !== undefined ? { detail: feedback.detail } : {}),
-      binding: context.source.binding,
-    },
-    feedback.hold ? { hold: true } : undefined,
-  );
+  const payload = {
+    kind: 'navigation' as const,
+    label: feedback.label,
+    ...(feedback.detail !== undefined ? { detail: feedback.detail } : {}),
+    action,
+  };
+  const options = feedback.hold ? { hold: true } : undefined;
+  if (context.source.kind === 'hotkey') {
+    registry.flashHotkeyActionOn(video, { ...payload, binding: context.source.binding }, options);
+    return;
+  }
+  registry.flashButtonActionOn(video, payload, options);
 }
 
 function runMediaNavigation(

@@ -218,12 +218,12 @@ describe('backup format', () => {
     });
   });
 
-  it('accepts additive V1 hotkey flash fields and clamps the delay', () => {
+  it('accepts additive V1 flash fields and clamps the delay', () => {
     expect(
       parseBackupText(
         JSON.stringify({
           formatVersion: 1,
-          global: { hotkeyFlash: false, hotkeyFlashDelayMs: 0 },
+          global: { buttonFlash: true, hotkeyFlash: false, flashDelayMs: 0 },
           sites: {},
         }),
       ),
@@ -231,7 +231,7 @@ describe('backup format', () => {
       status: 'ready',
       backup: {
         formatVersion: 1,
-        global: { hotkeyFlash: false, hotkeyFlashDelayMs: 100 },
+        global: { buttonFlash: true, hotkeyFlash: false, flashDelayMs: 100 },
         sites: {},
       },
     });
@@ -239,37 +239,37 @@ describe('backup format', () => {
       parseBackupText(
         JSON.stringify({
           formatVersion: 1,
-          global: { hotkeyFlashDelayMs: 99_000 },
+          global: { flashDelayMs: 99_000 },
           sites: {},
         }),
       ),
     ).toEqual({
       status: 'ready',
-      backup: { formatVersion: 1, global: { hotkeyFlashDelayMs: 5000 }, sites: {} },
+      backup: { formatVersion: 1, global: { flashDelayMs: 5000 }, sites: {} },
     });
     expect(
       parseBackupText(
         JSON.stringify({
           formatVersion: 1,
-          global: { hotkeyFlashOpacity: 0 },
+          global: { flashOpacity: 0 },
           sites: {},
         }),
       ),
     ).toEqual({
       status: 'ready',
-      backup: { formatVersion: 1, global: { hotkeyFlashOpacity: 1 }, sites: {} },
+      backup: { formatVersion: 1, global: { flashOpacity: 1 }, sites: {} },
     });
     expect(
       parseBackupText(
         JSON.stringify({
           formatVersion: 1,
-          global: { hotkeyFlashOpacity: 150 },
+          global: { flashOpacity: 150 },
           sites: {},
         }),
       ),
     ).toEqual({
       status: 'ready',
-      backup: { formatVersion: 1, global: { hotkeyFlashOpacity: 100 }, sites: {} },
+      backup: { formatVersion: 1, global: { flashOpacity: 100 }, sites: {} },
     });
   });
 

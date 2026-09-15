@@ -105,12 +105,21 @@ describe('executeControllerAction', () => {
     expect(host?.shadowRoot?.querySelector('.hotkey-hint')?.textContent).toBe(']');
   });
 
-  it('does not flash overlay-originated actions', async () => {
+  it('does not flash overlay-originated actions when button flash is off', async () => {
     await executeControllerAction('increaseSpeed', {
       resolveRegistry: () => registry,
       source: { kind: 'overlay', video },
     });
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('flashes overlay-originated speed actions when button flash is on', async () => {
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, buttonFlash: true }));
+    await executeControllerAction('increaseSpeed', {
+      resolveRegistry: () => registry,
+      source: { kind: 'overlay', video },
+    });
+    expect(flashText()).toBe('1.25× (+0.25×)');
   });
 
   it('does not flash when dispatch fails', async () => {
@@ -276,7 +285,7 @@ describe('executeControllerAction', () => {
   it('keeps the fast forward flash for the whole hold, then uses the delay', async () => {
     vi.useFakeTimers();
     seekable(video, { currentTime: 10, duration: 120, paused: false });
-    registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false, flashDelayMs: 200 }));
     const hold = {};
     const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
     await executeControllerAction('fastForward', {
@@ -306,7 +315,7 @@ describe('executeControllerAction', () => {
   it('does not hide a held flash when a replaced owner ends', async () => {
     vi.useFakeTimers();
     seekable(video, { currentTime: 10, duration: 120, paused: false });
-    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, hotkeyFlashDelayMs: 200 }));
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, flashDelayMs: 200 }));
     const first = {};
     const second = {};
     const hotkey = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
@@ -377,7 +386,7 @@ describe('executeControllerAction', () => {
     expect(video.playbackRate).toBe(1);
   });
 
-  it('does not flash overlay-originated navigation', async () => {
+  it('does not flash overlay-originated navigation when button flash is off', async () => {
     seekable(video, { currentTime: 30, duration: 120 });
     await executeControllerAction('skipForward', {
       resolveRegistry: () => registry,
@@ -385,6 +394,17 @@ describe('executeControllerAction', () => {
     });
     expect(video.currentTime).toBe(40);
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
+  it('flashes overlay-originated navigation when button flash is on', async () => {
+    seekable(video, { currentTime: 30, duration: 120 });
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, buttonFlash: true }));
+    await executeControllerAction('skipForward', {
+      resolveRegistry: () => registry,
+      source: { kind: 'overlay', video },
+    });
+    expect(video.currentTime).toBe(40);
+    expect(flashText()).toBe('Skip forward 10s');
   });
 
   it('does not skip a disconnected video, but still ends a fast forward hold', async () => {

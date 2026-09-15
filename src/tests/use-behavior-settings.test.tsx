@@ -9,39 +9,8 @@ import type { BehaviorSettingsSnapshot } from '../protocol/schemas/shared';
 import { OVERLAY_POSITION, resolveSiteBehavior } from '../settings/site-behavior';
 import { useBehaviorSettings } from '../entrypoints/options/useBehaviorSettings';
 
-function builtInBehavior() {
-  return {
-    speed: { value: 1, source: 'built-in' as const },
-    speedMin: { value: 0.25, source: 'built-in' as const },
-    speedMax: { value: 4, source: 'built-in' as const },
-    speedTick: { value: 0.25, source: 'built-in' as const },
-    skipBackSeconds: { value: 5, source: 'built-in' as const },
-    skipForwardSeconds: { value: 10, source: 'built-in' as const },
-    skipScaleWithPlaybackRate: { value: false, source: 'built-in' as const },
-    rewindSpeed: { value: -1, source: 'built-in' as const },
-    fastForwardSpeed: { value: 3, source: 'built-in' as const },
-    overlayVisible: { value: true, source: 'built-in' as const },
-    overlayPosition: { value: OVERLAY_POSITION.TOP_CENTER, source: 'built-in' as const },
-    overlayPositionButton: { value: true, source: 'built-in' as const },
-    overlaySettingsButton: { value: true, source: 'built-in' as const },
-    overlayNavigationBar: { value: false, source: 'built-in' as const },
-    overlayHotkeyHints: { value: true, source: 'built-in' as const },
-    overlayAutoHide: { value: true, source: 'built-in' as const },
-    overlayHoverHold: { value: false, source: 'built-in' as const },
-    overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
-    overlayOpacity: { value: 70, source: 'built-in' as const },
-    hotkeyFlash: { value: true, source: 'built-in' as const },
-    hotkeyFlashDelayMs: { value: 750, source: 'built-in' as const },
-    hotkeyFlashOpacity: { value: 70, source: 'built-in' as const },
-    hotkeyRepeat: { value: false, source: 'built-in' as const },
-    hotkeyRepeatDelayMs: { value: 500, source: 'built-in' as const },
-    hotkeyRepeatRate: { value: 15, source: 'built-in' as const },
-  };
-}
-
 function snapshot(): BehaviorSettingsSnapshot {
-  const global = builtInBehavior();
-  const hotkeys = resolveSiteBehavior().hotkeys;
+  const { hotkeys, ...global } = resolveSiteBehavior();
   return {
     global,
     globalHotkeys: hotkeys,

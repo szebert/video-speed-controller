@@ -9,6 +9,7 @@ import { applyTheme, DEFAULT_THEME, getStoredTheme } from '@/settings/theme';
 import { t } from '@/i18n/t';
 import { App } from './App';
 import '@/styles/globals.css';
+import './options.css';
 
 const locale = resolveLocale();
 applyDocumentLocale(locale);

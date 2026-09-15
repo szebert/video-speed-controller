@@ -37,7 +37,7 @@ async function overlayVisibility(page: Page): Promise<string> {
 }
 
 async function appliedTabField<
-  K extends 'hotkeyFlash' | 'hotkeyFlashDelayMs' | 'hotkeyRepeat' | 'overlayPosition',
+  K extends 'hotkeyFlash' | 'flashDelayMs' | 'hotkeyRepeat' | 'overlayPosition',
 >(serviceWorker: Worker, field: K): Promise<Array<boolean | number>> {
   return serviceWorker.evaluate(async (name) => {
     const items = await chrome.storage.session.get(null);
@@ -368,13 +368,11 @@ test('hotkey flash shows the new speed then hides', async ({
   const popup = await openPopup(context, extensionId, site, serviceWorker);
   await enableSiteAt(popup, site, 1.25);
   const options = await openOptions(context, extensionId, '127.0.0.1');
-  const delay = options.locator('#hotkey-flash-delay');
+  const delay = options.locator('#flash-delay');
   await delay.fill('1');
   await delay.press('Enter');
   await expect(delay).toHaveValue('1');
-  await expect
-    .poll(async () => appliedTabField(serviceWorker, 'hotkeyFlashDelayMs'))
-    .toContain(1000);
+  await expect.poll(async () => appliedTabField(serviceWorker, 'flashDelayMs')).toContain(1000);
   await site.bringToFront();
   await expect.poll(async () => overlayVisibility(site), { timeout: 5_000 }).toBe('hidden');
   await pressIncreaseSpeedHotkey(site);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { AlertCircleIcon } from 'lucide-react';
+import { AlertCircleIcon, Trash2Icon } from 'lucide-react';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -44,12 +44,12 @@ export function App() {
     hotkeys,
     speed,
     delaySeconds,
-    hotkeyFlashDelaySeconds,
+    flashDelaySeconds,
     hotkeyRepeatDelaySeconds,
     policy,
     overlayLocked,
     delayLocked,
-    hotkeyFlashDelayLocked,
+    flashLocked,
     hotkeyRepeatLocked,
     resetBadgeText,
     mutate,
@@ -64,7 +64,7 @@ export function App() {
     importBackup,
     commitDecimal,
     commitDelay,
-    commitHotkeyFlashDelay,
+    commitFlashDelay,
     commitHotkeyRepeatDelay,
     setSliderPreview,
   } = settings;
@@ -94,7 +94,6 @@ export function App() {
           label: t('deleteSiteSettings'),
           description: t('deleteSiteConfirm'),
           confirm: t('confirmDelete'),
-          variant: 'destructive' as const,
           onConfirm: () => {
             void deleteSite(selection.hostname);
           },
@@ -104,7 +103,6 @@ export function App() {
             label: t('resetDefaults'),
             description: t('resetDefaultsConfirm'),
             confirm: t('confirmReset'),
-            variant: 'outline' as const,
             onConfirm: () => {
               void resetDefaults();
             },
@@ -112,182 +110,202 @@ export function App() {
         : null;
 
   return (
-    <div className="@container mx-auto flex h-svh w-full max-w-screen-xl flex-col overflow-hidden">
+    <>
       <Toaster />
-      <header className="flex shrink-0 items-center justify-between gap-3 p-3">
-        <h1 className="text-sm font-semibold">{t('popupTitle')}</h1>
-        <ModeToggle />
-      </header>
-      <Separator className="shrink-0" />
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] @3xl:grid-cols-[minmax(14rem,16rem)_minmax(0,1fr)] @3xl:grid-rows-none">
-        <SettingsSidebar
-          selection={selection}
-          customSites={customSites}
-          pending={pending}
-          onSelectPane={selectPane}
-          onSelectSite={(hostname) => {
-            void selectSite(hostname);
-          }}
-        />
+      <div className="flex h-full w-full justify-center overflow-hidden overscroll-none">
+        <div className="flex h-full w-full min-w-0 max-w-md flex-col overflow-hidden md:w-fit md:max-w-none">
+          <header className="flex shrink-0 items-center justify-between gap-3 p-3">
+            <h1 className="text-sm font-semibold">{t('popupTitle')}</h1>
+            <ModeToggle />
+          </header>
+          <Separator className="shrink-0" />
+          <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[auto_auto] md:grid-rows-none">
+            <SettingsSidebar
+              selection={selection}
+              customSites={customSites}
+              pending={pending}
+              onSelectPane={selectPane}
+              onSelectSite={(hostname) => {
+                void selectSite(hostname);
+              }}
+            />
 
-        <main className="min-h-0 min-w-0 overflow-y-auto overscroll-y-contain p-6">
-          <div className="flex flex-col gap-6">
-            {selection.kind === 'settings' ? (
-              <>
-                <div className="flex flex-col gap-1">
-                  <h2 className="text-lg font-semibold">{t('settingsTitle')}</h2>
-                  <p className="text-sm text-muted-foreground">{t('settingsPageDescription')}</p>
-                </div>
-                <AllSitesAccessCard />
-                <BackupSettingsCards
-                  pending={pending}
-                  onExport={() => {
-                    void exportBackup();
-                  }}
-                  onImport={importBackup}
-                />
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t('resetAllSettings')}</CardTitle>
-                    <CardDescription>{t('restoreSettingsToDefaults')}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <AlertDialogTrigger>
-                      <Button type="button" variant="destructive" isDisabled={pending}>
-                        {t('resetAllSettings')}
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>{t('resetAllSettings')}</AlertDialogTitle>
-                          <AlertDialogDescription>{t('resetAllConfirm')}</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                          <AlertDialogAction
-                            variant="destructive"
-                            onPress={() => {
-                              void resetAll();
-                            }}
-                          >
-                            {t('confirmReset')}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialog>
-                    </AlertDialogTrigger>
-                  </CardContent>
-                </Card>
-              </>
-            ) : (
-              <form
-                className="flex flex-col gap-6"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                }}
-              >
-                <div className="flex flex-col gap-1">
-                  <h2 className="text-lg font-semibold">
-                    {selection.kind === 'site' ? selection.hostname : t('settingsDefaults')}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {selection.kind === 'site'
-                      ? t('settingsSiteDescription')
-                      : t('settingsDefaultsDescription')}
-                  </p>
-                </div>
+            <main className="min-h-0 min-w-0 w-full max-w-md overflow-x-hidden overflow-y-auto overscroll-none md:min-w-md md:shrink-0 p-6">
+              <div className="flex w-full flex-col gap-6">
+                {selection.kind === 'settings' ? (
+                  <>
+                    <div className="flex flex-col gap-1">
+                      <h2 className="text-lg font-semibold">{t('settingsTitle')}</h2>
+                      <p className="text-sm text-muted-foreground">
+                        {t('settingsPageDescription')}
+                      </p>
+                    </div>
+                    <AllSitesAccessCard />
+                    <BackupSettingsCards
+                      pending={pending}
+                      onExport={() => {
+                        void exportBackup();
+                      }}
+                      onImport={importBackup}
+                    />
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>{t('resetAllSettings')}</CardTitle>
+                        <CardDescription>{t('restoreSettingsToDefaults')}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <AlertDialogTrigger>
+                          <Button type="button" variant="destructive" isDisabled={pending}>
+                            {t('resetAllSettings')}
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>{t('resetAllSettings')}</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {t('resetAllConfirm')}
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                              <AlertDialogAction
+                                variant="destructive"
+                                onPress={() => {
+                                  void resetAll();
+                                }}
+                              >
+                                {t('confirmReset')}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialog>
+                        </AlertDialogTrigger>
+                      </CardContent>
+                    </Card>
+                  </>
+                ) : (
+                  <form
+                    className="flex flex-col gap-6"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                    }}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-lg font-semibold">
+                          {selection.kind === 'site' ? selection.hostname : t('settingsDefaults')}
+                        </h2>
+                        {paneAction ? (
+                          <AlertDialogTrigger>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              aria-label={paneAction.label}
+                              isDisabled={pending}
+                            >
+                              <Trash2Icon />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>{paneAction.label}</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  {paneAction.description}
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                                <AlertDialogAction
+                                  variant="destructive"
+                                  onPress={paneAction.onConfirm}
+                                >
+                                  {paneAction.confirm}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialog>
+                          </AlertDialogTrigger>
+                        ) : null}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {selection.kind === 'site'
+                          ? t('settingsSiteDescription')
+                          : t('settingsDefaultsDescription')}
+                      </p>
+                    </div>
 
-                <FieldGroup>
-                  <PlaybackSettingsCard
-                    selection={selection}
-                    behavior={behavior}
-                    speed={speed}
-                    drafts={drafts}
-                    pending={pending}
-                    policy={policy}
-                    sliderPreview={sliderPreview}
-                    onMutate={(change) => {
-                      void mutate(change);
-                    }}
-                    onAdjustSpeed={adjustDisplayedSpeed}
-                    onPreviewSlider={setSliderPreview}
-                    onDraftChange={updateDraft}
-                    onCommitDecimal={commitDecimal}
-                  />
-                  <OverlaySettingsCard
-                    selection={selection}
-                    behavior={behavior}
-                    drafts={drafts}
-                    delaySeconds={delaySeconds}
-                    pending={pending}
-                    overlayLocked={overlayLocked}
-                    delayLocked={delayLocked}
-                    resetBadgeText={resetBadgeText}
-                    onMutate={(change) => {
-                      void mutate(change);
-                    }}
-                    onDraftChange={(value) => {
-                      updateDraft('delay', value);
-                    }}
-                    onCommitDelay={commitDelay}
-                  />
-                  <NavigationSettingsCard
-                    selection={selection}
-                    behavior={behavior}
-                    drafts={drafts}
-                    pending={pending}
-                    resetBadgeText={resetBadgeText}
-                    onMutate={(change) => {
-                      void mutate(change);
-                    }}
-                    onDraftChange={updateDraft}
-                    onCommitDecimal={commitDecimal}
-                  />
-                  <HotkeysSettingsCard
-                    selection={selection}
-                    behavior={behavior}
-                    hotkeys={hotkeys}
-                    drafts={drafts}
-                    hotkeyFlashDelaySeconds={hotkeyFlashDelaySeconds}
-                    hotkeyRepeatDelaySeconds={hotkeyRepeatDelaySeconds}
-                    pending={pending}
-                    hotkeyFlashDelayLocked={hotkeyFlashDelayLocked}
-                    hotkeyRepeatLocked={hotkeyRepeatLocked}
-                    resetBadgeText={resetBadgeText}
-                    onMutate={mutateHotkey}
-                    onMutateBehavior={(change) => {
-                      void mutate(change);
-                    }}
-                    onDraftChange={(key, value) => {
-                      updateDraft(key, value);
-                    }}
-                    onCommitHotkeyFlashDelay={commitHotkeyFlashDelay}
-                    onCommitHotkeyRepeatDelay={commitHotkeyRepeatDelay}
-                  />
-                </FieldGroup>
-
-                {paneAction ? (
-                  <AlertDialogTrigger>
-                    <Button type="button" variant={paneAction.variant} isDisabled={pending}>
-                      {paneAction.label}
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>{paneAction.label}</AlertDialogTitle>
-                        <AlertDialogDescription>{paneAction.description}</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                        <AlertDialogAction variant="destructive" onPress={paneAction.onConfirm}>
-                          {paneAction.confirm}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialog>
-                  </AlertDialogTrigger>
-                ) : null}
-              </form>
-            )}
+                    <FieldGroup>
+                      <PlaybackSettingsCard
+                        selection={selection}
+                        behavior={behavior}
+                        speed={speed}
+                        drafts={drafts}
+                        pending={pending}
+                        policy={policy}
+                        sliderPreview={sliderPreview}
+                        onMutate={(change) => {
+                          void mutate(change);
+                        }}
+                        onAdjustSpeed={adjustDisplayedSpeed}
+                        onPreviewSlider={setSliderPreview}
+                        onDraftChange={updateDraft}
+                        onCommitDecimal={commitDecimal}
+                      />
+                      <OverlaySettingsCard
+                        selection={selection}
+                        behavior={behavior}
+                        drafts={drafts}
+                        delaySeconds={delaySeconds}
+                        flashDelaySeconds={flashDelaySeconds}
+                        pending={pending}
+                        overlayLocked={overlayLocked}
+                        delayLocked={delayLocked}
+                        flashLocked={flashLocked}
+                        resetBadgeText={resetBadgeText}
+                        onMutate={(change) => {
+                          void mutate(change);
+                        }}
+                        onDraftChange={(key, value) => {
+                          updateDraft(key, value);
+                        }}
+                        onCommitDelay={commitDelay}
+                        onCommitFlashDelay={commitFlashDelay}
+                      />
+                      <NavigationSettingsCard
+                        selection={selection}
+                        behavior={behavior}
+                        drafts={drafts}
+                        pending={pending}
+                        resetBadgeText={resetBadgeText}
+                        onMutate={(change) => {
+                          void mutate(change);
+                        }}
+                        onDraftChange={updateDraft}
+                        onCommitDecimal={commitDecimal}
+                      />
+                      <HotkeysSettingsCard
+                        selection={selection}
+                        behavior={behavior}
+                        hotkeys={hotkeys}
+                        drafts={drafts}
+                        hotkeyRepeatDelaySeconds={hotkeyRepeatDelaySeconds}
+                        pending={pending}
+                        hotkeyRepeatLocked={hotkeyRepeatLocked}
+                        resetBadgeText={resetBadgeText}
+                        onMutate={mutateHotkey}
+                        onMutateBehavior={(change) => {
+                          void mutate(change);
+                        }}
+                        onDraftChange={(key, value) => {
+                          updateDraft(key, value);
+                        }}
+                        onCommitHotkeyRepeatDelay={commitHotkeyRepeatDelay}
+                      />
+                    </FieldGroup>
+                  </form>
+                )}
+              </div>
+            </main>
           </div>
-        </main>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

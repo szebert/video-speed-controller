@@ -11,10 +11,10 @@ import {
   inheritAllKnownSettings,
   tombstoneExistingSiteSettings,
   mergeOverrideField,
-  HOTKEY_FLASH_DELAY_MS_MAX,
-  HOTKEY_FLASH_DELAY_MS_MIN,
-  HOTKEY_FLASH_OPACITY_MAX,
-  HOTKEY_FLASH_OPACITY_MIN,
+  FLASH_DELAY_MS_MAX,
+  FLASH_DELAY_MS_MIN,
+  FLASH_OPACITY_MAX,
+  FLASH_OPACITY_MIN,
   HOTKEY_REPEAT_DELAY_MS_MAX,
   HOTKEY_REPEAT_DELAY_MS_MIN,
   HOTKEY_REPEAT_RATE_MAX,
@@ -68,9 +68,10 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayHoverHold).toEqual({ value: false, source: 'built-in' });
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
     expect(resolved.overlayOpacity).toEqual({ value: 70, source: 'built-in' });
+    expect(resolved.buttonFlash).toEqual({ value: false, source: 'built-in' });
     expect(resolved.hotkeyFlash).toEqual({ value: true, source: 'built-in' });
-    expect(resolved.hotkeyFlashDelayMs).toEqual({ value: 750, source: 'built-in' });
-    expect(resolved.hotkeyFlashOpacity).toEqual({ value: 70, source: 'built-in' });
+    expect(resolved.flashDelayMs).toEqual({ value: 750, source: 'built-in' });
+    expect(resolved.flashOpacity).toEqual({ value: 70, source: 'built-in' });
     expect(resolved.hotkeyRepeat).toEqual({ value: false, source: 'built-in' });
     expect(resolved.hotkeyRepeatDelayMs).toEqual({ value: 500, source: 'built-in' });
     expect(resolved.hotkeyRepeatRate).toEqual({ value: 15, source: 'built-in' });
@@ -284,19 +285,17 @@ describe('site behavior resolution', () => {
 
   it('clamps stored hotkey flash delays outside 100ms–5s without dropping the override', () => {
     expect(
-      resolveSiteBehavior({ hotkeyFlashDelayMs: { kind: 'value', value: 0, updatedAt: 10 } }, {})
-        .hotkeyFlashDelayMs,
+      resolveSiteBehavior({ flashDelayMs: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .flashDelayMs,
     ).toEqual({
-      value: HOTKEY_FLASH_DELAY_MS_MIN,
+      value: FLASH_DELAY_MS_MIN,
       source: 'global',
     });
     expect(
-      resolveSiteBehavior(
-        { hotkeyFlashDelayMs: { kind: 'value', value: 99_000, updatedAt: 10 } },
-        {},
-      ).hotkeyFlashDelayMs,
+      resolveSiteBehavior({ flashDelayMs: { kind: 'value', value: 99_000, updatedAt: 10 } }, {})
+        .flashDelayMs,
     ).toEqual({
-      value: HOTKEY_FLASH_DELAY_MS_MAX,
+      value: FLASH_DELAY_MS_MAX,
       source: 'global',
     });
   });
@@ -431,17 +430,17 @@ describe('site behavior resolution', () => {
 
   it('clamps stored hotkey flash opacity outside 1–100 without dropping the override', () => {
     expect(
-      resolveSiteBehavior({ hotkeyFlashOpacity: { kind: 'value', value: 0, updatedAt: 10 } }, {})
-        .hotkeyFlashOpacity,
+      resolveSiteBehavior({ flashOpacity: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .flashOpacity,
     ).toEqual({
-      value: HOTKEY_FLASH_OPACITY_MIN,
+      value: FLASH_OPACITY_MIN,
       source: 'global',
     });
     expect(
-      resolveSiteBehavior({ hotkeyFlashOpacity: { kind: 'value', value: 150, updatedAt: 10 } }, {})
-        .hotkeyFlashOpacity,
+      resolveSiteBehavior({ flashOpacity: { kind: 'value', value: 150, updatedAt: 10 } }, {})
+        .flashOpacity,
     ).toEqual({
-      value: HOTKEY_FLASH_OPACITY_MAX,
+      value: FLASH_OPACITY_MAX,
       source: 'global',
     });
   });
@@ -986,6 +985,13 @@ describe('behavior setting changes', () => {
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',
+        field: 'buttonFlash',
+        value: true,
+      }),
+    ).toEqual({ kind: 'value', field: 'buttonFlash', value: true });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
         field: 'hotkeyFlash',
         value: false,
       }),
@@ -993,38 +999,38 @@ describe('behavior setting changes', () => {
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',
-        field: 'hotkeyFlashDelayMs',
+        field: 'flashDelayMs',
         value: 0,
       }),
-    ).toEqual({ kind: 'value', field: 'hotkeyFlashDelayMs', value: HOTKEY_FLASH_DELAY_MS_MIN });
+    ).toEqual({ kind: 'value', field: 'flashDelayMs', value: FLASH_DELAY_MS_MIN });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',
-        field: 'hotkeyFlashOpacity',
+        field: 'flashOpacity',
         value: 40.4,
       }),
-    ).toEqual({ kind: 'value', field: 'hotkeyFlashOpacity', value: 40 });
+    ).toEqual({ kind: 'value', field: 'flashOpacity', value: 40 });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',
-        field: 'hotkeyFlashOpacity',
+        field: 'flashOpacity',
         value: 0,
       }),
-    ).toEqual({ kind: 'value', field: 'hotkeyFlashOpacity', value: HOTKEY_FLASH_OPACITY_MIN });
+    ).toEqual({ kind: 'value', field: 'flashOpacity', value: FLASH_OPACITY_MIN });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',
-        field: 'hotkeyFlashOpacity',
+        field: 'flashOpacity',
         value: 150,
       }),
-    ).toEqual({ kind: 'value', field: 'hotkeyFlashOpacity', value: HOTKEY_FLASH_OPACITY_MAX });
+    ).toEqual({ kind: 'value', field: 'flashOpacity', value: FLASH_OPACITY_MAX });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',
-        field: 'hotkeyFlashDelayMs',
+        field: 'flashDelayMs',
         value: 99_000,
       }),
-    ).toEqual({ kind: 'value', field: 'hotkeyFlashDelayMs', value: HOTKEY_FLASH_DELAY_MS_MAX });
+    ).toEqual({ kind: 'value', field: 'flashDelayMs', value: FLASH_DELAY_MS_MAX });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',

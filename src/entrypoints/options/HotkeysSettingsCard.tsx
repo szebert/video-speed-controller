@@ -8,7 +8,6 @@ import {
   FieldContent,
   FieldDescription,
   FieldError,
-  FieldGroup,
   FieldWarning,
   FieldLabel,
   FieldLegend,
@@ -20,14 +19,9 @@ import { t, type MessageKey } from '@/i18n/t';
 import { cn } from '@/lib/utils';
 import type { HotkeyBinding } from '../../settings/hotkey-binding';
 import {
-  canonicalizeHotkeyFlashOpacity,
   canonicalizeHotkeyRepeatRate,
   findSameSourceHotkeyConflict,
   findShadowedHotkey,
-  HOTKEY_FLASH_DELAY_MS_MAX,
-  HOTKEY_FLASH_DELAY_MS_MIN,
-  HOTKEY_FLASH_OPACITY_MAX,
-  HOTKEY_FLASH_OPACITY_MIN,
   HOTKEY_REPEAT_DELAY_MS_MAX,
   HOTKEY_REPEAT_DELAY_MS_MIN,
   HOTKEY_REPEAT_RATE_MAX,
@@ -136,32 +130,26 @@ export function HotkeysSettingsCard({
   behavior,
   hotkeys,
   drafts,
-  hotkeyFlashDelaySeconds,
   hotkeyRepeatDelaySeconds,
   pending,
-  hotkeyFlashDelayLocked,
   hotkeyRepeatLocked,
   resetBadgeText,
   onMutate,
   onMutateBehavior,
   onDraftChange,
-  onCommitHotkeyFlashDelay,
   onCommitHotkeyRepeatDelay,
 }: {
   selection: Selection;
   behavior: EditableResolvedBehavior;
   hotkeys: ResolvedHotkeyMap;
   drafts: Partial<Record<DraftKey, string>>;
-  hotkeyFlashDelaySeconds: string;
   hotkeyRepeatDelaySeconds: string;
   pending: boolean;
-  hotkeyFlashDelayLocked: boolean;
   hotkeyRepeatLocked: boolean;
   resetBadgeText: string;
   onMutate: (change: HotkeySettingChange) => void;
   onMutateBehavior: (change: BehaviorSettingChange) => void;
-  onDraftChange: (key: 'hotkeyFlashDelay' | 'hotkeyRepeatDelay', value: string) => void;
-  onCommitHotkeyFlashDelay: () => void;
+  onDraftChange: (key: 'hotkeyRepeatDelay', value: string) => void;
   onCommitHotkeyRepeatDelay: () => void;
 }) {
   const [layoutMap, setLayoutMap] = useState<ReadonlyMap<string, string> | undefined>();
@@ -219,136 +207,43 @@ export function HotkeysSettingsCard({
       <CardContent>
         <FieldSet>
           <FieldLegend className="sr-only">{t('settingsHotkeys')}</FieldLegend>
-          <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-2">
-            <BehaviorSwitchField
-              id="hotkey-flash"
-              name="hotkeyFlash"
-              field="hotkeyFlash"
-              label={t('hotkeyFlash')}
-              description={t('hotkeyFlashDescription')}
-              setting={behavior.hotkeyFlash}
-              selection={selection}
-              disabled={pending}
-              resetBadgeText={resetBadgeText}
-              onMutate={onMutateBehavior}
-            />
-            <OptionsNumberField
-              id="hotkey-flash-delay"
-              name="hotkeyFlashDelay"
-              label={t('hotkeyFlashDelay')}
-              description={t('hotkeyFlashDelayDescription')}
-              min={HOTKEY_FLASH_DELAY_MS_MIN / 1000}
-              max={HOTKEY_FLASH_DELAY_MS_MAX / 1000}
-              step={0.1}
-              value={drafts.hotkeyFlashDelay ?? hotkeyFlashDelaySeconds}
-              disabled={hotkeyFlashDelayLocked}
-              muted={showsInherited(
-                selection,
-                behavior.hotkeyFlashDelayMs.source,
-                drafts.hotkeyFlashDelay,
-              )}
-              resetActive={ownsOverride(selection, behavior.hotkeyFlashDelayMs.source)}
-              resetLabel={resetFieldLabel(t('hotkeyFlashDelay'))}
-              onDraftChange={(value) => {
-                onDraftChange('hotkeyFlashDelay', value);
-              }}
-              onCommit={onCommitHotkeyFlashDelay}
-              onReset={() => {
-                onMutateBehavior({ kind: 'inherit', field: 'hotkeyFlashDelayMs' });
-              }}
-            />
-          </FieldGroup>
-          <Field data-disabled={hotkeyFlashDelayLocked || undefined}>
-            <div className="flex items-start justify-between gap-2">
-              <FieldContent>
-                <FieldLabel id="hotkey-flash-opacity-label">{t('hotkeyFlashOpacity')}</FieldLabel>
-                <FieldDescription id="hotkey-flash-opacity-help">
-                  {t('hotkeyFlashOpacityDescription')}
-                </FieldDescription>
-              </FieldContent>
-              <ResetBadge
-                active={ownsOverride(selection, behavior.hotkeyFlashOpacity.source)}
-                disabled={hotkeyFlashDelayLocked}
-                text={resetBadgeText}
-                label={resetFieldLabel(t('hotkeyFlashOpacity'))}
-                onReset={() => {
-                  onMutateBehavior({ kind: 'inherit', field: 'hotkeyFlashOpacity' });
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <Slider
-                aria-label={t('hotkeyFlashOpacity')}
-                aria-labelledby="hotkey-flash-opacity-label"
-                aria-describedby="hotkey-flash-opacity-help"
-                isDisabled={hotkeyFlashDelayLocked}
-                minValue={HOTKEY_FLASH_OPACITY_MIN}
-                maxValue={HOTKEY_FLASH_OPACITY_MAX}
-                step={1}
-                formatOptions={{ style: 'unit', unit: 'percent', maximumFractionDigits: 0 }}
-                value={behavior.hotkeyFlashOpacity.value}
-                onChange={(value) => {
-                  const next = Array.isArray(value) ? value[0] : value;
-                  if (next == null) {
-                    return;
-                  }
-                  onMutateBehavior({
-                    kind: 'value',
-                    field: 'hotkeyFlashOpacity',
-                    value: canonicalizeHotkeyFlashOpacity(next),
-                  });
-                }}
-              />
-              <span
-                className={cn(
-                  'w-10 shrink-0 text-right text-sm tabular-nums',
-                  showsInherited(selection, behavior.hotkeyFlashOpacity.source) &&
-                    'text-muted-foreground',
-                )}
-              >
-                {`${behavior.hotkeyFlashOpacity.value}%`}
-              </span>
-            </div>
-          </Field>
-          <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-2">
-            <BehaviorSwitchField
-              id="hotkey-repeat"
-              name="hotkeyRepeat"
-              field="hotkeyRepeat"
-              label={t('hotkeyRepeat')}
-              description={t('hotkeyRepeatDescription')}
-              setting={behavior.hotkeyRepeat}
-              selection={selection}
-              disabled={pending}
-              resetBadgeText={resetBadgeText}
-              onMutate={onMutateBehavior}
-            />
-            <OptionsNumberField
-              id="hotkey-repeat-delay"
-              name="hotkeyRepeatDelay"
-              label={t('hotkeyRepeatDelay')}
-              description={t('hotkeyRepeatDelayDescription')}
-              min={HOTKEY_REPEAT_DELAY_MS_MIN / 1000}
-              max={HOTKEY_REPEAT_DELAY_MS_MAX / 1000}
-              step={0.1}
-              value={drafts.hotkeyRepeatDelay ?? hotkeyRepeatDelaySeconds}
-              disabled={hotkeyRepeatLocked}
-              muted={showsInherited(
-                selection,
-                behavior.hotkeyRepeatDelayMs.source,
-                drafts.hotkeyRepeatDelay,
-              )}
-              resetActive={ownsOverride(selection, behavior.hotkeyRepeatDelayMs.source)}
-              resetLabel={resetFieldLabel(t('hotkeyRepeatDelay'))}
-              onDraftChange={(value) => {
-                onDraftChange('hotkeyRepeatDelay', value);
-              }}
-              onCommit={onCommitHotkeyRepeatDelay}
-              onReset={() => {
-                onMutateBehavior({ kind: 'inherit', field: 'hotkeyRepeatDelayMs' });
-              }}
-            />
-          </FieldGroup>
+          <BehaviorSwitchField
+            id="hotkey-repeat"
+            name="hotkeyRepeat"
+            field="hotkeyRepeat"
+            label={t('hotkeyRepeat')}
+            description={t('hotkeyRepeatDescription')}
+            setting={behavior.hotkeyRepeat}
+            selection={selection}
+            disabled={pending}
+            resetBadgeText={resetBadgeText}
+            onMutate={onMutateBehavior}
+          />
+          <OptionsNumberField
+            id="hotkey-repeat-delay"
+            name="hotkeyRepeatDelay"
+            label={t('hotkeyRepeatDelay')}
+            description={t('hotkeyRepeatDelayDescription')}
+            min={HOTKEY_REPEAT_DELAY_MS_MIN / 1000}
+            max={HOTKEY_REPEAT_DELAY_MS_MAX / 1000}
+            step={0.1}
+            value={drafts.hotkeyRepeatDelay ?? hotkeyRepeatDelaySeconds}
+            disabled={hotkeyRepeatLocked}
+            muted={showsInherited(
+              selection,
+              behavior.hotkeyRepeatDelayMs.source,
+              drafts.hotkeyRepeatDelay,
+            )}
+            resetActive={ownsOverride(selection, behavior.hotkeyRepeatDelayMs.source)}
+            resetLabel={resetFieldLabel(t('hotkeyRepeatDelay'))}
+            onDraftChange={(value) => {
+              onDraftChange('hotkeyRepeatDelay', value);
+            }}
+            onCommit={onCommitHotkeyRepeatDelay}
+            onReset={() => {
+              onMutateBehavior({ kind: 'inherit', field: 'hotkeyRepeatDelayMs' });
+            }}
+          />
           <Field data-disabled={hotkeyRepeatLocked || undefined}>
             <div className="flex items-start justify-between gap-2">
               <FieldContent>
@@ -421,13 +316,15 @@ export function HotkeysSettingsCard({
                 <FieldContent className="min-w-0 flex-[1_1_12rem]">
                   <FieldLabel htmlFor={`hotkey-${row.action}`}>{label}</FieldLabel>
                   <FieldDescription id={helpId}>{t(row.description)}</FieldDescription>
-                  {conflict ? <FieldError>{conflict}</FieldError> : null}
-                  {!conflict && shadowedBy ? (
-                    <FieldWarning>{hotkeyShadowedMessage(shadowedBy)}</FieldWarning>
-                  ) : null}
-                  {takeover && !conflict && !shadowedBy ? (
-                    <FieldWarning>{t('hotkeyBrowserTookShortcut')}</FieldWarning>
-                  ) : null}
+                  <div className="min-h-[1lh]">
+                    {conflict ? <FieldError>{conflict}</FieldError> : null}
+                    {!conflict && shadowedBy ? (
+                      <FieldWarning>{hotkeyShadowedMessage(shadowedBy)}</FieldWarning>
+                    ) : null}
+                    {takeover && !conflict && !shadowedBy ? (
+                      <FieldWarning>{t('hotkeyBrowserTookShortcut')}</FieldWarning>
+                    ) : null}
+                  </div>
                 </FieldContent>
                 <div className="flex max-w-full flex-wrap-reverse items-center justify-end gap-2">
                   <ResetBadge

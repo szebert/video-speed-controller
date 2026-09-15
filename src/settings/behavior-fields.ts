@@ -107,19 +107,24 @@ export const BEHAVIOR_FIELDS = {
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
+  buttonFlash: {
+    default: false,
+    category: 'overlay',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
   hotkeyFlash: {
     default: true,
-    category: 'hotkeys',
+    category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
-  hotkeyFlashDelayMs: {
+  flashDelayMs: {
     default: 750,
-    category: 'hotkeys',
+    category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
-  hotkeyFlashOpacity: {
+  flashOpacity: {
     default: 70,
-    category: 'hotkeys',
+    category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
   hotkeyRepeat: {

@@ -161,6 +161,28 @@ export class MediaRegistry {
     this.entries.get(video)?.overlay.showHotkeyFlash(payload, options);
   }
 
+  /** Tab-wide feedback from overlay speed buttons. */
+  flashButtonAction(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
+    if (this.destroyed || !this.currentBehavior?.buttonFlash) {
+      return;
+    }
+    for (const entry of this.entries.values()) {
+      entry.overlay.showButtonFlash(payload, options);
+    }
+  }
+
+  /** Media-local feedback from overlay navigation buttons. */
+  flashButtonActionOn(
+    video: HTMLVideoElement,
+    payload: HotkeyFlashPayload,
+    options?: HotkeyFlashShowOptions,
+  ): void {
+    if (this.destroyed || !this.currentBehavior?.buttonFlash) {
+      return;
+    }
+    this.entries.get(video)?.overlay.showButtonFlash(payload, options);
+  }
+
   /**
    * Starts a temporary transport rate for `owner`, replacing any hold on this
    * video. The replaced owner's `endTransportHold` becomes a no-op.

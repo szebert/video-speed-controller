@@ -10,10 +10,10 @@ import {
 } from '../core/applied-tab-behavior';
 import {
   BUILT_IN_SITE_BEHAVIOR,
-  HOTKEY_FLASH_DELAY_MS_MAX,
-  HOTKEY_FLASH_DELAY_MS_MIN,
-  HOTKEY_FLASH_OPACITY_MAX,
-  HOTKEY_FLASH_OPACITY_MIN,
+  FLASH_DELAY_MS_MAX,
+  FLASH_DELAY_MS_MIN,
+  FLASH_OPACITY_MAX,
+  FLASH_OPACITY_MIN,
   HOTKEY_REPEAT_DELAY_MS_MAX,
   HOTKEY_REPEAT_DELAY_MS_MIN,
   HOTKEY_REPEAT_RATE_MAX,
@@ -63,9 +63,10 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.overlayHoverHold).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayOpacity).toBe(70);
+    expect(BUILT_IN_SITE_BEHAVIOR.buttonFlash).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlash).toBe(true);
-    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashDelayMs).toBe(750);
-    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlashOpacity).toBe(70);
+    expect(BUILT_IN_SITE_BEHAVIOR.flashDelayMs).toBe(750);
+    expect(BUILT_IN_SITE_BEHAVIOR.flashOpacity).toBe(70);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeat).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatDelayMs).toBe(500);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatRate).toBe(15);
@@ -108,13 +109,12 @@ describe('applied tab behavior', () => {
   });
 
   it('clamps applied hotkey flash delay to 100ms–5s', () => {
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, flashDelayMs: 0 }).flashDelayMs).toBe(
+      FLASH_DELAY_MS_MIN,
+    );
     expect(
-      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyFlashDelayMs: 0 }).hotkeyFlashDelayMs,
-    ).toBe(HOTKEY_FLASH_DELAY_MS_MIN);
-    expect(
-      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyFlashDelayMs: 99_000 })
-        .hotkeyFlashDelayMs,
-    ).toBe(HOTKEY_FLASH_DELAY_MS_MAX);
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, flashDelayMs: 99_000 }).flashDelayMs,
+    ).toBe(FLASH_DELAY_MS_MAX);
   });
 
   it('clamps applied overlay opacity to 1–100', () => {
@@ -147,13 +147,12 @@ describe('applied tab behavior', () => {
   });
 
   it('clamps applied hotkey flash opacity to 1–100', () => {
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, flashOpacity: 0 }).flashOpacity).toBe(
+      FLASH_OPACITY_MIN,
+    );
     expect(
-      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyFlashOpacity: 0 }).hotkeyFlashOpacity,
-    ).toBe(HOTKEY_FLASH_OPACITY_MIN);
-    expect(
-      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyFlashOpacity: 150 })
-        .hotkeyFlashOpacity,
-    ).toBe(HOTKEY_FLASH_OPACITY_MAX);
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, flashOpacity: 150 }).flashOpacity,
+    ).toBe(FLASH_OPACITY_MAX);
   });
 
   it('rejects incomplete or invalid runtime records', () => {

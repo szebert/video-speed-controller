@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from '@/components/ui/field';
+import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
 import { t } from '@/i18n/t';
 import {
@@ -28,7 +21,7 @@ import {
   type Selection,
 } from './options-model';
 
-type NumberDraftKey = Exclude<DraftKey, 'delay' | 'hotkeyFlashDelay' | 'hotkeyRepeatDelay'>;
+type NumberDraftKey = Exclude<DraftKey, 'delay' | 'flashDelay' | 'hotkeyRepeatDelay'>;
 
 export function NavigationSettingsCard({
   selection,
@@ -95,26 +88,24 @@ export function NavigationSettingsCard({
       <CardContent>
         <FieldSet>
           <FieldLegend className="sr-only">{t('settingsNavigation')}</FieldLegend>
-          <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-2">
-            {numberField(
-              'skipBackSeconds',
-              'skip-back-seconds',
-              t('skipBackSeconds'),
-              t('skipBackSecondsDescription'),
-              SKIP_SECONDS_MIN,
-              SKIP_SECONDS_MAX,
-              0.5,
-            )}
-            {numberField(
-              'skipForwardSeconds',
-              'skip-forward-seconds',
-              t('skipForwardSeconds'),
-              t('skipForwardSecondsDescription'),
-              SKIP_SECONDS_MIN,
-              SKIP_SECONDS_MAX,
-              0.5,
-            )}
-          </FieldGroup>
+          {numberField(
+            'skipBackSeconds',
+            'skip-back-seconds',
+            t('skipBackSeconds'),
+            t('skipBackSecondsDescription'),
+            SKIP_SECONDS_MIN,
+            SKIP_SECONDS_MAX,
+            0.5,
+          )}
+          {numberField(
+            'skipForwardSeconds',
+            'skip-forward-seconds',
+            t('skipForwardSeconds'),
+            t('skipForwardSecondsDescription'),
+            SKIP_SECONDS_MIN,
+            SKIP_SECONDS_MAX,
+            0.5,
+          )}
           <BehaviorSwitchField
             id="skip-scale-with-playback-rate"
             name="skipScaleWithPlaybackRate"
@@ -127,38 +118,36 @@ export function NavigationSettingsCard({
             resetBadgeText={resetBadgeText}
             onMutate={onMutate}
           />
-          <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-2">
-            {numberField(
-              'fastForwardSpeed',
-              'fast-forward-speed',
-              t('fastForwardSpeed'),
-              t('fastForwardSpeedDescription'),
-              TRANSPORT_RATE_MAGNITUDE_MIN,
-              TRANSPORT_RATE_MAGNITUDE_MAX,
-              0.25,
-            )}
-            {/* Scaffolding: the value is stored, but rewind cannot run yet. */}
-            <Field data-disabled>
-              <FieldLabel htmlFor="rewind-speed">{t('rewindSpeed')}</FieldLabel>
-              <InputGroup isDisabled>
-                <InputGroupInput
-                  id="rewind-speed"
-                  className="text-muted-foreground"
-                  name="rewindSpeed"
-                  type="number"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  disabled
-                  readOnly
-                  value={String(behavior.rewindSpeed.value)}
-                  aria-describedby="rewind-speed-help"
-                />
-              </InputGroup>
-              <FieldDescription id="rewind-speed-help">
-                {t('rewindSpeedDescription')}
-              </FieldDescription>
-            </Field>
-          </FieldGroup>
+          {numberField(
+            'fastForwardSpeed',
+            'fast-forward-speed',
+            t('fastForwardSpeed'),
+            t('fastForwardSpeedDescription'),
+            TRANSPORT_RATE_MAGNITUDE_MIN,
+            TRANSPORT_RATE_MAGNITUDE_MAX,
+            0.25,
+          )}
+          {/* Scaffolding: the value is stored, but rewind cannot run yet. */}
+          <Field data-disabled>
+            <FieldLabel htmlFor="rewind-speed">{t('rewindSpeed')}</FieldLabel>
+            <InputGroup isDisabled>
+              <InputGroupInput
+                id="rewind-speed"
+                className="text-muted-foreground"
+                name="rewindSpeed"
+                type="number"
+                inputMode="decimal"
+                autoComplete="off"
+                disabled
+                readOnly
+                value={String(behavior.rewindSpeed.value)}
+                aria-describedby="rewind-speed-help"
+              />
+            </InputGroup>
+            <FieldDescription id="rewind-speed-help">
+              {t('rewindSpeedDescription')}
+            </FieldDescription>
+          </Field>
         </FieldSet>
       </CardContent>
     </Card>

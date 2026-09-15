@@ -27,7 +27,7 @@ export type DraftKey =
   | 'skipForwardSeconds'
   | 'fastForwardSpeed'
   | 'delay'
-  | 'hotkeyFlashDelay'
+  | 'flashDelay'
   | 'hotkeyRepeatDelay';
 export type BooleanBehaviorFieldName =
   | 'overlayVisible'
@@ -38,6 +38,7 @@ export type BooleanBehaviorFieldName =
   | 'overlayAutoHide'
   | 'overlayHoverHold'
   | 'skipScaleWithPlaybackRate'
+  | 'buttonFlash'
   | 'hotkeyFlash'
   | 'hotkeyRepeat';
 export type RecoverKind = 'pane' | 'sidebar' | 'pane-and-sidebar';

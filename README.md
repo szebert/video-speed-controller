@@ -11,7 +11,7 @@ OS Video Speed Controller (OS VSC) is a toolbar popup and per-video overlay that
 - Per-site default speed, plus a per-tab effective speed so changing defaults does not jump an already-playing tab
 - Configurable speed range and step (0.0625×–16×, step 0.0005×–1×)
 - Configurable page hotkeys for Faster / Slower / reset (defaults `[`, `]`, `\`), with Global → Site inheritance and conflict-aware capture
-- Optional hotkey flash on videos (default on): new speed, signed change, and the shortcut used, then auto-hide; own opacity and delay
+- Optional hotkey flash on videos (default on) and optional overlay button flash (default off): the action, signed speed change when relevant, and the shortcut when one is bound, then auto-hide; shared opacity and delay
 - Optional hold-to-repeat for most hotkeys with a configurable delay and rate
 - Per-video overlay: speed, Faster / Slower, optional position picker and settings button
 - Overlay position (3×3 grid), opacity, show/hide, auto-hide, hover-hold, delay, and shortcut hints

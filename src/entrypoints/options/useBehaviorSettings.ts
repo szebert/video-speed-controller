@@ -26,7 +26,7 @@ import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../../settings/migrate';
 import { backupExportFilename, backupFailureMessage } from './backup-file';
 import {
   canonicalizeFastForwardSpeed,
-  canonicalizeHotkeyFlashDelayMs,
+  canonicalizeFlashDelayMs,
   canonicalizeHotkeyRepeatDelayMs,
   canonicalizeOverlayAutoHideDelayMs,
   canonicalizeSkipSeconds,
@@ -686,7 +686,7 @@ export function useBehaviorSettings() {
   }
 
   function commitDecimal(
-    key: Exclude<DraftKey, 'delay' | 'hotkeyFlashDelay' | 'hotkeyRepeatDelay'>,
+    key: Exclude<DraftKey, 'delay' | 'flashDelay' | 'hotkeyRepeatDelay'>,
     fallback: number,
     min: number,
     max: number,
@@ -736,8 +736,8 @@ export function useBehaviorSettings() {
     });
   }
 
-  function commitHotkeyFlashDelay(): void {
-    const draft = takeDraft('hotkeyFlashDelay');
+  function commitFlashDelay(): void {
+    const draft = takeDraft('flashDelay');
     if (draft == null) {
       return;
     }
@@ -745,14 +745,14 @@ export function useBehaviorSettings() {
     if (!Number.isFinite(seconds) || seconds < 0) {
       return;
     }
-    const confirmed = canonicalizeHotkeyFlashDelayMs(seconds * 1000);
-    const canonical = behaviorRef.current?.hotkeyFlashDelayMs.value;
+    const confirmed = canonicalizeFlashDelayMs(seconds * 1000);
+    const canonical = behaviorRef.current?.flashDelayMs.value;
     if (canonical != null && confirmed === canonical) {
       return;
     }
     mutate({
       kind: 'value',
-      field: 'hotkeyFlashDelayMs',
+      field: 'flashDelayMs',
       value: confirmed,
     });
   }
@@ -780,16 +780,16 @@ export function useBehaviorSettings() {
 
   const speed = behavior ? (sliderPreview ?? behavior.speed.value) : 1;
   const delaySeconds = behavior ? String(behavior.overlayAutoHideDelayMs.value / 1000) : '2';
-  const hotkeyFlashDelaySeconds = behavior
-    ? String(behavior.hotkeyFlashDelayMs.value / 1000)
-    : '0.75';
+  const flashDelaySeconds = behavior ? String(behavior.flashDelayMs.value / 1000) : '0.75';
   const hotkeyRepeatDelaySeconds = behavior
     ? String(behavior.hotkeyRepeatDelayMs.value / 1000)
     : '0.5';
   const policy = behavior ? speedPolicyFromResolved(behavior) : undefined;
   const overlayLocked = blocking || !overlayEnabled;
   const delayLocked = overlayLocked || !(behavior?.overlayAutoHide.value ?? true);
-  const hotkeyFlashDelayLocked = blocking || !(behavior?.hotkeyFlash.value ?? true);
+  const flashEnabled =
+    (behavior?.buttonFlash.value ?? false) || (behavior?.hotkeyFlash.value ?? true);
+  const flashLocked = blocking || !flashEnabled;
   const hotkeyRepeatLocked = blocking || !(behavior?.hotkeyRepeat.value ?? false);
   const resetBadgeText = selection.kind === 'site' ? t('settingOverride') : t('settingCustom');
 
@@ -811,12 +811,12 @@ export function useBehaviorSettings() {
     snapshotHostname,
     speed,
     delaySeconds,
-    hotkeyFlashDelaySeconds,
+    flashDelaySeconds,
     hotkeyRepeatDelaySeconds,
     policy,
     overlayLocked,
     delayLocked,
-    hotkeyFlashDelayLocked,
+    flashLocked,
     hotkeyRepeatLocked,
     resetBadgeText,
     mutate,
@@ -831,7 +831,7 @@ export function useBehaviorSettings() {
     importBackup,
     commitDecimal,
     commitDelay,
-    commitHotkeyFlashDelay,
+    commitFlashDelay,
     commitHotkeyRepeatDelay,
     setSliderPreview,
   };

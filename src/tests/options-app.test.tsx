@@ -12,39 +12,8 @@ import { OVERLAY_POSITION, resolveSiteBehavior } from '../settings/site-behavior
 import { SPEED_MIN_SETTING_MIN } from '../core/speed';
 import { App } from '../entrypoints/options/App';
 
-function builtInBehavior() {
-  return {
-    speed: { value: 1, source: 'built-in' as const },
-    speedMin: { value: 0.25, source: 'built-in' as const },
-    speedMax: { value: 4, source: 'built-in' as const },
-    speedTick: { value: 0.25, source: 'built-in' as const },
-    skipBackSeconds: { value: 5, source: 'built-in' as const },
-    skipForwardSeconds: { value: 10, source: 'built-in' as const },
-    skipScaleWithPlaybackRate: { value: false, source: 'built-in' as const },
-    rewindSpeed: { value: -1, source: 'built-in' as const },
-    fastForwardSpeed: { value: 3, source: 'built-in' as const },
-    overlayVisible: { value: true, source: 'built-in' as const },
-    overlayPosition: { value: OVERLAY_POSITION.TOP_CENTER, source: 'built-in' as const },
-    overlayPositionButton: { value: true, source: 'built-in' as const },
-    overlaySettingsButton: { value: true, source: 'built-in' as const },
-    overlayNavigationBar: { value: false, source: 'built-in' as const },
-    overlayHotkeyHints: { value: true, source: 'built-in' as const },
-    overlayAutoHide: { value: true, source: 'built-in' as const },
-    overlayHoverHold: { value: false, source: 'built-in' as const },
-    overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
-    overlayOpacity: { value: 70, source: 'built-in' as const },
-    hotkeyFlash: { value: true, source: 'built-in' as const },
-    hotkeyFlashDelayMs: { value: 750, source: 'built-in' as const },
-    hotkeyFlashOpacity: { value: 70, source: 'built-in' as const },
-    hotkeyRepeat: { value: false, source: 'built-in' as const },
-    hotkeyRepeatDelayMs: { value: 500, source: 'built-in' as const },
-    hotkeyRepeatRate: { value: 15, source: 'built-in' as const },
-  };
-}
-
 function snapshot(site: string | null = null): BehaviorSettingsSnapshot {
-  const global = builtInBehavior();
-  const hotkeys = resolveSiteBehavior().hotkeys;
+  const { hotkeys, ...global } = resolveSiteBehavior();
   return {
     global,
     globalHotkeys: hotkeys,
@@ -160,7 +129,7 @@ describe('Options page', () => {
   }
 
   function permissionError(): Element | null {
-    return container.querySelector('[data-slot="field-error"]');
+    return container.querySelector('[data-slot="field-error"][role="alert"]');
   }
 
   /** Flattens single and coalesced SET_BEHAVIOR_SETTING payloads into changes. */
@@ -173,10 +142,17 @@ describe('Options page', () => {
     });
   }
 
-  function deleteSiteButton(): HTMLButtonElement | undefined {
-    return [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Delete site settings',
-    ) as HTMLButtonElement | undefined;
+  function paneActionButton(label: string): HTMLButtonElement | null {
+    const button = container.querySelector(`button[aria-label="${label}"]`);
+    return button instanceof HTMLButtonElement ? button : null;
+  }
+
+  function deleteSiteButton(): HTMLButtonElement | null {
+    return paneActionButton('Delete site settings');
+  }
+
+  function resetDefaultsButton(): HTMLButtonElement | null {
+    return paneActionButton('Reset defaults');
   }
 
   function dialogAction(label: string): Element | undefined {
@@ -249,7 +225,7 @@ describe('Options page', () => {
     expect(container.querySelector('[role="tab"]')).toBeNull();
     expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Global defaults');
     expect(container.textContent).not.toContain('Reset ALL Settings');
-    expect(deleteSiteButton()).toBeUndefined();
+    expect(deleteSiteButton()).toBeNull();
   });
 
   it('selects Site when ?site= is a valid hostname', async () => {
@@ -262,11 +238,7 @@ describe('Options page', () => {
     expect(container.textContent).toContain('example.com');
     expect(container.querySelector('h2')?.textContent).toBe('example.com');
     expect(container.textContent).toContain('Overrides global defaults for this site.');
-    expect(
-      [...container.querySelectorAll('button')].some(
-        (button) => button.textContent === 'Reset defaults',
-      ),
-    ).toBe(false);
+    expect(resetDefaultsButton()).toBeNull();
     expect(deleteSiteButton()).toBeInstanceOf(HTMLButtonElement);
   });
 
@@ -391,7 +363,7 @@ describe('Options page', () => {
       'speed-tick',
       'speed-max',
       'overlay-auto-hide-delay',
-      'hotkey-flash-delay',
+      'flash-delay',
     ]) {
       expect(container.querySelector(`#${id}`)?.classList.contains('text-muted-foreground')).toBe(
         true,
@@ -1100,6 +1072,8 @@ describe('Options page', () => {
       'overlay-hotkey-hints',
       'overlay-auto-hide',
       'overlay-hover-hold',
+      'button-flash',
+      'hotkey-flash',
     ]) {
       const label = container.querySelector(`label[for="${id}"]`);
       expect(label?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
@@ -1120,6 +1094,8 @@ describe('Options page', () => {
       'overlay-hotkey-hints',
       'overlay-auto-hide',
       'overlay-hover-hold',
+      'button-flash',
+      'hotkey-flash',
     ]) {
       const field = container.querySelector(`#${id}`)?.closest('[data-slot="field"]');
       const cluster = field?.querySelector('[data-slot="reset-badge"]')?.parentElement;
@@ -1135,7 +1111,7 @@ describe('Options page', () => {
       'speed-tick',
       'speed-max',
       'overlay-auto-hide-delay',
-      'hotkey-flash-delay',
+      'flash-delay',
     ]) {
       const input = container.querySelector(`#${id}`);
       const group = input?.closest('[data-slot="input-group"]');
@@ -1143,7 +1119,7 @@ describe('Options page', () => {
     }
   });
 
-  it('groups position, settings, and shortcut-hint overlay switches on one wide-screen row', async () => {
+  it('keeps overlay options on their own rows', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     const positionButton = container
@@ -1152,34 +1128,13 @@ describe('Options page', () => {
     const settingsButton = container
       .querySelector('#overlay-settings-button')
       ?.closest('[data-slot="field"]');
-    const hotkeyHints = container
-      .querySelector('#overlay-hotkey-hints')
-      ?.closest('[data-slot="field"]');
+    const autoHide = container.querySelector('#overlay-auto-hide')?.closest('[data-slot="field"]');
+    const buttonFlash = container.querySelector('#button-flash')?.closest('[data-slot="field"]');
     expect(positionButton?.parentElement).toBe(settingsButton?.parentElement);
-    expect(settingsButton?.parentElement).toBe(hotkeyHints?.parentElement);
-    expect(positionButton?.parentElement?.getAttribute('data-slot')).toBe('field-group');
-    expect(positionButton?.parentElement?.className).toContain('@xl/field-group:grid-cols-3');
-    expect(positionButton?.parentElement).not.toBe(
-      container.querySelector('#overlay-auto-hide')?.closest('[data-slot="field"]')?.parentElement,
-    );
-  });
-
-  it('groups auto-hide overlay, hover hold, and delay on one wide-screen row', async () => {
-    sendMessage.mockImplementation(loadReply(snapshot()));
-    await renderApp();
-    const autoHideField = container
-      .querySelector('#overlay-auto-hide')
-      ?.closest('[data-slot="field"]');
-    const hoverField = container
-      .querySelector('#overlay-hover-hold')
-      ?.closest('[data-slot="field"]');
-    const delayField = container
-      .querySelector('#overlay-auto-hide-delay')
-      ?.closest('[data-slot="field"]');
-    expect(autoHideField?.parentElement).toBe(hoverField?.parentElement);
-    expect(hoverField?.parentElement).toBe(delayField?.parentElement);
-    expect(autoHideField?.parentElement?.getAttribute('data-slot')).toBe('field-group');
-    expect(autoHideField?.parentElement?.className).toContain('@xl/field-group:grid-cols-3');
+    expect(settingsButton?.parentElement).toBe(autoHide?.parentElement);
+    expect(autoHide?.parentElement).toBe(buttonFlash?.parentElement);
+    expect(positionButton?.parentElement?.getAttribute('data-slot')).toBe('field-set');
+    expect(positionButton?.parentElement?.className).not.toContain('grid-cols');
   });
 
   it('sends overlayPositionButton false from the Show position button switch', async () => {
@@ -1238,6 +1193,22 @@ describe('Options page', () => {
     });
   });
 
+  it('sends buttonFlash true from the Show button flash switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const toggle = container.querySelector('#button-flash');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    await act(async () => {
+      click(toggle);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'buttonFlash', value: true },
+    });
+  });
+
   it('sends hotkeyFlash false from the Show hotkey flash switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
@@ -1253,10 +1224,10 @@ describe('Options page', () => {
     });
   });
 
-  it('clamps hotkey flash delay below 0.1 seconds to 100 ms', async () => {
+  it('clamps flash delay below 0.1 seconds to 100 ms', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
-    const input = container.querySelector('#hotkey-flash-delay');
+    const input = container.querySelector('#flash-delay');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
       if (!(input instanceof HTMLInputElement)) {
@@ -1272,14 +1243,14 @@ describe('Options page', () => {
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
-      change: { kind: 'value', field: 'hotkeyFlashDelayMs', value: 100 },
+      change: { kind: 'value', field: 'flashDelayMs', value: 100 },
     });
   });
 
-  it('clamps hotkey flash delay above 5 seconds to 5000 ms', async () => {
+  it('clamps flash delay above 5 seconds to 5000 ms', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
-    const input = container.querySelector('#hotkey-flash-delay');
+    const input = container.querySelector('#flash-delay');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
       if (!(input instanceof HTMLInputElement)) {
@@ -1295,21 +1266,24 @@ describe('Options page', () => {
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
-      change: { kind: 'value', field: 'hotkeyFlashDelayMs', value: 5000 },
+      change: { kind: 'value', field: 'flashDelayMs', value: 5000 },
     });
   });
 
-  it('disables flash delay when Show hotkey flash is off', async () => {
+  it('disables flash delay when both flash toggles are off', async () => {
     const hidden = snapshot();
     hidden.global.hotkeyFlash = { value: false, source: 'global' };
     sendMessage.mockImplementation(loadReply(hidden));
     await renderApp();
-    const delay = container.querySelector('#hotkey-flash-delay');
+    const delay = container.querySelector('#flash-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
     expect((delay as HTMLInputElement).disabled).toBe(true);
     const toggle = container.querySelector('#hotkey-flash');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
     expect((toggle as HTMLInputElement).disabled).toBe(false);
+    const buttonFlash = container.querySelector('#button-flash');
+    expect(buttonFlash).toBeInstanceOf(HTMLInputElement);
+    expect((buttonFlash as HTMLInputElement).disabled).toBe(false);
     const flashOpacity = container.querySelector(
       '[data-slot="slider"][aria-label="Flash opacity"] input[type="range"]',
     );
@@ -1317,7 +1291,23 @@ describe('Options page', () => {
     expect((flashOpacity as HTMLInputElement).disabled).toBe(true);
   });
 
-  it('sends hotkey flash opacity from the slider', async () => {
+  it('keeps flash delay enabled when only Show button flash is on', async () => {
+    const hidden = snapshot();
+    hidden.global.hotkeyFlash = { value: false, source: 'global' };
+    hidden.global.buttonFlash = { value: true, source: 'global' };
+    sendMessage.mockImplementation(loadReply(hidden));
+    await renderApp();
+    const delay = container.querySelector('#flash-delay');
+    expect(delay).toBeInstanceOf(HTMLInputElement);
+    expect((delay as HTMLInputElement).disabled).toBe(false);
+    const flashOpacity = container.querySelector(
+      '[data-slot="slider"][aria-label="Flash opacity"] input[type="range"]',
+    );
+    expect(flashOpacity).toBeInstanceOf(HTMLInputElement);
+    expect((flashOpacity as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('sends flash opacity from the slider', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     const input = container.querySelector(
@@ -1336,13 +1326,13 @@ describe('Options page', () => {
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
-      change: { kind: 'value', field: 'hotkeyFlashOpacity', value: 69 },
+      change: { kind: 'value', field: 'flashOpacity', value: 69 },
     });
   });
 
   it('inherits a global flash opacity override from the Reset badge', async () => {
     const state = snapshot();
-    state.global.hotkeyFlashOpacity = { value: 40, source: 'global' };
+    state.global.flashOpacity = { value: 40, source: 'global' };
     sendMessage.mockImplementation(loadReply(state));
     await renderApp();
     expect(container.textContent).toContain('40%');
@@ -1356,7 +1346,7 @@ describe('Options page', () => {
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
-      change: { kind: 'inherit', field: 'hotkeyFlashOpacity' },
+      change: { kind: 'inherit', field: 'flashOpacity' },
     });
   });
 
@@ -1572,12 +1562,15 @@ describe('Options page', () => {
     expect((settingsButton as HTMLInputElement).disabled).toBe(true);
     const hotkeyHints = container.querySelector('#overlay-hotkey-hints');
     expect((hotkeyHints as HTMLInputElement).disabled).toBe(true);
+    const buttonFlash = container.querySelector('#button-flash');
+    expect(buttonFlash).toBeInstanceOf(HTMLInputElement);
+    expect((buttonFlash as HTMLInputElement).disabled).toBe(false);
     const hotkeyFlash = container.querySelector('#hotkey-flash');
     expect(hotkeyFlash).toBeInstanceOf(HTMLInputElement);
     expect((hotkeyFlash as HTMLInputElement).disabled).toBe(false);
-    const hotkeyFlashDelay = container.querySelector('#hotkey-flash-delay');
-    expect(hotkeyFlashDelay).toBeInstanceOf(HTMLInputElement);
-    expect((hotkeyFlashDelay as HTMLInputElement).disabled).toBe(false);
+    const flashDelay = container.querySelector('#flash-delay');
+    expect(flashDelay).toBeInstanceOf(HTMLInputElement);
+    expect((flashDelay as HTMLInputElement).disabled).toBe(false);
     const flashOpacity = container.querySelector(
       '[data-slot="slider"][aria-label="Flash opacity"] input[type="range"]',
     );
@@ -1627,9 +1620,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
-    const resetDefaults = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Reset defaults',
-    );
+    const resetDefaults = resetDefaultsButton();
     expect(resetDefaults).toBeTruthy();
     expect(resetDefaults?.hasAttribute('disabled')).toBe(false);
     await act(async () => {
@@ -1705,7 +1696,14 @@ describe('Options page', () => {
     expect(allSitesCard?.className).toContain('shrink-0');
     const main = container.querySelector('main');
     expect(main?.className).toContain('overflow-y-auto');
+    expect(main?.className).toContain('overflow-x-hidden');
+    expect(main?.className).toContain('overscroll-none');
+    expect(main?.className).toContain('max-w-md');
+    expect(container.querySelector('aside')?.className).toContain('md:w-64');
     expect(main?.className.split(/\s+/)).not.toContain('flex');
+    const viewport = container.querySelector('header')?.parentElement?.parentElement;
+    expect(viewport?.className).toContain('overflow-hidden');
+    expect(viewport?.className).toContain('overscroll-none');
     expect(allSitesSwitch()?.checked).toBe(false);
     expect(allSitesSwitch()?.disabled).toBe(false);
     expect(permissionsContains).toHaveBeenCalledWith({
@@ -2441,9 +2439,7 @@ describe('Options page', () => {
       }
       throw new Error('channel closed');
     });
-    const resetDefaults = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Reset defaults',
-    );
+    const resetDefaults = resetDefaultsButton();
     await act(async () => {
       resetDefaults?.click();
     });

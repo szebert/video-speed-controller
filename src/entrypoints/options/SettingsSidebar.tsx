@@ -28,8 +28,8 @@ export function SettingsSidebar({
   }, [selection]);
 
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col border-b @3xl:h-full @3xl:border-b-0 @3xl:border-e">
-      <nav aria-label={t('settingsTitle')} className="flex min-h-0 flex-col gap-3 p-3 @3xl:flex-1">
+    <aside className="flex min-h-0 min-w-0 flex-col border-b md:h-full md:w-64 md:shrink-0 md:border-b-0 md:border-e">
+      <nav aria-label={t('settingsTitle')} className="flex min-h-0 flex-col gap-3 p-3 md:flex-1">
         <div className="flex shrink-0 flex-col gap-1">
           <Button
             type="button"
@@ -59,7 +59,7 @@ export function SettingsSidebar({
           </Button>
         </div>
         <Separator className="shrink-0" />
-        <div className="flex min-h-0 flex-col gap-2 @3xl:flex-1">
+        <div className="flex min-h-0 flex-col gap-2 md:flex-1">
           <p
             id={sitesHeadingId}
             className="shrink-0 px-2 text-xs font-medium text-muted-foreground"
@@ -69,7 +69,7 @@ export function SettingsSidebar({
           <div
             role="region"
             aria-labelledby={sitesHeadingId}
-            className="max-h-[min(12rem,40svh)] min-h-0 overflow-y-auto overscroll-y-contain @3xl:max-h-none @3xl:flex-1"
+            className="max-h-[min(12rem,40svh)] min-h-0 overflow-y-auto overscroll-y-contain md:max-h-none md:flex-1"
           >
             {customSites.length === 0 ? (
               <p className="px-2 text-xs text-muted-foreground">{t('settingsNoSites')}</p>

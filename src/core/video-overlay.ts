@@ -5,13 +5,14 @@ import { applyOverlayStyles } from '../overlay/overlay-sheet';
 import type { OverlayActions } from '../overlay/types';
 import { visualHotkeyParts } from './hotkey-format';
 import {
-  canonicalizeHotkeyFlashDelayMs,
-  canonicalizeHotkeyFlashOpacity,
+  canonicalizeFlashDelayMs,
+  canonicalizeFlashOpacity,
   canonicalizeOverlayAutoHideDelayMs,
   overlayPositionToGrid,
 } from '../settings/site-behavior';
 import type { EffectiveHotkeyMap, HotkeyBinding } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
+import type { MediaNavigationAction, TabSpeedAction } from './controller-action';
 import { canonicalizeSpeed, formatSpeed, formatSpeedDelta } from './speed';
 
 export const OVERLAY_HOST_TAG = 'osvsc-overlay';
@@ -27,6 +28,8 @@ export function isExtensionHost(node: Node): boolean {
   );
 }
 
+export type FlashOrigin = 'hotkey' | 'button';
+
 // Tab-wide speed flash keeps its own shape. Media-local navigation carries
 // already-localized text so this module stays free of action-specific copy.
 export type HotkeyFlashPayload =
@@ -34,13 +37,15 @@ export type HotkeyFlashPayload =
       kind: 'speed';
       previousTargetSpeed: number;
       targetSpeed: number;
-      binding: HotkeyBinding;
+      binding?: HotkeyBinding | null;
+      action?: TabSpeedAction;
     }
   | {
       kind: 'navigation';
       label: string;
       detail?: string;
-      binding: HotkeyBinding;
+      binding?: HotkeyBinding | null;
+      action?: MediaNavigationAction;
     };
 
 /** Hold-to-transport flashes stay up until `releaseHeldHotkeyFlash`. */
@@ -102,6 +107,7 @@ export class VideoOverlay {
   private flashGeneration = 0;
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
   private flashHeld = false;
+  private flashOrigin: FlashOrigin | null = null;
   private readonly abort = new AbortController();
 
   constructor(
@@ -160,7 +166,7 @@ export class VideoOverlay {
     if (hotkeys) {
       this.hotkeys = hotkeys;
     }
-    if (!behavior.hotkeyFlash) {
+    if (this.flashOrigin && !this.flashOriginEnabled(behavior, this.flashOrigin)) {
       this.invalidateFlash();
     } else {
       this.syncFlashOpacity();
@@ -192,15 +198,11 @@ export class VideoOverlay {
   }
 
   showHotkeyFlash(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
-    if (!this.controlled || !this.behavior) {
-      return;
-    }
-    const id = this.showFlash(payload);
-    this.flashHeld = options?.hold === true;
-    if (this.flashHeld) {
-      return;
-    }
-    this.startHideTimer(id, canonicalizeHotkeyFlashDelayMs(this.behavior.hotkeyFlashDelayMs));
+    this.presentFlash(payload, 'hotkey', options);
+  }
+
+  showButtonFlash(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
+    this.presentFlash(payload, 'button', options);
   }
 
   /** Starts the auto-hide delay only for a flash that is currently held. */
@@ -212,10 +214,7 @@ export class VideoOverlay {
     if (!this.flashHost) {
       return;
     }
-    this.startHideTimer(
-      this.flashGeneration,
-      canonicalizeHotkeyFlashDelayMs(this.behavior.hotkeyFlashDelayMs),
-    );
+    this.startHideTimer(this.flashGeneration, canonicalizeFlashDelayMs(this.behavior.flashDelayMs));
   }
 
   notifyActivity(): void {
@@ -369,9 +368,52 @@ export class VideoOverlay {
     }
   }
 
-  private showFlash(payload: HotkeyFlashPayload): number {
+  private presentFlash(
+    payload: HotkeyFlashPayload,
+    origin: FlashOrigin,
+    options?: HotkeyFlashShowOptions,
+  ): void {
+    if (!this.controlled || !this.behavior || !this.flashOriginEnabled(this.behavior, origin)) {
+      return;
+    }
+    const id = this.showFlash(payload, origin);
+    this.flashHeld = options?.hold === true;
+    if (this.flashHeld) {
+      return;
+    }
+    this.startHideTimer(id, canonicalizeFlashDelayMs(this.behavior.flashDelayMs));
+  }
+
+  private flashOriginEnabled(
+    behavior: AppliedTabBehavior | null,
+    origin: FlashOrigin | null,
+  ): boolean {
+    if (!behavior) {
+      return false;
+    }
+    if (origin === 'hotkey') {
+      return behavior.hotkeyFlash;
+    }
+    if (origin === 'button') {
+      return behavior.buttonFlash;
+    }
+    return false;
+  }
+
+  private flashBinding(payload: HotkeyFlashPayload): HotkeyBinding | null {
+    if (payload.binding) {
+      return payload.binding;
+    }
+    if (payload.action == null) {
+      return null;
+    }
+    return this.hotkeys?.[payload.action] ?? null;
+  }
+
+  private showFlash(payload: HotkeyFlashPayload, origin: FlashOrigin): number {
     this.flashGeneration += 1;
     const id = this.flashGeneration;
+    this.flashOrigin = origin;
     this.clearFlashTimer();
     const host = this.ensureFlashHost();
     const document = host.ownerDocument;
@@ -383,11 +425,16 @@ export class VideoOverlay {
     const label = document.createElement('span');
     label.className = 'hotkey-flash-label';
     label.textContent = flashLabel(payload);
-    const hint = document.createElement('kbd');
-    hint.className = 'hotkey-hint';
-    hint.setAttribute('aria-hidden', 'true');
-    hint.textContent = visualHotkeyParts(payload.binding).join('\u2009');
-    pill.append(label, hint);
+    const binding = this.flashBinding(payload);
+    if (binding) {
+      const hint = document.createElement('kbd');
+      hint.className = 'hotkey-hint';
+      hint.setAttribute('aria-hidden', 'true');
+      hint.textContent = visualHotkeyParts(binding).join('\u2009');
+      pill.append(label, hint);
+    } else {
+      pill.append(label);
+    }
     this.syncFlashOpacity();
     this.requestLayout();
     return id;
@@ -410,6 +457,7 @@ export class VideoOverlay {
   private invalidateFlash(): void {
     this.flashGeneration += 1;
     this.flashHeld = false;
+    this.flashOrigin = null;
     this.clearFlashTimer();
     this.removeFlashHost();
   }
@@ -451,7 +499,7 @@ export class VideoOverlay {
     if (!this.flashPill || !this.behavior) {
       return;
     }
-    this.flashPill.style.opacity = `${canonicalizeHotkeyFlashOpacity(this.behavior.hotkeyFlashOpacity) / 100}`;
+    this.flashPill.style.opacity = `${canonicalizeFlashOpacity(this.behavior.flashOpacity) / 100}`;
   }
 
   private layoutFlash(measureRect: () => DOMRect): void {
@@ -473,7 +521,7 @@ export class VideoOverlay {
   private evaluateFlashRect(measureRect: () => DOMRect): DOMRect | null {
     if (
       !this.controlled ||
-      !this.behavior?.hotkeyFlash ||
+      !this.flashOriginEnabled(this.behavior, this.flashOrigin) ||
       !this.flashHost ||
       !this.video.isConnected
     ) {
