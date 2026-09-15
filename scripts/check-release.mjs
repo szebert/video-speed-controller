@@ -115,6 +115,11 @@ if (existsSync(join(root, '.output', 'chrome-mv3'))) {
   if (!outputFiles.includes('THIRD_PARTY_NOTICES')) {
     fail('Chrome artifact must include THIRD_PARTY_NOTICES');
   }
+  for (const size of [16, 32, 48, 128]) {
+    if (!outputFiles.includes(`icons/icon-${size}.png`)) {
+      fail(`Chrome artifact must include icons/icon-${size}.png`);
+    }
+  }
 }
 
 if (failures.length) {

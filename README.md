@@ -55,6 +55,7 @@ Enable on an already-loaded page injects the engine immediately so overlay and p
 | `pnpm e2e`           | Playwright: fixture pages plus a loaded-extension popup (Enable, speed, chrome://) |
 | `pnpm zip`           | Pack `opensource-video-speed-controller-<version>-chrome.zip`                      |
 | `pnpm check:release` | License, lockfile, and manifest invariants                                         |
+| `pnpm icons`         | Rasterize toolbar/store PNGs from `src/assets/logo.svg`                            |
 
 ## License
 
