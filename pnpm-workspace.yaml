@@ -2,6 +2,7 @@ allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
   - cn@0.2.6
+  - lucide-react@1.46.0
 publicHoistPattern:
   - '*react-aria*'
   - '*react-stately*'

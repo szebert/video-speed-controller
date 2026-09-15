@@ -57,6 +57,7 @@ describe('third-party notices', () => {
         '@cacheable/memory',
         '@cacheable/utils',
         '@playwright/test',
+        '@resvg/resvg-wasm',
         'cacheable',
         'chokidar',
         'eslint',
