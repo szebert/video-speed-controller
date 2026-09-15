@@ -62,6 +62,10 @@ export async function openOptions(
   return options;
 }
 
+export async function selectOptionsTab(page: Page, name: string): Promise<void> {
+  await page.getByRole('tab', { name, exact: true }).click();
+}
+
 export async function clickOptionsSwitch(page: Page, name: string): Promise<void> {
   await page
     .locator('[data-slot="switch"]')

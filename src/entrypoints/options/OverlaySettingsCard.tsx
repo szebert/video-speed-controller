@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { ResetBadge } from '@/components/ResetBadge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Field,
   FieldContent,
@@ -75,6 +75,7 @@ export function OverlaySettingsCard({
     <Card>
       <CardHeader>
         <CardTitle>{t('settingsOverlay')}</CardTitle>
+        <CardDescription>{t('settingsOverlayDescription')}</CardDescription>
       </CardHeader>
       <CardContent>
         <FieldSet>

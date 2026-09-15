@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { SpeedControls } from '@/components/SpeedControls';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldLegend, FieldSet } from '@/components/ui/field';
 import {
   SPEED_MAX_SETTING_MAX,
@@ -62,6 +62,7 @@ export function PlaybackSettingsCard({
     <Card>
       <CardHeader>
         <CardTitle>{t('settingsPlayback')}</CardTitle>
+        <CardDescription>{t('settingsPlaybackDescription')}</CardDescription>
       </CardHeader>
       <CardContent>
         <FieldSet>

@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FieldGroup } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { t } from '@/i18n/t';
 import { AllSitesAccessCard } from './AllSitesAccessCard';
 import { BackupSettingsCards } from './BackupSettingsCards';
@@ -223,74 +223,93 @@ export function App() {
                       </p>
                     </div>
 
-                    <FieldGroup>
-                      <PlaybackSettingsCard
-                        selection={selection}
-                        behavior={behavior}
-                        speed={speed}
-                        drafts={drafts}
-                        pending={pending}
-                        policy={policy}
-                        sliderPreview={sliderPreview}
-                        onMutate={(change) => {
-                          void mutate(change);
-                        }}
-                        onAdjustSpeed={adjustDisplayedSpeed}
-                        onPreviewSlider={setSliderPreview}
-                        onDraftChange={updateDraft}
-                        onCommitDecimal={commitDecimal}
-                      />
-                      <OverlaySettingsCard
-                        selection={selection}
-                        behavior={behavior}
-                        drafts={drafts}
-                        delaySeconds={delaySeconds}
-                        flashDelaySeconds={flashDelaySeconds}
-                        pending={pending}
-                        overlayLocked={overlayLocked}
-                        delayLocked={delayLocked}
-                        flashLocked={flashLocked}
-                        resetBadgeText={resetBadgeText}
-                        onMutate={(change) => {
-                          void mutate(change);
-                        }}
-                        onDraftChange={(key, value) => {
-                          updateDraft(key, value);
-                        }}
-                        onCommitDelay={commitDelay}
-                        onCommitFlashDelay={commitFlashDelay}
-                      />
-                      <NavigationSettingsCard
-                        selection={selection}
-                        behavior={behavior}
-                        drafts={drafts}
-                        pending={pending}
-                        resetBadgeText={resetBadgeText}
-                        onMutate={(change) => {
-                          void mutate(change);
-                        }}
-                        onDraftChange={updateDraft}
-                        onCommitDecimal={commitDecimal}
-                      />
-                      <HotkeysSettingsCard
-                        selection={selection}
-                        behavior={behavior}
-                        hotkeys={hotkeys}
-                        drafts={drafts}
-                        hotkeyRepeatDelaySeconds={hotkeyRepeatDelaySeconds}
-                        pending={pending}
-                        hotkeyRepeatLocked={hotkeyRepeatLocked}
-                        resetBadgeText={resetBadgeText}
-                        onMutate={mutateHotkey}
-                        onMutateBehavior={(change) => {
-                          void mutate(change);
-                        }}
-                        onDraftChange={(key, value) => {
-                          updateDraft(key, value);
-                        }}
-                        onCommitHotkeyRepeatDelay={commitHotkeyRepeatDelay}
-                      />
-                    </FieldGroup>
+                    <Tabs defaultSelectedKey="playback" className="w-full min-w-0">
+                      <TabsList
+                        className="w-full max-w-full overflow-x-auto"
+                        aria-label={
+                          selection.kind === 'site' ? t('settingsSite') : t('settingsDefaults')
+                        }
+                      >
+                        <TabsTrigger id="playback">{t('settingsPlayback')}</TabsTrigger>
+                        <TabsTrigger id="overlay">{t('settingsOverlay')}</TabsTrigger>
+                        <TabsTrigger id="navigation">{t('settingsNavigation')}</TabsTrigger>
+                        <TabsTrigger id="hotkeys">{t('settingsHotkeys')}</TabsTrigger>
+                      </TabsList>
+                      <TabsContent id="playback">
+                        <PlaybackSettingsCard
+                          selection={selection}
+                          behavior={behavior}
+                          speed={speed}
+                          drafts={drafts}
+                          pending={pending}
+                          policy={policy}
+                          sliderPreview={sliderPreview}
+                          onMutate={(change) => {
+                            void mutate(change);
+                          }}
+                          onAdjustSpeed={adjustDisplayedSpeed}
+                          onPreviewSlider={setSliderPreview}
+                          onDraftChange={updateDraft}
+                          onCommitDecimal={commitDecimal}
+                        />
+                      </TabsContent>
+                      <TabsContent id="overlay">
+                        <OverlaySettingsCard
+                          selection={selection}
+                          behavior={behavior}
+                          drafts={drafts}
+                          delaySeconds={delaySeconds}
+                          flashDelaySeconds={flashDelaySeconds}
+                          pending={pending}
+                          overlayLocked={overlayLocked}
+                          delayLocked={delayLocked}
+                          flashLocked={flashLocked}
+                          resetBadgeText={resetBadgeText}
+                          onMutate={(change) => {
+                            void mutate(change);
+                          }}
+                          onDraftChange={(key, value) => {
+                            updateDraft(key, value);
+                          }}
+                          onCommitDelay={commitDelay}
+                          onCommitFlashDelay={commitFlashDelay}
+                        />
+                      </TabsContent>
+                      <TabsContent id="navigation">
+                        <NavigationSettingsCard
+                          selection={selection}
+                          behavior={behavior}
+                          drafts={drafts}
+                          pending={pending}
+                          resetBadgeText={resetBadgeText}
+                          onMutate={(change) => {
+                            void mutate(change);
+                          }}
+                          onDraftChange={updateDraft}
+                          onCommitDecimal={commitDecimal}
+                        />
+                      </TabsContent>
+                      <TabsContent id="hotkeys">
+                        <HotkeysSettingsCard
+                          selection={selection}
+                          behavior={behavior}
+                          hotkeys={hotkeys}
+                          drafts={drafts}
+                          hotkeyRepeatDelaySeconds={hotkeyRepeatDelaySeconds}
+                          pending={pending}
+                          hotkeyRepeatLocked={hotkeyRepeatLocked}
+                          resetBadgeText={resetBadgeText}
+                          onMutate={mutateHotkey}
+                          onMutateBehavior={(change) => {
+                            void mutate(change);
+                          }}
+                          onDraftChange={(key, value) => {
+                            updateDraft(key, value);
+                          }}
+                          onCommitHotkeyRepeatDelay={commitHotkeyRepeatDelay}
+                        />
+                      </TabsContent>
+                    </Tabs>
                   </form>
                 )}
               </div>

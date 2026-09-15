@@ -123,6 +123,18 @@ describe('Options page', () => {
     });
   }
 
+  async function selectTab(name: string): Promise<void> {
+    const tab = [...container.querySelectorAll('[role="tab"]')].find(
+      (element) => element.textContent === name,
+    );
+    expect(tab).toBeTruthy();
+    await act(async () => {
+      if (tab instanceof HTMLElement) {
+        tab.click();
+      }
+    });
+  }
+
   function allSitesSwitch(): HTMLInputElement | null {
     const element = container.querySelector('#all-sites-access');
     return element instanceof HTMLInputElement ? element : null;
@@ -222,7 +234,18 @@ describe('Options page', () => {
     expect(container.textContent).toContain('No site settings yet.');
     expect(container.textContent).not.toContain('Built-in');
     expect(container.textContent).not.toContain('Use built-in');
-    expect(container.querySelector('[role="tab"]')).toBeNull();
+    expect(
+      [...container.querySelectorAll('[role="tab"]')].map((element) => element.textContent),
+    ).toEqual(['Playback', 'Overlay', 'Navigation', 'Hotkeys']);
+    expect(container.textContent).toContain('Customize the default speed and range.');
+    await selectTab('Overlay');
+    expect(container.textContent).toContain('Customize how the overlay appears on videos.');
+    await selectTab('Navigation');
+    expect(container.textContent).toContain('Customize the navigation controls.');
+    await selectTab('Hotkeys');
+    expect(container.textContent).toContain(
+      'Shortcuts are ignored while you type. Browser and system shortcuts cannot be captured.',
+    );
     expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Global defaults');
     expect(container.textContent).not.toContain('Reset ALL Settings');
     expect(deleteSiteButton()).toBeNull();
@@ -356,15 +379,15 @@ describe('Options page', () => {
     expect(container.querySelector('[aria-label="Reset: Minimum speed"]')).toBeNull();
     expect(container.querySelector('[aria-label="Reset: Speed step"]')).toBeNull();
     expect(container.querySelector('[aria-label="Reset: Maximum speed"]')).toBeNull();
+    for (const id of ['speed-min', 'speed-tick', 'speed-max']) {
+      expect(container.querySelector(`#${id}`)?.classList.contains('text-muted-foreground')).toBe(
+        true,
+      );
+    }
+    await selectTab('Overlay');
     expect(container.querySelector('[aria-label="Reset: Auto-hide delay"]')).toBeNull();
     expect(container.querySelector('[aria-label="Reset: Flash auto-hide delay"]')).toBeNull();
-    for (const id of [
-      'speed-min',
-      'speed-tick',
-      'speed-max',
-      'overlay-auto-hide-delay',
-      'flash-delay',
-    ]) {
+    for (const id of ['overlay-auto-hide-delay', 'flash-delay']) {
       expect(container.querySelector(`#${id}`)?.classList.contains('text-muted-foreground')).toBe(
         true,
       );
@@ -423,6 +446,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const { button, root } = resetBadge(container, 'Reset: Show overlay');
     expect(button).toBeTruthy();
     expect(root?.textContent).toContain('Custom');
@@ -447,6 +471,7 @@ describe('Options page', () => {
     }
     sendMessage.mockImplementation(loadReply(state));
     await renderApp('chrome-extension://extid/options.html?site=example.com');
+    await selectTab('Overlay');
     const { root } = resetBadge(container, 'Reset: Show overlay');
     expect(root?.textContent).toContain('Override');
     expect(root?.hasAttribute('data-active')).toBe(true);
@@ -470,6 +495,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const { button, root } = resetBadge(container, 'Reset: Position');
     expect(button).toBeTruthy();
     expect(root?.textContent).toContain('Custom');
@@ -487,6 +513,7 @@ describe('Options page', () => {
   it('keeps a hidden Custom badge in layout when the field is inherited', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     const { button, root } = resetBadge(container, 'Reset: Show overlay');
     expect(button).toBeTruthy();
     expect(root?.textContent).toContain('Custom');
@@ -532,6 +559,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     expect(container.textContent).toContain('Where overlay controls appear on videos.');
     expect(container.textContent).toContain('How opaque the overlay appears over videos.');
     expect(container.textContent).toContain('Seconds of inactivity before the overlay hides.');
@@ -580,6 +608,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const input = container.querySelector('#overlay-auto-hide-delay');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -616,6 +645,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const input = container.querySelector('#overlay-auto-hide-delay');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -652,6 +682,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const input = container.querySelector('#overlay-auto-hide-delay');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -688,6 +719,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     expect(container.textContent).toContain('70%');
     const input = container.querySelector(
       '[data-slot="slider"][aria-label="Opacity"] input[type="range"]',
@@ -727,6 +759,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     expect(container.textContent).toContain('40%');
     const { button, root } = resetBadge(container, 'Reset: Opacity');
     expect(button).toBeTruthy();
@@ -855,6 +888,7 @@ describe('Options page', () => {
   it('sends overlayNavigationBar true from the Show navigation bar switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     const navigationSwitch = container.querySelector('#overlay-navigation-bar');
     expect(navigationSwitch).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -870,6 +904,7 @@ describe('Options page', () => {
   it('persists independent skip distances and a fast-forward speed', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Navigation');
     const commit = async (id: string, value: string): Promise<void> => {
       const input = container.querySelector(id);
       expect(input).toBeInstanceOf(HTMLInputElement);
@@ -902,6 +937,7 @@ describe('Options page', () => {
   it('clamps a skip distance and a fast-forward speed to their limits', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Navigation');
     const commit = async (id: string, value: string): Promise<void> => {
       const input = container.querySelector(id);
       await act(async () => {
@@ -931,6 +967,7 @@ describe('Options page', () => {
   it('steps skip and fast-forward values on a 0-based tick grid', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Navigation');
     const skip = container.querySelector('#skip-forward-seconds');
     const fastForward = container.querySelector('#fast-forward-speed');
     expect(skip).toBeInstanceOf(HTMLInputElement);
@@ -951,6 +988,7 @@ describe('Options page', () => {
   it('stops skip and fast-forward steppers at the stored minimum', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Navigation');
     const skip = container.querySelector('#skip-forward-seconds');
     const fastForward = container.querySelector('#fast-forward-speed');
     expect(skip).toBeInstanceOf(HTMLInputElement);
@@ -984,6 +1022,7 @@ describe('Options page', () => {
   it('treats a negative fast-forward draft as a positive magnitude', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Navigation');
     const input = container.querySelector('#fast-forward-speed');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1006,6 +1045,7 @@ describe('Options page', () => {
   it('sends skipScaleWithPlaybackRate true from its switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Navigation');
     const scaleSwitch = container.querySelector('#skip-scale-with-playback-rate');
     expect(scaleSwitch).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1021,6 +1061,7 @@ describe('Options page', () => {
   it('shows the stored rewind speed as read-only scaffolding', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Navigation');
     const rewind = container.querySelector('#rewind-speed');
     expect(rewind).toBeInstanceOf(HTMLInputElement);
     expect((rewind as HTMLInputElement).value).toBe('-1');
@@ -1050,6 +1091,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const visibleSwitch = container.querySelector('#overlay-visible');
     expect(visibleSwitch).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1065,6 +1107,7 @@ describe('Options page', () => {
   it('places switch and position descriptions under their labels', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     for (const id of [
       'overlay-visible',
       'overlay-position-button',
@@ -1087,6 +1130,7 @@ describe('Options page', () => {
   it('lets reset badges wrap under their switches', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     for (const id of [
       'overlay-visible',
       'overlay-position-button',
@@ -1106,13 +1150,13 @@ describe('Options page', () => {
   it('places input descriptions under their input groups', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
-    for (const id of [
-      'speed-min',
-      'speed-tick',
-      'speed-max',
-      'overlay-auto-hide-delay',
-      'flash-delay',
-    ]) {
+    for (const id of ['speed-min', 'speed-tick', 'speed-max']) {
+      const input = container.querySelector(`#${id}`);
+      const group = input?.closest('[data-slot="input-group"]');
+      expect(group?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
+    }
+    await selectTab('Overlay');
+    for (const id of ['overlay-auto-hide-delay', 'flash-delay']) {
       const input = container.querySelector(`#${id}`);
       const group = input?.closest('[data-slot="input-group"]');
       expect(group?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
@@ -1122,6 +1166,7 @@ describe('Options page', () => {
   it('keeps overlay options on their own rows', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     const positionButton = container
       .querySelector('#overlay-position-button')
       ?.closest('[data-slot="field"]');
@@ -1153,6 +1198,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const toggle = container.querySelector('#overlay-position-button');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1181,6 +1227,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const toggle = container.querySelector('#overlay-hover-hold');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1196,6 +1243,7 @@ describe('Options page', () => {
   it('sends buttonFlash true from the Show button flash switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     const toggle = container.querySelector('#button-flash');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
     expect((toggle as HTMLInputElement).checked).toBe(false);
@@ -1212,6 +1260,7 @@ describe('Options page', () => {
   it('sends hotkeyFlash false from the Show hotkey flash switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     const toggle = container.querySelector('#hotkey-flash');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1227,6 +1276,7 @@ describe('Options page', () => {
   it('clamps flash delay below 0.1 seconds to 100 ms', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     const input = container.querySelector('#flash-delay');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1250,6 +1300,7 @@ describe('Options page', () => {
   it('clamps flash delay above 5 seconds to 5000 ms', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     const input = container.querySelector('#flash-delay');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1275,6 +1326,7 @@ describe('Options page', () => {
     hidden.global.hotkeyFlash = { value: false, source: 'global' };
     sendMessage.mockImplementation(loadReply(hidden));
     await renderApp();
+    await selectTab('Overlay');
     const delay = container.querySelector('#flash-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
     expect((delay as HTMLInputElement).disabled).toBe(true);
@@ -1297,6 +1349,7 @@ describe('Options page', () => {
     hidden.global.buttonFlash = { value: true, source: 'global' };
     sendMessage.mockImplementation(loadReply(hidden));
     await renderApp();
+    await selectTab('Overlay');
     const delay = container.querySelector('#flash-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
     expect((delay as HTMLInputElement).disabled).toBe(false);
@@ -1310,6 +1363,7 @@ describe('Options page', () => {
   it('sends flash opacity from the slider', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     const input = container.querySelector(
       '[data-slot="slider"][aria-label="Flash opacity"] input[type="range"]',
     );
@@ -1335,6 +1389,7 @@ describe('Options page', () => {
     state.global.flashOpacity = { value: 40, source: 'global' };
     sendMessage.mockImplementation(loadReply(state));
     await renderApp();
+    await selectTab('Overlay');
     expect(container.textContent).toContain('40%');
     const { button, root } = resetBadge(container, 'Reset: Flash opacity');
     expect(button).toBeTruthy();
@@ -1353,6 +1408,7 @@ describe('Options page', () => {
   it('sends hotkeyRepeat true from the Enable key repeat switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Hotkeys');
     const toggle = container.querySelector('#hotkey-repeat');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1370,6 +1426,7 @@ describe('Options page', () => {
     enabled.global.hotkeyRepeat = { value: true, source: 'global' };
     sendMessage.mockImplementation(loadReply(enabled));
     await renderApp();
+    await selectTab('Hotkeys');
     const delay = container.querySelector('#hotkey-repeat-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
     expect((delay as HTMLInputElement).disabled).toBe(false);
@@ -1396,6 +1453,7 @@ describe('Options page', () => {
     enabled.global.hotkeyRepeat = { value: true, source: 'global' };
     sendMessage.mockImplementation(loadReply(enabled));
     await renderApp();
+    await selectTab('Hotkeys');
     const delay = container.querySelector('#hotkey-repeat-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1419,6 +1477,7 @@ describe('Options page', () => {
   it('disables repeat delay and rate when Enable key repeat is off', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Hotkeys');
     const delay = container.querySelector('#hotkey-repeat-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
     expect((delay as HTMLInputElement).disabled).toBe(true);
@@ -1437,6 +1496,7 @@ describe('Options page', () => {
     enabled.global.hotkeyRepeat = { value: true, source: 'global' };
     sendMessage.mockImplementation(loadReply(enabled));
     await renderApp();
+    await selectTab('Hotkeys');
     const input = container.querySelector(
       '[data-slot="slider"][aria-label="Repeat rate"] input[type="range"]',
     );
@@ -1473,6 +1533,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const toggle = container.querySelector('#overlay-hotkey-hints');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1501,6 +1562,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const toggle = container.querySelector('#overlay-settings-button');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
@@ -1529,6 +1591,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
+    await selectTab('Overlay');
     const label = container.querySelector('label[for="overlay-visible"]');
     expect(label).toBeInstanceOf(HTMLLabelElement);
     expect(label?.textContent).toBe('Show overlay');
@@ -1547,6 +1610,7 @@ describe('Options page', () => {
     hidden.global.overlayVisible = { value: false, source: 'global' };
     sendMessage.mockImplementation(loadReply(hidden));
     await renderApp();
+    await selectTab('Overlay');
     const delay = container.querySelector('#overlay-auto-hide-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
     expect((delay as HTMLInputElement).disabled).toBe(true);
@@ -1589,6 +1653,7 @@ describe('Options page', () => {
     hidden.global.overlayAutoHideDelayMs = { value: 2500, source: 'global' };
     sendMessage.mockImplementation(loadReply(hidden));
     await renderApp();
+    await selectTab('Overlay');
     const delay = container.querySelector('#overlay-auto-hide-delay');
     expect(delay).toBeInstanceOf(HTMLInputElement);
     expect((delay as HTMLInputElement).disabled).toBe(true);
@@ -1651,12 +1716,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
-    const settings = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Settings',
-    );
-    await act(async () => {
-      settings?.click();
-    });
+    await openSettingsPane();
     expect(container.querySelector('h2')?.textContent).toBe('Settings');
     expect(container.textContent).toContain('Restore settings to defaults');
     const resetAll = [...container.querySelectorAll('button')].find(
@@ -1685,6 +1745,7 @@ describe('Options page', () => {
     expect(container.textContent).toContain(
       'Applies only to this browser profile. This permission is not synced.',
     );
+    expect(container.querySelector('[role="tab"]')).toBeNull();
     const titles = [...container.querySelectorAll('[data-slot="card-title"]')].map(
       (element) => element.textContent,
     );
@@ -1931,12 +1992,7 @@ describe('Options page', () => {
       downloadClick();
     });
     await renderApp();
-    const settings = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Settings',
-    );
-    await act(async () => {
-      settings?.click();
-    });
+    await openSettingsPane();
     const exportButton = [...container.querySelectorAll('button')].find(
       (button) => button.textContent === 'Export',
     );
@@ -1981,12 +2037,7 @@ describe('Options page', () => {
       };
     });
     await renderApp();
-    const settings = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Settings',
-    );
-    await act(async () => {
-      settings?.click();
-    });
+    await openSettingsPane();
     const mergeBefore = [...container.querySelectorAll('button')].find(
       (button) => button.textContent === 'Import (merge)',
     );
@@ -2042,12 +2093,7 @@ describe('Options page', () => {
     });
     try {
       await renderApp();
-      const settings = [...container.querySelectorAll('button')].find(
-        (button) => button.textContent === 'Settings',
-      );
-      await act(async () => {
-        settings?.click();
-      });
+      await openSettingsPane();
       await chooseBackupFile('{"formatVersion":1,"global":{"speed":1.25}}', 'slow.json');
       expect(container.textContent).not.toContain('slow.json');
       await chooseBackupFile('{"formatVersion":1,"global":{"speed":2}}', 'fast.json');
@@ -2065,12 +2111,7 @@ describe('Options page', () => {
   it('shows a parse error on the file and keeps merge disabled', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
-    const settings = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Settings',
-    );
-    await act(async () => {
-      settings?.click();
-    });
+    await openSettingsPane();
     await chooseBackupFile('{', 'bad.json');
     expect(container.querySelector('[data-slot="attachment"]')?.getAttribute('data-state')).toBe(
       'error',
@@ -2451,12 +2492,7 @@ describe('Options page', () => {
   it('recovers pane and sidebar after a thrown Reset All', async () => {
     sendMessage.mockImplementation(loadReply(snapshot(), ['example.com']));
     await renderApp();
-    const settings = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Settings',
-    );
-    await act(async () => {
-      settings?.click();
-    });
+    await openSettingsPane();
     const resetAll = [...container.querySelectorAll('button')].find(
       (button) => button.textContent === 'Reset ALL Settings',
     );
@@ -2674,6 +2710,7 @@ describe('Options page', () => {
     });
     await renderApp('chrome-extension://extid/options.html?site=www.youtube.com');
     sendMessage.mockClear();
+    await selectTab('Hotkeys');
     const recorder = container.querySelector('[aria-label="Record shortcut: Decrease speed"]');
     await act(async () => {
       click(recorder);
@@ -2772,6 +2809,7 @@ describe('Options page', () => {
     await act(async () => {
       click(faster);
     });
+    await selectTab('Hotkeys');
     const recorder = container.querySelector('[aria-label="Record shortcut: Decrease speed"]');
     await act(async () => {
       click(recorder);
@@ -2808,28 +2846,30 @@ describe('Options page', () => {
       'SET_HOTKEY_SETTING',
     ]);
     expect(maxInFlight).toBe(1);
-    expect(container.textContent).toContain('1.25×');
     expect(
       container.querySelector('[aria-label="Record shortcut: Decrease speed"]')?.textContent,
     ).toContain('D');
+    await selectTab('Playback');
+    expect(container.textContent).toContain('1.25×');
   });
 
   it('sends one batched persist when two fields change before the first drain', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
+    await selectTab('Overlay');
     sendMessage.mockClear();
-    const faster = container.querySelector('[aria-label="Faster"]');
-    const visibleSwitch = container.querySelector('#overlay-visible');
+    const settingsButton = container.querySelector('#overlay-settings-button');
+    const hints = container.querySelector('#overlay-hotkey-hints');
     await act(async () => {
-      click(faster);
-      click(visibleSwitch);
+      click(settingsButton);
+      click(hints);
     });
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
       changes: [
-        { kind: 'value', field: 'speed', value: 1.25 },
-        { kind: 'value', field: 'overlayVisible', value: false },
+        { kind: 'value', field: 'overlaySettingsButton', value: false },
+        { kind: 'value', field: 'overlayHotkeyHints', value: false },
       ],
     });
   });
@@ -2902,10 +2942,12 @@ describe('Options page', () => {
       });
     });
     await renderApp();
+    await selectTab('Overlay');
     const visibleSwitch = container.querySelector('#overlay-visible');
     await act(async () => {
       click(visibleSwitch);
     });
+    await selectTab('Playback');
     const slider =
       container.querySelector('[role="slider"]') ??
       container.querySelector('[data-slot="slider-thumb"]');
@@ -2944,12 +2986,7 @@ describe('Options page', () => {
     });
     await renderApp();
     expect(container.textContent).toContain('example.com');
-    const settings = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Settings',
-    );
-    await act(async () => {
-      settings?.click();
-    });
+    await openSettingsPane();
     const resetAll = [...container.querySelectorAll('button')].find(
       (button) => button.textContent === 'Reset ALL Settings',
     );

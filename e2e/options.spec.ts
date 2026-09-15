@@ -5,6 +5,7 @@ import { OVERLAY_POSITION } from '../src/settings/site-behavior';
 import {
   clickOptionsSwitch,
   confirmDialog,
+  selectOptionsTab,
   expect,
   openOptions,
   openPopup,
@@ -75,8 +76,11 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   await expect(options.getByText('Sites use these values until you change them.')).toBeVisible();
   await expect(options.getByText('No site settings yet.')).toBeVisible();
   await expect(options.getByText('Built-in')).toHaveCount(0);
-  await expect(options.getByRole('tab')).toHaveCount(0);
+  await expect(options.getByRole('tab', { name: 'Playback' })).toBeVisible();
+  await expect(options.getByText('Customize the default speed and range.')).toBeVisible();
   await expect(options.getByRole('button', { name: 'Reset defaults' })).toBeEnabled();
+  await selectOptionsTab(options, 'Overlay');
+  await expect(options.getByText('Customize how the overlay appears on videos.')).toBeVisible();
   await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeEnabled();
   await expect(options.getByRole('slider', { name: 'Opacity', exact: true })).toBeVisible();
   await expect(options.getByRole('slider', { name: 'Flash opacity' })).toBeVisible();
@@ -84,7 +88,8 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
 
   await options.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(options.getByRole('heading', { name: 'Settings' })).toBeVisible();
-  await expect(options.getByText('Enable on all sites', { exact: true }).first()).toBeVisible();
+  await expect(options.getByRole('tab')).toHaveCount(0);
+  await expect(options.getByText('Enable on all sites', { exact: true })).toBeVisible();
   await expect(options.getByRole('switch', { name: 'Enable on all sites' })).toBeVisible();
   await expect(options.getByText('Requires broader site access')).toBeVisible();
   await expect(options.getByRole('button', { name: 'Reset ALL Settings' })).toBeVisible();
@@ -116,6 +121,7 @@ test('site position moves the overlay and keeps speed 1.25', async ({
   expect(before).toContain('-50%');
 
   const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Overlay');
   await options.getByText('Bottom right', { exact: true }).click();
   await expect.poll(async () => overlayTransform(site)).toBe('translate(-100%, -100%)');
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.25×', '1.25×', '1.25×']);
@@ -137,6 +143,7 @@ test('site auto-hide off stays visible and deleting the site restores the timeou
   await expect.poll(async () => overlayVisibility(site), { timeout: 5_000 }).toBe('hidden');
 
   const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Overlay');
   await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeEnabled();
   await clickOptionsSwitch(options, 'Auto-hide overlay');
   await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeDisabled();
@@ -160,6 +167,7 @@ test('global position applies on a site with no position override', async ({
   await enableSiteAt(popup, site, 1.25);
   const options = await openOptions(context, extensionId, '127.0.0.1');
   await options.getByRole('button', { name: 'Global defaults', exact: true }).click();
+  await selectOptionsTab(options, 'Overlay');
   await options.getByText('Bottom left', { exact: true }).click();
   await expect
     .poll(async () => appliedTabField(serviceWorker, 'overlayPosition'))
@@ -249,6 +257,7 @@ test('hiding overlay chrome buttons removes them from the badge', async ({
     .toEqual(['Move overlay', 'Slower', 'Faster', 'Open settings']);
 
   const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Overlay');
   await clickOptionsSwitch(options, 'Show position button');
   await clickOptionsSwitch(options, 'Show settings button');
   await site.locator('#v1').hover();
@@ -277,6 +286,7 @@ test('hiding shortcut hints removes captions from the overlay', async ({
   await expect.poll(async () => overlayHotkeyHints(site)).toEqual(['[', ']', '[', ']', '[', ']']);
 
   const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Overlay');
   await clickOptionsSwitch(options, 'Show shortcut hints');
   await site.locator('#v1').hover();
   await expect.poll(async () => overlayHotkeyHints(site)).toEqual([]);
@@ -326,6 +336,7 @@ test('hiding the overlay keeps videos playing at the current speed', async ({
   const popup = await openPopup(context, extensionId, site, serviceWorker);
   await enableSiteAt(popup, site, 1.25);
   const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Overlay');
   await clickOptionsSwitch(options, 'Show overlay');
   await expect.poll(async () => overlayVisibility(site)).toBe('hidden');
   await site.locator('#v1').hover();
@@ -368,6 +379,7 @@ test('hotkey flash shows the new speed then hides', async ({
   const popup = await openPopup(context, extensionId, site, serviceWorker);
   await enableSiteAt(popup, site, 1.25);
   const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Overlay');
   const delay = options.locator('#flash-delay');
   await delay.fill('1');
   await delay.press('Enter');
@@ -401,6 +413,7 @@ test('options persist Enable key repeat to the tab', async ({
   const popup = await openPopup(context, extensionId, site, serviceWorker);
   await enableSiteAt(popup, site, 1.25);
   const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Hotkeys');
   await clickOptionsSwitch(options, 'Enable key repeat');
   await expect(options.getByRole('switch', { name: 'Enable key repeat' })).toBeChecked();
   await expect.poll(async () => appliedTabField(serviceWorker, 'hotkeyRepeat')).toContain(true);
