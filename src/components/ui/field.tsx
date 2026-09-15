@@ -172,9 +172,11 @@ function FieldError({
   className,
   children,
   errors,
+  reserve,
   ...props
 }: React.ComponentProps<'div'> & {
   errors?: Array<{ message?: string } | undefined>;
+  reserve?: React.ReactNode;
 }) {
   const content = useMemo(() => {
     if (children) {
@@ -198,18 +200,19 @@ function FieldError({
     );
   }, [children, errors]);
 
-  if (!content) {
-    return null;
-  }
-
   return (
     <div
-      role="alert"
       data-slot="field-error"
-      className={cn('text-sm font-normal text-destructive', className)}
+      className={cn(
+        'min-h-[1lh] text-sm font-normal text-destructive',
+        !content && 'invisible',
+        className,
+      )}
       {...props}
+      role={content ? 'alert' : undefined}
+      aria-hidden={content ? undefined : true}
     >
-      {content}
+      {content ?? reserve ?? '\u00a0'}
     </div>
   );
 }

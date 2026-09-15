@@ -135,7 +135,9 @@ export function AllSitesAccessCard() {
               <FieldDescription id={HELP_ID}>
                 {t('allSitesAccessSwitchDescription')}
               </FieldDescription>
-              <FieldError id={ERROR_ID}>{error}</FieldError>
+              <FieldError id={ERROR_ID} reserve={t('allSitesAccessError')}>
+                {error}
+              </FieldError>
             </FieldContent>
             <Switch
               id={SWITCH_ID}
