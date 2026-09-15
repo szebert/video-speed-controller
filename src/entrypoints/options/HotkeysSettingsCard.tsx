@@ -14,7 +14,6 @@ import {
   FieldLegend,
   FieldSet,
 } from '@/components/ui/field';
-import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
 import { Slider } from '@/components/ui/slider';
 import { readKeyboardLayoutMap } from '../../core/hotkey-format';
 import { t, type MessageKey } from '@/i18n/t';
@@ -39,7 +38,7 @@ import {
   type ResolvedHotkeyMap,
   type SiteHotkeyAction,
 } from '../../settings/site-behavior';
-import { BehaviorSwitchField, InputGroupInheritReset } from './options-fields';
+import { BehaviorSwitchField, OptionsNumberField } from './options-fields';
 import {
   ownsOverride,
   resetFieldLabel,
@@ -233,53 +232,31 @@ export function HotkeysSettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutateBehavior}
             />
-            <Field data-disabled={hotkeyFlashDelayLocked || undefined}>
-              <FieldLabel htmlFor="hotkey-flash-delay">{t('hotkeyFlashDelay')}</FieldLabel>
-              <InputGroup isDisabled={hotkeyFlashDelayLocked}>
-                <InputGroupInput
-                  id="hotkey-flash-delay"
-                  className={cn(
-                    showsInherited(
-                      selection,
-                      behavior.hotkeyFlashDelayMs.source,
-                      drafts.hotkeyFlashDelay,
-                    ) && 'text-muted-foreground',
-                  )}
-                  name="hotkeyFlashDelay"
-                  type="number"
-                  inputMode="decimal"
-                  enterKeyHint="done"
-                  min={HOTKEY_FLASH_DELAY_MS_MIN / 1000}
-                  max={HOTKEY_FLASH_DELAY_MS_MAX / 1000}
-                  step={0.1}
-                  autoComplete="off"
-                  disabled={hotkeyFlashDelayLocked}
-                  value={drafts.hotkeyFlashDelay ?? hotkeyFlashDelaySeconds}
-                  aria-describedby="hotkey-flash-delay-help"
-                  onChange={(event) => {
-                    onDraftChange('hotkeyFlashDelay', event.target.value);
-                  }}
-                  onBlur={onCommitHotkeyFlashDelay}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      onCommitHotkeyFlashDelay();
-                    }
-                  }}
-                />
-                <InputGroupInheritReset
-                  active={ownsOverride(selection, behavior.hotkeyFlashDelayMs.source)}
-                  disabled={hotkeyFlashDelayLocked}
-                  label={resetFieldLabel(t('hotkeyFlashDelay'))}
-                  onReset={() => {
-                    onMutateBehavior({ kind: 'inherit', field: 'hotkeyFlashDelayMs' });
-                  }}
-                />
-              </InputGroup>
-              <FieldDescription id="hotkey-flash-delay-help">
-                {t('hotkeyFlashDelayDescription')}
-              </FieldDescription>
-            </Field>
+            <OptionsNumberField
+              id="hotkey-flash-delay"
+              name="hotkeyFlashDelay"
+              label={t('hotkeyFlashDelay')}
+              description={t('hotkeyFlashDelayDescription')}
+              min={HOTKEY_FLASH_DELAY_MS_MIN / 1000}
+              max={HOTKEY_FLASH_DELAY_MS_MAX / 1000}
+              step={0.1}
+              value={drafts.hotkeyFlashDelay ?? hotkeyFlashDelaySeconds}
+              disabled={hotkeyFlashDelayLocked}
+              muted={showsInherited(
+                selection,
+                behavior.hotkeyFlashDelayMs.source,
+                drafts.hotkeyFlashDelay,
+              )}
+              resetActive={ownsOverride(selection, behavior.hotkeyFlashDelayMs.source)}
+              resetLabel={resetFieldLabel(t('hotkeyFlashDelay'))}
+              onDraftChange={(value) => {
+                onDraftChange('hotkeyFlashDelay', value);
+              }}
+              onCommit={onCommitHotkeyFlashDelay}
+              onReset={() => {
+                onMutateBehavior({ kind: 'inherit', field: 'hotkeyFlashDelayMs' });
+              }}
+            />
           </FieldGroup>
           <Field data-disabled={hotkeyFlashDelayLocked || undefined}>
             <div className="flex items-start justify-between gap-2">
@@ -346,53 +323,31 @@ export function HotkeysSettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutateBehavior}
             />
-            <Field data-disabled={hotkeyRepeatLocked || undefined}>
-              <FieldLabel htmlFor="hotkey-repeat-delay">{t('hotkeyRepeatDelay')}</FieldLabel>
-              <InputGroup isDisabled={hotkeyRepeatLocked}>
-                <InputGroupInput
-                  id="hotkey-repeat-delay"
-                  className={cn(
-                    showsInherited(
-                      selection,
-                      behavior.hotkeyRepeatDelayMs.source,
-                      drafts.hotkeyRepeatDelay,
-                    ) && 'text-muted-foreground',
-                  )}
-                  name="hotkeyRepeatDelay"
-                  type="number"
-                  inputMode="decimal"
-                  enterKeyHint="done"
-                  min={HOTKEY_REPEAT_DELAY_MS_MIN / 1000}
-                  max={HOTKEY_REPEAT_DELAY_MS_MAX / 1000}
-                  step={0.001}
-                  autoComplete="off"
-                  disabled={hotkeyRepeatLocked}
-                  value={drafts.hotkeyRepeatDelay ?? hotkeyRepeatDelaySeconds}
-                  aria-describedby="hotkey-repeat-delay-help"
-                  onChange={(event) => {
-                    onDraftChange('hotkeyRepeatDelay', event.target.value);
-                  }}
-                  onBlur={onCommitHotkeyRepeatDelay}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      onCommitHotkeyRepeatDelay();
-                    }
-                  }}
-                />
-                <InputGroupInheritReset
-                  active={ownsOverride(selection, behavior.hotkeyRepeatDelayMs.source)}
-                  disabled={hotkeyRepeatLocked}
-                  label={resetFieldLabel(t('hotkeyRepeatDelay'))}
-                  onReset={() => {
-                    onMutateBehavior({ kind: 'inherit', field: 'hotkeyRepeatDelayMs' });
-                  }}
-                />
-              </InputGroup>
-              <FieldDescription id="hotkey-repeat-delay-help">
-                {t('hotkeyRepeatDelayDescription')}
-              </FieldDescription>
-            </Field>
+            <OptionsNumberField
+              id="hotkey-repeat-delay"
+              name="hotkeyRepeatDelay"
+              label={t('hotkeyRepeatDelay')}
+              description={t('hotkeyRepeatDelayDescription')}
+              min={HOTKEY_REPEAT_DELAY_MS_MIN / 1000}
+              max={HOTKEY_REPEAT_DELAY_MS_MAX / 1000}
+              step={0.1}
+              value={drafts.hotkeyRepeatDelay ?? hotkeyRepeatDelaySeconds}
+              disabled={hotkeyRepeatLocked}
+              muted={showsInherited(
+                selection,
+                behavior.hotkeyRepeatDelayMs.source,
+                drafts.hotkeyRepeatDelay,
+              )}
+              resetActive={ownsOverride(selection, behavior.hotkeyRepeatDelayMs.source)}
+              resetLabel={resetFieldLabel(t('hotkeyRepeatDelay'))}
+              onDraftChange={(value) => {
+                onDraftChange('hotkeyRepeatDelay', value);
+              }}
+              onCommit={onCommitHotkeyRepeatDelay}
+              onReset={() => {
+                onMutateBehavior({ kind: 'inherit', field: 'hotkeyRepeatDelayMs' });
+              }}
+            />
           </FieldGroup>
           <Field data-disabled={hotkeyRepeatLocked || undefined}>
             <div className="flex items-start justify-between gap-2">

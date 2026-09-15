@@ -956,6 +956,59 @@ describe('Options page', () => {
     );
   });
 
+  it('steps skip and fast-forward values on a 0-based tick grid', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const skip = container.querySelector('#skip-forward-seconds');
+    const fastForward = container.querySelector('#fast-forward-speed');
+    expect(skip).toBeInstanceOf(HTMLInputElement);
+    expect(fastForward).toBeInstanceOf(HTMLInputElement);
+    if (!(skip instanceof HTMLInputElement) || !(fastForward instanceof HTMLInputElement)) {
+      return;
+    }
+    expect(skip.min).toBe('0');
+    expect(fastForward.min).toBe('0');
+    await act(async () => {
+      skip.stepDown();
+      fastForward.stepDown();
+    });
+    expect(skip.value).toBe('9.5');
+    expect(fastForward.value).toBe('2.75');
+  });
+
+  it('stops skip and fast-forward steppers at the stored minimum', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const skip = container.querySelector('#skip-forward-seconds');
+    const fastForward = container.querySelector('#fast-forward-speed');
+    expect(skip).toBeInstanceOf(HTMLInputElement);
+    expect(fastForward).toBeInstanceOf(HTMLInputElement);
+    if (!(skip instanceof HTMLInputElement) || !(fastForward instanceof HTMLInputElement)) {
+      return;
+    }
+    await act(async () => {
+      setInputValue(skip, '0.5');
+      setInputValue(fastForward, '0.25');
+    });
+    const stepDown = (input: HTMLInputElement): void => {
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
+      );
+    };
+    await act(async () => {
+      stepDown(skip);
+      stepDown(fastForward);
+    });
+    expect(skip.value).toBe('0.1');
+    expect(fastForward.value).toBe('0.0625');
+    await act(async () => {
+      stepDown(skip);
+      stepDown(fastForward);
+    });
+    expect(skip.value).toBe('0.1');
+    expect(fastForward.value).toBe('0.0625');
+  });
+
   it('treats a negative fast-forward draft as a positive magnitude', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();

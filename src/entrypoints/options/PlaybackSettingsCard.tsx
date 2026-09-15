@@ -2,15 +2,7 @@
 
 import { SpeedControls } from '@/components/SpeedControls';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from '@/components/ui/field';
-import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
+import { FieldGroup, FieldLegend, FieldSet } from '@/components/ui/field';
 import {
   SPEED_MAX_SETTING_MAX,
   SPEED_MAX_SETTING_MIN,
@@ -21,9 +13,8 @@ import {
   type SpeedPolicy,
 } from '../../core/speed';
 import { t } from '@/i18n/t';
-import { cn } from '@/lib/utils';
 import type { BehaviorSettingChange, EditableResolvedBehavior } from '../../settings/site-behavior';
-import { InputGroupInheritReset } from './options-fields';
+import { OptionsNumberField } from './options-fields';
 import {
   ownsOverride,
   resetFieldLabel,
@@ -92,165 +83,90 @@ export function PlaybackSettingsCard({
             }}
           />
           <FieldGroup className="grid grid-cols-1 gap-4 @xl/field-group:grid-cols-3">
-            <Field>
-              <FieldLabel htmlFor="speed-min">{t('speedMin')}</FieldLabel>
-              <InputGroup isDisabled={pending}>
-                <InputGroupInput
-                  id="speed-min"
-                  className={cn(
-                    showsInherited(selection, behavior.speedMin.source, drafts.speedMin) &&
-                      'text-muted-foreground',
-                  )}
-                  name="speedMin"
-                  type="number"
-                  inputMode="decimal"
-                  enterKeyHint="done"
-                  min={SPEED_MIN_SETTING_MIN}
-                  max={SPEED_MIN_SETTING_MAX}
-                  step={SPEED_TICK_SETTING_MIN}
-                  autoComplete="off"
-                  disabled={pending}
-                  value={drafts.speedMin ?? String(behavior.speedMin.value)}
-                  onChange={(event) => {
-                    onDraftChange('speedMin', event.target.value);
-                  }}
-                  onBlur={() => {
-                    onCommitDecimal(
-                      'speedMin',
-                      behavior.speedMin.value,
-                      SPEED_MIN_SETTING_MIN,
-                      SPEED_MIN_SETTING_MAX,
-                    );
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      onCommitDecimal(
-                        'speedMin',
-                        behavior.speedMin.value,
-                        SPEED_MIN_SETTING_MIN,
-                        SPEED_MIN_SETTING_MAX,
-                      );
-                    }
-                  }}
-                />
-                <InputGroupInheritReset
-                  active={ownsOverride(selection, behavior.speedMin.source)}
-                  disabled={pending}
-                  label={resetFieldLabel(t('speedMin'))}
-                  onReset={() => {
-                    onMutate({ kind: 'inherit', field: 'speedMin' });
-                  }}
-                />
-              </InputGroup>
-              <FieldDescription>{t('speedMinDescription')}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="speed-tick">{t('speedTick')}</FieldLabel>
-              <InputGroup isDisabled={pending}>
-                <InputGroupInput
-                  id="speed-tick"
-                  className={cn(
-                    showsInherited(selection, behavior.speedTick.source, drafts.speedTick) &&
-                      'text-muted-foreground',
-                  )}
-                  name="speedTick"
-                  type="number"
-                  inputMode="decimal"
-                  enterKeyHint="done"
-                  min={SPEED_TICK_SETTING_MIN}
-                  max={SPEED_TICK_SETTING_MAX}
-                  step={SPEED_TICK_SETTING_MIN}
-                  autoComplete="off"
-                  disabled={pending}
-                  value={drafts.speedTick ?? String(behavior.speedTick.value)}
-                  onChange={(event) => {
-                    onDraftChange('speedTick', event.target.value);
-                  }}
-                  onBlur={() => {
-                    onCommitDecimal(
-                      'speedTick',
-                      behavior.speedTick.value,
-                      SPEED_TICK_SETTING_MIN,
-                      SPEED_TICK_SETTING_MAX,
-                    );
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      onCommitDecimal(
-                        'speedTick',
-                        behavior.speedTick.value,
-                        SPEED_TICK_SETTING_MIN,
-                        SPEED_TICK_SETTING_MAX,
-                      );
-                    }
-                  }}
-                />
-                <InputGroupInheritReset
-                  active={ownsOverride(selection, behavior.speedTick.source)}
-                  disabled={pending}
-                  label={resetFieldLabel(t('speedTick'))}
-                  onReset={() => {
-                    onMutate({ kind: 'inherit', field: 'speedTick' });
-                  }}
-                />
-              </InputGroup>
-              <FieldDescription>{t('speedTickDescription')}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="speed-max">{t('speedMax')}</FieldLabel>
-              <InputGroup isDisabled={pending}>
-                <InputGroupInput
-                  id="speed-max"
-                  className={cn(
-                    showsInherited(selection, behavior.speedMax.source, drafts.speedMax) &&
-                      'text-muted-foreground',
-                  )}
-                  name="speedMax"
-                  type="number"
-                  inputMode="decimal"
-                  enterKeyHint="done"
-                  min={SPEED_MAX_SETTING_MIN}
-                  max={SPEED_MAX_SETTING_MAX}
-                  step={0.05}
-                  autoComplete="off"
-                  disabled={pending}
-                  value={drafts.speedMax ?? String(behavior.speedMax.value)}
-                  onChange={(event) => {
-                    onDraftChange('speedMax', event.target.value);
-                  }}
-                  onBlur={() => {
-                    onCommitDecimal(
-                      'speedMax',
-                      behavior.speedMax.value,
-                      SPEED_MAX_SETTING_MIN,
-                      SPEED_MAX_SETTING_MAX,
-                    );
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      onCommitDecimal(
-                        'speedMax',
-                        behavior.speedMax.value,
-                        SPEED_MAX_SETTING_MIN,
-                        SPEED_MAX_SETTING_MAX,
-                      );
-                    }
-                  }}
-                />
-                <InputGroupInheritReset
-                  active={ownsOverride(selection, behavior.speedMax.source)}
-                  disabled={pending}
-                  label={resetFieldLabel(t('speedMax'))}
-                  onReset={() => {
-                    onMutate({ kind: 'inherit', field: 'speedMax' });
-                  }}
-                />
-              </InputGroup>
-              <FieldDescription>{t('speedMaxDescription')}</FieldDescription>
-            </Field>
+            <OptionsNumberField
+              id="speed-min"
+              name="speedMin"
+              label={t('speedMin')}
+              description={t('speedMinDescription')}
+              min={SPEED_MIN_SETTING_MIN}
+              max={SPEED_MIN_SETTING_MAX}
+              step={SPEED_TICK_SETTING_MIN}
+              value={drafts.speedMin ?? String(behavior.speedMin.value)}
+              disabled={pending}
+              muted={showsInherited(selection, behavior.speedMin.source, drafts.speedMin)}
+              resetActive={ownsOverride(selection, behavior.speedMin.source)}
+              resetLabel={resetFieldLabel(t('speedMin'))}
+              onDraftChange={(value) => {
+                onDraftChange('speedMin', value);
+              }}
+              onCommit={() => {
+                onCommitDecimal(
+                  'speedMin',
+                  behavior.speedMin.value,
+                  SPEED_MIN_SETTING_MIN,
+                  SPEED_MIN_SETTING_MAX,
+                );
+              }}
+              onReset={() => {
+                onMutate({ kind: 'inherit', field: 'speedMin' });
+              }}
+            />
+            <OptionsNumberField
+              id="speed-tick"
+              name="speedTick"
+              label={t('speedTick')}
+              description={t('speedTickDescription')}
+              min={SPEED_TICK_SETTING_MIN}
+              max={SPEED_TICK_SETTING_MAX}
+              step={SPEED_TICK_SETTING_MIN}
+              value={drafts.speedTick ?? String(behavior.speedTick.value)}
+              disabled={pending}
+              muted={showsInherited(selection, behavior.speedTick.source, drafts.speedTick)}
+              resetActive={ownsOverride(selection, behavior.speedTick.source)}
+              resetLabel={resetFieldLabel(t('speedTick'))}
+              onDraftChange={(value) => {
+                onDraftChange('speedTick', value);
+              }}
+              onCommit={() => {
+                onCommitDecimal(
+                  'speedTick',
+                  behavior.speedTick.value,
+                  SPEED_TICK_SETTING_MIN,
+                  SPEED_TICK_SETTING_MAX,
+                );
+              }}
+              onReset={() => {
+                onMutate({ kind: 'inherit', field: 'speedTick' });
+              }}
+            />
+            <OptionsNumberField
+              id="speed-max"
+              name="speedMax"
+              label={t('speedMax')}
+              description={t('speedMaxDescription')}
+              min={SPEED_MAX_SETTING_MIN}
+              max={SPEED_MAX_SETTING_MAX}
+              step={0.05}
+              value={drafts.speedMax ?? String(behavior.speedMax.value)}
+              disabled={pending}
+              muted={showsInherited(selection, behavior.speedMax.source, drafts.speedMax)}
+              resetActive={ownsOverride(selection, behavior.speedMax.source)}
+              resetLabel={resetFieldLabel(t('speedMax'))}
+              onDraftChange={(value) => {
+                onDraftChange('speedMax', value);
+              }}
+              onCommit={() => {
+                onCommitDecimal(
+                  'speedMax',
+                  behavior.speedMax.value,
+                  SPEED_MAX_SETTING_MIN,
+                  SPEED_MAX_SETTING_MAX,
+                );
+              }}
+              onReset={() => {
+                onMutate({ kind: 'inherit', field: 'speedMax' });
+              }}
+            />
           </FieldGroup>
         </FieldSet>
       </CardContent>

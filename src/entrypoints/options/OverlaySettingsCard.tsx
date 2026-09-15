@@ -11,7 +11,6 @@ import {
   FieldLegend,
   FieldSet,
 } from '@/components/ui/field';
-import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
 import { RadioButton, RadioField, RadioGroup } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { t } from '@/i18n/t';
@@ -27,7 +26,7 @@ import {
   type OverlayPosition,
 } from '../../settings/site-behavior';
 import { OverlayPositionIcon } from './OverlayPositionIcon';
-import { BehaviorSwitchField, InputGroupInheritReset } from './options-fields';
+import { BehaviorSwitchField, OptionsNumberField } from './options-fields';
 import {
   ownsOverride,
   POSITION_OPTIONS,
@@ -247,53 +246,29 @@ export function OverlaySettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutate}
             />
-            <Field data-disabled={delayLocked || undefined}>
-              <FieldLabel htmlFor="overlay-auto-hide-delay">{t('overlayAutoHideDelay')}</FieldLabel>
-              <InputGroup isDisabled={delayLocked}>
-                <InputGroupInput
-                  id="overlay-auto-hide-delay"
-                  className={cn(
-                    showsInherited(
-                      selection,
-                      behavior.overlayAutoHideDelayMs.source,
-                      drafts.delay,
-                    ) && 'text-muted-foreground',
-                  )}
-                  name="overlayAutoHideDelay"
-                  type="number"
-                  inputMode="decimal"
-                  enterKeyHint="done"
-                  min={OVERLAY_AUTO_HIDE_DELAY_MS_MIN / 1000}
-                  max={OVERLAY_AUTO_HIDE_DELAY_MS_MAX / 1000}
-                  step={0.1}
-                  autoComplete="off"
-                  disabled={delayLocked}
-                  value={drafts.delay ?? delaySeconds}
-                  aria-describedby="overlay-auto-hide-delay-help"
-                  onChange={(event) => {
-                    onDraftChange(event.target.value);
-                  }}
-                  onBlur={onCommitDelay}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      onCommitDelay();
-                    }
-                  }}
-                />
-                <InputGroupInheritReset
-                  active={ownsOverride(selection, behavior.overlayAutoHideDelayMs.source)}
-                  disabled={delayLocked}
-                  label={resetFieldLabel(t('overlayAutoHideDelay'))}
-                  onReset={() => {
-                    onMutate({ kind: 'inherit', field: 'overlayAutoHideDelayMs' });
-                  }}
-                />
-              </InputGroup>
-              <FieldDescription id="overlay-auto-hide-delay-help">
-                {t('overlayAutoHideDelayDescription')}
-              </FieldDescription>
-            </Field>
+            <OptionsNumberField
+              id="overlay-auto-hide-delay"
+              name="overlayAutoHideDelay"
+              label={t('overlayAutoHideDelay')}
+              description={t('overlayAutoHideDelayDescription')}
+              min={OVERLAY_AUTO_HIDE_DELAY_MS_MIN / 1000}
+              max={OVERLAY_AUTO_HIDE_DELAY_MS_MAX / 1000}
+              step={0.1}
+              value={drafts.delay ?? delaySeconds}
+              disabled={delayLocked}
+              muted={showsInherited(
+                selection,
+                behavior.overlayAutoHideDelayMs.source,
+                drafts.delay,
+              )}
+              resetActive={ownsOverride(selection, behavior.overlayAutoHideDelayMs.source)}
+              resetLabel={resetFieldLabel(t('overlayAutoHideDelay'))}
+              onDraftChange={onDraftChange}
+              onCommit={onCommitDelay}
+              onReset={() => {
+                onMutate({ kind: 'inherit', field: 'overlayAutoHideDelayMs' });
+              }}
+            />
             <BehaviorSwitchField
               id="overlay-hover-hold"
               name="overlayHoverHold"

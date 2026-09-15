@@ -3,10 +3,19 @@
 import { XIcon } from 'lucide-react';
 import { ResetBadge } from '@/components/ResetBadge';
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field';
-import { InputGroupAddon, InputGroupButton } from '@/components/ui/input-group';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group';
 import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import type { BehaviorSettingChange, SettingSource } from '../../settings/site-behavior';
 import {
+  handleNumberInputKeyDown,
+  numberInputDraftAfterChange,
+  numberInputMin,
   ownsOverride,
   resetFieldLabel,
   showsInherited,
@@ -70,6 +79,88 @@ export function BehaviorSwitchField({
           }}
         />
       </div>
+    </Field>
+  );
+}
+
+export function OptionsNumberField({
+  id,
+  name,
+  label,
+  description,
+  min,
+  max,
+  step,
+  value,
+  disabled,
+  muted,
+  resetActive,
+  resetLabel,
+  onDraftChange,
+  onCommit,
+  onReset,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  description: string;
+  min: number;
+  max: number;
+  step: number;
+  value: string;
+  disabled?: boolean;
+  muted?: boolean;
+  resetActive: boolean;
+  resetLabel: string;
+  onDraftChange: (value: string) => void;
+  onCommit: () => void;
+  onReset: () => void;
+}) {
+  const helpId = `${id}-help`;
+  return (
+    <Field data-disabled={disabled || undefined}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <InputGroup isDisabled={disabled}>
+        <InputGroupInput
+          id={id}
+          className={cn(muted && 'text-muted-foreground')}
+          name={name}
+          type="number"
+          inputMode="decimal"
+          enterKeyHint="done"
+          min={numberInputMin(min, step)}
+          max={max}
+          step={step}
+          autoComplete="off"
+          disabled={disabled}
+          value={value}
+          aria-describedby={helpId}
+          onChange={(event) => {
+            const next = numberInputDraftAfterChange(
+              value,
+              event.currentTarget.value,
+              min,
+              max,
+              step,
+            );
+            if (next !== event.currentTarget.value) {
+              event.currentTarget.value = next;
+            }
+            onDraftChange(next);
+          }}
+          onBlur={onCommit}
+          onKeyDown={(event) => {
+            handleNumberInputKeyDown(event, value, min, max, step, onDraftChange, onCommit);
+          }}
+        />
+        <InputGroupInheritReset
+          active={resetActive}
+          disabled={disabled}
+          label={resetLabel}
+          onReset={onReset}
+        />
+      </InputGroup>
+      <FieldDescription id={helpId}>{description}</FieldDescription>
     </Field>
   );
 }

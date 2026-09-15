@@ -77,6 +77,119 @@ export function showsInherited(
   return !ownsOverride(selection, source) && draft == null;
 }
 
+const NUMBER_INPUT_STEP_EPSILON = 1e-8;
+
+function formatNumberInputValue(value: number): string {
+  return String(Number(value.toPrecision(12)));
+}
+
+function almostEqualNumberInput(left: number, right: number): boolean {
+  return (
+    Math.abs(left - right) <=
+    NUMBER_INPUT_STEP_EPSILON * Math.max(1, Math.abs(left), Math.abs(right))
+  );
+}
+
+function isIncompleteNumberDraft(raw: string): boolean {
+  return raw === '' || !Number.isFinite(Number(raw)) || /[eE.+-]$/.test(raw);
+}
+
+function nextZeroGridTick(current: number, step: number, direction: 1 | -1): number {
+  const ticksFromZero = current / step;
+  const nearest = Math.round(ticksFromZero);
+  if (Math.abs(ticksFromZero - nearest) <= NUMBER_INPUT_STEP_EPSILON) {
+    return Number(((nearest + direction) * step).toPrecision(12));
+  }
+  if (direction > 0) {
+    return Number((Math.ceil(ticksFromZero - NUMBER_INPUT_STEP_EPSILON) * step).toPrecision(12));
+  }
+  return Number((Math.floor(ticksFromZero + NUMBER_INPUT_STEP_EPSILON) * step).toPrecision(12));
+}
+
+function isZeroGridStep(
+  previous: number,
+  next: number,
+  min: number,
+  max: number,
+  step: number,
+): boolean {
+  const nativeMin = numberInputMin(min, step);
+  const up = Math.min(max, nextZeroGridTick(previous, step, 1));
+  const down = Math.max(nativeMin, nextZeroGridTick(previous, step, -1));
+  return almostEqualNumberInput(next, up) || almostEqualNumberInput(next, down);
+}
+
+/**
+ * Native `<input type="number">` uses `min` as the step base (`min + n * step`).
+ * When the stored minimum is off the 0-based tick grid, expose the previous
+ * 0-aligned tick so spinner buttons stay on 0, step, 2*step, … The real
+ * minimum is enforced on step and commit.
+ */
+export function numberInputMin(min: number, step: number): number {
+  if (!(step > 0) || !Number.isFinite(min)) {
+    return min;
+  }
+  const ticksFromZero = min / step;
+  if (Math.abs(ticksFromZero - Math.round(ticksFromZero)) <= NUMBER_INPUT_STEP_EPSILON) {
+    return min;
+  }
+  return Number((Math.floor(ticksFromZero + NUMBER_INPUT_STEP_EPSILON) * step).toPrecision(12));
+}
+
+export function numberInputSteppedValue(
+  current: number,
+  min: number,
+  max: number,
+  step: number,
+  direction: 1 | -1,
+): string {
+  const next = nextZeroGridTick(current, step, direction);
+  return formatNumberInputValue(Math.min(max, Math.max(min, next)));
+}
+
+export function numberInputDraftAfterChange(
+  previous: string,
+  next: string,
+  min: number,
+  max: number,
+  step: number,
+): string {
+  if (isIncompleteNumberDraft(next)) {
+    return next;
+  }
+  const previousNumber = Number(previous);
+  const nextNumber = Number(next);
+  if (
+    !Number.isFinite(previousNumber) ||
+    !isZeroGridStep(previousNumber, nextNumber, min, max, step)
+  ) {
+    return next;
+  }
+  return formatNumberInputValue(Math.min(max, Math.max(min, nextNumber)));
+}
+
+export function handleNumberInputKeyDown(
+  event: { key: string; preventDefault: () => void },
+  current: string,
+  min: number,
+  max: number,
+  step: number,
+  onDraft: (value: string) => void,
+  onCommit: () => void,
+): void {
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    const parsed = Number(current);
+    const base = Number.isFinite(parsed) ? parsed : min;
+    onDraft(numberInputSteppedValue(base, min, max, step, event.key === 'ArrowUp' ? 1 : -1));
+    return;
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    onCommit();
+  }
+}
+
 export function currentBehavior(
   snapshot: BehaviorSettingsSnapshot,
   selection: Selection,

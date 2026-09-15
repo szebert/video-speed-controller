@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/field';
 import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
 import { t } from '@/i18n/t';
-import { cn } from '@/lib/utils';
 import {
   SKIP_SECONDS_MAX,
   SKIP_SECONDS_MIN,
@@ -20,7 +19,7 @@ import {
   type BehaviorSettingChange,
   type EditableResolvedBehavior,
 } from '../../settings/site-behavior';
-import { BehaviorSwitchField, InputGroupInheritReset } from './options-fields';
+import { BehaviorSwitchField, OptionsNumberField } from './options-fields';
 import {
   ownsOverride,
   resetFieldLabel,
@@ -60,51 +59,30 @@ export function NavigationSettingsCard({
     step: number,
   ) {
     const setting = behavior[key];
-    const commit = (): void => {
-      onCommitDecimal(key, setting.value, min, max);
-    };
     return (
-      <Field>
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
-        <InputGroup isDisabled={pending}>
-          <InputGroupInput
-            id={id}
-            className={cn(
-              showsInherited(selection, setting.source, drafts[key]) && 'text-muted-foreground',
-            )}
-            name={key}
-            type="number"
-            inputMode="decimal"
-            enterKeyHint="done"
-            min={min}
-            max={max}
-            step={step}
-            autoComplete="off"
-            disabled={pending}
-            value={drafts[key] ?? String(setting.value)}
-            aria-describedby={`${id}-help`}
-            onChange={(event) => {
-              onDraftChange(key, event.target.value);
-            }}
-            onBlur={commit}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                commit();
-              }
-            }}
-          />
-          <InputGroupInheritReset
-            active={ownsOverride(selection, setting.source)}
-            disabled={pending}
-            label={resetFieldLabel(label)}
-            onReset={() => {
-              onMutate({ kind: 'inherit', field: key });
-            }}
-          />
-        </InputGroup>
-        <FieldDescription id={`${id}-help`}>{description}</FieldDescription>
-      </Field>
+      <OptionsNumberField
+        id={id}
+        name={key}
+        label={label}
+        description={description}
+        min={min}
+        max={max}
+        step={step}
+        value={drafts[key] ?? String(setting.value)}
+        disabled={pending}
+        muted={showsInherited(selection, setting.source, drafts[key])}
+        resetActive={ownsOverride(selection, setting.source)}
+        resetLabel={resetFieldLabel(label)}
+        onDraftChange={(value) => {
+          onDraftChange(key, value);
+        }}
+        onCommit={() => {
+          onCommitDecimal(key, setting.value, min, max);
+        }}
+        onReset={() => {
+          onMutate({ kind: 'inherit', field: key });
+        }}
+      />
     );
   }
 

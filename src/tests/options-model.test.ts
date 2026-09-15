@@ -5,6 +5,9 @@ import {
   applyOptimisticChange,
   applyOptimisticChanges,
   applyOptimisticHotkeyChange,
+  numberInputDraftAfterChange,
+  numberInputMin,
+  numberInputSteppedValue,
   omitMatchingOptimisticChanges,
   omitMatchingOptimisticHotkeys,
   sameBehaviorSettingChange,
@@ -51,6 +54,49 @@ function snapshot(): BehaviorSettingsSnapshot {
     },
   };
 }
+
+describe('numberInputMin', () => {
+  it('keeps min when it already sits on the 0-based step grid', () => {
+    expect(numberInputMin(0.0625, 0.0005)).toBe(0.0625);
+    expect(numberInputMin(2, 0.05)).toBe(2);
+    expect(numberInputMin(0.1, 0.1)).toBe(0.1);
+  });
+
+  it('uses the previous 0-based tick when min would skew spinner values', () => {
+    expect(numberInputMin(0.0625, 0.25)).toBe(0);
+    expect(numberInputMin(0.1, 0.5)).toBe(0);
+    expect(numberInputMin(0.25, 0.1)).toBe(0.2);
+  });
+});
+
+describe('numberInputSteppedValue', () => {
+  it('steps on the 0-based grid and stops at the stored minimum', () => {
+    expect(numberInputSteppedValue(3, 0.0625, 16, 0.25, -1)).toBe('2.75');
+    expect(numberInputSteppedValue(0.25, 0.0625, 16, 0.25, -1)).toBe('0.0625');
+    expect(numberInputSteppedValue(0.0625, 0.0625, 16, 0.25, -1)).toBe('0.0625');
+    expect(numberInputSteppedValue(0.0625, 0.0625, 16, 0.25, 1)).toBe('0.25');
+    expect(numberInputSteppedValue(0.5, 0.1, 3600, 0.5, -1)).toBe('0.1');
+  });
+
+  it('stops at the stored maximum', () => {
+    expect(numberInputSteppedValue(16, 0.0625, 16, 0.25, 1)).toBe('16');
+    expect(numberInputSteppedValue(15.75, 0.0625, 16, 0.25, 1)).toBe('16');
+  });
+});
+
+describe('numberInputDraftAfterChange', () => {
+  it('clamps a spinner step that crossed the stored minimum', () => {
+    expect(numberInputDraftAfterChange('0.25', '0', 0.0625, 16, 0.25)).toBe('0.0625');
+    expect(numberInputDraftAfterChange('0.5', '0', 0.1, 3600, 0.5)).toBe('0.1');
+    expect(numberInputDraftAfterChange('0.3', '0.2', 0.25, 5, 0.1)).toBe('0.25');
+  });
+
+  it('keeps typed drafts that are not a single 0-based step', () => {
+    expect(numberInputDraftAfterChange('3', '0', 0.0625, 16, 0.25)).toBe('0');
+    expect(numberInputDraftAfterChange('3', '-5', 0.0625, 16, 0.25)).toBe('-5');
+    expect(numberInputDraftAfterChange('3', '0.', 0.0625, 16, 0.25)).toBe('0.');
+  });
+});
 
 describe('optimistic options state', () => {
   it('applies a site value over the persisted snapshot', () => {
