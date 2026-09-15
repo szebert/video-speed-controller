@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { AlertCircleIcon, Trash2Icon } from 'lucide-react';
+import { AppTitle } from '@/components/AppTitle';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -114,7 +115,7 @@ export function App() {
       <div className="flex h-full w-full justify-center overflow-hidden overscroll-none">
         <div className="flex h-full w-full min-w-0 max-w-md flex-col overflow-hidden md:w-fit md:max-w-none">
           <header className="flex shrink-0 items-center justify-between gap-3 p-3">
-            <h1 className="text-sm font-semibold">{t('popupTitle')}</h1>
+            <AppTitle />
             <ModeToggle />
           </header>
           <Separator className="shrink-0" />

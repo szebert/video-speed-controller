@@ -13,6 +13,7 @@ import {
   disableExactOriginAccess,
   requestExactOriginAccess,
 } from '../../access/site-access';
+import { AppTitle } from '@/components/AppTitle';
 import { ModeToggle } from '@/components/mode-toggle';
 import { SpeedControls } from '@/components/SpeedControls';
 import { Alert, AlertTitle } from '@/components/ui/alert';
@@ -83,7 +84,7 @@ function PopupShell({
   return (
     <div className="flex min-w-xs w-xs flex-col">
       <header className="flex items-center justify-between gap-3 px-4 pt-4">
-        <h1 className="text-sm font-semibold">{t('popupTitle')}</h1>
+        <AppTitle />
         <div className="flex items-center">
           <Button
             variant="ghost"

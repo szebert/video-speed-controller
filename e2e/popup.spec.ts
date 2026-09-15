@@ -20,6 +20,7 @@ test('Enable is available on the fixture site and Faster applies to every video'
   const popup = await openExtensionPopup();
 
   await expect(popup.getByRole('heading', { name: 'OS Video Speed Controller' })).toBeVisible();
+  await expect(popup.locator('header img')).toBeVisible();
   await expect(popup.getByText('127.0.0.1')).toBeVisible();
   await expect(popup.getByRole('heading', { name: 'Site speed' })).toBeVisible();
   const enable = popup.getByRole('switch', { name: 'Enabled on this site' });

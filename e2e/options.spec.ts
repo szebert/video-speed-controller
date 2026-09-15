@@ -69,6 +69,8 @@ async function enableSiteAt(popup: Page, site: Page, speed: number): Promise<voi
 test('options.html shows Global defaults', async ({ context, extensionId }) => {
   const options = await openOptions(context, extensionId);
   await expect(options).toHaveTitle('Settings');
+  await expect(options.getByRole('heading', { name: 'OS Video Speed Controller' })).toBeVisible();
+  await expect(options.locator('header img')).toBeVisible();
   await expect(options.getByRole('heading', { name: 'Global defaults' })).toBeVisible();
   await expect(
     options.getByRole('button', { name: 'Global defaults', exact: true }),
