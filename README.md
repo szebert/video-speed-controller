@@ -1,27 +1,53 @@
 # Open Source Video Speed Controller
 
-Open source Chrome extension for controlling HTML5 video playback speed.
+Open source Chrome extension for controlling HTML5 `<video>` playback.
 
-OS Video Speed Controller (OS VSC) is a toolbar popup and per-video overlay that sets HTML5 `<video>` playback speed on sites you explicitly enable. There are no accounts, analytics, or servers.
+OS Video Speed Controller (OS VSC) is a toolbar popup and a per-video overlay. You grant sites yourself through Chrome’s optional host permissions. There are no accounts, analytics, or servers.
 
 ## Features
 
-- Enable one site at a time from the popup, or all sites from Settings, through Chrome’s optional host permission prompt
-- Toolbar popup: Faster / Slower, reset to 1×, and a slider (commits when you release it)
-- Per-site default speed, plus a per-tab effective speed so changing defaults does not jump an already-playing tab
-- Configurable speed range and step (0.0625×–16×, step 0.0005×–1×)
-- Configurable page hotkeys for Faster / Slower / reset (defaults `[`, `]`, `\`), with Global → Site inheritance and conflict-aware capture
-- Optional hotkey flash on videos (default on) and optional overlay button flash (default off): the action, signed speed change when relevant, and the shortcut when one is bound, then auto-hide; shared opacity and delay
-- Optional hold-to-repeat for most hotkeys with a configurable delay and rate
-- Per-video overlay: speed, Faster / Slower, optional position picker and settings button
-- Overlay position (3×3 grid), opacity, show/hide, auto-hide, hover-hold, delay, and shortcut hints
-- Options page with tabbed Playback, Overlay, Navigation, and Hotkeys settings; Global defaults and per-site overrides; reset defaults, delete a site, or reset all
-- Light, dark, and system theme
+**Access**
+
+- Enable one site from the popup, or all sites from Settings
+- Works on an already-loaded page after you grant access — no reload, no extra speed change required
 - Same-origin frames and granted iframes; ungranted embeds stay untouched
+
+**Popup**
+
+- Faster / slower, reset, and a slider
+- Per-site speed preference, plus a per-tab effective speed so changing defaults does not jump a video that is already playing
+- Light, dark, and system theme
+
+**Overlay**
+
+- Per-video speed readout, faster / slower, position picker, and settings button
+- Move it, hide it, change opacity, auto-hide, and show shortcut hints
+- Optional navigation bar: jump to start or end, play / pause, skip back or forward, hold-to-fast-forward, and hold-to-rewind
+- Configurable skip distances, with optional scaling by the current playback rate
+- Fast forward holds a temporary rate and restores the previous one on release
+- Rewind seeks backward while held. Chrome cannot play video in reverse, so there is no reverse audio
+
+**Hotkeys**
+
+- Page shortcuts for speed and every navigation action
+- Global defaults with per-site overrides
+- Optional hold-to-repeat for step and skip keys. Fast forward and rewind always hold
+- Optional flash when a control or hotkey is used; held actions stay visible until release
+
+**Settings**
+
+- Options page for playback, overlay, navigation, and hotkeys
+- Global defaults and per-site overrides; reset a site or reset all
+- Configurable speed range and step
+- Export or import a JSON backup
+
+## Privacy
+
+See [PRIVACY.md](PRIVACY.md). The extension does not collect page data or send extension traffic to a server. Per-site speed intent may follow Chrome Sync if you have it enabled.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for planned and exploratory features.
+See [ROADMAP.md](ROADMAP.md) for planned work. Store listing notes are in [CHROMEWEBSTORE.md](CHROMEWEBSTORE.md).
 
 ## Install (development)
 
@@ -38,24 +64,25 @@ Then in Chrome open `chrome://extensions`, enable Developer mode, and **Load unp
 .output/chrome-mv3-dev
 ```
 
-Enable OS VSC on a site from the popup. Streamer sites without a native speed control (for example Max) are **verified behavior** after you sign in — they are not Store SEO copy. Netflix, YouTube, and similar players should be checked the same way: enable the site, then confirm existing videos change without a reload.
-
-Enable on an already-loaded page injects the engine immediately so overlay and page hotkeys work without a popup speed change. A Chrome Site access grant on an open tab does the same for matching pages.
+Enable a site from the popup. After granting access, existing videos should respond without a reload.
 
 ## Scripts
 
-| Command              | Purpose                                                                            |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| `pnpm dev`           | WXT development build                                                              |
-| `pnpm build`         | Production Chrome build                                                            |
-| `pnpm test`          | Unit tests                                                                         |
-| `pnpm lint`          | ESLint                                                                             |
-| `pnpm format`        | Prettier write                                                                     |
-| `pnpm format:check`  | Prettier check                                                                     |
-| `pnpm e2e`           | Playwright: fixture pages plus a loaded-extension popup (Enable, speed, chrome://) |
-| `pnpm zip`           | Pack `opensource-video-speed-controller-<version>-chrome.zip`                      |
-| `pnpm check:release` | License, lockfile, manifest, and bundle growth vs the last GitHub release zip      |
-| `pnpm icons`         | Rasterize toolbar/store PNGs from `src/assets/logo.svg`                            |
+| Command              | Purpose                                                                        |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `pnpm dev`           | WXT development build                                                          |
+| `pnpm build`         | Production Chrome build                                                        |
+| `pnpm compile`       | Typecheck                                                                      |
+| `pnpm test`          | Unit tests                                                                     |
+| `pnpm lint`          | ESLint                                                                         |
+| `pnpm format`        | Prettier write                                                                 |
+| `pnpm format:check`  | Prettier check                                                                 |
+| `pnpm e2e`           | Playwright: fixtures plus loaded-extension popup, options, overlay, and rewind |
+| `pnpm e2e:extension` | Playwright extension project only                                              |
+| `pnpm zip`           | Pack `opensource-video-speed-controller-<version>-chrome.zip`                  |
+| `pnpm check:release` | License, lockfile, manifest, and bundle growth vs the last GitHub release zip  |
+| `pnpm notices`       | Generate `THIRD_PARTY_NOTICES`                                                 |
+| `pnpm icons`         | Rasterize toolbar/store PNGs from `src/assets/logo.svg`                        |
 
 ## License
 
