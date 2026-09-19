@@ -147,8 +147,8 @@ describe('Hotkeys settings card', () => {
     const onMutate = vi.fn();
     await renderCard(onMutate);
     const decrease = recorder('decreaseSpeed');
-    decrease.focus();
     await act(async () => {
+      decrease.focus();
       decrease.dispatchEvent(
         new KeyboardEvent('keydown', {
           code: 'Enter',
