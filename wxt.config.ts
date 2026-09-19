@@ -66,6 +66,11 @@ export default defineConfig({
   },
   vite: () => ({
     plugins: [tailwindcss(), ...(analyzeBundle ? [analyzeBundlePlugin()] : [])],
+    // Real budget is last-release compare in check-release. This only quiets
+    // Vite's 500 kB default for the known popup/options globals chunk.
+    build: {
+      chunkSizeWarningLimit: 650,
+    },
   }),
   manifest: {
     default_locale: 'en',
