@@ -481,11 +481,12 @@ export class MediaRegistry {
 
   // Window/tab loss does not deliver pointerup. One listener ends every
   // overlay hold; button blur is a different signal and stays on the button.
+  // Snapshot first: end callbacks may mutate the map.
   private readonly onPageHide = (): void => {
     if (this.destroyed) {
       return;
     }
-    for (const entry of this.entries.values()) {
+    for (const entry of [...this.entries.values()]) {
       entry.overlay.releaseHolds();
     }
   };
