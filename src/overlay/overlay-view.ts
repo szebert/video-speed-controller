@@ -166,6 +166,24 @@ export class OverlayView {
       },
       { signal },
     );
+    // Window/tab loss does not deliver pointerup. End here so rewind/FF cannot
+    // stay armed; button blur is a different signal and stays on the hold.
+    this.document.defaultView?.addEventListener(
+      'blur',
+      () => {
+        this.releaseHolds();
+      },
+      { signal },
+    );
+    this.document.addEventListener(
+      'visibilitychange',
+      () => {
+        if (this.document.visibilityState === 'hidden') {
+          this.releaseHolds();
+        }
+      },
+      { signal },
+    );
   }
 
   update(state: OverlayViewState): void {
@@ -369,7 +387,7 @@ export class OverlayView {
     button.addEventListener(
       'pointerdown',
       (event) => {
-        if (button.disabled) {
+        if (button.disabled || activeOwner) {
           return;
         }
         pointerHold = true;
