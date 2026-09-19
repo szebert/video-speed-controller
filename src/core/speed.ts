@@ -123,12 +123,7 @@ export function sliderBounds(policy: SpeedPolicy = DEFAULT_SPEED_POLICY): {
   const min = canonicalizeSpeed(policy.min);
   const max = canonicalizeSpeed(policy.max);
   if (max <= min) {
-    // React Aria sliders require max > min. The thumb is static; SpeedControls
-    // disables the widget when the policy is a single speed.
-    return {
-      minValue: min,
-      maxValue: canonicalizeSpeed(min + SPEED_SLIDER_STEP),
-    };
+    return { minValue: min, maxValue: max };
   }
   const steps = Math.max(1, Math.ceil(canonicalizeSpeed((max - min) / SPEED_SLIDER_STEP)));
   return {

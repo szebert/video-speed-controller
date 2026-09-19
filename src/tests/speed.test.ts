@@ -25,7 +25,7 @@ describe('speed policy', () => {
     expect(SPEED_MAX_SETTING_MIN).toBe(1);
     const fixed = { min: 1, max: 1, tick: 0.25 };
     expect(isFixedSpeedPolicy(fixed)).toBe(true);
-    expect(sliderBounds(fixed)).toEqual({ minValue: 1, maxValue: 1.01 });
+    expect(sliderBounds(fixed)).toEqual({ minValue: 1, maxValue: 1 });
     expect(sliderValue(1, fixed)).toBe(1);
     expect(canAdjustSpeed(1, 1, fixed)).toBe(false);
     expect(canAdjustSpeed(1, -1, fixed)).toBe(false);

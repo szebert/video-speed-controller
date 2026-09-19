@@ -39,6 +39,28 @@ function snappedValue(value: number | number[], policy: SpeedPolicy): number {
   return snapSliderSpeed(Array.isArray(value) ? (value[0] ?? policy.min) : value, policy);
 }
 
+function FixedSpeedTrack() {
+  return (
+    <div
+      className="relative flex w-full items-center opacity-50"
+      data-slot="slider"
+      data-disabled="true"
+      aria-hidden="true"
+    >
+      <div
+        data-slot="slider-track"
+        className="relative h-1 w-full grow overflow-hidden rounded-full bg-muted"
+      >
+        <div data-slot="slider-range" className="absolute inset-y-0 start-0 end-0 bg-primary" />
+      </div>
+      <div
+        data-slot="slider-thumb"
+        className="pointer-events-none absolute end-0 top-1/2 size-3 -translate-y-1/2 rounded-full border border-ring bg-white"
+      />
+    </div>
+  );
+}
+
 export function SpeedControls({
   displaySpeed,
   disabled = false,
@@ -106,21 +128,25 @@ export function SpeedControls({
       </ButtonGroup>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>{formatSpeed(policy.min)}</span>
-        <Slider
-          key={`${policy.min}:${policy.max}`}
-          aria-label={speedLabel}
-          isDisabled={locked || fixed}
-          minValue={bounds.minValue}
-          maxValue={bounds.maxValue}
-          step={SPEED_SLIDER_STEP}
-          value={sliderValue(shown, policy)}
-          onChange={(value) => {
-            onPreviewSlider?.(snappedValue(value, policy));
-          }}
-          onChangeEnd={(value) => {
-            onCommitSlider(snappedValue(value, policy));
-          }}
-        />
+        {fixed ? (
+          <FixedSpeedTrack />
+        ) : (
+          <Slider
+            key={`${policy.min}:${policy.max}`}
+            aria-label={speedLabel}
+            isDisabled={locked}
+            minValue={bounds.minValue}
+            maxValue={bounds.maxValue}
+            step={SPEED_SLIDER_STEP}
+            value={sliderValue(shown, policy)}
+            onChange={(value) => {
+              onPreviewSlider?.(snappedValue(value, policy));
+            }}
+            onChangeEnd={(value) => {
+              onCommitSlider(snappedValue(value, policy));
+            }}
+          />
+        )}
         <span>{formatSpeed(policy.max)}</span>
       </div>
     </div>

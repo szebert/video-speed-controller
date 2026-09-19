@@ -3306,18 +3306,19 @@ describe('SpeedControls preview vs persist', () => {
         />,
       );
     });
-    const slider =
-      container.querySelector('[role="slider"]') ??
-      container.querySelector('[data-slot="slider-thumb"]');
     const group = container.querySelector('[data-slot="slider"]');
+    const thumb = container.querySelector('[data-slot="slider-thumb"]');
     const slower = container.querySelector('[aria-label="Slower"]');
     const faster = container.querySelector('[aria-label="Faster"]');
-    expect(slider).toBeInstanceOf(HTMLElement);
+    expect(container.querySelector('[role="slider"]')).toBeNull();
+    expect(container.querySelector('[aria-valuemax]')).toBeNull();
+    expect(group?.getAttribute('aria-hidden')).toBe('true');
     expect(group?.getAttribute('data-disabled')).toBe('true');
+    expect(thumb).toBeInstanceOf(HTMLElement);
     expect((slower as HTMLButtonElement).disabled).toBe(true);
     expect((faster as HTMLButtonElement).disabled).toBe(true);
     await act(async () => {
-      slider?.dispatchEvent(
+      thumb?.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
       );
     });
