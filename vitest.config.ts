@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['src/tests/**/*.test.ts', 'src/tests/**/*.test.tsx'],
+    include: ['src/tests/**/*.test.ts', 'src/tests/**/*.test.tsx', 'scripts/**/*.test.mjs'],
     globals: false,
     setupFiles: ['./src/tests/resize-observer-stub.ts', './src/tests/fail-on-act-warnings.ts'],
     css: true,
