@@ -21,7 +21,7 @@ export default defineConfig({
     },
     {
       name: 'extension',
-      testMatch: /(?:popup|options|overlay-stacking)\.spec\.ts/,
+      testMatch: /(?:popup|options|overlay-stacking|rewind)\.spec\.ts/,
       use: {
         baseURL: 'http://127.0.0.1:4173',
         channel: 'chromium',

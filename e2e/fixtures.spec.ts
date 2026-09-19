@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { get } from 'node:http';
 import { expect, test } from '@playwright/test';
 
 test('multi-video fixture exposes three videos and can add a fourth', async ({ page }) => {
@@ -47,6 +48,43 @@ test('iframe fixture has a top video, same-origin iframe, and ungranted embed', 
   await expect(page.locator('#top-video')).toHaveCount(1);
   await expect(page.locator('#same-origin')).toHaveCount(1);
   await expect(page.locator('#cross-origin')).toHaveCount(1);
+});
+
+test('rewind fixture serves a seekable video with byte ranges', async ({ page }) => {
+  await page.goto('/rewind.html');
+  await expect
+    .poll(async () =>
+      page.locator('#v1').evaluate((video) => {
+        const media = video as HTMLVideoElement;
+        return Number.isFinite(media.duration) && media.duration >= 4 && media.seekable.length > 0;
+      }),
+    )
+    .toBe(true);
+
+  const ranged = await new Promise<{
+    status: number;
+    headers: Record<string, string | string[] | undefined>;
+    body: Buffer;
+  }>((resolve, reject) => {
+    get('http://127.0.0.1:4173/rewind.webm', { headers: { Range: 'bytes=0-15' } }, (response) => {
+      const chunks: Buffer[] = [];
+      response.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+      response.on('end', () => {
+        resolve({
+          status: response.statusCode ?? 0,
+          headers: response.headers,
+          body: Buffer.concat(chunks),
+        });
+      });
+    }).on('error', reject);
+  });
+  expect(ranged.status).toBe(206);
+  expect(ranged.headers['accept-ranges']).toBe('bytes');
+  expect(ranged.headers['content-range']).toMatch(/^bytes 0-15\/\d+$/);
+  expect(ranged.headers['content-type']).toBe('video/webm');
+  expect(ranged.body.length).toBe(16);
 });
 
 test('overlay-stacking fixture exposes six labeled cases', async ({ page }) => {
