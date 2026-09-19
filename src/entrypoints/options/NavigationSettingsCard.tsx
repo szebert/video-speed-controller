@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from '@/components/ui/field';
-import { InputGroup, InputGroupInput } from '@/components/ui/input-group';
+import { FieldGroup, FieldLegend, FieldSet } from '@/components/ui/field';
 import { t } from '@/i18n/t';
 import {
   SKIP_SECONDS_MAX,
@@ -55,7 +47,7 @@ export function NavigationSettingsCard({
   onCommitDecimal: (key: NumberDraftKey, fallback: number, min: number, max: number) => void;
 }) {
   function numberField(
-    key: 'skipBackSeconds' | 'skipForwardSeconds' | 'fastForwardSpeed',
+    key: 'skipBackSeconds' | 'skipForwardSeconds' | 'fastForwardSpeed' | 'rewindSpeed',
     id: string,
     label: string,
     description: string,
@@ -64,6 +56,8 @@ export function NavigationSettingsCard({
     step: number,
   ) {
     const setting = behavior[key];
+    const displayed =
+      drafts[key] ?? String(key === 'rewindSpeed' ? Math.abs(setting.value) : setting.value);
     return (
       <OptionsNumberField
         id={id}
@@ -73,7 +67,7 @@ export function NavigationSettingsCard({
         min={min}
         max={max}
         step={step}
-        value={drafts[key] ?? String(setting.value)}
+        value={displayed}
         disabled={pending}
         muted={showsInherited(selection, setting.source, drafts[key])}
         resetActive={ownsOverride(selection, setting.source)}
@@ -141,27 +135,15 @@ export function NavigationSettingsCard({
               TRANSPORT_RATE_MAGNITUDE_MAX,
               0.25,
             )}
-            {/* Scaffolding: the value is stored, but rewind cannot run yet. */}
-            <Field data-disabled>
-              <FieldLabel htmlFor="rewind-speed">{t('rewindSpeed')}</FieldLabel>
-              <InputGroup isDisabled>
-                <InputGroupInput
-                  id="rewind-speed"
-                  className="text-muted-foreground"
-                  name="rewindSpeed"
-                  type="number"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  disabled
-                  readOnly
-                  value={String(behavior.rewindSpeed.value)}
-                  aria-describedby="rewind-speed-help"
-                />
-              </InputGroup>
-              <FieldDescription id="rewind-speed-help">
-                {t('rewindSpeedDescription')}
-              </FieldDescription>
-            </Field>
+            {numberField(
+              'rewindSpeed',
+              'rewind-speed',
+              t('rewindSpeed'),
+              t('rewindSpeedDescription'),
+              TRANSPORT_RATE_MAGNITUDE_MIN,
+              TRANSPORT_RATE_MAGNITUDE_MAX,
+              0.25,
+            )}
           </FieldGroup>
         </FieldSet>
       </CardContent>

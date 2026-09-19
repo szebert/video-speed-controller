@@ -964,6 +964,65 @@ describe('media registry', () => {
     expect(node.playbackRate).toBe(1.5);
   });
 
+  it('replaces fast forward with rewind and ignores the replaced owner', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const node = video();
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(1.5));
+    registry.start();
+    const first = {};
+    const second = {};
+
+    expect(registry.beginTransportHold(node, first, 3)).toBe(true);
+    expect(node.playbackRate).toBe(3);
+    expect(registry.beginRewindHold(node, second, 1)).toBe(true);
+    expect(node.playbackRate).toBe(1.5);
+
+    expect(registry.endTransportHold(node, first)).toBe(false);
+    expect(node.playbackRate).toBe(1.5);
+    expect(registry.endTransportHold(node, second)).toBe(true);
+    expect(node.playbackRate).toBe(1.5);
+  });
+
+  it('replaces rewind with fast forward and ignores the replaced owner', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const node = video();
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(2));
+    registry.start();
+    const first = {};
+    const second = {};
+
+    expect(registry.beginRewindHold(node, first, 2)).toBe(true);
+    expect(registry.beginTransportHold(node, second, 4)).toBe(true);
+    expect(node.playbackRate).toBe(4);
+
+    expect(registry.endTransportHold(node, first)).toBe(false);
+    expect(node.playbackRate).toBe(4);
+    expect(registry.endTransportHold(node, second)).toBe(true);
+    expect(node.playbackRate).toBe(2);
+  });
+
+  it('refuses a rewind hold on a disconnected video and after destroy', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const node = video();
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(1.5));
+    registry.start();
+    const owner = {};
+
+    node.remove();
+    expect(registry.beginRewindHold(node, owner, 1)).toBe(false);
+    document.body.append(node);
+    expect(registry.beginRewindHold(node, owner, 1)).toBe(true);
+
+    registry.destroy();
+    expect(registry.beginRewindHold(node, owner, 1)).toBe(false);
+  });
+
   it('refuses a transport hold on a disconnected video and after destroy', () => {
     const registry = new MediaRegistry(document);
     registries.push(registry);

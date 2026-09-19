@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
-import type { MediaNavigationAction } from '../core/controller-action';
+import type { MediaNavigationAction, TransportHoldOwner } from '../core/controller-action';
 import { ariaKeyshortcutsFromBinding, visualHotkeyParts } from '../core/hotkey-format';
 import { canAdjustSpeed, formatSpeed } from '../core/speed';
 import { t, type MessageKey } from '../i18n/t';
 import type { HotkeyBinding } from '../settings/hotkey-binding';
 import {
   canonicalizeOverlayOpacity,
-  DISABLED_ACTIONS,
   HOLD_ACTIONS,
   overlayPositionToGrid,
   type OverlayPosition,
@@ -289,9 +288,6 @@ export class OverlayView {
       const button = HOLD_ACTIONS.has(action)
         ? this.createHoldButton(action, t(label))
         : this.createPressButton(action, t(label));
-      if (DISABLED_ACTIONS.has(action)) {
-        button.disabled = true;
-      }
       button.append(createNavigationIcon(this.document, action));
       buttons.set(action, button);
       bar.append(button);
@@ -329,26 +325,29 @@ export class OverlayView {
   }
 
   // Press starts the action and release ends it, so a click never fires it once.
+  // Each start allocates a fresh owner so a replaced hold's end is a no-op.
   private createHoldButton(action: MediaNavigationAction, label: string): HTMLButtonElement {
     const button = this.createChromeButton('control control-nav', label);
     const signal = this.abort.signal;
-    let holding = false;
+    let activeOwner: TransportHoldOwner | null = null;
     const end = (): void => {
-      if (!holding) {
+      const owner = activeOwner;
+      if (!owner) {
         return;
       }
-      holding = false;
+      activeOwner = null;
       this.activeHolds.delete(end);
-      this.callbacks.onMediaAction(action, 'end');
+      this.callbacks.onMediaAction(action, 'end', owner);
       this.notifyInteractive();
     };
     const start = (): void => {
-      if (holding || button.disabled) {
+      if (activeOwner || button.disabled) {
         return;
       }
-      holding = true;
+      const owner = {};
+      activeOwner = owner;
       this.activeHolds.add(end);
-      this.callbacks.onMediaAction(action, 'start');
+      this.callbacks.onMediaAction(action, 'start', owner);
       this.notifyInteractive();
     };
     button.addEventListener(

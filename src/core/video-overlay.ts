@@ -128,10 +128,10 @@ export class VideoOverlay {
         this.restartAutoHide();
         this.actions.adjustSpeed(direction, this.video);
       },
-      onMediaAction: (action, phase) => {
+      onMediaAction: (action, phase, hold) => {
         this.restartAutoHide();
-        // `this` is the hold identity: one overlay owns at most one hold.
-        this.actions.mediaAction?.(action, phase, this.video, this);
+        // Hold buttons pass a per-gesture owner. Press actions have none.
+        this.actions.mediaAction?.(action, phase, this.video, hold ?? this);
       },
       onSetPosition: (position) => {
         this.restartAutoHide();

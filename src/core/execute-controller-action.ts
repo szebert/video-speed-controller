@@ -127,9 +127,7 @@ function runMediaNavigation(
   hold: TransportHoldOwner | undefined,
 ): NavigationFeedback | null {
   if (action === 'rewind') {
-    // Scaffolding only: the binding, overlay button, and hold lifecycle exist,
-    // but nothing may assign a negative playbackRate in this release.
-    return null;
+    return runRewind(phase, video, registry, hold);
   }
   if (action === 'fastForward') {
     return runFastForward(phase, video, registry, hold);
@@ -204,6 +202,34 @@ function runFastForward(
   return {
     label: t('navFastForward'),
     detail: formatSpeed(behavior.fastForwardSpeed),
+    hold: true,
+  };
+}
+
+function runRewind(
+  phase: ControllerActionPhase,
+  video: HTMLVideoElement,
+  registry: MediaRegistry,
+  hold: TransportHoldOwner | undefined,
+): NavigationFeedback | null {
+  if (!hold) {
+    return null;
+  }
+  if (phase === 'end') {
+    registry.endTransportHold(video, hold);
+    return null;
+  }
+  if (phase !== 'start') {
+    return null;
+  }
+  const behavior = registry.behavior;
+  const magnitude = Math.abs(behavior?.rewindSpeed ?? Number.NaN);
+  if (!behavior || !registry.beginRewindHold(video, hold, magnitude)) {
+    return null;
+  }
+  return {
+    label: t('navRewind'),
+    detail: formatSpeed(magnitude),
     hold: true,
   };
 }

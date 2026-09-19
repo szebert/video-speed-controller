@@ -1088,12 +1088,14 @@ describe('Options page', () => {
     await commit('#skip-back-seconds', '2.5');
     await commit('#skip-forward-seconds', '30');
     await commit('#fast-forward-speed', '5');
+    await commit('#rewind-speed', '2');
     await flushHiddenWrites();
     expect(sentBehaviorChanges()).toEqual(
       expect.arrayContaining([
         { kind: 'value', field: 'skipBackSeconds', value: 2.5 },
         { kind: 'value', field: 'skipForwardSeconds', value: 30 },
         { kind: 'value', field: 'fastForwardSpeed', value: 5 },
+        { kind: 'value', field: 'rewindSpeed', value: -2 },
       ]),
     );
   });
@@ -1119,11 +1121,13 @@ describe('Options page', () => {
 
     await commit('#skip-forward-seconds', '99999');
     await commit('#fast-forward-speed', '99');
+    await commit('#rewind-speed', '99');
     await flushHiddenWrites();
     expect(sentBehaviorChanges()).toEqual(
       expect.arrayContaining([
         { kind: 'value', field: 'skipForwardSeconds', value: 3600 },
         { kind: 'value', field: 'fastForwardSpeed', value: 16 },
+        { kind: 'value', field: 'rewindSpeed', value: -16 },
       ]),
     );
   });
@@ -1222,20 +1226,51 @@ describe('Options page', () => {
     });
   });
 
-  it('shows the stored rewind speed as read-only scaffolding', async () => {
+  it('shows rewind speed as a positive magnitude and stores it signed', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     await selectTab('Navigation');
     const rewind = container.querySelector('#rewind-speed');
     expect(rewind).toBeInstanceOf(HTMLInputElement);
-    expect((rewind as HTMLInputElement).value).toBe('-1');
-    expect((rewind as HTMLInputElement).disabled).toBe(true);
-    expect((rewind as HTMLInputElement).readOnly).toBe(true);
+    expect((rewind as HTMLInputElement).value).toBe('1');
+    expect((rewind as HTMLInputElement).disabled).toBe(false);
     await act(async () => {
-      setInputValue(rewind as HTMLInputElement, '-2');
+      if (!(rewind instanceof HTMLInputElement)) {
+        return;
+      }
+      rewind.focus();
+      setInputValue(rewind, '2');
+      rewind.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      rewind.blur();
     });
-    expect(sendMessage).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'SET_BEHAVIOR_SETTING' }),
+    await flushHiddenWrites();
+    expect(sentBehaviorChanges()).toEqual(
+      expect.arrayContaining([{ kind: 'value', field: 'rewindSpeed', value: -2 }]),
+    );
+  });
+
+  it('treats a negative rewind draft as a negative magnitude', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await selectTab('Navigation');
+    const input = container.querySelector('#rewind-speed');
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      setInputValue(input, '-5');
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      input.blur();
+    });
+    await flushHiddenWrites();
+    expect(sentBehaviorChanges()).toEqual(
+      expect.arrayContaining([{ kind: 'value', field: 'rewindSpeed', value: -5 }]),
     );
   });
 

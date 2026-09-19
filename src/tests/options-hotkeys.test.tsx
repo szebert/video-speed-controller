@@ -370,20 +370,25 @@ describe('Hotkeys settings card', () => {
     });
   });
 
-  it('keeps the rewind row visible but not recordable', async () => {
+  it('records a rewind shortcut', async () => {
     const onMutate = vi.fn();
     await renderCard(onMutate);
     const rewind = container.querySelector(
       '[aria-label="Record shortcut: Rewind"]',
     ) as HTMLButtonElement;
-    expect(rewind.disabled).toBe(true);
-    expect(container.textContent).toContain('Rewind support is not enabled yet.');
+    expect(rewind.disabled).toBe(false);
     await act(async () => {
       rewind.click();
     });
     await flush();
-    expect(rewind.dataset.recording).toBeUndefined();
-    expect(onMutate).not.toHaveBeenCalled();
+    await act(async () => {
+      window.dispatchEvent(keydown('KeyH', { key: 'h' }));
+    });
+    expect(onMutate).toHaveBeenCalledWith({
+      kind: 'hotkey-value',
+      action: 'rewind',
+      value: { code: 'KeyH', ctrl: false, alt: false, shift: false, meta: false },
+    });
   });
 
   it('warns when an inherited binding is shadowed by a more specific override', async () => {

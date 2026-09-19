@@ -1310,7 +1310,7 @@ describe('VideoOverlay', () => {
     expect(mediaAction).toHaveBeenLastCalledWith('jumpToStart', 'press', video, overlay);
   });
 
-  it('keeps rewind visible but inert', () => {
+  it('starts rewind and fast forward on pointer down and ends them on release', () => {
     const mediaAction = vi.fn();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout(), {
@@ -1333,41 +1333,40 @@ describe('VideoOverlay', () => {
     const rewind = overlay.host.shadowRoot?.querySelector(
       '[aria-label="Rewind"]',
     ) as HTMLButtonElement;
-    expect(rewind.disabled).toBe(true);
-    // A bound-but-disabled action must not advertise a shortcut.
-    expect(rewind.hasAttribute('aria-keyshortcuts')).toBe(false);
-    expect(rewind.querySelector('.hotkey-hint')).toBeNull();
-    rewind.click();
+    expect(rewind.disabled).toBe(false);
+    expect(rewind.getAttribute('aria-keyshortcuts')).toBe('H');
+    rewind.setPointerCapture = () => undefined;
     rewind.dispatchEvent(new Event('pointerdown'));
-    expect(mediaAction).not.toHaveBeenCalled();
-  });
+    expect(mediaAction).toHaveBeenCalledWith('rewind', 'start', video, expect.any(Object));
+    const rewindOwner = mediaAction.mock.calls[0]?.[3];
+    expect(rewindOwner).not.toBe(overlay);
+    rewind.dispatchEvent(new Event('pointerdown'));
+    expect(mediaAction).toHaveBeenCalledTimes(1);
 
-  it('starts fast forward on pointer down and ends it on release', () => {
-    const mediaAction = vi.fn();
-    const video = sizedVideo();
-    const overlay = new VideoOverlay(video, () => overlay.layout(), {
-      adjustSpeed() {},
-      mediaAction,
-    });
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
-    overlay.setControlled(true);
-    overlay.layout();
+    rewind.dispatchEvent(new Event('pointerup'));
+    expect(mediaAction).toHaveBeenLastCalledWith('rewind', 'end', video, rewindOwner);
+    rewind.dispatchEvent(new Event('pointerup'));
+    expect(mediaAction).toHaveBeenCalledTimes(2);
+
+    mediaAction.mockClear();
     const button = overlay.host.shadowRoot?.querySelector(
       '[aria-label="Fast forward"]',
     ) as HTMLButtonElement;
     button.setPointerCapture = () => undefined;
     button.dispatchEvent(new Event('pointerdown'));
-    expect(mediaAction).toHaveBeenCalledWith('fastForward', 'start', video, overlay);
+    expect(mediaAction).toHaveBeenCalledWith('fastForward', 'start', video, expect.any(Object));
+    const owner = mediaAction.mock.calls[0]?.[3];
+    expect(owner).not.toBe(overlay);
     button.dispatchEvent(new Event('pointerdown'));
     expect(mediaAction).toHaveBeenCalledTimes(1);
 
     button.dispatchEvent(new Event('pointerup'));
-    expect(mediaAction).toHaveBeenLastCalledWith('fastForward', 'end', video, overlay);
+    expect(mediaAction).toHaveBeenLastCalledWith('fastForward', 'end', video, owner);
     button.dispatchEvent(new Event('pointerup'));
     expect(mediaAction).toHaveBeenCalledTimes(2);
   });
 
-  it('holds fast forward from the keyboard and never fires a click', () => {
+  it('gives overlapping rewind and fast forward holds distinct gesture owners', () => {
     const mediaAction = vi.fn();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout(), {
@@ -1377,64 +1376,104 @@ describe('VideoOverlay', () => {
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
     overlay.setControlled(true);
     overlay.layout();
-    const button = overlay.host.shadowRoot?.querySelector(
+    const rewind = overlay.host.shadowRoot?.querySelector(
+      '[aria-label="Rewind"]',
+    ) as HTMLButtonElement;
+    const fastForward = overlay.host.shadowRoot?.querySelector(
       '[aria-label="Fast forward"]',
     ) as HTMLButtonElement;
-    button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', cancelable: true }));
-    button.dispatchEvent(
-      new KeyboardEvent('keydown', { key: ' ', repeat: true, cancelable: true }),
-    );
-    expect(mediaAction).toHaveBeenCalledTimes(1);
-    expect(mediaAction).toHaveBeenCalledWith('fastForward', 'start', video, overlay);
-    button.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', cancelable: true }));
-    expect(mediaAction).toHaveBeenLastCalledWith('fastForward', 'end', video, overlay);
-
-    mediaAction.mockClear();
-    button.click();
-    expect(mediaAction).not.toHaveBeenCalled();
+    rewind.setPointerCapture = () => undefined;
+    fastForward.setPointerCapture = () => undefined;
+    rewind.dispatchEvent(new Event('pointerdown'));
+    fastForward.dispatchEvent(new Event('pointerdown'));
+    const rewindOwner = mediaAction.mock.calls[0]?.[3];
+    const fastForwardOwner = mediaAction.mock.calls[1]?.[3];
+    expect(rewindOwner).not.toBe(fastForwardOwner);
+    rewind.dispatchEvent(new Event('pointerup'));
+    expect(mediaAction.mock.calls[2]).toEqual(['rewind', 'end', video, rewindOwner]);
+    fastForward.dispatchEvent(new Event('pointerup'));
+    expect(mediaAction.mock.calls[3]).toEqual(['fastForward', 'end', video, fastForwardOwner]);
   });
 
-  it('ends a live fast forward hold when the row, overlay, or view goes away', () => {
+  it('holds rewind and fast forward from the keyboard and never fires a click', () => {
     const mediaAction = vi.fn();
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout(), {
       adjustSpeed() {},
       mediaAction,
     });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    for (const label of ['Rewind', 'Fast forward'] as const) {
+      mediaAction.mockClear();
+      const button = overlay.host.shadowRoot?.querySelector(
+        `[aria-label="${label}"]`,
+      ) as HTMLButtonElement;
+      button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', cancelable: true }));
+      button.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', repeat: true, cancelable: true }),
+      );
+      expect(mediaAction).toHaveBeenCalledTimes(1);
+      const action = label === 'Rewind' ? 'rewind' : 'fastForward';
+      expect(mediaAction).toHaveBeenCalledWith(action, 'start', video, expect.any(Object));
+      const owner = mediaAction.mock.calls[0]?.[3];
+      button.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', cancelable: true }));
+      expect(mediaAction).toHaveBeenLastCalledWith(action, 'end', video, owner);
+
+      mediaAction.mockClear();
+      button.click();
+      expect(mediaAction).not.toHaveBeenCalled();
+    }
+  });
+
+  it('ends a live hold when the row, overlay, or view goes away', () => {
     const navigationOn = tabBehavior(1, {
       overlayAutoHide: false,
       overlayNavigationBar: true,
     });
-    overlay.setBehavior(navigationOn);
-    overlay.setControlled(true);
-    overlay.layout();
-    const holdFastForward = (): void => {
-      const button = overlay.host.shadowRoot?.querySelector(
-        '[aria-label="Fast forward"]',
-      ) as HTMLButtonElement;
-      button.setPointerCapture = () => undefined;
-      button.dispatchEvent(new Event('pointerdown'));
-    };
-    const phases = (): string[] => mediaAction.mock.calls.map(([, phase]) => phase);
+    for (const label of ['Fast forward', 'Rewind'] as const) {
+      const mediaAction = vi.fn();
+      const video = sizedVideo();
+      const overlay = new VideoOverlay(video, () => overlay.layout(), {
+        adjustSpeed() {},
+        mediaAction,
+      });
+      overlay.setBehavior(navigationOn);
+      overlay.setControlled(true);
+      overlay.layout();
+      const hold = (): void => {
+        const button = overlay.host.shadowRoot?.querySelector(
+          `[aria-label="${label}"]`,
+        ) as HTMLButtonElement;
+        button.setPointerCapture = () => undefined;
+        button.dispatchEvent(new Event('pointerdown'));
+      };
+      const phases = (): string[] => mediaAction.mock.calls.map(([, phase]) => phase);
 
-    holdFastForward();
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
-    expect(phases()).toEqual(['start', 'end']);
+      hold();
+      overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+      expect(phases()).toEqual(['start', 'end']);
 
-    mediaAction.mockClear();
-    overlay.setBehavior(navigationOn);
-    holdFastForward();
-    overlay.setBehavior(
-      tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true, overlayVisible: false }),
-    );
-    expect(phases()).toEqual(['start', 'end']);
+      mediaAction.mockClear();
+      overlay.setBehavior(navigationOn);
+      hold();
+      overlay.setBehavior(
+        tabBehavior(1, {
+          overlayAutoHide: false,
+          overlayNavigationBar: true,
+          overlayVisible: false,
+        }),
+      );
+      expect(phases()).toEqual(['start', 'end']);
 
-    mediaAction.mockClear();
-    overlay.setBehavior(navigationOn);
-    overlay.layout();
-    holdFastForward();
-    overlay.destroy();
-    expect(phases()).toEqual(['start', 'end']);
+      mediaAction.mockClear();
+      overlay.setBehavior(navigationOn);
+      overlay.layout();
+      hold();
+      overlay.destroy();
+      expect(phases()).toEqual(['start', 'end']);
+    }
   });
 
   it('tracks the play and pause state of its own video', () => {

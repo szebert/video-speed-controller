@@ -127,8 +127,9 @@ export function canonicalizeSkipSeconds(value: number): number {
   return Math.round(clamped * SKIP_SECONDS_SCALE) / SKIP_SECONDS_SCALE;
 }
 
-// Transport rates are signed playback rates, clamped to the magnitudes Chromium
-// accepts. Assigning outside kMinPlaybackRate..kMaxPlaybackRate throws.
+// Transport speeds are signed in the product model: Fast Forward is positive,
+// Rewind is negative. Only Fast Forward is assigned to playbackRate. Rewind
+// uses abs() as a reverse-seek velocity; Blink never receives a negative rate.
 export const TRANSPORT_RATE_MAGNITUDE_MIN = SPEED_MIN_SETTING_MIN;
 export const TRANSPORT_RATE_MAGNITUDE_MAX = SPEED_MAX_SETTING_MAX;
 
@@ -211,18 +212,12 @@ export const USER_REPEATABLE_ACTIONS = new Set<SiteHotkeyAction>([
 /** Press-and-hold sessions. Independent of the optional hold-to-repeat toggle. */
 export const HOLD_ACTIONS = new Set<SiteHotkeyAction>(['fastForward', 'rewind']);
 
-/** Bindable scaffolding that must never execute in this release. */
-export const DISABLED_ACTIONS = new Set<SiteHotkeyAction>(['rewind']);
-
-export type HotkeyActionMode = 'once' | 'repeat' | 'hold' | 'disabled';
+export type HotkeyActionMode = 'once' | 'repeat' | 'hold';
 
 export function hotkeyActionMode(
   action: SiteHotkeyAction,
   repeatEnabled: boolean,
 ): HotkeyActionMode {
-  if (DISABLED_ACTIONS.has(action)) {
-    return 'disabled';
-  }
   if (HOLD_ACTIONS.has(action)) {
     return 'hold';
   }

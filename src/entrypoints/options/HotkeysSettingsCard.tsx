@@ -52,8 +52,6 @@ type HotkeyRow = {
   action: SiteHotkeyAction;
   label: MessageKey;
   description: MessageKey;
-  /** Rewind keeps its row and reset badge, but cannot be recorded yet. */
-  recordingDisabled?: boolean;
 };
 
 const HOTKEY_ROWS: readonly HotkeyRow[] = [
@@ -81,7 +79,6 @@ const HOTKEY_ROWS: readonly HotkeyRow[] = [
     action: 'rewind',
     label: 'hotkeyRewind',
     description: 'hotkeyRewindDescription',
-    recordingDisabled: true,
   },
   {
     action: 'skipBack',
@@ -306,7 +303,6 @@ export function HotkeysSettingsCard({
             {HOTKEY_ROWS.map((row) => {
               const setting = hotkeys[row.action];
               const label = t(row.label);
-              const rowDisabled = pending || row.recordingDisabled === true;
               const inherited = showsInherited(selection, setting.source);
               const conflict = conflictAction[row.action];
               const shadowedBy = findShadowedHotkey(hotkeys, row.action);
@@ -317,7 +313,7 @@ export function HotkeysSettingsCard({
                   key={row.action}
                   orientation="horizontal"
                   className={cn('min-w-0', OPTIONS_FIELD_SPAN)}
-                  data-disabled={rowDisabled || undefined}
+                  data-disabled={pending || undefined}
                   data-invalid={conflict ? true : undefined}
                   data-warning={!conflict && (shadowedBy || takeover) ? true : undefined}
                 >
@@ -335,7 +331,7 @@ export function HotkeysSettingsCard({
                   <div className="flex max-w-full flex-wrap-reverse items-center justify-end gap-2">
                     <ResetBadge
                       active={ownsOverride(selection, setting.source)}
-                      disabled={rowDisabled}
+                      disabled={pending}
                       text={resetBadgeText}
                       label={resetFieldLabel(label)}
                       onReset={() => {
@@ -348,7 +344,7 @@ export function HotkeysSettingsCard({
                       label={label}
                       binding={setting.value}
                       muted={inherited}
-                      disabled={rowDisabled}
+                      disabled={pending}
                       recording={recordingAction === row.action}
                       layoutMap={layoutMap}
                       onRecordingChange={(next) => {

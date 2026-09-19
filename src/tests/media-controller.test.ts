@@ -368,4 +368,105 @@ describe('MediaController temporary transport rate', () => {
     expect(video.paused).toBe(true);
     expect(video.playbackRate).toBe(1.25);
   });
+
+  it('does not resume a video the page paused during fast forward', () => {
+    const video = pausableVideo(false);
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    const session = controller.beginTemporaryRate(3, { resumePlayback: true })!;
+    expect(video.play).not.toHaveBeenCalled();
+    video.pause();
+    controller.endTemporaryRate(session);
+    expect(video.paused).toBe(true);
+    expect(video.play).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it('rewinds without writing a negative playbackRate', () => {
+    const video = pausableVideo(false);
+    const controller = new MediaController(video);
+    controller.setTarget(1.5);
+    const session = controller.beginRewind(1);
+    expect(session).not.toBeNull();
+    expect(controller.temporaryRate).toBeNull();
+    expect(video.playbackRate).toBe(1.5);
+    expect(video.paused).toBe(true);
+
+    video.playbackRate = 4;
+    video.dispatchEvent(new Event('ratechange'));
+    expect(video.playbackRate).toBe(4);
+
+    controller.endTemporaryRate(session!);
+    expect(video.playbackRate).toBe(1.5);
+    expect(video.paused).toBe(false);
+    controller.destroy();
+  });
+
+  it('rejects a non-positive rewind magnitude', () => {
+    const video = pausableVideo(false);
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    expect(controller.beginRewind(0)).toBeNull();
+    expect(controller.beginRewind(-1)).toBeNull();
+    expect(controller.beginRewind(Number.NaN)).toBeNull();
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBe(2);
+    controller.destroy();
+  });
+
+  it('restores pause after fast forward is replaced by rewind', () => {
+    const video = pausableVideo(true);
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    const first = controller.beginTemporaryRate(3, { resumePlayback: true })!;
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBe(3);
+
+    const second = controller.beginRewind(2)!;
+    expect(video.paused).toBe(true);
+    expect(video.playbackRate).toBe(2);
+    expect(controller.temporaryRate).toBeNull();
+
+    controller.endTemporaryRate(first);
+    expect(video.paused).toBe(true);
+    expect(video.playbackRate).toBe(2);
+
+    controller.endTemporaryRate(second);
+    expect(video.paused).toBe(true);
+    expect(video.playbackRate).toBe(2);
+    controller.destroy();
+  });
+
+  it('restores play after rewind is replaced by fast forward', () => {
+    const video = pausableVideo(false);
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    const first = controller.beginRewind(1)!;
+    expect(video.paused).toBe(true);
+
+    const second = controller.beginTemporaryRate(4, { resumePlayback: true })!;
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBe(4);
+
+    controller.endTemporaryRate(first);
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBe(4);
+
+    controller.endTemporaryRate(second);
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBe(2);
+    controller.destroy();
+  });
+
+  it('defers a target changed during rewind until the session ends', () => {
+    const video = pausableVideo(false);
+    const controller = new MediaController(video);
+    controller.setTarget(2);
+    const session = controller.beginRewind(1)!;
+    controller.setTarget(1.25);
+    expect(video.playbackRate).toBe(2);
+    controller.endTemporaryRate(session);
+    expect(video.playbackRate).toBe(1.25);
+    controller.destroy();
+  });
 });

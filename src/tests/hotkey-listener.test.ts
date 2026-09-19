@@ -462,12 +462,69 @@ describe('HotkeyListener', () => {
     ]);
   });
 
-  it('leaves a rewind key to the page because rewind cannot run yet', () => {
+  it('holds rewind from keydown to keyup under the same owner', async () => {
     listener.setHotkeys(navigationMap());
     const event = keydown('KeyH');
     window.dispatchEvent(event);
-    expect(event.defaultPrevented).toBe(false);
-    expect(executeMock).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(navigationCalls()).toEqual([['rewind', 'start']]);
+
+    window.dispatchEvent(keyup('KeyH'));
+    expect(navigationCalls()).toEqual([
+      ['rewind', 'start'],
+      ['rewind', 'end'],
+    ]);
+    const [start, end] = executeMock.mock.calls;
+    expect(start?.[1].hold).toBeDefined();
+    expect(end?.[1].hold).toBe(start?.[1].hold);
+  });
+
+  it('holds rewind the same way when repeat is enabled', async () => {
+    listener.setHotkeys(navigationMap());
+    enableRepeat(500, 15);
+    window.dispatchEvent(keydown('KeyH'));
+    await vi.advanceTimersByTimeAsync(2000);
+    window.dispatchEvent(keyup('KeyH'));
+    expect(navigationCalls()).toEqual([
+      ['rewind', 'start'],
+      ['rewind', 'end'],
+    ]);
+  });
+
+  it('ends a rewind hold exactly once per teardown path', async () => {
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyH'));
+    window.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(keyup('KeyH'));
+    expect(navigationCalls()).toEqual([
+      ['rewind', 'start'],
+      ['rewind', 'end'],
+    ]);
+
+    executeMock.mockClear();
+    window.dispatchEvent(keydown('KeyH'));
+    listener.destroy();
+    expect(navigationCalls()).toEqual([
+      ['rewind', 'start'],
+      ['rewind', 'end'],
+    ]);
+  });
+
+  it('ends a rewind hold when the locked target disconnects', async () => {
+    const video = document.createElement('video');
+    document.body.append(video);
+    vi.spyOn(registry, 'resolveHotkeyTarget').mockReturnValue(video);
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyH'));
+    expect(navigationCalls()).toEqual([['rewind', 'start']]);
+
+    video.remove();
+    await Promise.resolve();
+    expect(navigationCalls()).toEqual([
+      ['rewind', 'start'],
+      ['rewind', 'end'],
+    ]);
   });
 
   it('locks the navigation target on the initial keydown', async () => {

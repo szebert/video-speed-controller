@@ -205,6 +205,23 @@ export class MediaRegistry {
     return true;
   }
 
+  /**
+   * Starts a reverse-seek transport for `owner`, replacing any hold on this
+   * video. The replaced owner's `endTransportHold` becomes a no-op.
+   */
+  beginRewindHold(video: HTMLVideoElement, owner: TransportHoldOwner, magnitude: number): boolean {
+    if (this.destroyed || !video.isConnected) {
+      return false;
+    }
+    const entry = this.ensureEntry(video);
+    const session = entry.controller.beginRewind(magnitude);
+    if (!session) {
+      return false;
+    }
+    entry.hold = { owner, session };
+    return true;
+  }
+
   /** Ends the hold only when `owner` still owns the active session. */
   endTransportHold(video: HTMLVideoElement, owner: TransportHoldOwner): boolean {
     const entry = this.entries.get(video);

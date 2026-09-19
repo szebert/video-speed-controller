@@ -241,20 +241,152 @@ describe('executeControllerAction', () => {
     expect(flashText()).toBe('Pause');
   });
 
-  it('does nothing at all for rewind', async () => {
-    seekable(video, { currentTime: 30, duration: 120 });
-    for (const phase of ['press', 'start', 'end'] as const) {
-      await executeControllerAction('rewind', {
-        resolveRegistry: () => registry,
-        source: { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video },
-        phase,
-        hold: {},
-      });
-    }
+  it('holds rewind between start and end without a negative playbackRate', async () => {
+    seekable(video, { currentTime: 30, duration: 120, paused: false });
+    registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false, rewindSpeed: -2 }));
+    const hold = {};
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'press',
+      hold,
+    });
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBe(1.5);
+
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'start',
+      hold,
+    });
     expect(sendMessage).not.toHaveBeenCalled();
-    expect(video.currentTime).toBe(30);
-    expect(video.playbackRate).toBe(1);
-    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+    expect(video.paused).toBe(true);
+    expect(video.playbackRate).toBe(1.5);
+    expect(flashText()).toBe('Rewind 2.00×');
+
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'end',
+      hold,
+    });
+    expect(video.playbackRate).toBe(1.5);
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBeGreaterThan(0);
+  });
+
+  it('keeps a paused video paused after rewind and uses the flash delay', async () => {
+    vi.useFakeTimers();
+    seekable(video, { currentTime: 30, duration: 120, paused: true });
+    registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false, flashDelayMs: 200 }));
+    const hold = {};
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'start',
+      hold,
+    });
+    expect(video.paused).toBe(true);
+    expect(flashText()).toBe('Rewind 1.00×');
+    vi.advanceTimersByTime(1_000);
+    expect(flashText()).toBe('Rewind 1.00×');
+
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'end',
+      hold,
+    });
+    expect(video.paused).toBe(true);
+    vi.advanceTimersByTime(199);
+    expect(flashText()).toBe('Rewind 1.00×');
+    vi.advanceTimersByTime(1);
+    expect(flashText()).toBeUndefined();
+    vi.useRealTimers();
+  });
+
+  it('ignores a rewind end from a replaced hold owner', async () => {
+    seekable(video, { currentTime: 30, duration: 120, paused: false });
+    registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false }));
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    const first = {};
+    const second = {};
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'start',
+      hold: first,
+    });
+    expect(video.playbackRate).toBe(3);
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'start',
+      hold: second,
+    });
+    expect(video.paused).toBe(true);
+    expect(video.playbackRate).toBe(1.5);
+
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'end',
+      hold: first,
+    });
+    expect(video.paused).toBe(true);
+    expect(flashText()).toBe('Rewind 1.00×');
+
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'end',
+      hold: second,
+    });
+    expect(video.paused).toBe(false);
+    expect(video.playbackRate).toBe(1.5);
+  });
+
+  it('ignores a fast forward end after rewind is replaced by fast forward', async () => {
+    seekable(video, { currentTime: 30, duration: 120, paused: true });
+    registry.setBehavior(tabBehavior(2, { overlayAutoHide: false }));
+    const source = { kind: 'overlay', video } as const;
+    const first = {};
+    const second = {};
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'start',
+      hold: first,
+    });
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'start',
+      hold: second,
+    });
+    expect(video.playbackRate).toBe(3);
+    expect(video.paused).toBe(false);
+
+    await executeControllerAction('rewind', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'end',
+      hold: first,
+    });
+    expect(video.playbackRate).toBe(3);
+    expect(video.paused).toBe(false);
+
+    await executeControllerAction('fastForward', {
+      resolveRegistry: () => registry,
+      source,
+      phase: 'end',
+      hold: second,
+    });
+    expect(video.playbackRate).toBe(2);
+    expect(video.paused).toBe(true);
   });
 
   it('holds the fast forward rate between start and end', async () => {

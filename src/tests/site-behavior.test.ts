@@ -428,12 +428,12 @@ describe('site behavior resolution', () => {
     expect(resolved.skipBackSeconds).toEqual({ value: 5, source: 'built-in' });
   });
 
-  it('holds fast forward regardless of repeat, and keeps rewind disabled', () => {
+  it('holds fast forward and rewind regardless of repeat', () => {
     expect(hotkeyActionMode('fastForward', false)).toBe('hold');
     expect(hotkeyActionMode('fastForward', true)).toBe('hold');
     expect(HOLD_ACTIONS.has('rewind')).toBe(true);
-    expect(hotkeyActionMode('rewind', false)).toBe('disabled');
-    expect(hotkeyActionMode('rewind', true)).toBe('disabled');
+    expect(hotkeyActionMode('rewind', false)).toBe('hold');
+    expect(hotkeyActionMode('rewind', true)).toBe('hold');
   });
 
   it('clamps stored hotkey flash opacity outside 1–100 without dropping the override', () => {

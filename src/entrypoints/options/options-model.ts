@@ -27,6 +27,7 @@ export type DraftKey =
   | 'skipBackSeconds'
   | 'skipForwardSeconds'
   | 'fastForwardSpeed'
+  | 'rewindSpeed'
   | 'delay'
   | 'flashDelay'
   | 'hotkeyRepeatDelay';

@@ -26,6 +26,7 @@ import { SETTINGS_CREATED_BY_NEWER_VERSION } from '../../settings/migrate';
 import { backupExportFilename, backupFailureMessage } from './backup-file';
 import {
   canonicalizeFastForwardSpeed,
+  canonicalizeRewindSpeed,
   canonicalizeFlashDelayMs,
   canonicalizeHotkeyRepeatDelayMs,
   canonicalizeOverlayAutoHideDelayMs,
@@ -705,9 +706,11 @@ export function useBehaviorSettings() {
     const confirmed =
       key === 'fastForwardSpeed'
         ? canonicalizeFastForwardSpeed(parsed)
-        : key === 'skipBackSeconds' || key === 'skipForwardSeconds'
-          ? canonicalizeSkipSeconds(parsed)
-          : clampPolicyNumber(parsed, min, max);
+        : key === 'rewindSpeed'
+          ? canonicalizeRewindSpeed(parsed)
+          : key === 'skipBackSeconds' || key === 'skipForwardSeconds'
+            ? canonicalizeSkipSeconds(parsed)
+            : clampPolicyNumber(parsed, min, max);
     if (confirmed === fallback) {
       return;
     }

@@ -24,7 +24,11 @@ export type OverlayActions = {
 
 export type OverlayViewCallbacks = {
   onAdjust(direction: -1 | 1): void;
-  onMediaAction(action: MediaNavigationAction, phase: ControllerActionPhase): void;
+  onMediaAction(
+    action: MediaNavigationAction,
+    phase: ControllerActionPhase,
+    hold?: TransportHoldOwner,
+  ): void;
   onSetPosition(position: OverlayPosition): void;
   onOpenSettings(): void;
   onInteractiveChange(active: boolean): void;

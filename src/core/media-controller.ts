@@ -2,22 +2,29 @@
 
 import { decideRateChange, decideTemporaryRateChange, ratesAlmostEqual } from './arbitration';
 import { safePause, safePlay } from './media-navigation';
+import { startRewind, type RewindSession } from './rewind';
 
 export type OwnershipChangeHandler = (owned: boolean) => void;
 
 /** Opaque handle for one temporary transport session. */
 export type TransportSession = { readonly id: number };
 
+type FastForwardMode = { kind: 'fastForward'; rate: number };
+type RewindMode = { kind: 'rewind'; session: RewindSession };
+type TransportMode = FastForwardMode | RewindMode;
+
 type TransportState = {
   id: number;
-  rate: number;
-  /** Set when a session resumed a paused video, so ending restores pause. */
-  startedPlayback: boolean;
+  /** `video.paused` when the first transport in this replacement chain began. */
+  baselinePaused: boolean;
+  /** True once any transport in the chain called play or pause. */
+  playbackTouched: boolean;
   /**
    * Page rate captured when the controller was already surrendered. Owned
    * sessions restore `targetSpeed` instead.
    */
   pageRate: number | null;
+  mode: TransportMode;
 };
 
 export class MediaController {
@@ -63,9 +70,9 @@ export class MediaController {
     this.writeRate(speed);
   }
 
-  /** Rate of the active temporary session, or null when none is active. */
+  /** Rate of the active Fast Forward session, or null when none is active. */
   get temporaryRate(): number | null {
-    return this.transport?.rate ?? null;
+    return this.transport?.mode.kind === 'fastForward' ? this.transport.mode.rate : null;
   }
 
   /**
@@ -80,20 +87,60 @@ export class MediaController {
     if (!Number.isFinite(rate) || rate <= 0) {
       return null;
     }
+    const previous = this.stopCurrentTransportMode();
     const id = ++this.transportSequence;
     this.transport = {
       id,
-      rate,
-      startedPlayback: this.transport?.startedPlayback ?? false,
+      baselinePaused: previous?.baselinePaused ?? this.video.paused,
+      playbackTouched: previous?.playbackTouched ?? false,
       // Capture before writeRate so a surrendered start restores the page, not 3×.
-      pageRate: this.transport?.pageRate ?? (this.surrendered ? this.video.playbackRate : null),
+      pageRate: previous?.pageRate ?? (this.surrendered ? this.video.playbackRate : null),
+      mode: { kind: 'fastForward', rate },
     };
     this.retryCount = 0;
     this.clearRetry();
     this.writeRate(rate);
     if (options.resumePlayback && this.video.paused) {
-      this.transport.startedPlayback = true;
+      this.transport.playbackTouched = true;
       void safePlay(this.video);
+    }
+    return { id };
+  }
+
+  /**
+   * Starts a reverse-seek transport without writing a negative playbackRate.
+   * Replaces any live transport; the replaced session's token goes stale.
+   */
+  beginRewind(magnitude: number): TransportSession | null {
+    if (!Number.isFinite(magnitude) || magnitude <= 0) {
+      return null;
+    }
+    const previous = this.stopCurrentTransportMode();
+    const pageRate = previous?.pageRate ?? (this.surrendered ? this.video.playbackRate : null);
+    if (previous?.mode.kind === 'fastForward') {
+      this.writeRestoredRate(pageRate);
+    }
+    const rewind = startRewind(this.video, magnitude);
+    if (!rewind) {
+      if (previous) {
+        this.transport = previous;
+        this.finishTemporaryRate();
+      }
+      return null;
+    }
+    const id = ++this.transportSequence;
+    this.transport = {
+      id,
+      baselinePaused: previous?.baselinePaused ?? this.video.paused,
+      playbackTouched: previous?.playbackTouched ?? false,
+      pageRate,
+      mode: { kind: 'rewind', session: rewind },
+    };
+    this.retryCount = 0;
+    this.clearRetry();
+    if (!this.video.paused) {
+      this.transport.playbackTouched = true;
+      safePause(this.video);
     }
     return { id };
   }
@@ -106,22 +153,43 @@ export class MediaController {
     this.finishTemporaryRate();
   }
 
+  private stopCurrentTransportMode(): TransportState | null {
+    const transport = this.transport;
+    if (transport?.mode.kind === 'rewind') {
+      transport.mode.session.stop();
+    }
+    return transport;
+  }
+
+  private writeRestoredRate(pageRate: number | null): void {
+    if (this.targetSpeed != null && !this.surrendered) {
+      this.writeRate(this.targetSpeed);
+      return;
+    }
+    if (pageRate != null) {
+      this.writeRate(pageRate);
+    }
+  }
+
   private finishTemporaryRate(): void {
     const transport = this.transport;
     if (!transport) {
       return;
     }
+    if (transport.mode.kind === 'rewind') {
+      transport.mode.session.stop();
+    }
     this.transport = null;
     this.retryCount = 0;
     this.clearRetry();
-    if (this.targetSpeed != null && !this.surrendered) {
-      this.writeRate(this.targetSpeed);
-    } else if (transport.pageRate != null) {
-      this.writeRate(transport.pageRate);
-    }
-    if (transport.startedPlayback) {
-      // Also aborts a play() that has not resolved yet.
-      safePause(this.video);
+    this.writeRestoredRate(transport.pageRate);
+    if (transport.playbackTouched) {
+      if (transport.baselinePaused) {
+        // Also aborts a play() that has not resolved yet.
+        safePause(this.video);
+      } else {
+        void safePlay(this.video);
+      }
     }
   }
 
@@ -142,7 +210,9 @@ export class MediaController {
   private onRateChange = (): void => {
     const transport = this.transport;
     if (transport) {
-      this.defendTemporaryRate(transport);
+      if (transport.mode.kind === 'fastForward') {
+        this.defendTemporaryRate(transport);
+      }
       return;
     }
     if (this.targetSpeed == null) {
@@ -172,13 +242,16 @@ export class MediaController {
     }
   };
 
-  // A transport session is evaluated against its own rate and never surrenders:
-  // the temporary rate is not what the page is being judged against, and adopt
-  // is not a legal outcome.
+  // A Fast Forward session is evaluated against its own rate and never
+  // surrenders: the temporary rate is not what the page is being judged
+  // against, and adopt is not a legal outcome.
   private defendTemporaryRate(transport: TransportState): void {
+    if (transport.mode.kind !== 'fastForward') {
+      return;
+    }
     const decision = decideTemporaryRateChange({
       currentRate: this.video.playbackRate,
-      targetSpeed: transport.rate,
+      targetSpeed: transport.mode.rate,
       lastWrittenRate: this.lastWrittenRate,
       retryCount: this.retryCount,
     });
@@ -188,8 +261,8 @@ export class MediaController {
     this.retryCount = decision.retryCount;
     this.clearRetry();
     this.retryTimer = setTimeout(() => {
-      if (this.transport?.id === transport.id) {
-        this.writeRate(transport.rate);
+      if (this.transport?.id === transport.id && this.transport.mode.kind === 'fastForward') {
+        this.writeRate(this.transport.mode.rate);
       }
     }, decision.delayMs);
   }

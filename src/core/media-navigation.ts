@@ -73,7 +73,8 @@ function isLiveMedia(video: HTMLVideoElement): boolean {
   return video.isConnected;
 }
 
-function writeCurrentTime(video: HTMLVideoElement, seconds: number): boolean {
+/** Assigns `currentTime`. Returns false when the element is gone or the write throws. */
+export function writeCurrentTime(video: HTMLVideoElement, seconds: number): boolean {
   if (!isLiveMedia(video)) {
     return false;
   }

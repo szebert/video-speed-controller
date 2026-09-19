@@ -46,7 +46,8 @@ export const BEHAVIOR_FIELDS = {
     category: 'playback',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
-  // Signed reverse rate. Stored now; rewind cannot execute in this release.
+  // Signed reverse direction in the product model. Blink never receives this
+  // as a negative playbackRate; rewind uses abs() as seek velocity.
   rewindSpeed: {
     default: -1,
     category: 'playback',

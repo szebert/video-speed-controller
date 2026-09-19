@@ -120,10 +120,6 @@ export class HotkeyListener {
       return;
     }
     const mode = hotkeyActionMode(action, this.policy.enabled);
-    if (mode === 'disabled') {
-      // Bindable scaffolding. Leave the key to the page instead of eating it.
-      return;
-    }
     const video = isMediaNavigationAction(action) ? this.resolveTarget() : null;
     if (isMediaNavigationAction(action) && !isLiveMedia(video)) {
       return;
