@@ -1389,59 +1389,6 @@ describe('VideoOverlay', () => {
     expect(mediaAction).toHaveBeenLastCalledWith('rewind', 'end', video, expect.any(Object));
   });
 
-  it('ends a pointer hold when the window blurs', () => {
-    const mediaAction = vi.fn();
-    const video = sizedVideo();
-    const overlay = new VideoOverlay(video, () => overlay.layout(), {
-      adjustSpeed() {},
-      mediaAction,
-    });
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
-    overlay.setControlled(true);
-    overlay.layout();
-    const rewind = overlay.host.shadowRoot?.querySelector(
-      '[aria-label="Rewind"]',
-    ) as HTMLButtonElement;
-    rewind.setPointerCapture = () => undefined;
-    rewind.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, buttons: 1 }));
-    const owner = mediaAction.mock.calls[0]?.[3];
-    window.dispatchEvent(new Event('blur'));
-    expect(mediaAction.mock.calls).toEqual([
-      ['rewind', 'start', video, owner],
-      ['rewind', 'end', video, owner],
-    ]);
-    window.dispatchEvent(new Event('blur'));
-    expect(mediaAction).toHaveBeenCalledTimes(2);
-    overlay.destroy();
-  });
-
-  it('ends a pointer hold when the document becomes hidden', () => {
-    const mediaAction = vi.fn();
-    const video = sizedVideo();
-    const overlay = new VideoOverlay(video, () => overlay.layout(), {
-      adjustSpeed() {},
-      mediaAction,
-    });
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
-    overlay.setControlled(true);
-    overlay.layout();
-    const rewind = overlay.host.shadowRoot?.querySelector(
-      '[aria-label="Rewind"]',
-    ) as HTMLButtonElement;
-    rewind.setPointerCapture = () => undefined;
-    rewind.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, buttons: 1 }));
-    const owner = mediaAction.mock.calls[0]?.[3];
-    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
-    document.dispatchEvent(new Event('visibilitychange'));
-    expect(mediaAction.mock.calls).toEqual([
-      ['rewind', 'start', video, owner],
-      ['rewind', 'end', video, owner],
-    ]);
-    document.dispatchEvent(new Event('visibilitychange'));
-    expect(mediaAction).toHaveBeenCalledTimes(2);
-    overlay.destroy();
-  });
-
   it('keeps the first pointer id when a second finger hits the same hold', () => {
     const mediaAction = vi.fn();
     const video = sizedVideo();

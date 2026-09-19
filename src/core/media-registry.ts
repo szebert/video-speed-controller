@@ -479,6 +479,23 @@ export class MediaRegistry {
     this.requestLayout();
   };
 
+  // Window/tab loss does not deliver pointerup. One listener ends every
+  // overlay hold; button blur is a different signal and stays on the button.
+  private readonly onPageHide = (): void => {
+    if (this.destroyed) {
+      return;
+    }
+    for (const entry of this.entries.values()) {
+      entry.overlay.releaseHolds();
+    }
+  };
+
+  private readonly onVisibilityChange = (): void => {
+    if (this.document.visibilityState === 'hidden') {
+      this.onPageHide();
+    }
+  };
+
   private attachLayoutListeners(): void {
     if (!this.view) {
       return;
@@ -490,6 +507,8 @@ export class MediaRegistry {
     this.document.addEventListener('fullscreenchange', this.onLayoutSignal);
     this.view.addEventListener('pointermove', this.onWindowPointer, capture);
     this.view.addEventListener('pointerdown', this.onWindowPointer, capture);
+    this.view.addEventListener('blur', this.onPageHide);
+    this.document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   private detachLayoutListeners(): void {
@@ -503,6 +522,8 @@ export class MediaRegistry {
     this.document.removeEventListener('fullscreenchange', this.onLayoutSignal);
     this.view.removeEventListener('pointermove', this.onWindowPointer, capture);
     this.view.removeEventListener('pointerdown', this.onWindowPointer, capture);
+    this.view.removeEventListener('blur', this.onPageHide);
+    this.document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   private cancelLayout(): void {

@@ -166,24 +166,6 @@ export class OverlayView {
       },
       { signal },
     );
-    // Window/tab loss does not deliver pointerup. End here so rewind/FF cannot
-    // stay armed; button blur is a different signal and stays on the hold.
-    this.document.defaultView?.addEventListener(
-      'blur',
-      () => {
-        this.releaseHolds();
-      },
-      { signal },
-    );
-    this.document.addEventListener(
-      'visibilitychange',
-      () => {
-        if (this.document.visibilityState === 'hidden') {
-          this.releaseHolds();
-        }
-      },
-      { signal },
-    );
   }
 
   update(state: OverlayViewState): void {
@@ -214,7 +196,7 @@ export class OverlayView {
   }
 
   /** Ends every live hold, so teardown cannot strand a temporary rate. */
-  private releaseHolds(): void {
+  releaseHolds(): void {
     for (const end of [...this.activeHolds]) {
       end();
     }

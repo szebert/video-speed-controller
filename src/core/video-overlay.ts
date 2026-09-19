@@ -285,6 +285,11 @@ export class VideoOverlay {
     );
   }
 
+  /** Ends live overlay holds. Page hide is owned by MediaRegistry. */
+  releaseHolds(): void {
+    this.view.releaseHolds();
+  }
+
   destroy(): void {
     this.abort.abort();
     this.clearHideTimer();

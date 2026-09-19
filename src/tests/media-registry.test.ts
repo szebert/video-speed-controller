@@ -621,7 +621,21 @@ describe('media registry', () => {
       registry.ensureController(node);
     }
     expect(capturePointerAdds(add)).toEqual({ move: 1, down: 1 });
+    expect(add.mock.calls.filter(([type]) => type === 'blur')).toHaveLength(1);
     expect(document.querySelectorAll(OVERLAY_HOST_TAG)).toHaveLength(n);
+  });
+
+  it.each([1, 5, 20])('installs one document visibility listener for %s videos', (n) => {
+    const add = vi.spyOn(document, 'addEventListener');
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    for (let index = 0; index < n; index += 1) {
+      const node = video({ left: index * 200, top: 0, width: 160, height: 90 });
+      document.body.append(node);
+      registry.ensureController(node);
+    }
+    expect(add.mock.calls.filter(([type]) => type === 'visibilitychange')).toHaveLength(1);
   });
 
   it('does not read geometry synchronously in pointer handlers', () => {
@@ -1039,6 +1053,88 @@ describe('media registry', () => {
 
     registry.destroy();
     expect(registry.beginTransportHold(node, owner, 3, {})).toBe(false);
+  });
+
+  it('ends overlay pointer holds when the window blurs', () => {
+    const mediaAction = vi.fn();
+    const registry = new MediaRegistry(document, { adjustSpeed() {}, mediaAction });
+    registries.push(registry);
+    const node = video();
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    registry.start();
+    const overlay = registry.getOverlay(node);
+    expect(overlay).toBeTruthy();
+    overlay!.layout();
+    const rewind = overlay!.host.shadowRoot?.querySelector(
+      '[aria-label="Rewind"]',
+    ) as HTMLButtonElement;
+    rewind.setPointerCapture = () => undefined;
+    rewind.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, buttons: 1 }));
+    const owner = mediaAction.mock.calls[0]?.[3];
+    window.dispatchEvent(new Event('blur'));
+    expect(mediaAction.mock.calls).toEqual([
+      ['rewind', 'start', node, owner],
+      ['rewind', 'end', node, owner],
+    ]);
+    window.dispatchEvent(new Event('blur'));
+    expect(mediaAction).toHaveBeenCalledTimes(2);
+  });
+
+  it('ends overlay pointer holds when the document becomes hidden', () => {
+    const mediaAction = vi.fn();
+    const registry = new MediaRegistry(document, { adjustSpeed() {}, mediaAction });
+    registries.push(registry);
+    const node = video();
+    document.body.append(node);
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    registry.start();
+    const overlay = registry.getOverlay(node);
+    expect(overlay).toBeTruthy();
+    overlay!.layout();
+    const rewind = overlay!.host.shadowRoot?.querySelector(
+      '[aria-label="Rewind"]',
+    ) as HTMLButtonElement;
+    rewind.setPointerCapture = () => undefined;
+    rewind.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, buttons: 1 }));
+    const owner = mediaAction.mock.calls[0]?.[3];
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(mediaAction.mock.calls).toEqual([
+      ['rewind', 'start', node, owner],
+      ['rewind', 'end', node, owner],
+    ]);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(mediaAction).toHaveBeenCalledTimes(2);
+  });
+
+  it('ends every overlay pointer hold from one window blur', () => {
+    const mediaAction = vi.fn();
+    const registry = new MediaRegistry(document, { adjustSpeed() {}, mediaAction });
+    registries.push(registry);
+    const first = video({ left: 0, top: 0, width: 160, height: 90 });
+    const second = video({ left: 200, top: 0, width: 160, height: 90 });
+    document.body.append(first, second);
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    registry.start();
+    const owners: unknown[] = [];
+    for (const node of [first, second]) {
+      const overlay = registry.getOverlay(node);
+      overlay!.layout();
+      const rewind = overlay!.host.shadowRoot?.querySelector(
+        '[aria-label="Rewind"]',
+      ) as HTMLButtonElement;
+      rewind.setPointerCapture = () => undefined;
+      rewind.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, buttons: 1 }));
+      owners.push(mediaAction.mock.calls.at(-1)?.[3]);
+    }
+    window.dispatchEvent(new Event('blur'));
+    expect(mediaAction.mock.calls).toEqual([
+      ['rewind', 'start', first, owners[0]],
+      ['rewind', 'start', second, owners[1]],
+      ['rewind', 'end', first, owners[0]],
+      ['rewind', 'end', second, owners[1]],
+    ]);
   });
 
   it('ends a hold when its video leaves the document', () => {
