@@ -9,6 +9,12 @@ import {
   toAppliedTabBehavior,
 } from '../core/applied-tab-behavior';
 import {
+  SPEED_MAX_SETTING_MIN,
+  SPEED_MIN_SETTING_MIN,
+  SPEED_TICK_SETTING_MAX,
+  SPEED_TICK_SETTING_MIN,
+} from '../core/speed';
+import {
   BUILT_IN_SITE_BEHAVIOR,
   FLASH_DELAY_MS_MAX,
   FLASH_DELAY_MS_MIN,
@@ -76,6 +82,26 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.skipScaleWithPlaybackRate).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.rewindSpeed).toBe(-1);
     expect(BUILT_IN_SITE_BEHAVIOR.fastForwardSpeed).toBe(3);
+  });
+
+  it('clamps applied speedMax below 1× and keeps a stored 1× maximum', () => {
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedMax: 0.5 }).speedMax).toBe(
+      SPEED_MAX_SETTING_MIN,
+    );
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedMax: 1 }).speedMax).toBe(1);
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedMin: 0.01 }).speedMin).toBe(
+      SPEED_MIN_SETTING_MIN,
+    );
+  });
+
+  it('clamps applied speedTick to the product range', () => {
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedTick: 0 }).speedTick).toBe(
+      SPEED_TICK_SETTING_MIN,
+    );
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedTick: 2 }).speedTick).toBe(
+      SPEED_TICK_SETTING_MAX,
+    );
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedTick: 0.1 }).speedTick).toBe(0.1);
   });
 
   it('clamps applied skip distances and keeps transport rates signed', () => {

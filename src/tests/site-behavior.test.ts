@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SPEED_POLICY, SPEED_MAX_SETTING_MAX, SPEED_MIN_SETTING_MIN } from '../core/speed';
+import {
+  DEFAULT_SPEED_POLICY,
+  SPEED_MAX_SETTING_MAX,
+  SPEED_MAX_SETTING_MIN,
+  SPEED_MIN_SETTING_MIN,
+  SPEED_TICK_SETTING_MAX,
+  SPEED_TICK_SETTING_MIN,
+} from '../core/speed';
 import { emptyEffectiveHotkeys, matchHotkeyAction } from '../settings/hotkey-binding';
 import {
   applyBehaviorSettingChange,
@@ -30,6 +37,7 @@ import {
   hotkeyChangesWouldConflict,
   prospectiveEffectiveHotkeys,
   resolveSiteBehavior,
+  revalidateResolvedSpeed,
   toEffectiveBehavior,
   toEffectiveHotkeys,
   toSyncEligibleSiteRecord,
@@ -521,6 +529,59 @@ describe('site behavior resolution', () => {
     expect(resolved.speed).toEqual({ value: 10, source: 'site' });
     expect(resolved.speedMax).toEqual({ value: 16, source: 'global' });
   });
+
+  it('revalidates a resolved speed when min and max collapse to 1×', () => {
+    const resolved = resolveSiteBehavior(
+      {
+        speedMin: { kind: 'value', value: 1, updatedAt: 1 },
+        speed: { kind: 'value', value: 2.25, updatedAt: 2 },
+      },
+      {},
+    );
+    expect(resolved.speed).toEqual({ value: 2.25, source: 'global' });
+    expect(
+      revalidateResolvedSpeed({
+        ...resolved,
+        speedMax: { value: 1, source: 'global' as const },
+      }).speed,
+    ).toEqual({ value: 1, source: 'global' });
+  });
+
+  it('clamps stored speedMax below 1× and keeps a 1/1 fixed-speed policy', () => {
+    expect(
+      resolveSiteBehavior({ speedMax: { kind: 'value', value: 0.5, updatedAt: 10 } }, {}).speedMax,
+    ).toEqual({
+      value: SPEED_MAX_SETTING_MIN,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior(
+        {
+          speedMin: { kind: 'value', value: 1, updatedAt: 10 },
+          speedMax: { kind: 'value', value: 1, updatedAt: 10 },
+        },
+        {},
+      ),
+    ).toMatchObject({
+      speedMin: { value: 1, source: 'global' },
+      speedMax: { value: 1, source: 'global' },
+    });
+  });
+
+  it('clamps stored speedTick to the product range without rewriting storage', () => {
+    const stored: Override<number> = { kind: 'value', value: 2, updatedAt: 10 };
+    expect(resolveSiteBehavior({ speedTick: stored }, {}).speedTick).toEqual({
+      value: SPEED_TICK_SETTING_MAX,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior({ speedTick: { kind: 'value', value: 0, updatedAt: 10 } }, {}).speedTick,
+    ).toEqual({
+      value: SPEED_TICK_SETTING_MIN,
+      source: 'global',
+    });
+    expect(stored).toEqual({ kind: 'value', value: 2, updatedAt: 10 });
+  });
 });
 
 describe('field merge primitive', () => {
@@ -944,8 +1005,14 @@ describe('behavior setting changes', () => {
       canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMax', value: 20 }),
     ).toEqual({ kind: 'value', field: 'speedMax', value: 16 });
     expect(
-      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMax', value: 0.5 }),
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMax', value: 1 }),
     ).toEqual({ kind: 'value', field: 'speedMax', value: 1 });
+    expect(
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMax', value: 0.5 }),
+    ).toEqual({ kind: 'value', field: 'speedMax', value: SPEED_MAX_SETTING_MIN });
+    expect(
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMin', value: 1 }),
+    ).toEqual({ kind: 'value', field: 'speedMin', value: 1 });
     expect(
       canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMin', value: 0.01 }),
     ).toEqual({ kind: 'value', field: 'speedMin', value: 0.0625 });

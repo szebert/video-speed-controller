@@ -9,6 +9,7 @@ export type SpeedPolicy = {
 /** Chromium `HTMLMediaElement.kMinPlaybackRate`. Values below this throw. */
 export const SPEED_MIN_SETTING_MIN = 0.0625;
 export const SPEED_MIN_SETTING_MAX = 1;
+/** Lowest Maximum speed. 1× allows a "never faster than normal" policy. */
 export const SPEED_MAX_SETTING_MIN = 1;
 /** Chromium `HTMLMediaElement.kMaxPlaybackRate`. Values above this throw. */
 export const SPEED_MAX_SETTING_MAX = 16;
@@ -73,6 +74,10 @@ export function canAdjustSpeed(
   return adjustSpeed(current, direction, policy) !== canonicalizeSpeed(current);
 }
 
+export function isFixedSpeedPolicy(policy: SpeedPolicy = DEFAULT_SPEED_POLICY): boolean {
+  return canonicalizeSpeed(policy.min) === canonicalizeSpeed(policy.max);
+}
+
 export function isPolicyLimited(
   siteSpeed: number | null | undefined,
   policy: SpeedPolicy = DEFAULT_SPEED_POLICY,
@@ -118,7 +123,12 @@ export function sliderBounds(policy: SpeedPolicy = DEFAULT_SPEED_POLICY): {
   const min = canonicalizeSpeed(policy.min);
   const max = canonicalizeSpeed(policy.max);
   if (max <= min) {
-    return { minValue: min, maxValue: max };
+    // React Aria sliders require max > min. The thumb is static; SpeedControls
+    // disables the widget when the policy is a single speed.
+    return {
+      minValue: min,
+      maxValue: canonicalizeSpeed(min + SPEED_SLIDER_STEP),
+    };
   }
   const steps = Math.max(1, Math.ceil(canonicalizeSpeed((max - min) / SPEED_SLIDER_STEP)));
   return {

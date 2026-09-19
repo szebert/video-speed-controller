@@ -8,7 +8,14 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { SpeedControls } from '@/components/SpeedControls';
 import type { GetBehaviorSettingsResponse } from '../protocol/schemas/options-background';
 import type { BehaviorSettingsSnapshot } from '../protocol/schemas/shared';
-import { OVERLAY_POSITION, resolveSiteBehavior } from '../settings/site-behavior';
+import {
+  applyBehaviorSettingChange,
+  canonicalizeBehaviorSettingChange,
+  OVERLAY_POSITION,
+  resolveSiteBehavior,
+  type BehaviorOverrides,
+  type BehaviorSettingChange,
+} from '../settings/site-behavior';
 import { SPEED_MIN_SETTING_MIN } from '../core/speed';
 import { App } from '../entrypoints/options/App';
 
@@ -19,6 +26,37 @@ function snapshot(site: string | null = null): BehaviorSettingsSnapshot {
     globalHotkeys: hotkeys,
     site: site ? { hostname: site, behavior: { ...global }, hotkeys } : null,
   };
+}
+
+function snapshotFromOverrides(overrides: BehaviorOverrides = {}): BehaviorSettingsSnapshot {
+  const { hotkeys, ...global } = resolveSiteBehavior(overrides, {});
+  return {
+    global,
+    globalHotkeys: hotkeys,
+    site: null,
+  };
+}
+
+function applyMessageOverrides(
+  overrides: BehaviorOverrides,
+  message: {
+    type?: string;
+    change?: BehaviorSettingChange;
+    changes?: BehaviorSettingChange[];
+  },
+): BehaviorOverrides {
+  if (message.type !== 'SET_BEHAVIOR_SETTING') {
+    return overrides;
+  }
+  const changes = message.changes ?? (message.change ? [message.change] : []);
+  let next = overrides;
+  for (const change of changes) {
+    const canonical = canonicalizeBehaviorSettingChange(change);
+    if (canonical) {
+      next = applyBehaviorSettingChange(next, canonical, 1);
+    }
+  }
+  return next;
 }
 
 function loadReply(state: BehaviorSettingsSnapshot, customSites: string[] = []) {
@@ -831,6 +869,129 @@ describe('Options page', () => {
       scope: { kind: 'global' },
       change: { kind: 'value', field: 'speedTick', value: 0.0005 },
     });
+  });
+
+  it('persists speed max 1', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    const maxInput = container.querySelector('#speed-max');
+    expect(maxInput).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(maxInput instanceof HTMLInputElement)) {
+        return;
+      }
+      maxInput.focus();
+      setInputValue(maxInput, '1');
+      maxInput.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      maxInput.blur();
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'speedMax', value: 1 },
+    });
+  });
+
+  it('clamps a knob-set speed when max collapses to min and keeps ticks working after', async () => {
+    let overrides: BehaviorOverrides = {};
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshotFromOverrides(overrides));
+      }
+      overrides = applyMessageOverrides(overrides, message);
+      return {
+        ok: true,
+        state: snapshotFromOverrides(overrides),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      bottom: 10,
+      right: 100,
+      width: 100,
+      height: 10,
+      toJSON() {
+        return this;
+      },
+    });
+    try {
+      await renderApp();
+      const commitNumber = async (id: string, value: string): Promise<void> => {
+        const input = container.querySelector(id);
+        expect(input).toBeInstanceOf(HTMLInputElement);
+        await act(async () => {
+          if (!(input instanceof HTMLInputElement)) {
+            return;
+          }
+          input.focus();
+          setInputValue(input, value);
+          input.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+          );
+          input.blur();
+        });
+      };
+      await commitNumber('#speed-min', '1');
+      const slider =
+        container.querySelector('[role="slider"]') ??
+        container.querySelector('[data-slot="slider-thumb"]');
+      expect(slider).toBeTruthy();
+      await act(async () => {
+        slider?.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+        );
+      });
+      expect(container.textContent).toContain('1.01×');
+      await commitNumber('#speed-max', '1');
+      expect(container.textContent).not.toContain('1.01×');
+      expect(container.textContent).toContain('1.00×');
+      const slower = container.querySelector('[aria-label="Slower"]');
+      const faster = container.querySelector('[aria-label="Faster"]');
+      expect((slower as HTMLButtonElement).disabled).toBe(true);
+      expect((faster as HTMLButtonElement).disabled).toBe(true);
+      await commitNumber('#speed-max', '4');
+      const slowerAfter = container.querySelector('[aria-label="Slower"]');
+      const fasterAfter = container.querySelector('[aria-label="Faster"]');
+      expect((slowerAfter as HTMLButtonElement).disabled).toBe(false);
+      expect((fasterAfter as HTMLButtonElement).disabled).toBe(false);
+      await act(async () => {
+        click(fasterAfter);
+      });
+      expect(container.textContent).toContain('1.26×');
+      const reset = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'Reset',
+      );
+      await act(async () => {
+        click(reset ?? null);
+      });
+      expect(container.textContent).not.toContain('1.26×');
+      expect(container.textContent).toContain('1.00×');
+    } finally {
+      rect.mockRestore();
+    }
   });
 
   it('persists speed max 10 and tick 0.05', async () => {
@@ -3124,5 +3285,67 @@ describe('SpeedControls preview vs persist', () => {
     expect(faster?.querySelector('svg')).not.toBeNull();
     expect((slower as HTMLButtonElement).disabled).toBe(true);
     expect((faster as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('disables the slider and both ticks when min and max are 1×', async () => {
+    const onPreview = vi.fn();
+    const onCommit = vi.fn();
+    const container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        <SpeedControls
+          displaySpeed={1}
+          disabled={false}
+          policy={{ min: 1, max: 1, tick: 0.25 }}
+          onAdjust={() => {}}
+          onReset={() => {}}
+          onPreviewSlider={onPreview}
+          onCommitSlider={onCommit}
+        />,
+      );
+    });
+    const slider =
+      container.querySelector('[role="slider"]') ??
+      container.querySelector('[data-slot="slider-thumb"]');
+    const group = container.querySelector('[data-slot="slider"]');
+    const slower = container.querySelector('[aria-label="Slower"]');
+    const faster = container.querySelector('[aria-label="Faster"]');
+    expect(slider).toBeInstanceOf(HTMLElement);
+    expect(group?.getAttribute('data-disabled')).toBe('true');
+    expect((slower as HTMLButtonElement).disabled).toBe(true);
+    expect((faster as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => {
+      slider?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onPreview).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('clamps an out-of-range readout and disables ticks when the policy is fixed', async () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        <SpeedControls
+          displaySpeed={2.25}
+          disabled={false}
+          policy={{ min: 1, max: 1, tick: 0.25 }}
+          onAdjust={() => {}}
+          onReset={() => {}}
+          onCommitSlider={() => {}}
+        />,
+      );
+    });
+    expect(container.textContent).toContain('1.00×');
+    expect(container.textContent).not.toContain('2.25×');
+    const slower = container.querySelector('[aria-label="Slower"]');
+    const faster = container.querySelector('[aria-label="Faster"]');
+    expect((slower as HTMLButtonElement).disabled).toBe(true);
+    expect((faster as HTMLButtonElement).disabled).toBe(true);
   });
 });

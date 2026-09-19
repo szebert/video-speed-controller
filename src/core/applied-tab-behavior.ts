@@ -20,7 +20,17 @@ import {
   isOverlayPosition,
   type SiteBehavior,
 } from '../settings/site-behavior';
-import { speedPolicyFrom, type SpeedPolicy } from './speed';
+import {
+  SPEED_MAX_SETTING_MAX,
+  SPEED_MAX_SETTING_MIN,
+  SPEED_MIN_SETTING_MAX,
+  SPEED_MIN_SETTING_MIN,
+  SPEED_TICK_SETTING_MAX,
+  SPEED_TICK_SETTING_MIN,
+  clampPolicyNumber,
+  speedPolicyFrom,
+  type SpeedPolicy,
+} from './speed';
 
 // Session/tab shape derived from BEHAVIOR_FIELDS (speed → targetSpeed, no
 // hotkeys). The Mini APPLY schema lists the same keys separately so overlay
@@ -56,6 +66,9 @@ export function toAppliedTabBehavior(
   return {
     ...fields,
     targetSpeed,
+    speedMin: clampPolicyNumber(fields.speedMin, SPEED_MIN_SETTING_MIN, SPEED_MIN_SETTING_MAX),
+    speedMax: clampPolicyNumber(fields.speedMax, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX),
+    speedTick: clampPolicyNumber(fields.speedTick, SPEED_TICK_SETTING_MIN, SPEED_TICK_SETTING_MAX),
     overlayAutoHideDelayMs: canonicalizeOverlayAutoHideDelayMs(fields.overlayAutoHideDelayMs),
     overlayOpacity: canonicalizeOverlayOpacity(fields.overlayOpacity),
     flashDelayMs: canonicalizeFlashDelayMs(fields.flashDelayMs),

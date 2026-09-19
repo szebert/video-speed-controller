@@ -10,6 +10,8 @@ import {
   canAdjustSpeed,
   DEFAULT_SPEED_POLICY,
   formatSpeed,
+  isFixedSpeedPolicy,
+  resolveEffectiveSpeed,
   sliderBounds,
   sliderValue,
   snapSliderSpeed,
@@ -51,12 +53,14 @@ export function SpeedControls({
   onPreviewSlider,
   onCommitSlider,
 }: SpeedControlsProps) {
-  const readout = formatSpeed(displaySpeed);
+  const shown = resolveEffectiveSpeed(displaySpeed, policy);
+  const readout = formatSpeed(shown);
   const speedLabel = heading ?? t('siteSpeed');
   const bounds = sliderBounds(policy);
   const locked = disabled || pending;
-  const canSlow = canAdjustSpeed(displaySpeed, -1, policy);
-  const canFast = canAdjustSpeed(displaySpeed, 1, policy);
+  const fixed = isFixedSpeedPolicy(policy);
+  const canSlow = !fixed && canAdjustSpeed(shown, -1, policy);
+  const canFast = !fixed && canAdjustSpeed(shown, 1, policy);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
@@ -103,12 +107,13 @@ export function SpeedControls({
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>{formatSpeed(policy.min)}</span>
         <Slider
+          key={`${policy.min}:${policy.max}`}
           aria-label={speedLabel}
-          isDisabled={locked}
+          isDisabled={locked || fixed}
           minValue={bounds.minValue}
           maxValue={bounds.maxValue}
           step={SPEED_SLIDER_STEP}
-          value={sliderValue(displaySpeed, policy)}
+          value={sliderValue(shown, policy)}
           onChange={(value) => {
             onPreviewSlider?.(snappedValue(value, policy));
           }}

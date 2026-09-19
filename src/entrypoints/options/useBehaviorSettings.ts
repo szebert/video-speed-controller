@@ -13,7 +13,7 @@ import type {
   SetHotkeySettingResponse,
 } from '../../protocol/schemas/options-background';
 import type { BehaviorSettingsSnapshot, SiteMembershipUpdate } from '../../protocol/schemas/shared';
-import { adjustSpeed, clampPolicyNumber } from '../../core/speed';
+import { adjustSpeed, clampPolicyNumber, resolveEffectiveSpeed } from '../../core/speed';
 import { t } from '@/i18n/t';
 import {
   BACKUP_CONTAINS_NEWER_SETTINGS,
@@ -452,6 +452,9 @@ export function useBehaviorSettings() {
       currentSnapshot,
     );
     writeOptimistic({ ...optimisticRef.current, [change.field]: change });
+    if (change.field === 'speed' || change.field === 'speedMin' || change.field === 'speedMax') {
+      setSliderPreview(null);
+    }
     clearActionFeedback();
     coalescer.enqueue(scope, change);
   }
@@ -778,13 +781,13 @@ export function useBehaviorSettings() {
     });
   }
 
-  const speed = behavior ? (sliderPreview ?? behavior.speed.value) : 1;
+  const policy = behavior ? speedPolicyFromResolved(behavior) : undefined;
+  const speed = behavior ? resolveEffectiveSpeed(sliderPreview ?? behavior.speed.value, policy) : 1;
   const delaySeconds = behavior ? String(behavior.overlayAutoHideDelayMs.value / 1000) : '2';
   const flashDelaySeconds = behavior ? String(behavior.flashDelayMs.value / 1000) : '0.75';
   const hotkeyRepeatDelaySeconds = behavior
     ? String(behavior.hotkeyRepeatDelayMs.value / 1000)
     : '0.5';
-  const policy = behavior ? speedPolicyFromResolved(behavior) : undefined;
   const overlayLocked = blocking || !overlayEnabled;
   const delayLocked = overlayLocked || !(behavior?.overlayAutoHide.value ?? true);
   const flashEnabled =

@@ -552,6 +552,21 @@ function clampResolvedFastForwardSpeed(setting: ResolvedSetting<number>): Resolv
   return value === setting.value ? setting : { ...setting, value };
 }
 
+function clampResolvedSpeedMin(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = clampPolicyNumber(setting.value, SPEED_MIN_SETTING_MIN, SPEED_MIN_SETTING_MAX);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
+function clampResolvedSpeedMax(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = clampPolicyNumber(setting.value, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
+function clampResolvedSpeedTick(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = clampPolicyNumber(setting.value, SPEED_TICK_SETTING_MIN, SPEED_TICK_SETTING_MAX);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
 export function resolveSiteBehavior(
   globalOverrides: BehaviorOverrides = {},
   siteOverrides: BehaviorOverrides = {},
@@ -569,6 +584,9 @@ export function resolveSiteBehavior(
       ),
     });
   }
+  resolved.speedMin = clampResolvedSpeedMin(resolved.speedMin);
+  resolved.speedMax = clampResolvedSpeedMax(resolved.speedMax);
+  resolved.speedTick = clampResolvedSpeedTick(resolved.speedTick);
   const effectivePolicy =
     policy ??
     speedPolicyFrom({
@@ -830,6 +848,19 @@ export function speedPolicyFromResolved(
     max: behavior.speedMax.value,
     tick: behavior.speedTick.value,
   });
+}
+
+export function revalidateResolvedSpeed<
+  T extends Pick<ResolvedSiteBehavior, 'speed' | 'speedMin' | 'speedMax' | 'speedTick'>,
+>(behavior: T): T {
+  const value = resolveEffectiveSpeed(behavior.speed.value, speedPolicyFromResolved(behavior));
+  if (value === behavior.speed.value) {
+    return behavior;
+  }
+  return {
+    ...behavior,
+    speed: { ...behavior.speed, value },
+  };
 }
 
 export function toEditableResolvedBehavior(

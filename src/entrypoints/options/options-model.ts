@@ -6,6 +6,7 @@ import { builtInEffectiveHotkeys, hotkeyBindingsEqual } from '../../settings/hot
 import {
   BUILT_IN_SITE_BEHAVIOR,
   OVERLAY_POSITION,
+  revalidateResolvedSpeed,
   type BehaviorSettingChange,
   type EditableBehaviorField,
   type EditableResolvedBehavior,
@@ -209,20 +210,23 @@ export function applyOptimisticChange(
 ): EditableResolvedBehavior {
   if (change.kind === 'inherit') {
     if (selection.kind === 'site') {
-      return { ...behavior, [change.field]: snapshot.global[change.field] };
+      return revalidateResolvedSpeed({
+        ...behavior,
+        [change.field]: snapshot.global[change.field],
+      });
     }
-    return {
+    return revalidateResolvedSpeed({
       ...behavior,
       [change.field]: { value: BUILT_IN_SITE_BEHAVIOR[change.field], source: 'built-in' },
-    };
+    });
   }
-  return {
+  return revalidateResolvedSpeed({
     ...behavior,
     [change.field]: {
       value: change.value,
       source: selection.kind === 'site' ? 'site' : 'global',
     },
-  };
+  });
 }
 
 export function applyOptimisticChanges(

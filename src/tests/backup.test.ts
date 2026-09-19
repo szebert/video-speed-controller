@@ -218,6 +218,21 @@ describe('backup format', () => {
     });
   });
 
+  it('keeps speedMin 1 and speedMax 1 as a fixed-speed backup', () => {
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { speedMin: 1, speedMax: 1 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { speedMin: 1, speedMax: 1 }, sites: {} },
+    });
+  });
+
   it('accepts additive V1 flash fields and clamps the delay', () => {
     expect(
       parseBackupText(

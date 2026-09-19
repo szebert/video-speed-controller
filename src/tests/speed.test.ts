@@ -9,16 +9,29 @@ import {
   displaySpeed,
   formatSpeed,
   formatSpeedDelta,
+  isFixedSpeedPolicy,
   isPolicyLimited,
   resolveEffectiveSpeed,
   sliderBounds,
   sliderValue,
   snapSliderSpeed,
+  SPEED_MAX_SETTING_MIN,
   SPEED_MIN_SETTING_MIN,
   SPEED_SLIDER_STEP,
 } from '../core/speed';
 
 describe('speed policy', () => {
+  it('allows a 1× maximum and treats min===max as a fixed speed', () => {
+    expect(SPEED_MAX_SETTING_MIN).toBe(1);
+    const fixed = { min: 1, max: 1, tick: 0.25 };
+    expect(isFixedSpeedPolicy(fixed)).toBe(true);
+    expect(sliderBounds(fixed)).toEqual({ minValue: 1, maxValue: 1.01 });
+    expect(sliderValue(1, fixed)).toBe(1);
+    expect(canAdjustSpeed(1, 1, fixed)).toBe(false);
+    expect(canAdjustSpeed(1, -1, fixed)).toBe(false);
+    expect(resolveEffectiveSpeed(2, fixed)).toBe(1);
+  });
+
   it('keeps Chromium playbackRate min after 4-decimal rounding', () => {
     expect(canonicalizeSpeed(SPEED_MIN_SETTING_MIN)).toBe(SPEED_MIN_SETTING_MIN);
     expect(canonicalizeSpeed(0.06254)).toBe(SPEED_MIN_SETTING_MIN);
@@ -103,5 +116,6 @@ describe('speed policy', () => {
     expect(canAdjustSpeed(4, -1)).toBe(true);
     expect(canAdjustSpeed(2, 1, { ...DEFAULT_SPEED_POLICY, max: 2 })).toBe(false);
     expect(canAdjustSpeed(1, 1)).toBe(true);
+    expect(canAdjustSpeed(1, 1, { min: 0.25, max: 1, tick: 0.25 })).toBe(false);
   });
 });

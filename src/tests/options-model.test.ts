@@ -103,6 +103,25 @@ describe('optimistic options state', () => {
     ).toEqual({ value: 1, source: 'built-in' });
   });
 
+  it('clamps current speed when an optimistic max collapses the policy', () => {
+    const state = snapshot();
+    const withSpeed = applyOptimisticChange(
+      state.global,
+      { kind: 'value', field: 'speed', value: 2 },
+      { kind: 'global' },
+      state,
+    );
+    expect(withSpeed.speed).toEqual({ value: 2, source: 'global' });
+    expect(
+      applyOptimisticChange(
+        withSpeed,
+        { kind: 'value', field: 'speedMax', value: 1 },
+        { kind: 'global' },
+        state,
+      ).speed,
+    ).toEqual({ value: 1, source: 'global' });
+  });
+
   it('stacks pending field changes and keeps newer values when omitting a sent batch', () => {
     const state = snapshot();
     const pending = {
