@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { execSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { execFileSync, execSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -13,6 +14,19 @@ const failures = [];
 const fail = (message) => {
   failures.push(message);
 };
+
+const KB = 1000;
+const BUNDLE_SIZE_KEYS = [
+  'contentScriptBytes',
+  'popupInitialJsBytes',
+  'extensionJsBytes',
+  'extensionBytes',
+];
+// Allowed growth vs the last GitHub release chrome zip (drafts included when
+// GH_TOKEN can see them). Raise this in the same PR as an intentional size
+// increase. Reset to 1.1 after that release ships; the new zip is then the
+// baseline.
+const BUNDLE_GROWTH_SLACK = 1.1;
 
 if (pkg.license !== 'GPL-3.0-only') {
   fail(`package.json license must be GPL-3.0-only, found ${pkg.license}`);
@@ -106,9 +120,8 @@ if (!existsSync(notices) || !existsSync(publicNotices)) {
 }
 
 if (existsSync(join(root, '.output', 'chrome-mv3'))) {
-  const outputFiles = readdirSync(join(root, '.output', 'chrome-mv3'), { recursive: true }).map(
-    String,
-  );
+  const chromeDir = join(root, '.output', 'chrome-mv3');
+  const outputFiles = readdirSync(chromeDir, { recursive: true }).map(String);
   if (outputFiles.some((file) => file.includes('.cursor') || file.includes('.agents'))) {
     fail('development tooling must not be bundled into the Chrome artifact');
   }
@@ -120,6 +133,7 @@ if (existsSync(join(root, '.output', 'chrome-mv3'))) {
       fail(`Chrome artifact must include icons/icon-${size}.png`);
     }
   }
+  checkBundleBudgets(chromeDir, outputFiles);
 }
 
 if (failures.length) {
@@ -130,3 +144,317 @@ if (failures.length) {
 }
 
 console.log('Release checks passed');
+
+function checkBundleBudgets(chromeDir, outputFiles) {
+  const sizes = measureChromeBundle(chromeDir, outputFiles, 'Chrome artifact');
+  if (!sizes) {
+    return;
+  }
+
+  console.log(
+    `Bundle sizes: content=${formatKb(sizes.contentScriptBytes)} popupJS=${formatKb(
+      sizes.popupInitialJsBytes,
+    )} js=${formatKb(sizes.extensionJsBytes)} total=${formatKb(sizes.extensionBytes)}`,
+  );
+
+  const previous = previousReleaseBundle();
+  if (previous?.skip) {
+    console.log(`Bundle growth check skipped: ${previous.skip}`);
+    return;
+  }
+  if (!previous) {
+    return;
+  }
+
+  try {
+    compareBundleGrowth(sizes, previous.sizes, previous.tag);
+  } finally {
+    previous.cleanup();
+  }
+}
+
+function measureChromeBundle(chromeDir, outputFiles, label) {
+  const contentEntry = 'content-scripts/content.js';
+  if (!outputFiles.includes(contentEntry)) {
+    fail(`${label} must include content-scripts/content.js`);
+    return null;
+  }
+  if (!outputFiles.includes('popup.html')) {
+    fail(`${label} must include popup.html`);
+    return null;
+  }
+
+  const contentJs = moduleClosure(chromeDir, [contentEntry], label);
+  const popupJs = moduleClosure(chromeDir, htmlReferencedScripts(chromeDir, 'popup.html'), label);
+  const allJs = outputFiles.filter((file) => file.endsWith('.js'));
+  return {
+    contentScriptBytes: totalBytes(chromeDir, contentJs),
+    popupInitialJsBytes: totalBytes(chromeDir, popupJs),
+    extensionJsBytes: totalBytes(chromeDir, allJs),
+    extensionBytes: totalBytes(
+      chromeDir,
+      outputFiles.filter((file) => statSync(join(chromeDir, file)).isFile()),
+    ),
+  };
+}
+
+function compareBundleGrowth(current, previous, previousTag) {
+  const allowed = formatGrowthPercent(BUNDLE_GROWTH_SLACK);
+  console.log(
+    `Bundle vs ${previousTag} (allowed +${allowed}): ${BUNDLE_SIZE_KEYS.map((key) => {
+      const delta =
+        previous[key] === 0 ? 'n/a' : formatSignedPercent(current[key] / previous[key] - 1);
+      return `${key}=${formatKb(current[key])} (${delta})`;
+    }).join(' ')}`,
+  );
+  for (const key of BUNDLE_SIZE_KEYS) {
+    const limit = previous[key] * BUNDLE_GROWTH_SLACK;
+    if (current[key] > limit) {
+      reportBundleGrowth(
+        `${key} ${formatKb(current[key])} exceeds last release ${previousTag} ` +
+          `${formatKb(previous[key])} +${allowed} (limit ${formatKb(limit)}). ` +
+          'Raise BUNDLE_GROWTH_SLACK in scripts/check-release.mjs in this PR if the growth is intentional; ' +
+          'reset it to 1.1 after that release ships.',
+      );
+    }
+  }
+}
+
+function reportBundleGrowth(message) {
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    console.error(`::error::${message}`);
+  }
+  fail(message);
+}
+
+function previousReleaseBundle() {
+  const repo = githubRepo();
+  if (!repo) {
+    return { skip: 'could not resolve GitHub repository' };
+  }
+  if (!commandExists('gh')) {
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      fail('gh is required to compare bundle size against the last GitHub release');
+      return null;
+    }
+    return { skip: 'gh is not available' };
+  }
+
+  let releases;
+  try {
+    releases = JSON.parse(
+      execFileSync('gh', ['api', `repos/${repo}/releases?per_page=20`], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }),
+    );
+  } catch (error) {
+    const detail = execErrorDetail(error);
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      fail(`could not list GitHub releases for ${repo}: ${detail}`);
+      return null;
+    }
+    return { skip: `could not list GitHub releases (${detail})` };
+  }
+
+  if (!Array.isArray(releases)) {
+    const message = `unexpected GitHub releases payload for ${repo}`;
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      fail(message);
+      return null;
+    }
+    return { skip: message };
+  }
+
+  const skipTags = new Set(
+    [`v${pkg.version}`, pkg.version, process.env.GITHUB_REF_NAME, process.env.RELEASE_TAG].filter(
+      Boolean,
+    ),
+  );
+  const match = releases.find((release) => {
+    if (!release || skipTags.has(release.tag_name)) {
+      return false;
+    }
+    return chromeZipAsset(release) != null;
+  });
+  if (!match) {
+    return { skip: 'no previous GitHub release zip' };
+  }
+
+  const asset = chromeZipAsset(match);
+  if (!asset) {
+    return { skip: 'no previous GitHub release zip' };
+  }
+  const scratch = mkdtempSync(join(tmpdir(), 'osvsc-prev-release-'));
+  const cleanup = () => {
+    rmSync(scratch, { recursive: true, force: true });
+  };
+
+  try {
+    execFileSync(
+      'gh',
+      [
+        'release',
+        'download',
+        match.tag_name,
+        '--repo',
+        repo,
+        '--pattern',
+        asset.name,
+        '--dir',
+        scratch,
+        '--clobber',
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    const zipPath = join(scratch, asset.name);
+    if (!existsSync(zipPath)) {
+      throw new Error(`downloaded zip missing: ${asset.name}`);
+    }
+    const unpacked = join(scratch, 'unpacked');
+    execFileSync('unzip', ['-q', zipPath, '-d', unpacked], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const chromeDir = extensionRootFromUnzip(unpacked);
+    if (!chromeDir) {
+      throw new Error('previous release zip is not a Chrome extension root');
+    }
+    const outputFiles = readdirSync(chromeDir, { recursive: true }).map(String);
+    const sizes = measureChromeBundle(chromeDir, outputFiles, `previous release ${match.tag_name}`);
+    if (!sizes) {
+      cleanup();
+      return null;
+    }
+    return { tag: match.tag_name, sizes, cleanup };
+  } catch (error) {
+    cleanup();
+    const detail = execErrorDetail(error);
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      fail(`could not download previous release ${match.tag_name}: ${detail}`);
+      return null;
+    }
+    return { skip: `could not download previous release (${detail})` };
+  }
+}
+
+function chromeZipAsset(release) {
+  return (release.assets ?? []).find((asset) =>
+    /^opensource-video-speed-controller-.+-chrome\.zip$/.test(asset.name ?? ''),
+  );
+}
+
+function extensionRootFromUnzip(unpacked) {
+  if (existsSync(join(unpacked, 'manifest.json'))) {
+    return unpacked;
+  }
+  const children = readdirSync(unpacked);
+  if (children.length === 1) {
+    const nested = join(unpacked, children[0]);
+    if (existsSync(join(nested, 'manifest.json'))) {
+      return nested;
+    }
+  }
+  return null;
+}
+
+function githubRepo() {
+  if (process.env.GITHUB_REPOSITORY) {
+    return process.env.GITHUB_REPOSITORY;
+  }
+  const url = pkg.repository?.url ?? '';
+  const match = url.match(/github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/);
+  return match?.[1] ?? null;
+}
+
+function commandExists(name) {
+  try {
+    execFileSync(name, ['--version'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function execErrorDetail(error) {
+  const stderr = error instanceof Error && 'stderr' in error ? error.stderr : null;
+  const text = Buffer.isBuffer(stderr)
+    ? stderr.toString('utf8')
+    : typeof stderr === 'string'
+      ? stderr
+      : '';
+  if (text.trim()) {
+    return text.trim();
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+function formatGrowthPercent(slack) {
+  return `${Math.round((slack - 1) * 100)}%`;
+}
+
+function formatSignedPercent(change) {
+  const percent = (change * 100).toFixed(1);
+  return `${change > 0 ? '+' : ''}${percent}%`;
+}
+
+function htmlReferencedScripts(chromeDir, relativeHtml) {
+  const html = readFileSync(join(chromeDir, relativeHtml), 'utf8');
+  return [...html.matchAll(/\b(?:src|href)="([^"]+\.js)"/g)].map((match) =>
+    toOutputRelative(match[1] ?? ''),
+  );
+}
+
+function jsStaticImports(chromeDir, relativeJs) {
+  const source = readFileSync(join(chromeDir, relativeJs), 'utf8');
+  return [...source.matchAll(/(?:\bfrom\s+|^\s*import\s+)["']([^"']+)["']/gm)]
+    .map((match) => match[1] ?? '')
+    .filter((spec) => spec.startsWith('.') || spec.startsWith('/'))
+    .map((spec) => resolveRelative(relativeJs, spec));
+}
+
+function moduleClosure(chromeDir, entryRelatives, label) {
+  const seen = new Set();
+  const queue = [...entryRelatives];
+  while (queue.length) {
+    const current = queue.pop();
+    if (!current || seen.has(current)) {
+      continue;
+    }
+    if (!existsSync(join(chromeDir, current))) {
+      fail(`${label} missing bundled module ${current}`);
+      continue;
+    }
+    seen.add(current);
+    if (!current.endsWith('.js')) {
+      continue;
+    }
+    queue.push(...jsStaticImports(chromeDir, current));
+  }
+  return seen;
+}
+
+function toOutputRelative(spec) {
+  return spec.startsWith('/') ? spec.slice(1) : spec.replace(/^\.\//, '');
+}
+
+function resolveRelative(fromRelative, spec) {
+  if (spec.startsWith('/')) {
+    return spec.slice(1);
+  }
+  return posix.normalize(posix.join(posix.dirname(fromRelative), spec));
+}
+
+function totalBytes(chromeDir, relatives) {
+  return [...relatives].reduce((sum, file) => {
+    const path = join(chromeDir, file);
+    if (!existsSync(path)) {
+      return sum;
+    }
+    const stats = statSync(path);
+    return stats.isFile() ? sum + stats.size : sum;
+  }, 0);
+}
+
+function formatKb(bytes) {
+  return `${(bytes / KB).toFixed(2)} kB`;
+}

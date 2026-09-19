@@ -8,6 +8,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/setup@v2
@@ -29,6 +31,8 @@ jobs:
       - name: Build
         run: pnpm build
       - name: Inspect artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm check:release
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium

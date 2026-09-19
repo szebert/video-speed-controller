@@ -25,6 +25,7 @@ jobs:
       - name: Require matching ZIP
         env:
           REQUIRE_ZIP: '1'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm check:release
       - name: Hash ZIP
         id: hash
