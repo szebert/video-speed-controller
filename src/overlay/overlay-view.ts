@@ -330,8 +330,12 @@ export class OverlayView {
     const button = this.createChromeButton('control control-nav', label);
     const signal = this.abort.signal;
     let activeOwner: TransportHoldOwner | null = null;
+    let pointerHold = false;
+    let pointerId: number | null = null;
     const end = (): void => {
       const owner = activeOwner;
+      pointerHold = false;
+      pointerId = null;
       if (!owner) {
         return;
       }
@@ -350,24 +354,49 @@ export class OverlayView {
       this.callbacks.onMediaAction(action, 'start', owner);
       this.notifyInteractive();
     };
+    // Pointer identity for this press. Chromium can fire lostpointercapture
+    // (and a blur) as soon as setPointerCapture runs in a shadow tree.
+    // Those must not end a still-down hold; pointerup / pointercancel do.
+    const endPointer = (event: Event): void => {
+      if (!pointerHold) {
+        return;
+      }
+      if (pointerId != null && event instanceof PointerEvent && event.pointerId !== pointerId) {
+        return;
+      }
+      end();
+    };
     button.addEventListener(
       'pointerdown',
       (event) => {
         if (button.disabled) {
           return;
         }
+        pointerHold = true;
+        pointerId = typeof event.pointerId === 'number' ? event.pointerId : null;
         try {
           button.setPointerCapture(event.pointerId);
         } catch {
-          // Capture is a convenience; the document-level end paths still run.
+          // Capture is optional. Document pointerup / pointercancel still end.
         }
         start();
       },
       { signal },
     );
-    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'] as const) {
-      button.addEventListener(type, end, { signal });
+    for (const type of ['pointerup', 'pointercancel'] as const) {
+      button.addEventListener(type, endPointer, { signal });
+      this.document.addEventListener(type, endPointer, { capture: true, signal });
     }
+    button.addEventListener(
+      'blur',
+      () => {
+        if (pointerHold) {
+          return;
+        }
+        end();
+      },
+      { signal },
+    );
     button.addEventListener(
       'click',
       (event) => {

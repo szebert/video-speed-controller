@@ -20,7 +20,22 @@ async function videoState(page: Page): Promise<{ currentTime: number; paused: bo
   });
 }
 
+async function seekVideo(page: Page, seconds: number): Promise<void> {
+  await page.locator('#v1').evaluate(async (node, time) => {
+    const video = node as HTMLVideoElement;
+    if (Math.abs(video.currentTime - time) < 0.05) {
+      return;
+    }
+    const seeked = new Promise<void>((resolve) => {
+      video.addEventListener('seeked', () => resolve(), { once: true });
+    });
+    video.currentTime = time;
+    await seeked;
+  }, seconds);
+}
+
 async function holdOverlayRewind(page: Page, ms: number): Promise<void> {
+  await page.bringToFront();
   await page.locator('#v1').hover();
   const control = page.locator('osvsc-overlay').first().getByRole('button', { name: 'Rewind' });
   await expect(control).toBeVisible();
@@ -62,6 +77,10 @@ test('overlay rewind seeks backward and restores play/pause', async ({
   await selectOptionsTab(options, 'Overlay');
   await clickOptionsSwitch(options, 'Show navigation bar');
   await clickOptionsSwitch(options, 'Auto-hide overlay');
+  await site.bringToFront();
+  await expect(
+    site.locator('osvsc-overlay').first().getByRole('button', { name: 'Rewind' }),
+  ).toBeVisible();
 
   await expect
     .poll(async () =>
@@ -71,10 +90,7 @@ test('overlay rewind seeks backward and restores play/pause', async ({
     )
     .toBe(true);
 
-  await site.locator('#v1').evaluate((node) => {
-    const video = node as HTMLVideoElement;
-    video.currentTime = 5;
-  });
+  await seekVideo(site, 5);
   await site.locator('#v1').evaluate((node) => (node as HTMLVideoElement).play());
   await expect.poll(async () => (await videoState(site)).paused).toBe(false);
   await expect.poll(async () => (await videoState(site)).currentTime).toBeGreaterThan(4);
@@ -86,11 +102,8 @@ test('overlay rewind seeks backward and restores play/pause', async ({
   expect(playingAfter.currentTime).toBeGreaterThan(playingBefore - 3);
   expect(playingAfter.paused).toBe(false);
 
-  await site.locator('#v1').evaluate((node) => {
-    const video = node as HTMLVideoElement;
-    video.pause();
-    video.currentTime = 5;
-  });
+  await site.locator('#v1').evaluate((node) => (node as HTMLVideoElement).pause());
+  await seekVideo(site, 5);
   await expect.poll(async () => (await videoState(site)).paused).toBe(true);
   const pausedBefore = (await videoState(site)).currentTime;
   await holdOverlayRewind(site, 1200);

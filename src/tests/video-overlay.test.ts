@@ -1366,6 +1366,29 @@ describe('VideoOverlay', () => {
     expect(mediaAction).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps a pointer hold live through lost capture and blur until pointerup', () => {
+    const mediaAction = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      mediaAction,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const rewind = overlay.host.shadowRoot?.querySelector(
+      '[aria-label="Rewind"]',
+    ) as HTMLButtonElement;
+    rewind.setPointerCapture = () => undefined;
+    rewind.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, buttons: 1 }));
+    expect(mediaAction).toHaveBeenCalledTimes(1);
+    rewind.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: 1, buttons: 0 }));
+    rewind.dispatchEvent(new Event('blur'));
+    expect(mediaAction).toHaveBeenCalledTimes(1);
+    rewind.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, buttons: 0 }));
+    expect(mediaAction).toHaveBeenLastCalledWith('rewind', 'end', video, expect.any(Object));
+  });
+
   it('gives overlapping rewind and fast forward holds distinct gesture owners', () => {
     const mediaAction = vi.fn();
     const video = sizedVideo();
