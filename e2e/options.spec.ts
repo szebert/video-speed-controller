@@ -269,14 +269,16 @@ test('hiding overlay chrome buttons removes them from the badge', async ({
   await site.locator('#v1').hover();
   await expect
     .poll(async () => overlayButtonLabels(site))
-    .toEqual(['Move overlay', 'Slower', 'Faster', 'Open settings']);
+    .toEqual(['Move overlay', 'Slower', 'Reset to default speed', 'Faster', 'Open settings']);
 
   const options = await openOptions(context, extensionId, '127.0.0.1');
   await selectOptionsTab(options, 'Overlay');
   await clickOptionsSwitch(options, 'Show position button');
   await clickOptionsSwitch(options, 'Show settings button');
   await site.locator('#v1').hover();
-  await expect.poll(async () => overlayButtonLabels(site)).toEqual(['Slower', 'Faster']);
+  await expect
+    .poll(async () => overlayButtonLabels(site))
+    .toEqual(['Slower', 'Reset to default speed', 'Faster']);
 });
 
 async function overlayHotkeyHints(page: Page): Promise<string[]> {
@@ -298,7 +300,9 @@ test('hiding shortcut hints removes captions from the overlay', async ({
   const popup = await openPopup(context, extensionId, site, serviceWorker);
   await enableSiteAt(popup, site, 1.25);
   await site.locator('#v1').hover();
-  await expect.poll(async () => overlayHotkeyHints(site)).toEqual(['[', ']', '[', ']', '[', ']']);
+  await expect
+    .poll(async () => overlayHotkeyHints(site))
+    .toEqual(['[', '\\', ']', '[', '\\', ']', '[', '\\', ']']);
 
   const options = await openOptions(context, extensionId, '127.0.0.1');
   await selectOptionsTab(options, 'Overlay');
