@@ -55,6 +55,13 @@ describe('ResetBadge', () => {
     expect(close?.hasAttribute('disabled')).toBe(false);
   });
 
+  it('does not let the badge label become a text selection target', () => {
+    renderBadge({});
+    const close = container.querySelector('[aria-label="Reset: Show overlay"]');
+    const badge = close?.closest('[data-slot="reset-badge"]');
+    expect(badge?.className).toContain('select-none');
+  });
+
   it('shows the disabled cursor on the close button when the badge is disabled', () => {
     const onReset = vi.fn();
     renderBadge({ disabled: true, onReset });

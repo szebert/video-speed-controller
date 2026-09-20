@@ -273,6 +273,7 @@ describe('VideoOverlay', () => {
     expect(overlayCss).toContain('--origin-x: 100%');
     expect(overlayCss).toContain(".controls-shell[data-row='2']");
     expect(overlayCss).toContain('--origin-y: 100%');
+    expect(overlayCss).not.toMatch(/\.control-speed\s*\{[^}]*border-inline:/);
   });
 
   it('does not inherit page typography into the badge', () => {

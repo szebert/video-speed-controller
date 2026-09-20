@@ -238,7 +238,6 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border-inline: 1px solid var(--border);
   background: var(--muted);
   color: var(--muted-foreground);
   white-space: nowrap;
