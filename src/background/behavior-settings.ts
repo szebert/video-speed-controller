@@ -43,10 +43,10 @@ import { exportLogicalBackupText, importLogicalSettings } from '../storage/logic
 import {
   deleteAllSiteSettings,
   deleteSiteSettings,
-  listCustomSiteHostnames,
+  listCustomSiteSummaries,
   persistSiteBehaviorChanges,
   persistSiteHotkeyChanges,
-  readSiteMembership,
+  readCustomSiteSummary,
   resolveSiteBehaviorForUrl,
   type SiteSettingsDeps,
 } from '../storage/site-settings';
@@ -113,10 +113,11 @@ async function siteMembershipOf(
   deps: BehaviorSettingsDeps,
 ): Promise<SiteMembershipUpdate | undefined> {
   try {
-    return {
-      hostname,
-      customized: await readSiteMembership(hostname, deps),
-    };
+    const summary = await readCustomSiteSummary(hostname, deps);
+    if (summary) {
+      return { customized: true, hostname, lastUsedAt: summary.lastUsedAt };
+    }
+    return { customized: false, hostname };
   } catch {
     return undefined;
   }
@@ -172,7 +173,7 @@ export async function getCustomSites(
     return { ok: false, error: 'Unauthorized' };
   }
   try {
-    return { ok: true, customSites: await listCustomSiteHostnames(deps) };
+    return { ok: true, customSites: await listCustomSiteSummaries(deps) };
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to list sites') };
   }
@@ -446,7 +447,7 @@ export async function importBehaviorBackup(
   try {
     await flushPersistedSiteSpeeds();
     const imported = await importLogicalSettings(message.backupText, message.mode, deps);
-    const customSites = await listCustomSiteHostnames(deps);
+    const customSites = await listCustomSiteSummaries(deps);
     const result = await afterPersist(
       snapshot.hostname,
       { scope: { kind: 'all' }, mode: 'resolve-target' },

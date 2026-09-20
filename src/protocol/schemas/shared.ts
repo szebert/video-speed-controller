@@ -18,6 +18,7 @@ import type {
   SiteHotkeyAction,
 } from '../../settings/site-behavior';
 import { SITE_HOTKEY_ACTIONS } from '../../settings/site-behavior';
+import { CustomSiteSummarySchema } from '../../settings/site-summary';
 
 // Options/popup RPC (regular Zod). Field lists stay here because this module
 // cannot be imported by protocol/content or overlay. Mini twins: OverlayPosition
@@ -162,10 +163,17 @@ export const ReapplyResultSchema = z.object({
   reapplyError: z.string().optional(),
 });
 
-export const SiteMembershipUpdateSchema = z.object({
-  hostname: z.string(),
-  customized: z.boolean(),
-});
+export { CustomSiteSummarySchema, type CustomSiteSummary } from '../../settings/site-summary';
+
+export const SiteMembershipUpdateSchema = z.discriminatedUnion('customized', [
+  CustomSiteSummarySchema.extend({
+    customized: z.literal(true),
+  }),
+  z.object({
+    customized: z.literal(false),
+    hostname: z.string(),
+  }),
+]);
 
 export const BehaviorMutationSuccessSchema = z.union([
   ReapplyResultSchema.extend({

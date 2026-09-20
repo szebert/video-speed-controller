@@ -12,7 +12,9 @@ import type {
   SetBehaviorSettingResponse,
   SetHotkeySettingResponse,
 } from '../../protocol/schemas/options-background';
-import type { BehaviorSettingsSnapshot, SiteMembershipUpdate } from '../../protocol/schemas/shared';
+import type { BehaviorSettingsSnapshot } from '../../protocol/schemas/shared';
+import type { CustomSiteSummary } from '../../settings/site-summary';
+import { applyMembership } from './site-list-sort';
 import { adjustSpeed, clampPolicyNumber, resolveEffectiveSpeed } from '../../core/speed';
 import { t } from '@/i18n/t';
 import {
@@ -81,17 +83,6 @@ type MutationResponse =
   | ResetAllBehaviorResponse
   | ImportBackupResponse;
 
-function applyMembership(current: string[], update: SiteMembershipUpdate): string[] {
-  const has = current.includes(update.hostname);
-  if (update.customized && !has) {
-    return [...current, update.hostname].sort((left, right) => left.localeCompare(right));
-  }
-  if (!update.customized && has) {
-    return current.filter((hostname) => hostname !== update.hostname);
-  }
-  return current;
-}
-
 function reportActionError(message: string): void {
   toast.error(message);
 }
@@ -136,7 +127,7 @@ export function useBehaviorSettings() {
     pageHostname ? { kind: 'site', hostname: pageHostname } : { kind: 'global' },
   );
   const [snapshot, setSnapshot] = useState<BehaviorSettingsSnapshot | null>(null);
-  const [customSites, setCustomSites] = useState<string[]>([]);
+  const [customSites, setCustomSites] = useState<CustomSiteSummary[]>([]);
   const [ready, setReady] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -61,6 +61,7 @@ import {
 } from '../settings/migrate';
 import { checkedIncrement, isLogicalValue } from '../settings/logical-value';
 import { normalizeSiteHostname } from '../settings/site-hostname';
+import type { CustomSiteSummary } from '../settings/site-summary';
 import { readGlobalBehaviorOverrides } from './behavior-defaults';
 import { defaultLocalStore, defaultSyncStore, type DurableSettingsStore } from './durable-store';
 import type { ControlMetadataParse } from './control-metadata';
@@ -720,13 +721,32 @@ function tombstoneMergedSite(merged: BehaviorOverrides, at: number): SiteSetting
   return { schemaVersion: 1, overrides, lastUsedAt: at };
 }
 
-export async function readSiteMembership(
+function customSiteSummaryFromCopies(
+  hostname: string,
+  copies: ReturnType<typeof copiesForKey>,
+  merged: MergedGeneration,
+  syncRaw: unknown,
+  localRaw: unknown,
+): CustomSiteSummary | null {
+  if (!hasValueOverrides(copies.merged)) {
+    return null;
+  }
+  const localAt = shouldApplySiteCopy(copies.localParsed, localRaw, merged)
+    ? (readyRecord(copies.localParsed)?.lastUsedAt ?? 0)
+    : 0;
+  const syncAt = shouldApplySiteCopy(copies.syncParsed, syncRaw, merged)
+    ? (readyRecord(copies.syncParsed)?.lastUsedAt ?? 0)
+    : 0;
+  return { hostname, lastUsedAt: Math.max(localAt, syncAt) };
+}
+
+export async function readCustomSiteSummary(
   hostname: string,
   deps: SiteSettingsDeps = {},
-): Promise<boolean> {
+): Promise<CustomSiteSummary | null> {
   const normalized = normalizeSiteHostname(hostname);
   if (!normalized) {
-    return false;
+    return null;
   }
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
     const { sync, local } = stores(deps);
@@ -736,27 +756,50 @@ export async function readSiteMembership(
       local.get([storageKey, SITE_GENERATION_KEY]),
     ]);
     const generation = generationFromStores(syncAll, localAll);
-    return hasValueOverrides(copiesForKey(syncAll, localAll, storageKey, generation.merged).merged);
+    return customSiteSummaryFromCopies(
+      normalized,
+      copiesForKey(syncAll, localAll, storageKey, generation.merged),
+      generation.merged,
+      syncAll[storageKey],
+      localAll[storageKey],
+    );
   });
 }
 
-export async function listCustomSiteHostnames(deps: SiteSettingsDeps = {}): Promise<string[]> {
+export async function listCustomSiteSummaries(
+  deps: SiteSettingsDeps = {},
+): Promise<CustomSiteSummary[]> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
     const { sync, local } = stores(deps);
     const [syncAll, localAll] = await Promise.all([sync.get(null), local.get(null)]);
     const generation = generationFromStores(syncAll, localAll);
-    const hostnames = new Set<string>();
+    const summaries: CustomSiteSummary[] = [];
     const keys = new Set([...Object.keys(syncAll), ...Object.keys(localAll)]);
     for (const key of keys) {
       const hostname = hostnameFromSiteStorageKey(key);
       if (!hostname || !normalizeSiteHostname(hostname)) {
         continue;
       }
-      if (hasValueOverrides(copiesForKey(syncAll, localAll, key, generation.merged).merged)) {
-        hostnames.add(hostname);
+      const summary = customSiteSummaryFromCopies(
+        hostname,
+        copiesForKey(syncAll, localAll, key, generation.merged),
+        generation.merged,
+        syncAll[key],
+        localAll[key],
+      );
+      if (summary) {
+        summaries.push(summary);
       }
     }
-    return [...hostnames].sort((left, right) => left.localeCompare(right));
+    return summaries.sort((left, right) => {
+      if (left.hostname < right.hostname) {
+        return -1;
+      }
+      if (left.hostname > right.hostname) {
+        return 1;
+      }
+      return 0;
+    });
   });
 }
 

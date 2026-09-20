@@ -13,7 +13,8 @@ import {
 import {
   deleteAllSiteSettings,
   deleteSiteSettings,
-  listCustomSiteHostnames,
+  listCustomSiteSummaries,
+  readCustomSiteSummary,
   persistSiteBehaviorChange,
   persistSiteHotkeyChanges,
   persistSiteSpeed,
@@ -29,6 +30,7 @@ import {
   hasStorageMutation,
   resetStorageMutationQueue,
 } from '../storage/storage-mutation-queue';
+import { SITE_GENERATION_KEY } from '../storage/site-generation';
 import { memoryDurable } from './memory-store';
 
 function pair(now = 1_000) {
@@ -855,10 +857,40 @@ describe('site settings storage', () => {
       { kind: 'value', field: 'overlayVisible', value: false },
       deps,
     );
-    await expect(listCustomSiteHostnames(deps)).resolves.toEqual([
-      'example.com',
-      'www.youtube.com',
+    await expect(listCustomSiteSummaries(deps)).resolves.toEqual([
+      { hostname: 'example.com', lastUsedAt: 1000 },
+      { hostname: 'www.youtube.com', lastUsedAt: 1000 },
     ]);
+    await expect(readCustomSiteSummary('www.youtube.com', deps)).resolves.toEqual({
+      hostname: 'www.youtube.com',
+      lastUsedAt: 1000,
+    });
+    await expect(readCustomSiteSummary('vimeo.com', deps)).resolves.toBeNull();
+  });
+
+  it('uses only eligible replica lastUsedAt values for Recent', async () => {
+    const deps = pair();
+    deps.local.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 1 };
+    deps.sync.data[SITE_GENERATION_KEY] = { schemaVersion: 1, epoch: 1 };
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      generation: 1,
+      lastUsedAt: 100,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 100 } },
+    };
+    deps.sync.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      generation: 0,
+      lastUsedAt: 999,
+      overrides: { speed: { kind: 'value', value: 8, updatedAt: 999 } },
+    };
+    await expect(listCustomSiteSummaries(deps)).resolves.toEqual([
+      { hostname: 'www.youtube.com', lastUsedAt: 100 },
+    ]);
+    await expect(readCustomSiteSummary('www.youtube.com', deps)).resolves.toEqual({
+      hostname: 'www.youtube.com',
+      lastUsedAt: 100,
+    });
   });
 
   it('omits a site when merged Sync inherit beats a stale Local value', async () => {
@@ -873,7 +905,8 @@ describe('site settings storage', () => {
       lastUsedAt: 100,
       overrides: { speed: { kind: 'value', value: 2, updatedAt: 100 } },
     };
-    await expect(listCustomSiteHostnames(deps)).resolves.toEqual([]);
+    await expect(listCustomSiteSummaries(deps)).resolves.toEqual([]);
+    await expect(readCustomSiteSummary('www.youtube.com', deps)).resolves.toBeNull();
   });
 
   it('tombstones existing site fields instead of removing the record', async () => {
@@ -888,8 +921,8 @@ describe('site settings storage', () => {
       overrides: { speed: { kind: 'inherit', updatedAt: 200 } },
     });
     expect(deps.local.data['site:vimeo.com']).toBeDefined();
-    await expect(listCustomSiteHostnames({ ...deps, now: () => 200 })).resolves.toEqual([
-      'vimeo.com',
+    await expect(listCustomSiteSummaries({ ...deps, now: () => 200 })).resolves.toEqual([
+      { hostname: 'vimeo.com', lastUsedAt: 50 },
     ]);
   });
 
@@ -945,7 +978,7 @@ describe('site settings storage', () => {
     });
     expect(deps.sync.data['site:www.youtube.com']).toBeUndefined();
     expect(deps.sync.data['site:vimeo.com']).toBeUndefined();
-    await expect(listCustomSiteHostnames({ ...deps, now: () => 200 })).resolves.toEqual([]);
+    await expect(listCustomSiteSummaries({ ...deps, now: () => 200 })).resolves.toEqual([]);
   });
 
   it('does not promote Local-only sites into Sync during Reset All', async () => {

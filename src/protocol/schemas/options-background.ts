@@ -8,6 +8,7 @@ import {
   BehaviorSettingsScopeSchema,
   BehaviorSettingsSnapshotSchema,
   HotkeySettingChangeSchema,
+  CustomSiteSummarySchema,
   SiteMembershipUpdateSchema,
 } from './shared';
 
@@ -62,7 +63,7 @@ export const GetBehaviorSettingsResponseSchema = z.union([
 ]);
 
 export const GetCustomSitesResponseSchema = z.union([
-  z.object({ ok: z.literal(true), customSites: z.array(z.string()) }),
+  z.object({ ok: z.literal(true), customSites: z.array(CustomSiteSummarySchema) }),
   z.object({ ok: z.literal(false), error: z.string() }),
 ]);
 
@@ -127,7 +128,7 @@ export const ImportBackupResponseSchema = z.union([
   BehaviorMutationSuccessSchema.and(
     z.object({
       skippedRecordCount: z.number().int().nonnegative(),
-      customSites: z.array(z.string()),
+      customSites: z.array(CustomSiteSummarySchema),
     }),
   ),
   z.object({ ok: z.literal(false), error: z.string() }),

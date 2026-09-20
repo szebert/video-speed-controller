@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@/components/theme-provider';
 import { SpeedControls } from '@/components/SpeedControls';
 import type { GetBehaviorSettingsResponse } from '../protocol/schemas/options-background';
-import type { BehaviorSettingsSnapshot } from '../protocol/schemas/shared';
+import type { BehaviorSettingsSnapshot, CustomSiteSummary } from '../protocol/schemas/shared';
+import { SITE_LIST_SORT_STORAGE_KEY } from '../entrypoints/options/site-list-sort';
 import {
   applyBehaviorSettingChange,
   canonicalizeBehaviorSettingChange,
@@ -59,7 +60,11 @@ function applyMessageOverrides(
   return next;
 }
 
-function loadReply(state: BehaviorSettingsSnapshot, customSites: string[] = []) {
+function siteSummaries(hostnames: readonly string[], lastUsedAt = 1): CustomSiteSummary[] {
+  return hostnames.map((hostname) => ({ hostname, lastUsedAt }));
+}
+
+function loadReply(state: BehaviorSettingsSnapshot, customSites: CustomSiteSummary[] = []) {
   return async (message: { type?: string }) => {
     if (message.type === 'GET_CUSTOM_SITES') {
       return { ok: true, customSites };
@@ -219,6 +224,7 @@ describe('Options page', () => {
 
   beforeEach(() => {
     sendMessage.mockReset();
+    localStorage.removeItem(SITE_LIST_SORT_STORAGE_KEY);
     permissionsContains.mockReset();
     permissionsRequest.mockReset();
     permissionsRemove.mockReset();
@@ -316,7 +322,7 @@ describe('Options page', () => {
   it('lists custom sites and loads a site when selected', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: ['www.youtube.com'] };
+        return { ok: true, customSites: siteSummaries(['www.youtube.com']) };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS' && message.hostname === 'www.youtube.com') {
         return getOk(snapshot('www.youtube.com'));
@@ -338,8 +344,41 @@ describe('Options page', () => {
     expect(container.querySelector('h2')?.textContent).toBe('www.youtube.com');
   });
 
+  it('sorts the Sites list by name and recent activity', async () => {
+    sendMessage.mockImplementation(
+      loadReply(snapshot(), [
+        { hostname: 'api.youtube.com', lastUsedAt: 10 },
+        { hostname: 'www.google.com', lastUsedAt: 20 },
+        { hostname: 'api.google.com', lastUsedAt: 10 },
+      ]),
+    );
+    await renderApp();
+    const listed = (): string[] => {
+      const heading = [...container.querySelectorAll('p')].find(
+        (element) => element.textContent === 'Sites',
+      );
+      const region = container.querySelector(`[aria-labelledby="${heading?.id}"]`);
+      return [...(region?.querySelectorAll('li') ?? [])].map((item) => item.textContent ?? '');
+    };
+    expect(listed()).toEqual(['www.google.com', 'api.google.com', 'api.youtube.com']);
+    await act(async () => {
+      click(container.querySelector('[aria-label="Sort by name, A to Z"]'));
+    });
+    expect(listed()).toEqual(['api.google.com', 'www.google.com', 'api.youtube.com']);
+    await act(async () => {
+      click(container.querySelector('[aria-label="Sort by name, A to Z"]'));
+    });
+    expect(listed()).toEqual(['api.youtube.com', 'www.google.com', 'api.google.com']);
+    await act(async () => {
+      click(container.querySelector('[aria-label="Sort by recent activity, newest first"]'));
+    });
+    expect(listed()).toEqual(['www.google.com', 'api.google.com', 'api.youtube.com']);
+  });
+
   it('keeps a long custom-site list in the Sites region', async () => {
-    const customSites = Array.from({ length: 40 }, (_, index) => `site-${index}.example`);
+    const customSites = siteSummaries(
+      Array.from({ length: 40 }, (_, index) => `site-${index}.example`),
+    );
     sendMessage.mockImplementation(loadReply(snapshot(), customSites));
     await renderApp();
     const heading = [...container.querySelectorAll('p')].find(
@@ -361,7 +400,9 @@ describe('Options page', () => {
       value: scrollIntoView,
       writable: true,
     });
-    const customSites = Array.from({ length: 40 }, (_, index) => `site-${index}.example`);
+    const customSites = siteSummaries(
+      Array.from({ length: 40 }, (_, index) => `site-${index}.example`),
+    );
     sendMessage.mockImplementation(loadReply(snapshot('site-39.example'), customSites));
     try {
       await renderApp('chrome-extension://extid/options.html?site=site-39.example');
@@ -2339,7 +2380,7 @@ describe('Options page', () => {
   it('deletes a listed site after confirmation', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: ['example.com'] };
+        return { ok: true, customSites: siteSummaries(['example.com']) };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot('example.com'));
@@ -2436,7 +2477,7 @@ describe('Options page', () => {
       return {
         ok: true,
         state: snapshot('example.com'),
-        siteMembership: { hostname: 'example.com', customized: true },
+        siteMembership: { hostname: 'example.com', customized: true, lastUsedAt: 1 },
         reappliedTabs: 0,
         reapplyFailures: 0,
       };
@@ -2456,7 +2497,7 @@ describe('Options page', () => {
   it('recovers pane and sidebar after a failed site persist', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: ['example.com'] };
+        return { ok: true, customSites: siteSummaries(['example.com']) };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot('example.com'));
@@ -2524,7 +2565,7 @@ describe('Options page', () => {
   it('rescans custom sites when a successful delete omits membership', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: ['example.com'] };
+        return { ok: true, customSites: siteSummaries(['example.com']) };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot('example.com'));
@@ -2569,7 +2610,7 @@ describe('Options page', () => {
   it('rescans custom sites when a successful site save omits membership', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: ['example.com'] };
+        return { ok: true, customSites: siteSummaries(['example.com']) };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot('example.com'));
@@ -2641,7 +2682,7 @@ describe('Options page', () => {
   it('recovers pane and sidebar after a thrown site persist', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: ['example.com'] };
+        return { ok: true, customSites: siteSummaries(['example.com']) };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot('example.com'));
@@ -2693,7 +2734,7 @@ describe('Options page', () => {
   });
 
   it('recovers pane and sidebar after a thrown Reset All', async () => {
-    sendMessage.mockImplementation(loadReply(snapshot(), ['example.com']));
+    sendMessage.mockImplementation(loadReply(snapshot(), siteSummaries(['example.com'])));
     await renderApp();
     await openSettingsPane();
     const resetAll = [...container.querySelectorAll('button')].find(
@@ -2728,7 +2769,7 @@ describe('Options page', () => {
   it('recovers pane and sidebar after a thrown site delete', async () => {
     sendMessage.mockImplementation(async (message: { type?: string; hostname?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: ['example.com'] };
+        return { ok: true, customSites: siteSummaries(['example.com']) };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot('example.com'));
@@ -2853,7 +2894,7 @@ describe('Options page', () => {
       if (message.type === 'GET_CUSTOM_SITES') {
         return Promise.resolve({
           ok: true,
-          customSites: ['www.youtube.com', 'www.netflix.com'],
+          customSites: siteSummaries(['www.youtube.com', 'www.netflix.com']),
         });
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
@@ -2884,7 +2925,7 @@ describe('Options page', () => {
       releaseSet({
         ok: true,
         state: snapshot('www.youtube.com'),
-        siteMembership: { hostname: 'www.youtube.com', customized: true },
+        siteMembership: { hostname: 'www.youtube.com', customized: true, lastUsedAt: 1 },
         reappliedTabs: 0,
         reapplyFailures: 0,
       });
@@ -2901,7 +2942,7 @@ describe('Options page', () => {
       if (message.type === 'GET_CUSTOM_SITES') {
         return Promise.resolve({
           ok: true,
-          customSites: ['www.youtube.com', 'www.netflix.com'],
+          customSites: siteSummaries(['www.youtube.com', 'www.netflix.com']),
         });
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
@@ -2953,7 +2994,7 @@ describe('Options page', () => {
       releaseSet({
         ok: true,
         state: snapshot('www.youtube.com'),
-        siteMembership: { hostname: 'www.youtube.com', customized: true },
+        siteMembership: { hostname: 'www.youtube.com', customized: true, lastUsedAt: 1 },
         reappliedTabs: 0,
         reapplyFailures: 0,
       });
@@ -3174,7 +3215,7 @@ describe('Options page', () => {
   it('warns when Reset All skipped newer-version records', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
-        return { ok: true, customSites: ['example.com'] };
+        return { ok: true, customSites: siteSummaries(['example.com']) };
       }
       if (message.type === 'GET_BEHAVIOR_SETTINGS') {
         return getOk(snapshot());

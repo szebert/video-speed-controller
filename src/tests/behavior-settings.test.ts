@@ -282,7 +282,13 @@ describe('behavior settings API', () => {
       expect(snapshot.state).not.toHaveProperty('customSites');
     }
     const listed = await getCustomSites(extensionSender(), deps);
-    expect(listed).toEqual({ ok: true, customSites: ['vimeo.com', 'www.youtube.com'] });
+    expect(listed).toEqual({
+      ok: true,
+      customSites: [
+        { hostname: 'vimeo.com', lastUsedAt: 1000 },
+        { hostname: 'www.youtube.com', lastUsedAt: 1000 },
+      ],
+    });
     const deleted = await deleteSiteBehaviorSettings(
       { type: 'DELETE_SITE_SETTINGS', hostname: 'www.youtube.com' },
       extensionSender(),
@@ -319,7 +325,7 @@ describe('behavior settings API', () => {
     expect(response.state).not.toHaveProperty('customSites');
     await expect(getCustomSites(extensionSender(), deps)).resolves.toEqual({
       ok: true,
-      customSites: ['www.youtube.com'],
+      customSites: [{ hostname: 'www.youtube.com', lastUsedAt: 1000 }],
     });
   });
 
@@ -436,13 +442,14 @@ describe('behavior settings API', () => {
     expect(response.siteMembership).toEqual({
       hostname: 'www.youtube.com',
       customized: true,
+      lastUsedAt: 1000,
     });
   });
 
   it('keeps a successful site SET when membership lookup fails', async () => {
     const deps = { ...stores(), listTabIds: async () => [] };
     const membership = vi
-      .spyOn(siteSettings, 'readSiteMembership')
+      .spyOn(siteSettings, 'readCustomSiteSummary')
       .mockRejectedValueOnce(new Error('membership failed'));
     const response = await setBehaviorSetting(
       {
@@ -459,7 +466,10 @@ describe('behavior settings API', () => {
       throw new Error('expected success');
     }
     expect(response).not.toHaveProperty('siteMembership');
-    await expect(siteSettings.readSiteMembership('www.youtube.com', deps)).resolves.toBe(true);
+    await expect(siteSettings.readCustomSiteSummary('www.youtube.com', deps)).resolves.toEqual({
+      hostname: 'www.youtube.com',
+      lastUsedAt: 1000,
+    });
   });
 
   it('allows inherit when the parent binding is shadowed by a site override', async () => {
