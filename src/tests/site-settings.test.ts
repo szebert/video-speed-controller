@@ -893,6 +893,22 @@ describe('site settings storage', () => {
     });
   });
 
+  it('keeps a negative eligible lastUsedAt when the other replica is absent', async () => {
+    const deps = pair();
+    deps.local.data['site:www.youtube.com'] = {
+      schemaVersion: 1,
+      lastUsedAt: -5,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 1 } },
+    };
+    await expect(listCustomSiteSummaries(deps)).resolves.toEqual([
+      { hostname: 'www.youtube.com', lastUsedAt: -5 },
+    ]);
+    await expect(readCustomSiteSummary('www.youtube.com', deps)).resolves.toEqual({
+      hostname: 'www.youtube.com',
+      lastUsedAt: -5,
+    });
+  });
+
   it('omits a site when merged Sync inherit beats a stale Local value', async () => {
     const deps = pair(200);
     deps.sync.data['site:www.youtube.com'] = {

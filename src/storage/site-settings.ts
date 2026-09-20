@@ -721,6 +721,17 @@ function tombstoneMergedSite(merged: BehaviorOverrides, at: number): SiteSetting
   return { schemaVersion: 1, overrides, lastUsedAt: at };
 }
 
+function eligibleReplicaLastUsedAt(
+  parsed: SettingsParseResult<SiteSettingsV1>,
+  raw: unknown,
+  merged: MergedGeneration,
+): number | undefined {
+  if (!shouldApplySiteCopy(parsed, raw, merged)) {
+    return undefined;
+  }
+  return readyRecord(parsed)?.lastUsedAt;
+}
+
 function customSiteSummaryFromCopies(
   hostname: string,
   copies: ReturnType<typeof copiesForKey>,
@@ -731,13 +742,14 @@ function customSiteSummaryFromCopies(
   if (!hasValueOverrides(copies.merged)) {
     return null;
   }
-  const localAt = shouldApplySiteCopy(copies.localParsed, localRaw, merged)
-    ? (readyRecord(copies.localParsed)?.lastUsedAt ?? 0)
-    : 0;
-  const syncAt = shouldApplySiteCopy(copies.syncParsed, syncRaw, merged)
-    ? (readyRecord(copies.syncParsed)?.lastUsedAt ?? 0)
-    : 0;
-  return { hostname, lastUsedAt: Math.max(localAt, syncAt) };
+  const clocks = [
+    eligibleReplicaLastUsedAt(copies.localParsed, localRaw, merged),
+    eligibleReplicaLastUsedAt(copies.syncParsed, syncRaw, merged),
+  ].filter((clock): clock is number => clock !== undefined);
+  if (clocks.length === 0) {
+    return null;
+  }
+  return { hostname, lastUsedAt: Math.max(...clocks) };
 }
 
 export async function readCustomSiteSummary(

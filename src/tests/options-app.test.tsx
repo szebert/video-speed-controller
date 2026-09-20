@@ -210,6 +210,14 @@ describe('Options page', () => {
     return paneActionButton('Reset defaults');
   }
 
+  function listedSiteHostnames(): string[] {
+    const heading = [...container.querySelectorAll('p')].find(
+      (element) => element.textContent === 'Sites',
+    );
+    const region = container.querySelector(`[aria-labelledby="${heading?.id}"]`);
+    return [...(region?.querySelectorAll('li') ?? [])].map((item) => item.textContent ?? '');
+  }
+
   function dialogAction(label: string): Element | undefined {
     return [...document.querySelectorAll('[data-slot="dialog"] button')].find(
       (button) => button.textContent === label,
@@ -353,26 +361,52 @@ describe('Options page', () => {
       ]),
     );
     await renderApp();
-    const listed = (): string[] => {
-      const heading = [...container.querySelectorAll('p')].find(
-        (element) => element.textContent === 'Sites',
-      );
-      const region = container.querySelector(`[aria-labelledby="${heading?.id}"]`);
-      return [...(region?.querySelectorAll('li') ?? [])].map((item) => item.textContent ?? '');
-    };
-    expect(listed()).toEqual(['www.google.com', 'api.google.com', 'api.youtube.com']);
+    expect(listedSiteHostnames()).toEqual(['www.google.com', 'api.google.com', 'api.youtube.com']);
     await act(async () => {
       click(container.querySelector('[aria-label="Sort by name, A to Z"]'));
     });
-    expect(listed()).toEqual(['api.google.com', 'www.google.com', 'api.youtube.com']);
+    expect(listedSiteHostnames()).toEqual(['api.google.com', 'www.google.com', 'api.youtube.com']);
     await act(async () => {
       click(container.querySelector('[aria-label="Sort by name, A to Z"]'));
     });
-    expect(listed()).toEqual(['api.youtube.com', 'www.google.com', 'api.google.com']);
+    expect(listedSiteHostnames()).toEqual(['api.youtube.com', 'www.google.com', 'api.google.com']);
     await act(async () => {
       click(container.querySelector('[aria-label="Sort by recent activity, newest first"]'));
     });
-    expect(listed()).toEqual(['www.google.com', 'api.google.com', 'api.youtube.com']);
+    expect(listedSiteHostnames()).toEqual(['www.google.com', 'api.google.com', 'api.youtube.com']);
+  });
+
+  it('restores the Sites sort after remount from localStorage', async () => {
+    sendMessage.mockImplementation(
+      loadReply(snapshot(), [
+        { hostname: 'api.youtube.com', lastUsedAt: 10 },
+        { hostname: 'www.google.com', lastUsedAt: 20 },
+        { hostname: 'api.google.com', lastUsedAt: 10 },
+      ]),
+    );
+    await renderApp();
+    await act(async () => {
+      click(container.querySelector('[aria-label="Sort by name, A to Z"]'));
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Sort by name, A to Z"]'));
+    });
+    expect(listedSiteHostnames()).toEqual(['api.youtube.com', 'www.google.com', 'api.google.com']);
+    expect(
+      container.querySelector('[aria-label="Sort by name, Z to A"]')?.getAttribute('aria-pressed'),
+    ).toBe('true');
+
+    act(() => {
+      root?.unmount();
+    });
+    root = null;
+    container.remove();
+
+    await renderApp();
+    expect(listedSiteHostnames()).toEqual(['api.youtube.com', 'www.google.com', 'api.google.com']);
+    expect(
+      container.querySelector('[aria-label="Sort by name, Z to A"]')?.getAttribute('aria-pressed'),
+    ).toBe('true');
   });
 
   it('keeps a long custom-site list in the Sites region', async () => {
