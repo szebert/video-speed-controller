@@ -270,9 +270,9 @@ export async function setBehaviorSetting(
   try {
     rememberLastSpeed = await readRememberLastSpeed(scope, persistHostname, deps);
   } catch {
-    // Persist already won. Reapply with the built-in remember default so the
-    // tab session is still updated; snapshot refresh reports its own failure.
-    rememberLastSpeed = true;
+    // Persist succeeded, but remember state could not be resolved.
+    // Preserve the active target rather than risking an unintended jump.
+    rememberLastSpeed = false;
   }
   const result = await afterPersist(
     snapshot.hostname,

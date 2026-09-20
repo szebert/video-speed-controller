@@ -349,6 +349,57 @@ describe('behavior settings API', () => {
     );
   });
 
+  it('preserves the tab target when a site speed write cannot reread remember', async () => {
+    const deps = stores();
+    await persistGlobalBehaviorChange(
+      { kind: 'value', field: 'rememberLastSpeed', value: false },
+      deps,
+    );
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    const data: Record<string, unknown> = {
+      'tab:1': tabBehavior(2, { rememberLastSpeed: false }),
+    };
+    const tabStateStore = {
+      data,
+      async get(keys?: string | string[] | Record<string, unknown> | null) {
+        if (typeof keys === 'string') {
+          return { [keys]: data[keys] };
+        }
+        return { ...data };
+      },
+      async set(items: Record<string, unknown>) {
+        Object.assign(data, items);
+      },
+      async remove(keys: string | string[]) {
+        for (const key of typeof keys === 'string' ? [keys] : keys) {
+          delete data[key];
+        }
+      },
+    };
+    const remember = vi
+      .spyOn(siteSettings, 'resolveAppliedSiteBehaviorForUrl')
+      .mockRejectedValueOnce(new Error('remember read failed'));
+    const apply = vi.fn();
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'site', hostname: 'www.youtube.com' },
+        change: { kind: 'value', field: 'speed', value: 1.5 },
+      },
+      extensionSender(),
+      {
+        ...deps,
+        getTab: async () => ({ id: 1, url: 'https://www.youtube.com/watch' }) as chrome.tabs.Tab,
+        tabStateStore,
+        readBehavior: async () => tabBehavior(1, { rememberLastSpeed: false }),
+        apply,
+      },
+    );
+    remember.mockRestore();
+    expect(response.ok).toBe(true);
+    expect(data['tab:1']).toEqual(expect.objectContaining({ targetSpeed: 2 }));
+  });
+
   it('does not reapply when persist fails', async () => {
     const listTabIds = vi.fn(async () => {
       throw new Error('should not list tabs');
