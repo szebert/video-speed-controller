@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  resetSiteSpeedPersistCoalescerForTests,
+  resetSpeedPersistCoalescersForTests,
   SITE_SPEED_PERSIST_COALESCE_MS,
 } from '../background/coalesce-site-speed';
 import { setSpeed } from '../background/set-speed';
@@ -33,7 +33,7 @@ function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
 
 describe('setSpeed', () => {
   afterEach(() => {
-    resetSiteSpeedPersistCoalescerForTests();
+    resetSpeedPersistCoalescersForTests();
     vi.useRealTimers();
   });
 
@@ -139,6 +139,22 @@ describe('setSpeed', () => {
     expect(apply).toHaveBeenCalledWith(1, tabBehavior(1.5));
   });
 
+  it('skips persist when rememberLastSpeed is off', async () => {
+    const tabStore = memoryTabStore();
+    const persist = vi.fn();
+    const apply = vi.fn();
+    const result = await setSpeed(4, 'https://example.com/watch', 1.75, {
+      tabStore,
+      persist,
+      apply,
+      ensure: vi.fn(),
+      readOverlay: async () => tabBehavior(1, { rememberLastSpeed: false }),
+    });
+    expect(result).toEqual({ ok: true, targetSpeed: 1.75 });
+    expect(apply).toHaveBeenCalledWith(4, tabBehavior(1.75, { rememberLastSpeed: false }));
+    expect(persist).not.toHaveBeenCalled();
+  });
+
   it('skips persist when persist is false', async () => {
     const tabStore = memoryTabStore();
     const apply = vi.fn();
@@ -170,7 +186,10 @@ describe('setSpeed', () => {
   it('applies each speed immediately and coalesces durable persist', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const persist = vi.fn(async () => {});
-    resetSiteSpeedPersistCoalescerForTests({ persist });
+    resetSpeedPersistCoalescersForTests({
+      site: { persist },
+      global: { persist: async () => {} },
+    });
     const tabStore = memoryTabStore();
     await tabStore.set({ 'tab:1': tabBehavior(1) });
     const apply = vi.fn();

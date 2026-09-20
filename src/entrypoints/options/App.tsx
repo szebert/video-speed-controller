@@ -37,12 +37,13 @@ export function App() {
     ready,
     pending,
     error,
-    sliderPreview,
     drafts,
     updateDraft,
     behavior,
     hotkeys,
-    speed,
+    currentSpeed,
+    currentSpeedMuted,
+    defaultSpeed,
     delaySeconds,
     flashDelaySeconds,
     hotkeyRepeatDelaySeconds,
@@ -66,7 +67,7 @@ export function App() {
     commitDelay,
     commitFlashDelay,
     commitHotkeyRepeatDelay,
-    setSliderPreview,
+    setSpeedPreview,
   } = settings;
 
   if (!ready || !snapshot || !behavior || !hotkeys || !policy) {
@@ -240,16 +241,18 @@ export function App() {
                         <PlaybackSettingsCard
                           selection={selection}
                           behavior={behavior}
-                          speed={speed}
+                          currentSpeed={currentSpeed}
+                          currentSpeedMuted={currentSpeedMuted}
+                          defaultSpeed={defaultSpeed}
                           drafts={drafts}
                           pending={pending}
                           policy={policy}
-                          sliderPreview={sliderPreview}
+                          resetBadgeText={resetBadgeText}
                           onMutate={(change) => {
                             void mutate(change);
                           }}
                           onAdjustSpeed={adjustDisplayedSpeed}
-                          onPreviewSlider={setSliderPreview}
+                          onPreviewSlider={setSpeedPreview}
                           onDraftChange={updateDraft}
                           onCommitDecimal={commitDecimal}
                         />

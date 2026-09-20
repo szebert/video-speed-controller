@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { persistGlobalCurrentSpeed } from '../storage/behavior-defaults';
 import { persistSiteSpeed } from '../storage/site-settings';
 import { getSiteKey } from '../storage/site-key';
 
@@ -188,19 +189,190 @@ export function createSiteSpeedPersistCoalescer(
   };
 }
 
-let defaultCoalescer = createSiteSpeedPersistCoalescer();
+type PersistGlobalSpeed = (speed: number) => Promise<void>;
 
-export function persistSiteSpeedCoalesced(url: string, speed: number): Promise<void> {
-  return defaultCoalescer.persist(url, speed);
+type GlobalBurst = {
+  revision: number;
+  latest: number | null;
+  lastWritten: number | null;
+  active: boolean;
+  inFlight: boolean;
+  write: Promise<void>;
+  timer: ReturnType<typeof setTimeout> | null;
+};
+
+export type GlobalSpeedPersistCoalescer = {
+  persist: (speed: number) => Promise<void>;
+  flush: () => Promise<void>;
+};
+
+export function createGlobalSpeedPersistCoalescer(
+  deps: {
+    persist?: PersistGlobalSpeed;
+    delayMs?: number;
+    setTimeoutFn?: typeof setTimeout;
+    clearTimeoutFn?: typeof clearTimeout;
+  } = {},
+): GlobalSpeedPersistCoalescer {
+  const persistFn = deps.persist ?? persistGlobalCurrentSpeed;
+  const delayMs = deps.delayMs ?? SITE_SPEED_PERSIST_COALESCE_MS;
+  const schedule = deps.setTimeoutFn ?? setTimeout;
+  const cancel = deps.clearTimeoutFn ?? clearTimeout;
+  const burst: GlobalBurst = {
+    revision: 0,
+    latest: null,
+    lastWritten: null,
+    active: false,
+    inFlight: false,
+    write: Promise.resolve(),
+    timer: null,
+  };
+
+  function clearTimer(): void {
+    if (burst.timer != null) {
+      cancel(burst.timer);
+      burst.timer = null;
+    }
+  }
+
+  function discardBurst(): void {
+    clearTimer();
+    burst.active = false;
+    burst.latest = null;
+  }
+
+  function scheduleTrailing(): void {
+    clearTimer();
+    burst.timer = schedule(() => {
+      burst.timer = null;
+      void finishBurst().catch((error: unknown) => {
+        console.warn('Failed to persist globalSpeed', error);
+      });
+    }, delayMs);
+  }
+
+  async function persistSnapshot(): Promise<void> {
+    const snapshot = burst.latest;
+    if (snapshot == null || Object.is(burst.lastWritten, snapshot)) {
+      return;
+    }
+    burst.inFlight = true;
+    const write = (async () => {
+      try {
+        await persistFn(snapshot);
+        burst.lastWritten = snapshot;
+      } finally {
+        burst.inFlight = false;
+      }
+    })();
+    burst.write = write;
+    await write;
+  }
+
+  async function finishBurst(): Promise<void> {
+    if (burst.inFlight) {
+      try {
+        await burst.write;
+      } catch {
+        // The leading persist() caller already received this rejection.
+      }
+    }
+    if (burst.timer != null) {
+      return;
+    }
+    if (burst.latest != null && !Object.is(burst.lastWritten, burst.latest)) {
+      await persistSnapshot();
+    }
+    if (burst.timer != null) {
+      return;
+    }
+    if (burst.latest != null && !Object.is(burst.lastWritten, burst.latest)) {
+      scheduleTrailing();
+      return;
+    }
+    discardBurst();
+  }
+
+  return {
+    async persist(speed) {
+      burst.latest = speed;
+      burst.revision += 1;
+      const revision = burst.revision;
+      if (burst.active) {
+        scheduleTrailing();
+        return;
+      }
+      burst.active = true;
+      try {
+        await persistSnapshot();
+      } catch (error) {
+        if (burst.revision === revision) {
+          discardBurst();
+        }
+        throw error;
+      }
+      if (burst.timer == null) {
+        scheduleTrailing();
+      }
+    },
+    async flush() {
+      clearTimer();
+      await finishBurst();
+    },
+  };
 }
 
-export function flushPersistedSiteSpeeds(): Promise<void> {
-  return defaultCoalescer.flush();
+let defaultSiteCoalescer = createSiteSpeedPersistCoalescer();
+let defaultGlobalCoalescer = createGlobalSpeedPersistCoalescer();
+
+export function persistSiteSpeedCoalesced(url: string, speed: number): Promise<void> {
+  return defaultSiteCoalescer.persist(url, speed);
+}
+
+export function persistGlobalSpeedCoalesced(speed: number): Promise<void> {
+  return defaultGlobalCoalescer.persist(speed);
+}
+
+export async function persistRememberedSpeeds(url: string, speed: number): Promise<void> {
+  const results = await Promise.allSettled([
+    persistSiteSpeedCoalesced(url, speed),
+    persistGlobalSpeedCoalesced(speed),
+  ]);
+  const errors = results.flatMap((result) => {
+    if (result.status === 'fulfilled') {
+      return [];
+    }
+    return [result.reason instanceof Error ? result.reason.message : String(result.reason)];
+  });
+  if (errors.length > 0) {
+    throw new Error(errors.join('; '));
+  }
+}
+
+export function flushPersistedSpeeds(): Promise<void> {
+  return Promise.all([defaultSiteCoalescer.flush(), defaultGlobalCoalescer.flush()]).then(
+    () => undefined,
+  );
 }
 
 export function resetSiteSpeedPersistCoalescerForTests(
   deps?: Parameters<typeof createSiteSpeedPersistCoalescer>[0],
 ): SiteSpeedPersistCoalescer {
-  defaultCoalescer = createSiteSpeedPersistCoalescer(deps);
-  return defaultCoalescer;
+  defaultSiteCoalescer = createSiteSpeedPersistCoalescer(deps);
+  return defaultSiteCoalescer;
+}
+
+export function resetGlobalSpeedPersistCoalescerForTests(
+  deps?: Parameters<typeof createGlobalSpeedPersistCoalescer>[0],
+): GlobalSpeedPersistCoalescer {
+  defaultGlobalCoalescer = createGlobalSpeedPersistCoalescer(deps);
+  return defaultGlobalCoalescer;
+}
+
+export function resetSpeedPersistCoalescersForTests(deps?: {
+  site?: Parameters<typeof createSiteSpeedPersistCoalescer>[0];
+  global?: Parameters<typeof createGlobalSpeedPersistCoalescer>[0];
+}): void {
+  defaultSiteCoalescer = createSiteSpeedPersistCoalescer(deps?.site);
+  defaultGlobalCoalescer = createGlobalSpeedPersistCoalescer(deps?.global);
 }

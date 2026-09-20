@@ -27,15 +27,15 @@ describe('two-profile display and storage', () => {
     expect(
       displaySpeed({
         siteAccess: false,
-        siteSpeed: 3.25,
+        seedTarget: 3.25,
         tabTarget: null,
       }),
     ).toBe(3.25);
   });
 
   it('keeps two tab targets independent after a speed change', () => {
-    expect(displaySpeed({ siteAccess: true, siteSpeed: 3, tabTarget: 2 })).toBe(2);
-    expect(displaySpeed({ siteAccess: true, siteSpeed: 3, tabTarget: 3 })).toBe(3);
+    expect(displaySpeed({ siteAccess: true, seedTarget: 3, tabTarget: 2 })).toBe(2);
+    expect(displaySpeed({ siteAccess: true, seedTarget: 3, tabTarget: 3 })).toBe(3);
   });
 
   it('writes one site record without rewriting another profile copy', async () => {

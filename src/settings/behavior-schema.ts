@@ -41,6 +41,8 @@ export const LogicalValueSchema = z.number().refine(isLogicalValue);
 
 export const behaviorValueSchemas = {
   speed: z.number(),
+  defaultSpeed: z.number(),
+  rememberLastSpeed: z.boolean(),
   speedMin: z.number(),
   speedMax: z.number(),
   speedTick: z.number(),

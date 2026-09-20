@@ -202,8 +202,8 @@ export function App() {
   };
 
   const currentForAdjust = view.siteAccess
-    ? (view.tabTarget ?? resolveEffectiveSpeed(view.siteSpeed, policy))
-    : resolveEffectiveSpeed(view.siteSpeed, policy);
+    ? (view.tabTarget ?? resolveEffectiveSpeed(view.seedTarget, policy))
+    : resolveEffectiveSpeed(view.seedTarget, policy);
 
   const sendSpeed = async (speed: number): Promise<void> => {
     if (!(await ensureAccess())) {
@@ -284,6 +284,7 @@ export function App() {
         }}
       />
       <SpeedControls
+        heading={t('currentSiteSpeed')}
         displaySpeed={shown}
         disabled={!view.siteAccess}
         policy={policy}

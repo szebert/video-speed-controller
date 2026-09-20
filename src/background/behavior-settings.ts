@@ -26,6 +26,7 @@ import type {
 import {
   canonicalizeBehaviorSettingChange,
   canonicalizeHotkeySettingChange,
+  resolveAppliedSpeed,
   resolveSiteBehavior,
   toEditableResolvedBehavior,
   type BehaviorSettingChange,
@@ -47,10 +48,10 @@ import {
   persistSiteBehaviorChanges,
   persistSiteHotkeyChanges,
   readCustomSiteSummary,
-  resolveSiteBehaviorForUrl,
+  resolveAppliedSiteBehaviorForUrl,
   type SiteSettingsDeps,
 } from '../storage/site-settings';
-import { flushPersistedSiteSpeeds } from './coalesce-site-speed';
+import { flushPersistedSpeeds } from './coalesce-site-speed';
 import { isExtensionPageSender } from './extension-page-sender';
 import {
   reapplyBehaviorSettings,
@@ -69,6 +70,37 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+function rememberAfterChanges(
+  changes: readonly BehaviorSettingChange[],
+  current: boolean,
+  inherited: boolean,
+): boolean {
+  let remember = current;
+  for (const change of changes) {
+    if (change.field !== 'rememberLastSpeed') {
+      continue;
+    }
+    remember = change.kind === 'value' ? change.value : inherited;
+  }
+  return remember;
+}
+
+async function readRememberLastSpeed(
+  scope: 'global' | 'site',
+  hostname: string | null,
+  deps: BehaviorSettingsDeps,
+): Promise<boolean> {
+  if (scope === 'site' && hostname) {
+    const applied = await resolveAppliedSiteBehaviorForUrl(siteResolutionUrl(hostname), {
+      ...deps,
+      touchUsage: false,
+    });
+    return applied?.resolved.rememberLastSpeed.value ?? true;
+  }
+  const globalOverrides = await readGlobalBehaviorOverrides(deps);
+  return resolveSiteBehavior(globalOverrides, {}).rememberLastSpeed.value;
+}
+
 export async function readBehaviorSettingsSnapshot(
   hostname: string | null,
   deps: BehaviorSettingsDeps = {},
@@ -80,17 +112,32 @@ export async function readBehaviorSettingsSnapshot(
   if (!hostname) {
     return { global, globalHotkeys, site: null };
   }
-  const resolved = await resolveSiteBehaviorForUrl(siteResolutionUrl(hostname), {
+  const applied = await resolveAppliedSiteBehaviorForUrl(siteResolutionUrl(hostname), {
     ...deps,
     touchUsage: false,
   });
+  if (!applied) {
+    return {
+      global,
+      globalHotkeys,
+      site: {
+        hostname,
+        behavior: global,
+        hotkeys: globalHotkeys,
+        speedOverrideKind: 'missing',
+        seedTarget: resolveAppliedSpeed(globalOverrides, {}, globalResolved),
+      },
+    };
+  }
   return {
     global,
     globalHotkeys,
     site: {
       hostname,
-      behavior: resolved ? toEditableResolvedBehavior(resolved) : global,
-      hotkeys: resolved ? resolved.hotkeys : globalHotkeys,
+      behavior: toEditableResolvedBehavior(applied.resolved),
+      hotkeys: applied.resolved.hotkeys,
+      speedOverrideKind: applied.speedOverrideKind,
+      seedTarget: applied.targetSpeed,
     },
   };
 }
@@ -158,7 +205,7 @@ export async function getBehaviorSettings(
     return hostname;
   }
   try {
-    await flushPersistedSiteSpeeds();
+    await flushPersistedSpeeds();
     return { ok: true, state: await readBehaviorSettingsSnapshot(hostname.hostname, deps) };
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to read settings') };
@@ -221,8 +268,14 @@ export async function setBehaviorSetting(
     return snapshot;
   }
 
+  const scope = message.scope.kind === 'global' ? 'global' : 'site';
+  let rememberLastSpeed: boolean;
   try {
-    await flushPersistedSiteSpeeds();
+    const currentRemember = await readRememberLastSpeed(scope, persistHostname, deps);
+    const inheritedRemember =
+      scope === 'site' ? await readRememberLastSpeed('global', null, deps) : true;
+    rememberLastSpeed = rememberAfterChanges(changes, currentRemember, inheritedRemember);
+    await flushPersistedSpeeds();
     if (message.scope.kind === 'global') {
       await persistGlobalBehaviorChanges(changes, deps);
     } else {
@@ -231,13 +284,11 @@ export async function setBehaviorSetting(
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to persist setting') };
   }
-
-  const scope = message.scope.kind === 'global' ? 'global' : 'site';
   const result = await afterPersist(
     snapshot.hostname,
     {
       scope: scope === 'global' ? { kind: 'global' } : { kind: 'site', hostname: persistHostname! },
-      mode: reapplyModeForFields(scope, changes),
+      mode: reapplyModeForFields(scope, changes, rememberLastSpeed),
     },
     deps,
   );
@@ -289,7 +340,7 @@ export async function setHotkeySetting(
   }
 
   try {
-    await flushPersistedSiteSpeeds();
+    await flushPersistedSpeeds();
     if (message.scope.kind === 'global') {
       await persistGlobalHotkeyChanges(changes, deps, { rejectConflicts: true });
     } else {
@@ -344,7 +395,7 @@ export async function deleteSiteBehaviorSettings(
   }
 
   try {
-    await flushPersistedSiteSpeeds();
+    await flushPersistedSpeeds();
     await deleteSiteSettings(hostname, deps);
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to delete site settings') };
@@ -374,7 +425,7 @@ export async function resetGlobalBehaviorSettings(
   }
 
   try {
-    await flushPersistedSiteSpeeds();
+    await flushPersistedSpeeds();
     await resetGlobalBehaviorOverrides(deps);
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to reset default settings') };
@@ -402,7 +453,7 @@ export async function resetAllBehaviorSettings(
   }
 
   try {
-    await flushPersistedSiteSpeeds();
+    await flushPersistedSpeeds();
     const globalOutcome = await resetGlobalBehaviorOverrides(deps, { ifUnsupported: 'skip' });
     const sites = await deleteAllSiteSettings(deps);
     const skippedRecordCount = (globalOutcome === 'skipped' ? 1 : 0) + sites.skippedRecordCount;
@@ -425,7 +476,7 @@ export async function exportBehaviorBackup(
     return { ok: false, error: 'Unauthorized' };
   }
   try {
-    await flushPersistedSiteSpeeds();
+    await flushPersistedSpeeds();
     return { ok: true, backupText: await exportLogicalBackupText(deps) };
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to export settings') };
@@ -445,7 +496,7 @@ export async function importBehaviorBackup(
     return snapshot;
   }
   try {
-    await flushPersistedSiteSpeeds();
+    await flushPersistedSpeeds();
     const imported = await importLogicalSettings(message.backupText, message.mode, deps);
     const customSites = await listCustomSiteSummaries(deps);
     const result = await afterPersist(

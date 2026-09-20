@@ -1,23 +1,46 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { ResetBadge } from '@/components/ResetBadge';
 import { SpeedControls } from '@/components/SpeedControls';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FieldGroup, FieldLegend, FieldSet } from '@/components/ui/field';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field';
+import { Slider } from '@/components/ui/slider';
 import {
   SPEED_MAX_SETTING_MAX,
   SPEED_MAX_SETTING_MIN,
   SPEED_MIN_SETTING_MAX,
   SPEED_MIN_SETTING_MIN,
+  SPEED_SLIDER_STEP,
   SPEED_TICK_SETTING_MAX,
   SPEED_TICK_SETTING_MIN,
+  formatSpeed,
+  isFixedSpeedPolicy,
+  sliderBounds,
+  sliderValue,
+  snapSliderSpeed,
   type SpeedPolicy,
 } from '../../core/speed';
 import { t } from '@/i18n/t';
+import { cn } from 'cn';
 import type { BehaviorSettingChange, EditableResolvedBehavior } from '../../settings/site-behavior';
-import { OPTIONS_FIELD_GRID, OPTIONS_FIELD_SPAN, OptionsNumberField } from './options-fields';
+import {
+  BehaviorSwitchField,
+  OPTIONS_FIELD_GRID,
+  OPTIONS_FIELD_SPAN,
+  OptionsNumberField,
+} from './options-fields';
 import {
   ownsOverride,
   resetFieldLabel,
+  resetToSpeedLabel,
   showsInherited,
   type DraftKey,
   type Selection,
@@ -26,11 +49,13 @@ import {
 export function PlaybackSettingsCard({
   selection,
   behavior,
-  speed,
+  currentSpeed,
+  currentSpeedMuted,
+  defaultSpeed,
   drafts,
   pending,
   policy,
-  sliderPreview,
+  resetBadgeText,
   onMutate,
   onAdjustSpeed,
   onPreviewSlider,
@@ -39,14 +64,16 @@ export function PlaybackSettingsCard({
 }: {
   selection: Selection;
   behavior: EditableResolvedBehavior;
-  speed: number;
+  currentSpeed: number;
+  currentSpeedMuted: boolean;
+  defaultSpeed: number;
   drafts: Partial<Record<DraftKey, string>>;
   pending: boolean;
   policy: SpeedPolicy;
-  sliderPreview: number | null;
+  resetBadgeText: string;
   onMutate: (change: BehaviorSettingChange) => void;
   onAdjustSpeed: (direction: 1 | -1) => void;
-  onPreviewSlider: (speed: number | null) => void;
+  onPreviewSlider: (preview: number | null) => void;
   onDraftChange: (
     key: Exclude<DraftKey, 'delay' | 'flashDelay' | 'hotkeyRepeatDelay'>,
     value: string,
@@ -58,6 +85,10 @@ export function PlaybackSettingsCard({
     max: number,
   ) => void;
 }) {
+  const currentHeading =
+    selection.kind === 'global' ? t('currentDefaultSpeed') : t('currentSiteSpeed');
+  const defaultBounds = sliderBounds(policy);
+  const defaultFixed = isFixedSpeedPolicy(policy);
   return (
     <Card>
       <CardHeader>
@@ -70,11 +101,12 @@ export function PlaybackSettingsCard({
           <FieldGroup className={OPTIONS_FIELD_GRID}>
             <div className={OPTIONS_FIELD_SPAN}>
               <SpeedControls
-                heading={selection.kind === 'global' ? t('defaultSpeed') : t('siteSpeed')}
-                displaySpeed={speed}
+                heading={currentHeading}
+                displaySpeed={currentSpeed}
                 pending={pending}
+                resetLabel={resetToSpeedLabel(defaultSpeed)}
                 resetDisabled={!ownsOverride(selection, behavior.speed.source)}
-                muted={showsInherited(selection, behavior.speed.source) && sliderPreview == null}
+                muted={currentSpeedMuted}
                 policy={policy}
                 onAdjust={onAdjustSpeed}
                 onReset={() => {
@@ -85,7 +117,73 @@ export function PlaybackSettingsCard({
                   onMutate({ kind: 'value', field: 'speed', value });
                 }}
               />
+              <p className="mt-2 text-sm text-muted-foreground">{t('currentSpeedResetHint')}</p>
             </div>
+            <Field className={OPTIONS_FIELD_SPAN} data-disabled={pending || undefined}>
+              <div className="flex items-start justify-between gap-2">
+                <FieldContent>
+                  <FieldLabel id="default-speed-label">{t('defaultSpeed')}</FieldLabel>
+                  <FieldDescription id="default-speed-help">
+                    {t('defaultSpeedDescription')}
+                  </FieldDescription>
+                </FieldContent>
+                <ResetBadge
+                  active={ownsOverride(selection, behavior.defaultSpeed.source)}
+                  disabled={pending}
+                  text={resetBadgeText}
+                  label={resetFieldLabel(t('defaultSpeed'))}
+                  onReset={() => {
+                    onMutate({ kind: 'inherit', field: 'defaultSpeed' });
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Slider
+                  key={`${policy.min}:${policy.max}`}
+                  aria-label={t('defaultSpeed')}
+                  aria-labelledby="default-speed-label"
+                  aria-describedby="default-speed-help"
+                  isDisabled={pending || defaultFixed}
+                  minValue={defaultBounds.minValue}
+                  maxValue={defaultBounds.maxValue}
+                  step={SPEED_SLIDER_STEP}
+                  value={sliderValue(defaultSpeed, policy)}
+                  onChange={(value) => {
+                    const next = Array.isArray(value) ? value[0] : value;
+                    if (next == null) {
+                      return;
+                    }
+                    onMutate({
+                      kind: 'value',
+                      field: 'defaultSpeed',
+                      value: snapSliderSpeed(next, policy),
+                    });
+                  }}
+                />
+                <span
+                  className={cn(
+                    'w-14 shrink-0 text-right text-sm tabular-nums',
+                    showsInherited(selection, behavior.defaultSpeed.source) &&
+                      'text-muted-foreground',
+                  )}
+                >
+                  {formatSpeed(defaultSpeed)}
+                </span>
+              </div>
+            </Field>
+            <BehaviorSwitchField
+              id="remember-last-speed"
+              name="rememberLastSpeed"
+              field="rememberLastSpeed"
+              className={OPTIONS_FIELD_SPAN}
+              label={t('rememberLastSpeed')}
+              description={t('rememberLastSpeedDescription')}
+              setting={behavior.rememberLastSpeed}
+              selection={selection}
+              disabled={pending}
+              resetBadgeText={resetBadgeText}
+              onMutate={onMutate}
+            />
             <OptionsNumberField
               id="speed-min"
               name="speedMin"

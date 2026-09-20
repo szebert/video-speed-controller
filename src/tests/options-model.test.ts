@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  displayedCurrentSpeed,
+  resetToSpeedLabel,
   applyOptimisticChange,
   applyOptimisticChanges,
   applyOptimisticHotkeyChange,
@@ -24,6 +26,8 @@ function snapshot(): BehaviorSettingsSnapshot {
       hostname: 'www.youtube.com',
       behavior: { ...global, speed: { value: 1.25, source: 'site' as const } },
       hotkeys,
+      speedOverrideKind: 'value',
+      seedTarget: 1.25,
     },
   };
 }
@@ -230,5 +234,74 @@ describe('optimistic options state', () => {
         state,
       ).fastForwardSpeed,
     ).toEqual({ value: 3, source: 'built-in' });
+  });
+});
+
+describe('resetToSpeedLabel', () => {
+  it('names the Reset destination', () => {
+    expect(resetToSpeedLabel(1)).toBe('Reset to 1.00×');
+    expect(resetToSpeedLabel(1.25)).toBe('Reset to 1.25×');
+  });
+});
+
+describe('displayedCurrentSpeed', () => {
+  it('shows the stored site current when the override is a value', () => {
+    const state = snapshot();
+    expect(
+      displayedCurrentSpeed(
+        { kind: 'site', hostname: 'www.youtube.com' },
+        state.site!.behavior,
+        state,
+        undefined,
+      ),
+    ).toEqual({ value: 1.25, muted: false });
+  });
+
+  it('shows defaultSpeed for a persisted inherit and seedTarget when missing', () => {
+    const state = snapshot();
+    state.site = {
+      ...state.site!,
+      behavior: {
+        ...state.site!.behavior,
+        speed: { value: 2, source: 'global' },
+        defaultSpeed: { value: 1.25, source: 'site' },
+      },
+      speedOverrideKind: 'inherit',
+      seedTarget: 2,
+    };
+    expect(
+      displayedCurrentSpeed(
+        { kind: 'site', hostname: 'www.youtube.com' },
+        state.site.behavior,
+        state,
+        undefined,
+      ),
+    ).toEqual({ value: 1.25, muted: true });
+    state.site.speedOverrideKind = 'missing';
+    state.site.seedTarget = 2;
+    expect(
+      displayedCurrentSpeed(
+        { kind: 'site', hostname: 'www.youtube.com' },
+        state.site.behavior,
+        state,
+        undefined,
+      ),
+    ).toEqual({ value: 2, muted: true });
+  });
+
+  it('uses optimistic inherit defaultSpeed instead of a stale value kind', () => {
+    const state = snapshot();
+    const behavior = applyOptimisticChange(
+      state.site!.behavior,
+      { kind: 'inherit', field: 'speed' },
+      { kind: 'site', hostname: 'www.youtube.com' },
+      state,
+    );
+    expect(
+      displayedCurrentSpeed({ kind: 'site', hostname: 'www.youtube.com' }, behavior, state, {
+        kind: 'inherit',
+        field: 'speed',
+      }),
+    ).toEqual({ value: behavior.defaultSpeed.value, muted: true });
   });
 });

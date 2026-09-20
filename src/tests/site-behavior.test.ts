@@ -36,6 +36,7 @@ import {
   overlayPositionToGrid,
   hotkeyChangesWouldConflict,
   prospectiveEffectiveHotkeys,
+  resolveAppliedSpeed,
   resolveSiteBehavior,
   revalidateResolvedSpeed,
   toEffectiveBehavior,
@@ -1169,5 +1170,61 @@ describe('behavior setting changes', () => {
         SITE_HOTKEY_ACTIONS.map((action) => [action, { kind: 'inherit', updatedAt: 5 }]),
       ),
     );
+  });
+});
+
+describe('resolveAppliedSpeed', () => {
+  it('uses site current when remember is on and site speed is a value', () => {
+    const global = { speed: { kind: 'value' as const, value: 2, updatedAt: 1 } };
+    const site = { speed: { kind: 'value' as const, value: 1.5, updatedAt: 2 } };
+    const resolved = resolveSiteBehavior(global, site);
+    expect(resolveAppliedSpeed(global, site, resolved)).toBe(1.5);
+  });
+
+  it('uses defaultSpeed when remember is off', () => {
+    const global = {
+      speed: { kind: 'value' as const, value: 2, updatedAt: 1 },
+      rememberLastSpeed: { kind: 'value' as const, value: false, updatedAt: 1 },
+    };
+    const site = { speed: { kind: 'value' as const, value: 1.5, updatedAt: 2 } };
+    const resolved = resolveSiteBehavior(global, site);
+    expect(resolveAppliedSpeed(global, site, resolved)).toBe(1);
+  });
+
+  it('uses global current only when both site speed fields are missing', () => {
+    const global = { speed: { kind: 'value' as const, value: 2, updatedAt: 1 } };
+    const resolved = resolveSiteBehavior(global, {});
+    expect(resolveAppliedSpeed(global, {}, resolved)).toBe(2);
+  });
+
+  it('does not fall through to global current after a site speed inherit', () => {
+    const global = { speed: { kind: 'value' as const, value: 2, updatedAt: 1 } };
+    const site = { speed: { kind: 'inherit' as const, updatedAt: 2 } };
+    const resolved = resolveSiteBehavior(global, site);
+    expect(resolveAppliedSpeed(global, site, resolved)).toBe(1);
+  });
+
+  it('does not fall through to global current after a site defaultSpeed inherit', () => {
+    const global = { speed: { kind: 'value' as const, value: 2, updatedAt: 1 } };
+    const site = { defaultSpeed: { kind: 'inherit' as const, updatedAt: 2 } };
+    const resolved = resolveSiteBehavior(global, site);
+    expect(resolveAppliedSpeed(global, site, resolved)).toBe(1);
+  });
+
+  it('clamps global current to the site speed policy', () => {
+    const global = { speed: { kind: 'value' as const, value: 3, updatedAt: 1 } };
+    const site = { speedMax: { kind: 'value' as const, value: 2, updatedAt: 2 } };
+    const resolved = resolveSiteBehavior(global, site);
+    expect(resolveAppliedSpeed(global, site, resolved)).toBe(2);
+    expect(resolved.defaultSpeed.value).toBe(1);
+  });
+
+  it('clamps resolved defaultSpeed against the site policy', () => {
+    const resolved = resolveSiteBehavior(
+      { defaultSpeed: { kind: 'value', value: 3, updatedAt: 1 } },
+      { speedMax: { kind: 'value', value: 2, updatedAt: 2 } },
+    );
+    expect(resolved.defaultSpeed.value).toBe(2);
+    expect(revalidateResolvedSpeed(resolved).defaultSpeed.value).toBe(2);
   });
 });

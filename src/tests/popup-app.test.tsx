@@ -10,15 +10,15 @@ import { App } from '../entrypoints/popup/App';
 function expectPopupControlsOrder(container: HTMLElement): void {
   const text = container.textContent ?? '';
   expect(text.indexOf('Enabled on this site')).toBeGreaterThan(-1);
-  expect(text.indexOf('Site speed')).toBeGreaterThan(-1);
-  expect(text.indexOf('Enabled on this site')).toBeLessThan(text.indexOf('Site speed'));
+  expect(text.indexOf('Current site speed')).toBeGreaterThan(-1);
+  expect(text.indexOf('Enabled on this site')).toBeLessThan(text.indexOf('Current site speed'));
 }
 
 function popupState(overrides: Partial<PopupStateResponse> = {}): PopupStateResponse {
   return {
     supported: true,
     hostname: 'www.youtube.com',
-    siteSpeed: null,
+    seedTarget: null,
     tabTarget: null,
     siteAccess: false,
     speedMin: 0.25,

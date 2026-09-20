@@ -12,7 +12,7 @@ import {
   toEffectiveBehavior,
   toEffectiveHotkeys,
 } from '../settings/site-behavior';
-import { resolveSiteBehaviorForUrl, type SiteSettingsDeps } from '../storage/site-settings';
+import { resolveAppliedSiteBehaviorForUrl, type SiteSettingsDeps } from '../storage/site-settings';
 
 export type AppliedTabPayload = {
   behavior: AppliedTabBehavior;
@@ -27,27 +27,27 @@ export async function readAppliedTabBehavior(
   url: string,
   deps: SiteSettingsDeps = { touchUsage: true },
 ): Promise<AppliedTabBehavior> {
-  const resolved = await resolveSiteBehaviorForUrl(url, deps);
-  if (!resolved) {
+  const applied = await resolveAppliedSiteBehaviorForUrl(url, deps);
+  if (!applied) {
     return builtInAppliedTabBehavior();
   }
-  return toAppliedTabBehavior(toEffectiveBehavior(resolved));
+  return toAppliedTabBehavior(toEffectiveBehavior(applied.resolved), applied.targetSpeed);
 }
 
 export async function readAppliedTabPayload(
   url: string,
   deps: SiteSettingsDeps = { touchUsage: true },
 ): Promise<AppliedTabPayload> {
-  const resolved = await resolveSiteBehaviorForUrl(url, deps);
-  if (!resolved) {
+  const applied = await resolveAppliedSiteBehaviorForUrl(url, deps);
+  if (!applied) {
     return {
       behavior: builtInAppliedTabBehavior(),
       hotkeys: toEffectiveHotkeys(resolveSiteBehavior()),
     };
   }
   return {
-    behavior: toAppliedTabBehavior(toEffectiveBehavior(resolved)),
-    hotkeys: toEffectiveHotkeys(resolved),
+    behavior: toAppliedTabBehavior(toEffectiveBehavior(applied.resolved), applied.targetSpeed),
+    hotkeys: toEffectiveHotkeys(applied.resolved),
   };
 }
 

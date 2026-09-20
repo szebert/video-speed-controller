@@ -7,7 +7,7 @@ import type { SiteSettingsDeps } from '../storage/site-settings';
 import { clearTabState, getTabState, setTabState, type TabStateStore } from '../storage/tab-state';
 import { readOverlaySeed, type OverlaySeed } from './applied-behavior';
 import { applyTabBehavior } from './broadcast';
-import { persistSiteSpeedCoalesced } from './coalesce-site-speed';
+import { persistRememberedSpeeds } from './coalesce-site-speed';
 import { ensureCurrentTabEngine, type ScriptInjector } from './inject';
 
 export type SetSpeedDeps = {
@@ -63,12 +63,12 @@ export async function setSpeed(
     };
   }
 
-  if (deps.persist === false) {
+  if (deps.persist === false || !next.rememberLastSpeed) {
     return { ok: true, targetSpeed: canonical };
   }
 
   try {
-    const persist = deps.persist ?? persistSiteSpeedCoalesced;
+    const persist = deps.persist ?? persistRememberedSpeeds;
     await persist(url, canonical);
     return { ok: true, targetSpeed: canonical };
   } catch (error) {

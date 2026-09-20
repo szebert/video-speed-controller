@@ -415,6 +415,16 @@ export async function persistGlobalBehaviorChange(
   await persistGlobalBehaviorChanges([change], deps);
 }
 
+export async function persistGlobalCurrentSpeed(
+  speed: number,
+  deps: BehaviorDefaultsDeps = {},
+): Promise<void> {
+  if (!Number.isFinite(speed)) {
+    throw new Error('Speed must be a finite number');
+  }
+  await persistGlobalBehaviorChange({ kind: 'value', field: 'speed', value: speed }, deps);
+}
+
 export async function persistGlobalHotkeyChanges(
   changes: readonly HotkeySettingChange[],
   deps: BehaviorDefaultsDeps = {},

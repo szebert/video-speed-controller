@@ -57,6 +57,15 @@ function memoryTabStore(): TabStateStore & { data: Record<string, unknown> } {
 }
 
 describe('applied tab behavior', () => {
+  it('includes defaultSpeed and rememberLastSpeed from the field registry', () => {
+    expect(tabBehavior(1.25)).toEqual(
+      expect.objectContaining({
+        defaultSpeed: 1,
+        rememberLastSpeed: true,
+      }),
+    );
+  });
+
   it('uses a 2s built-in auto-hide default', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.speedMin).toBe(0.25);
     expect(BUILT_IN_SITE_BEHAVIOR.speedMax).toBe(4);

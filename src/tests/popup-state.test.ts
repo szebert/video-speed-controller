@@ -2,57 +2,71 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { getPopupState } from '../background/popup-state';
-import { OVERLAY_POSITION, resolveSiteBehavior } from '../settings/site-behavior';
+import {
+  resolveAppliedSpeed,
+  resolveSiteBehavior,
+  type BehaviorOverrides,
+} from '../settings/site-behavior';
+
+function appliedFrom(globalOverrides: BehaviorOverrides, siteOverrides: BehaviorOverrides) {
+  const resolved = resolveSiteBehavior(globalOverrides, siteOverrides);
+  return {
+    resolved,
+    targetSpeed: resolveAppliedSpeed(globalOverrides, siteOverrides, resolved),
+    speedOverrideKind: siteOverrides.speed?.kind ?? ('missing' as const),
+  };
+}
 
 describe('getPopupState', () => {
-  it('resolves site behavior once and derives speed plus policy from it', async () => {
-    const resolveBehavior = vi.fn(async () => ({
-      speed: { value: 1.25, source: 'site' as const },
-      speedMin: { value: 0.5, source: 'site' as const },
-      speedMax: { value: 3, source: 'global' as const },
-      speedTick: { value: 0.1, source: 'built-in' as const },
-      skipBackSeconds: { value: 5, source: 'built-in' as const },
-      skipForwardSeconds: { value: 10, source: 'built-in' as const },
-      skipScaleWithPlaybackRate: { value: false, source: 'built-in' as const },
-      rewindSpeed: { value: -1, source: 'built-in' as const },
-      fastForwardSpeed: { value: 3, source: 'built-in' as const },
-      overlayVisible: { value: true, source: 'built-in' as const },
-      overlayPosition: { value: OVERLAY_POSITION.TOP_CENTER, source: 'built-in' as const },
-      overlayPositionButton: { value: true, source: 'built-in' as const },
-      overlaySettingsButton: { value: true, source: 'built-in' as const },
-      overlayNavigationBar: { value: false, source: 'built-in' as const },
-      overlayHotkeyHints: { value: true, source: 'built-in' as const },
-      overlayAutoHide: { value: true, source: 'built-in' as const },
-      overlayHoverHold: { value: false, source: 'built-in' as const },
-      overlayAutoHideDelayMs: { value: 2000, source: 'built-in' as const },
-      overlayOpacity: { value: 70, source: 'built-in' as const },
-      buttonFlash: { value: true, source: 'built-in' as const },
-      hotkeyFlash: { value: true, source: 'built-in' as const },
-      flashDelayMs: { value: 750, source: 'built-in' as const },
-      flashOpacity: { value: 70, source: 'built-in' as const },
-      hotkeyRepeat: { value: false, source: 'built-in' as const },
-      hotkeyRepeatDelayMs: { value: 500, source: 'built-in' as const },
-      hotkeyRepeatRate: { value: 15, source: 'built-in' as const },
-      hotkeys: resolveSiteBehavior().hotkeys,
-    }));
+  it('exposes the applied seed target rather than ordinary resolved speed', async () => {
+    const applied = appliedFrom({}, { speed: { kind: 'value', value: 1.25, updatedAt: 1 } });
+    const resolveApplied = vi.fn(async () => applied);
     const result = await getPopupState(4, 'https://www.youtube.com/watch', {
-      resolveBehavior,
+      resolveApplied,
       readTabState: async () => null,
       hasAccess: async () => false,
     });
-    expect(resolveBehavior).toHaveBeenCalledTimes(1);
-    expect(resolveBehavior).toHaveBeenCalledWith('https://www.youtube.com/watch', {
+    expect(resolveApplied).toHaveBeenCalledTimes(1);
+    expect(resolveApplied).toHaveBeenCalledWith('https://www.youtube.com/watch', {
       touchUsage: false,
     });
     expect(result).toMatchObject({
       supported: true,
       hostname: 'www.youtube.com',
-      siteSpeed: 1.25,
+      seedTarget: 1.25,
       tabTarget: null,
       siteAccess: false,
-      speedMin: 0.5,
-      speedMax: 3,
-      speedTick: 0.1,
     });
+  });
+
+  it('uses defaultSpeed when remember-last is off even if stored current is 2×', async () => {
+    const applied = appliedFrom(
+      { rememberLastSpeed: { kind: 'value', value: false, updatedAt: 1 } },
+      {
+        speed: { kind: 'value', value: 2, updatedAt: 1 },
+        defaultSpeed: { kind: 'value', value: 1, updatedAt: 1 },
+      },
+    );
+    const result = await getPopupState(4, 'https://www.youtube.com/watch', {
+      resolveApplied: async () => applied,
+      readTabState: async () => null,
+      hasAccess: async () => true,
+    });
+    expect(applied.targetSpeed).toBe(1);
+    expect(result.seedTarget).toBe(1);
+  });
+
+  it('uses default after a site speed inherit even if global current is 2×', async () => {
+    const applied = appliedFrom(
+      { speed: { kind: 'value', value: 2, updatedAt: 1 } },
+      { speed: { kind: 'inherit', updatedAt: 2 } },
+    );
+    const result = await getPopupState(4, 'https://www.youtube.com/watch', {
+      resolveApplied: async () => applied,
+      readTabState: async () => null,
+      hasAccess: async () => true,
+    });
+    expect(applied.targetSpeed).toBe(1);
+    expect(result.seedTarget).toBe(1);
   });
 });

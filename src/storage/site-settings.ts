@@ -33,10 +33,13 @@ import {
   SYNC_LRU_STALE_MS,
   behaviorOverridesEqual,
   mergeBehaviorOverrides,
+  resolveAppliedSpeed,
   resolveSiteBehavior,
+  speedOverrideKindOf,
   toEffectiveBehavior,
   hasSemanticOverrides,
   withSpeedInherit,
+  type SpeedOverrideKind,
   applyBehaviorSettingChange,
   applyHotkeySettingChange,
   hotkeyChangesWouldConflict,
@@ -449,18 +452,46 @@ async function loadMergedSite(url: string, deps: SiteSettingsDeps): Promise<Load
   };
 }
 
+export type AppliedSiteBehaviorForUrl = {
+  resolved: ReturnType<typeof resolveSiteBehavior>;
+  targetSpeed: number;
+  speedOverrideKind: SpeedOverrideKind;
+};
+
+async function resolveAppliedSiteBehaviorUnlocked(
+  url: string,
+  deps: SiteSettingsDeps,
+): Promise<AppliedSiteBehaviorForUrl | null> {
+  const loaded = await loadMergedSite(url, deps);
+  if (!loaded) {
+    return null;
+  }
+  await maybeRepairAndTouchSite(loaded, Boolean(deps.touchUsage));
+  const resolved = resolveSiteBehavior(loaded.globalOverrides, loaded.mergedOverrides);
+  return {
+    resolved,
+    targetSpeed: resolveAppliedSpeed(loaded.globalOverrides, loaded.mergedOverrides, resolved),
+    speedOverrideKind: speedOverrideKindOf(loaded.mergedOverrides),
+  };
+}
+
 export async function resolveSiteBehaviorForUrl(
   url: string,
   deps: SiteSettingsDeps = {},
 ): Promise<ReturnType<typeof resolveSiteBehavior> | null> {
   return enqueueStorageMutation(SITE_SETTINGS_LOCK, async () => {
-    const loaded = await loadMergedSite(url, deps);
-    if (!loaded) {
-      return null;
-    }
-    await maybeRepairAndTouchSite(loaded, Boolean(deps.touchUsage));
-    return resolveSiteBehavior(loaded.globalOverrides, loaded.mergedOverrides);
+    const applied = await resolveAppliedSiteBehaviorUnlocked(url, deps);
+    return applied?.resolved ?? null;
   });
+}
+
+export async function resolveAppliedSiteBehaviorForUrl(
+  url: string,
+  deps: SiteSettingsDeps = {},
+): Promise<AppliedSiteBehaviorForUrl | null> {
+  return enqueueStorageMutation(SITE_SETTINGS_LOCK, () =>
+    resolveAppliedSiteBehaviorUnlocked(url, deps),
+  );
 }
 
 export async function readSiteSpeed(
@@ -481,7 +512,8 @@ export async function resolveSpeedAfterSiteInherit(
       throw new Error('Cannot persist siteSpeed for an unsupported page');
     }
     const prospective = withSpeedInherit(loaded.mergedOverrides, loaded.now);
-    return toEffectiveBehavior(resolveSiteBehavior(loaded.globalOverrides, prospective)).speed;
+    const resolved = resolveSiteBehavior(loaded.globalOverrides, prospective);
+    return resolveAppliedSpeed(loaded.globalOverrides, prospective, resolved);
   });
 }
 

@@ -93,20 +93,20 @@ describe('speed policy', () => {
     expect(
       displaySpeed({
         siteAccess: true,
-        siteSpeed: 3,
+        seedTarget: 3,
         tabTarget: 2,
       }),
     ).toBe(2);
   });
 
   it('uses stored siteSpeed when there is no site access', () => {
-    expect(displaySpeed({ siteAccess: false, siteSpeed: 2.25, tabTarget: 2.25 })).toBe(2.25);
-    expect(displaySpeed({ siteAccess: false, siteSpeed: 3.25, tabTarget: null })).toBe(3.25);
-    expect(displaySpeed({ siteAccess: false, siteSpeed: null, tabTarget: 2 })).toBe(1);
+    expect(displaySpeed({ siteAccess: false, seedTarget: 2.25, tabTarget: 2.25 })).toBe(2.25);
+    expect(displaySpeed({ siteAccess: false, seedTarget: 3.25, tabTarget: null })).toBe(3.25);
+    expect(displaySpeed({ siteAccess: false, seedTarget: null, tabTarget: 2 })).toBe(1);
   });
 
   it('resolves from siteSpeed when access exists but tabTarget does not', () => {
-    expect(displaySpeed({ siteAccess: true, siteSpeed: 5, tabTarget: null })).toBe(4);
+    expect(displaySpeed({ siteAccess: true, seedTarget: 5, tabTarget: null })).toBe(4);
   });
 
   it('disables adjust at the policy min and max', () => {

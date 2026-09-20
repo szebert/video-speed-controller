@@ -29,7 +29,7 @@ export const ResetSiteSpeedRequestSchema = TabUrlRequestSchema.extend({
 export const PopupStateResponseSchema = z.object({
   supported: z.boolean(),
   hostname: z.string().nullable(),
-  siteSpeed: z.number().nullable(),
+  seedTarget: z.number().nullable(),
   tabTarget: z.number().nullable(),
   siteAccess: z.boolean(),
   speedMin: z.number(),

@@ -2,7 +2,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  createGlobalSpeedPersistCoalescer,
   createSiteSpeedPersistCoalescer,
+  flushPersistedSpeeds,
+  persistRememberedSpeeds,
+  resetSpeedPersistCoalescersForTests,
   SITE_SPEED_PERSIST_COALESCE_MS,
 } from '../background/coalesce-site-speed';
 
@@ -154,5 +158,59 @@ describe('site speed persist coalescer', () => {
     await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS);
     await vi.runOnlyPendingTimersAsync();
     expect(persist.mock.calls.map(([, speed]) => speed)).toEqual([1.25, 1.75]);
+  });
+});
+
+describe('global speed persist coalescer', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    resetSpeedPersistCoalescersForTests();
+  });
+
+  it('keeps the later host as global current instead of a trailing earlier host', async () => {
+    const persist = vi.fn<(speed: number) => Promise<void>>(async () => {});
+    const coalescer = createGlobalSpeedPersistCoalescer({ persist });
+    await coalescer.persist(1.5);
+    const trailing = coalescer.persist(1.75);
+    const later = coalescer.persist(2);
+    await Promise.all([trailing, later]);
+    await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS);
+    expect(persist.mock.calls.map((call) => call[0])).toEqual([1.5, 2]);
+  });
+
+  it('attempts the global write even when the site write fails', async () => {
+    const persistSite = vi.fn(async () => {
+      throw new Error('site quota');
+    });
+    const persistGlobal = vi.fn(async () => {});
+    resetSpeedPersistCoalescersForTests({
+      site: { persist: persistSite },
+      global: { persist: persistGlobal },
+    });
+    await expect(persistRememberedSpeeds('https://a.example/watch', 1.75)).rejects.toThrow(
+      'site quota',
+    );
+    expect(persistSite).toHaveBeenCalledTimes(1);
+    expect(persistGlobal).toHaveBeenCalledTimes(1);
+  });
+
+  it('flushPersistedSpeeds drains both lanes', async () => {
+    const persistSite = vi.fn(async () => {});
+    const persistGlobal = vi.fn(async () => {});
+    resetSpeedPersistCoalescersForTests({
+      site: { persist: persistSite },
+      global: { persist: persistGlobal },
+    });
+    await persistRememberedSpeeds('https://a.example/watch', 1.5);
+    void persistRememberedSpeeds('https://a.example/watch', 1.75);
+    expect(persistSite).toHaveBeenCalledTimes(1);
+    expect(persistGlobal).toHaveBeenCalledTimes(1);
+    await flushPersistedSpeeds();
+    expect(persistSite).toHaveBeenLastCalledWith('https://a.example/watch', 1.75);
+    expect(persistGlobal).toHaveBeenLastCalledWith(1.75);
   });
 });

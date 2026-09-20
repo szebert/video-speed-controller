@@ -28,6 +28,7 @@ import {
   SPEED_TICK_SETTING_MAX,
   SPEED_TICK_SETTING_MIN,
   clampPolicyNumber,
+  resolveEffectiveSpeed,
   speedPolicyFrom,
   type SpeedPolicy,
 } from './speed';
@@ -63,12 +64,21 @@ export function toAppliedTabBehavior(
   targetSpeed = effective.speed,
 ): AppliedTabBehavior {
   const fields = omit(effective, ['speed', 'hotkeys']);
+  const speedMin = clampPolicyNumber(fields.speedMin, SPEED_MIN_SETTING_MIN, SPEED_MIN_SETTING_MAX);
+  const speedMax = clampPolicyNumber(fields.speedMax, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX);
+  const speedTick = clampPolicyNumber(
+    fields.speedTick,
+    SPEED_TICK_SETTING_MIN,
+    SPEED_TICK_SETTING_MAX,
+  );
+  const policy = speedPolicyFrom({ min: speedMin, max: speedMax, tick: speedTick });
   return {
     ...fields,
     targetSpeed,
-    speedMin: clampPolicyNumber(fields.speedMin, SPEED_MIN_SETTING_MIN, SPEED_MIN_SETTING_MAX),
-    speedMax: clampPolicyNumber(fields.speedMax, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX),
-    speedTick: clampPolicyNumber(fields.speedTick, SPEED_TICK_SETTING_MIN, SPEED_TICK_SETTING_MAX),
+    defaultSpeed: resolveEffectiveSpeed(fields.defaultSpeed, policy),
+    speedMin,
+    speedMax,
+    speedTick,
     overlayAutoHideDelayMs: canonicalizeOverlayAutoHideDelayMs(fields.overlayAutoHideDelayMs),
     overlayOpacity: canonicalizeOverlayOpacity(fields.overlayOpacity),
     flashDelayMs: canonicalizeFlashDelayMs(fields.flashDelayMs),

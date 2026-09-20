@@ -77,7 +77,7 @@ export function SpeedControls({
 }: SpeedControlsProps) {
   const shown = resolveEffectiveSpeed(displaySpeed, policy);
   const readout = formatSpeed(shown);
-  const speedLabel = heading ?? t('siteSpeed');
+  const speedLabel = heading ?? t('currentSiteSpeed');
   const bounds = sliderBounds(policy);
   const locked = disabled || pending;
   const fixed = isFixedSpeedPolicy(policy);

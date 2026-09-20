@@ -22,6 +22,7 @@ import {
   readSiteSpeed,
   reconcileSyncHotSet,
   resetSiteRepairBackoff,
+  resolveAppliedSiteBehaviorForUrl,
   resolveSiteBehaviorForUrl,
   resolveSpeedAfterSiteInherit,
 } from '../storage/site-settings';
@@ -442,11 +443,14 @@ describe('site settings storage', () => {
     });
   });
 
-  it('resolves Reset to the current global speed without persisting first', async () => {
+  it('resolves Reset to defaultSpeed, not global current, without persisting first', async () => {
     const deps = pair(10);
     deps.sync.data['defaults:site-behavior'] = {
       schemaVersion: 1,
-      overrides: { speed: { kind: 'value', value: 1.25, updatedAt: 1 } },
+      overrides: {
+        speed: { kind: 'value', value: 2, updatedAt: 1 },
+        defaultSpeed: { kind: 'value', value: 1.25, updatedAt: 1 },
+      },
     };
     deps.local.data['site:www.youtube.com'] = {
       schemaVersion: 1,
@@ -459,6 +463,43 @@ describe('site settings storage', () => {
     expect(deps.local.data['site:www.youtube.com']).toMatchObject({
       overrides: { speed: { kind: 'value', value: 1.5, updatedAt: 2 } },
     });
+  });
+
+  it('seeds a new host from global current when remember is on', async () => {
+    const deps = pair();
+    deps.sync.data['defaults:site-behavior'] = {
+      schemaVersion: 1,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 1 } },
+    };
+    await expect(
+      resolveAppliedSiteBehaviorForUrl('https://new.example/watch', deps),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        targetSpeed: 2,
+        speedOverrideKind: 'missing',
+      }),
+    );
+  });
+
+  it('clamps a new-host global current against the site speed max', async () => {
+    const deps = pair();
+    deps.sync.data['defaults:site-behavior'] = {
+      schemaVersion: 1,
+      overrides: { speed: { kind: 'value', value: 3, updatedAt: 1 } },
+    };
+    deps.local.data['site:capped.example'] = {
+      schemaVersion: 1,
+      lastUsedAt: 2,
+      overrides: { speedMax: { kind: 'value', value: 2, updatedAt: 2 } },
+    };
+    await expect(
+      resolveAppliedSiteBehaviorForUrl('https://capped.example/watch', deps),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        targetSpeed: 2,
+        speedOverrideKind: 'missing',
+      }),
+    );
   });
 
   it('exposes provenance through the resolver while readSiteSpeed stays an effective number', async () => {

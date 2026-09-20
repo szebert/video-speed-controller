@@ -75,6 +75,8 @@ const BackupV1OverlayPositionSchema = z.literal([
 // fields are additive V1: older files omit them and resolve to the defaults.
 const BackupV1FieldSchema = z.strictObject({
   speed: z.number().optional(),
+  defaultSpeed: z.number().optional(),
+  rememberLastSpeed: z.boolean().optional(),
   speedMin: z.number().optional(),
   speedMax: z.number().optional(),
   speedTick: z.number().optional(),

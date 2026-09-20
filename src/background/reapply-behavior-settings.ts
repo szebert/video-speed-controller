@@ -9,7 +9,7 @@ import {
 import { resolveEffectiveSpeed } from '../core/speed';
 import type { BehaviorSettingsScope, ReapplyResult } from '../protocol/schemas/shared';
 import { BEHAVIOR_FIELDS, type ReapplyMode } from '../settings/behavior-fields';
-import type { EditableBehaviorField } from '../settings/site-behavior';
+import type { BehaviorSettingChange, EditableBehaviorField } from '../settings/site-behavior';
 import { getSiteKey } from '../storage/site-key';
 import {
   getTabState,
@@ -56,13 +56,28 @@ const REAPPLY_MODE_RANK: Record<ReapplyMode, number> = {
   'resolve-target': 3,
 };
 
+function reapplyModeForChange(
+  scope: 'global' | 'site',
+  change: { field: EditableBehaviorField; kind?: BehaviorSettingChange['kind'] },
+  rememberLastSpeed: boolean,
+): ReapplyMode {
+  if (change.field !== 'speed' || scope !== 'site') {
+    return reapplyModeForField(scope, change.field);
+  }
+  if (change.kind === 'inherit') {
+    return 'resolve-target';
+  }
+  return rememberLastSpeed ? 'resolve-target' : 'preserve-target';
+}
+
 export function reapplyModeForFields(
   scope: 'global' | 'site',
-  changes: readonly { field: EditableBehaviorField }[],
+  changes: readonly { field: EditableBehaviorField; kind?: BehaviorSettingChange['kind'] }[],
+  rememberLastSpeed = true,
 ): ReapplyMode {
   let best: ReapplyMode = 'none';
   for (const change of changes) {
-    const mode = reapplyModeForField(scope, change.field);
+    const mode = reapplyModeForChange(scope, change, rememberLastSpeed);
     if (REAPPLY_MODE_RANK[mode] > REAPPLY_MODE_RANK[best]) {
       best = mode;
     }

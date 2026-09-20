@@ -25,7 +25,15 @@ function snapshot(site: string | null = null): BehaviorSettingsSnapshot {
   return {
     global,
     globalHotkeys: hotkeys,
-    site: site ? { hostname: site, behavior: { ...global }, hotkeys } : null,
+    site: site
+      ? {
+          hostname: site,
+          behavior: { ...global },
+          hotkeys,
+          speedOverrideKind: 'missing',
+          seedTarget: global.speed.value,
+        }
+      : null,
   };
 }
 
@@ -292,7 +300,17 @@ describe('Options page', () => {
     expect(container.querySelector('[data-slot="field-group"]')?.className).toContain(
       'lg:grid-cols-2',
     );
-    expect(container.textContent).toContain('Customize the default speed and range.');
+    expect(container.textContent).toContain(
+      'Customize current speed, default speed, and the allowed range.',
+    );
+    expect(container.textContent).toContain('Current default speed');
+    expect(container.textContent).toContain('Reset to 1.00×');
+    expect(
+      container.querySelector('[data-slot="slider"][aria-label="Default speed"]'),
+    ).toBeInstanceOf(HTMLElement);
+    expect(container.textContent).toContain('Default speed');
+    expect(container.textContent).toContain('Use last used speed on new windows');
+    expect(container.querySelector('#remember-last-speed')).toBeInstanceOf(HTMLInputElement);
     await selectTab('Overlay');
     expect(container.textContent).toContain('Customize how the overlay appears on videos.');
     await selectTab('Navigation');
@@ -316,6 +334,10 @@ describe('Options page', () => {
     expect(container.textContent).toContain('example.com');
     expect(container.querySelector('h2')?.textContent).toBe('example.com');
     expect(container.textContent).toContain('Overrides global defaults for this site.');
+    expect(container.textContent).toContain('Current site speed');
+    expect(
+      container.querySelector('[data-slot="slider"][aria-label="Default speed"]'),
+    ).toBeInstanceOf(HTMLElement);
     expect(resetDefaultsButton()).toBeNull();
     expect(deleteSiteButton()).toBeInstanceOf(HTMLButtonElement);
   });
@@ -471,7 +493,7 @@ describe('Options page', () => {
     await renderApp();
     expect(container.textContent).not.toContain('Use built-in');
     const resetSpeed = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Reset',
+      (button) => button.textContent === 'Reset to 1.00×',
     );
     expect(resetSpeed).toBeTruthy();
     await act(async () => {
@@ -484,11 +506,95 @@ describe('Options page', () => {
     });
   });
 
+  it('inherits defaultSpeed from the Reset badge without a confirmation', async () => {
+    const state = snapshot();
+    state.global.defaultSpeed = { value: 1.5, source: 'global' };
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(state);
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    expect(container.textContent).toContain('Reset to 1.50×');
+    const { button, root } = resetBadge(container, 'Reset: Default speed');
+    expect(button).toBeTruthy();
+    expect(root?.textContent).toContain('Custom');
+    expect(root?.hasAttribute('data-active')).toBe(true);
+    await act(async () => {
+      click(button);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'inherit', field: 'defaultSpeed' },
+    });
+  });
+
+  it('sends defaultSpeed from the slider', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Default speed"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'defaultSpeed', value: 1.01 },
+    });
+  });
+
+  it('sends rememberLastSpeed false from its switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const remember = container.querySelector('#remember-last-speed');
+    expect(remember).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(remember);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'rememberLastSpeed', value: false },
+    });
+  });
+
   it('disables speed Reset when the field is already inherited', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     const resetSpeed = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Reset' && button.getAttribute('aria-label') == null,
+      (button) => button.textContent === 'Reset to 1.00×',
     );
     expect(resetSpeed).toBeTruthy();
     expect(resetSpeed?.hasAttribute('disabled')).toBe(true);
@@ -1057,7 +1163,7 @@ describe('Options page', () => {
       });
       expect(container.textContent).toContain('1.26×');
       const reset = [...container.querySelectorAll('button')].find(
-        (button) => button.textContent === 'Reset',
+        (button) => button.textContent === 'Reset to 1.00×',
       );
       await act(async () => {
         click(reset ?? null);

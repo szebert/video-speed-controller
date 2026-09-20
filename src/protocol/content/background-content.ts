@@ -10,6 +10,8 @@ import { OverlayPositionSchema } from './content-background';
 // exact-key guard in applied-tab-behavior — overlay cannot import this module.
 export const AppliedTabBehaviorSchema = z.object({
   targetSpeed: z.number(),
+  defaultSpeed: z.number(),
+  rememberLastSpeed: z.boolean(),
   speedMin: z.number(),
   speedMax: z.number(),
   speedTick: z.number(),

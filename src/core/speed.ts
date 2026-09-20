@@ -90,18 +90,18 @@ export function isPolicyLimited(
 
 export function displaySpeed(input: {
   siteAccess: boolean;
-  siteSpeed: number | null;
+  seedTarget: number | null;
   tabTarget: number | null;
   policy?: SpeedPolicy;
 }): number {
   const policy = input.policy ?? DEFAULT_SPEED_POLICY;
   if (!input.siteAccess) {
-    return input.siteSpeed == null ? 1 : canonicalizeSpeed(input.siteSpeed);
+    return input.seedTarget == null ? 1 : canonicalizeSpeed(input.seedTarget);
   }
   if (input.tabTarget != null) {
     return canonicalizeSpeed(input.tabTarget);
   }
-  return resolveEffectiveSpeed(input.siteSpeed, policy);
+  return resolveEffectiveSpeed(input.seedTarget, policy);
 }
 
 export function formatSpeed(speed: number): string {

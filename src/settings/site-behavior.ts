@@ -593,6 +593,10 @@ export function resolveSiteBehavior(
     value: resolveEffectiveSpeed(resolved.speed.value, effectivePolicy),
     source: resolved.speed.source,
   };
+  resolved.defaultSpeed = {
+    value: resolveEffectiveSpeed(resolved.defaultSpeed.value, effectivePolicy),
+    source: resolved.defaultSpeed.source,
+  };
   resolved.overlayAutoHideDelayMs = clampResolvedOverlayAutoHideDelay(
     resolved.overlayAutoHideDelayMs,
   );
@@ -846,16 +850,51 @@ export function speedPolicyFromResolved(
 }
 
 export function revalidateResolvedSpeed<
-  T extends Pick<ResolvedSiteBehavior, 'speed' | 'speedMin' | 'speedMax' | 'speedTick'>,
+  T extends Pick<
+    ResolvedSiteBehavior,
+    'speed' | 'defaultSpeed' | 'speedMin' | 'speedMax' | 'speedTick'
+  >,
 >(behavior: T): T {
-  const value = resolveEffectiveSpeed(behavior.speed.value, speedPolicyFromResolved(behavior));
-  if (value === behavior.speed.value) {
+  const policy = speedPolicyFromResolved(behavior);
+  const speed = resolveEffectiveSpeed(behavior.speed.value, policy);
+  const defaultSpeed = resolveEffectiveSpeed(behavior.defaultSpeed.value, policy);
+  if (speed === behavior.speed.value && defaultSpeed === behavior.defaultSpeed.value) {
     return behavior;
   }
   return {
     ...behavior,
-    speed: { ...behavior.speed, value },
+    speed: { ...behavior.speed, value: speed },
+    defaultSpeed: { ...behavior.defaultSpeed, value: defaultSpeed },
   };
+}
+
+export type SpeedOverrideKind = 'missing' | 'inherit' | 'value';
+
+export function speedOverrideKindOf(overrides: BehaviorOverrides): SpeedOverrideKind {
+  return overrides.speed?.kind ?? 'missing';
+}
+
+export function resolveAppliedSpeed(
+  globalOverrides: BehaviorOverrides,
+  siteOverrides: BehaviorOverrides,
+  resolved: ResolvedSiteBehavior,
+): number {
+  const policy = speedPolicyFromResolved(resolved);
+  const remember = resolved.rememberLastSpeed.value;
+  let candidate: number;
+  if (remember && siteOverrides.speed?.kind === 'value') {
+    candidate = siteOverrides.speed.value;
+  } else if (
+    remember &&
+    siteOverrides.speed == null &&
+    siteOverrides.defaultSpeed == null &&
+    globalOverrides.speed?.kind === 'value'
+  ) {
+    candidate = globalOverrides.speed.value;
+  } else {
+    candidate = resolved.defaultSpeed.value;
+  }
+  return resolveEffectiveSpeed(candidate, policy);
 }
 
 export function toEditableResolvedBehavior(
@@ -992,12 +1031,13 @@ export function canonicalizeBehaviorSettingChange(
   }
   switch (change.field) {
     case 'speed':
+    case 'defaultSpeed':
       if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
         return null;
       }
       return {
         kind: 'value',
-        field: 'speed',
+        field: change.field,
         value: canonicalizeSpeed(
           clampSpeed(change.value, {
             ...DEFAULT_SPEED_POLICY,
@@ -1144,6 +1184,7 @@ export function canonicalizeBehaviorSettingChange(
     case 'buttonFlash':
     case 'hotkeyFlash':
     case 'hotkeyRepeat':
+    case 'rememberLastSpeed':
       return typeof change.value === 'boolean' ? change : null;
     default:
       return assertNever(change);

@@ -71,8 +71,12 @@ function resolvedSettingSchema<T extends z.ZodType>(value: T) {
   });
 }
 
+export const SpeedOverrideKindSchema = z.enum(['missing', 'inherit', 'value']);
+
 export const EditableResolvedBehaviorSchema = z.object({
   speed: resolvedSettingSchema(z.number()),
+  defaultSpeed: resolvedSettingSchema(z.number()),
+  rememberLastSpeed: resolvedSettingSchema(z.boolean()),
   speedMin: resolvedSettingSchema(z.number()),
   speedMax: resolvedSettingSchema(z.number()),
   speedTick: resolvedSettingSchema(z.number()),
@@ -153,6 +157,8 @@ export const BehaviorSettingsSnapshotSchema = z.object({
       hostname: z.string(),
       behavior: EditableResolvedBehaviorSchema,
       hotkeys: ResolvedHotkeyMapSchema,
+      speedOverrideKind: SpeedOverrideKindSchema,
+      seedTarget: z.number(),
     })
     .nullable(),
 });

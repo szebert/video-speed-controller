@@ -16,6 +16,7 @@ import {
   type SettingSource,
   type SiteHotkeyAction,
 } from '../../settings/site-behavior';
+import { formatSpeed } from '../../core/speed';
 import { normalizeSiteHostname } from '../../settings/site-hostname';
 
 export type Selection =
@@ -42,7 +43,8 @@ export type BooleanBehaviorFieldName =
   | 'skipScaleWithPlaybackRate'
   | 'buttonFlash'
   | 'hotkeyFlash'
-  | 'hotkeyRepeat';
+  | 'hotkeyRepeat'
+  | 'rememberLastSpeed';
 export type RecoverKind = 'pane' | 'sidebar' | 'pane-and-sidebar';
 
 export const POSITION_OPTIONS: { value: OverlayPosition; labelKey: Parameters<typeof t>[0] }[] = [
@@ -70,6 +72,10 @@ export function ownsOverride(selection: Selection, source: SettingSource): boole
 
 export function resetFieldLabel(fieldLabel: string): string {
   return `${t('reset')}: ${fieldLabel}`;
+}
+
+export function resetToSpeedLabel(speed: number): string {
+  return `${t('resetTo')} ${formatSpeed(speed)}`;
 }
 
 export function showsInherited(
@@ -191,6 +197,33 @@ export function handleNumberInputKeyDown(
     event.preventDefault();
     onCommit();
   }
+}
+
+export function displayedCurrentSpeed(
+  selection: Selection,
+  behavior: EditableResolvedBehavior,
+  snapshot: BehaviorSettingsSnapshot,
+  optimistic: BehaviorSettingChange | undefined,
+): { value: number; muted: boolean } {
+  if (optimistic?.field === 'speed') {
+    if (optimistic.kind === 'inherit') {
+      return { value: behavior.defaultSpeed.value, muted: true };
+    }
+    return { value: optimistic.value, muted: false };
+  }
+  if (selection.kind !== 'site' || snapshot.site == null) {
+    if (ownsOverride(selection, behavior.speed.source)) {
+      return { value: behavior.speed.value, muted: false };
+    }
+    return { value: behavior.defaultSpeed.value, muted: true };
+  }
+  if (snapshot.site.speedOverrideKind === 'value') {
+    return { value: behavior.speed.value, muted: false };
+  }
+  if (snapshot.site.speedOverrideKind === 'inherit') {
+    return { value: behavior.defaultSpeed.value, muted: true };
+  }
+  return { value: snapshot.site.seedTarget, muted: true };
 }
 
 export function currentBehavior(

@@ -109,6 +109,65 @@ describe('behavior settings API', () => {
     expect(persist).toHaveBeenLastCalledWith('https://www.youtube.com/watch', 1.75);
   });
 
+  it('reports site speedOverrideKind and seedTarget from raw overrides', async () => {
+    const deps = { ...stores(), listTabIds: async () => [] };
+    const missing = await getBehaviorSettings(
+      { type: 'GET_BEHAVIOR_SETTINGS', hostname: 'new.example' },
+      extensionSender(),
+      deps,
+    );
+    expect(missing).toMatchObject({
+      ok: true,
+      state: {
+        site: { hostname: 'new.example', speedOverrideKind: 'missing', seedTarget: 1 },
+      },
+    });
+
+    await persistGlobalBehaviorChange({ kind: 'value', field: 'speed', value: 2 }, deps);
+    await persistGlobalBehaviorChange({ kind: 'value', field: 'defaultSpeed', value: 1.25 }, deps);
+    const seeded = await getBehaviorSettings(
+      { type: 'GET_BEHAVIOR_SETTINGS', hostname: 'new.example' },
+      extensionSender(),
+      deps,
+    );
+    expect(seeded).toMatchObject({
+      ok: true,
+      state: {
+        site: { hostname: 'new.example', speedOverrideKind: 'missing', seedTarget: 2 },
+      },
+    });
+
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.5, deps);
+    const valued = await getBehaviorSettings(
+      { type: 'GET_BEHAVIOR_SETTINGS', hostname: 'www.youtube.com' },
+      extensionSender(),
+      deps,
+    );
+    expect(valued).toMatchObject({
+      ok: true,
+      state: {
+        site: { hostname: 'www.youtube.com', speedOverrideKind: 'value', seedTarget: 1.5 },
+      },
+    });
+
+    const inherited = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'site', hostname: 'www.youtube.com' },
+        change: { kind: 'inherit', field: 'speed' },
+        snapshotHostname: 'www.youtube.com',
+      },
+      extensionSender(),
+      deps,
+    );
+    expect(inherited).toMatchObject({
+      ok: true,
+      state: {
+        site: { hostname: 'www.youtube.com', speedOverrideKind: 'inherit', seedTarget: 1.25 },
+      },
+    });
+  });
+
   it('returns a global-only snapshot when hostname is omitted', async () => {
     const deps = { ...stores(), listTabIds: async () => [] };
     await persistGlobalBehaviorChange({ kind: 'value', field: 'speed', value: 1.5 }, deps);
@@ -195,6 +254,8 @@ describe('behavior settings API', () => {
         increaseSpeed: expect.objectContaining({ source: 'built-in' }),
         resetSpeed: expect.objectContaining({ source: 'built-in' }),
       }),
+      speedOverrideKind: 'value',
+      seedTarget: 1.25,
     });
   });
 

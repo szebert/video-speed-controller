@@ -111,5 +111,31 @@ describe('reapplyModeForFields', () => {
       reapplyModeForFields('site', [{ field: 'overlayPosition' }, { field: 'overlayVisible' }]),
     ).toBe('preserve-target');
     expect(reapplyModeForFields('global', [{ field: 'speed' }])).toBe('none');
+    expect(reapplyModeForFields('site', [{ field: 'speed', kind: 'value' }], false)).toBe(
+      'preserve-target',
+    );
+    expect(reapplyModeForFields('site', [{ field: 'speed', kind: 'inherit' }], false)).toBe(
+      'resolve-target',
+    );
+    expect(
+      reapplyModeForFields(
+        'site',
+        [
+          { field: 'speed', kind: 'value' },
+          { field: 'rememberLastSpeed', kind: 'value' },
+        ],
+        false,
+      ),
+    ).toBe('preserve-target');
+    expect(
+      reapplyModeForFields(
+        'site',
+        [
+          { field: 'speed', kind: 'value' },
+          { field: 'rememberLastSpeed', kind: 'value' },
+        ],
+        true,
+      ),
+    ).toBe('resolve-target');
   });
 });

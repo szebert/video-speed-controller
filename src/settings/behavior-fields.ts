@@ -16,6 +16,16 @@ export const BEHAVIOR_FIELDS = {
     category: 'playback',
     reapply: { global: 'none', site: 'resolve-target' },
   },
+  defaultSpeed: {
+    default: 1,
+    category: 'playback',
+    reapply: { global: 'none', site: 'none' },
+  },
+  rememberLastSpeed: {
+    default: true,
+    category: 'playback',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
   speedMin: {
     default: DEFAULT_SPEED_POLICY.min,
     category: 'playback',

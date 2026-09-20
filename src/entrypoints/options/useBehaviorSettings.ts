@@ -53,6 +53,7 @@ import {
   applyOptimisticHotkeyChanges,
   currentBehavior,
   currentHotkeys,
+  displayedCurrentSpeed,
   focusedHostnameFromLocation,
   omitMatchingOptimisticChanges,
   omitMatchingOptimisticHotkeys,
@@ -131,7 +132,7 @@ export function useBehaviorSettings() {
   const [ready, setReady] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sliderPreview, setSliderPreview] = useState<number | null>(null);
+  const [speedPreview, setSpeedPreview] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<Partial<Record<DraftKey, string>>>({});
   const [optimistic, setOptimistic] = useState<
     Partial<Record<EditableBehaviorField, BehaviorSettingChange>>
@@ -311,7 +312,7 @@ export function useBehaviorSettings() {
       }
       if (!options.sentChanges && !options.sentHotkeys) {
         clearAllDrafts();
-        setSliderPreview(null);
+        setSpeedPreview(null);
       }
       return true;
     }
@@ -325,7 +326,7 @@ export function useBehaviorSettings() {
       if (recovered?.ok) {
         setSnapshot(recovered.state);
         clearAllDrafts();
-        setSliderPreview(null);
+        setSpeedPreview(null);
       }
     }
     if (kind !== 'pane') {
@@ -444,8 +445,13 @@ export function useBehaviorSettings() {
       currentSnapshot,
     );
     writeOptimistic({ ...optimisticRef.current, [change.field]: change });
-    if (change.field === 'speed' || change.field === 'speedMin' || change.field === 'speedMax') {
-      setSliderPreview(null);
+    if (
+      change.field === 'speed' ||
+      change.field === 'defaultSpeed' ||
+      change.field === 'speedMin' ||
+      change.field === 'speedMax'
+    ) {
+      setSpeedPreview(null);
     }
     clearActionFeedback();
     coalescer.enqueue(scope, change);
@@ -465,13 +471,22 @@ export function useBehaviorSettings() {
 
   function adjustDisplayedSpeed(direction: 1 | -1): void {
     const current = behaviorRef.current;
-    if (!current) {
+    const currentSnapshot = snapshotRef.current;
+    const currentSelection = selectionRef.current;
+    if (!current || !currentSnapshot) {
       return;
     }
+    const policy = speedPolicyFromResolved(current);
+    const base = displayedCurrentSpeed(
+      currentSelection,
+      current,
+      currentSnapshot,
+      optimisticRef.current.speed,
+    ).value;
     mutate({
       kind: 'value',
       field: 'speed',
-      value: adjustSpeed(current.speed.value, direction, speedPolicyFromResolved(current)),
+      value: adjustSpeed(base, direction, policy),
     });
   }
 
@@ -485,7 +500,7 @@ export function useBehaviorSettings() {
       await flushSettingsWriteQueues(coalescer, hotkeyCoalescer);
       clearOptimistic();
       clearAllDrafts();
-      setSliderPreview(null);
+      setSpeedPreview(null);
       if (snapshotRef.current?.site?.hostname === hostname) {
         setSelection({ kind: 'site', hostname });
         return;
@@ -623,7 +638,7 @@ export function useBehaviorSettings() {
       setSelection(next);
       clearOptimistic();
       clearAllDrafts();
-      setSliderPreview(null);
+      setSpeedPreview(null);
     };
     if (!settingsWriteQueuesBusy(coalescer, hotkeyCoalescer)) {
       applyPane();
@@ -776,7 +791,14 @@ export function useBehaviorSettings() {
   }
 
   const policy = behavior ? speedPolicyFromResolved(behavior) : undefined;
-  const speed = behavior ? resolveEffectiveSpeed(sliderPreview ?? behavior.speed.value, policy) : 1;
+  const currentDisplay =
+    behavior && snapshot
+      ? displayedCurrentSpeed(selection, behavior, snapshot, optimistic.speed)
+      : { value: 1, muted: true };
+  const currentSpeed = behavior
+    ? resolveEffectiveSpeed(speedPreview ?? currentDisplay.value, policy)
+    : 1;
+  const defaultSpeed = behavior ? resolveEffectiveSpeed(behavior.defaultSpeed.value, policy) : 1;
   const delaySeconds = behavior ? String(behavior.overlayAutoHideDelayMs.value / 1000) : '2';
   const flashDelaySeconds = behavior ? String(behavior.flashDelayMs.value / 1000) : '0.75';
   const hotkeyRepeatDelaySeconds = behavior
@@ -799,14 +821,16 @@ export function useBehaviorSettings() {
     pending: blocking,
     blocking,
     error,
-    sliderPreview,
+    speedPreview,
     drafts,
     updateDraft,
     behavior,
     hotkeys,
     overlayEnabled,
     snapshotHostname,
-    speed,
+    currentSpeed,
+    currentSpeedMuted: currentDisplay.muted && speedPreview == null,
+    defaultSpeed,
     delaySeconds,
     flashDelaySeconds,
     hotkeyRepeatDelaySeconds,
@@ -830,6 +854,6 @@ export function useBehaviorSettings() {
     commitDelay,
     commitFlashDelay,
     commitHotkeyRepeatDelay,
-    setSliderPreview,
+    setSpeedPreview,
   };
 }
