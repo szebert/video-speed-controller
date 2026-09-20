@@ -149,7 +149,7 @@ test('site position moves the overlay and keeps speed 1.25', async ({
     .toBe(1.25);
 });
 
-test('200% bottom-right scale keeps the anchor and overflow hits', async ({
+test('300% bottom-right scale keeps the anchor and overflow hits', async ({
   context,
   extensionId,
   serviceWorker,
@@ -165,6 +165,9 @@ test('200% bottom-right scale keeps the anchor and overflow hits', async ({
   await expect.poll(async () => overlayTransform(site)).toBe('translate(-100%, -100%)');
   await expect.poll(async () => overlayVisibility(site)).toBe('visible');
 
+  await site.locator('#v1').evaluate((video) => {
+    (video as HTMLElement).style.marginLeft = '400px';
+  });
   await site.locator('#v1').hover();
   const baseline = await site.locator('#v1').evaluate((video) => {
     const rect = video.getBoundingClientRect();
@@ -204,7 +207,7 @@ test('200% bottom-right scale keeps the anchor and overflow hits', async ({
   const sizeInput = options.locator(
     '[data-slot="slider"][aria-label="Overlay size"] input[type="range"]',
   );
-  await sizeInput.fill('200');
+  await sizeInput.fill('300');
   await expect
     .poll(async () =>
       site.locator('#v1').evaluate((video) => {
@@ -223,7 +226,7 @@ test('200% bottom-right scale keeps the anchor and overflow hits', async ({
         return host instanceof HTMLElement ? host.style.getPropertyValue('--overlay-scale') : '';
       }),
     )
-    .toBe('2');
+    .toBe('3');
   await expect.poll(async () => overlayTransform(site)).toBe('translate(-100%, -100%)');
 
   await site.locator('#v1').hover();
@@ -250,8 +253,13 @@ test('200% bottom-right scale keeps the anchor and overflow hits', async ({
     }
     const shellRect = shell.getBoundingClientRect();
     const slowerRect = slower.getBoundingClientRect();
+    const overflowLeft = Math.max(slowerRect.left, 0);
+    const overflowRight = Math.min(slowerRect.right, slowerLeft);
+    if (overflowRight - overflowLeft < 2) {
+      throw new Error('Scaled Slower overflow is not visible');
+    }
     const point = {
-      x: (slowerRect.left + slowerLeft) / 2,
+      x: (overflowLeft + overflowRight) / 2,
       y: slowerRect.top + slowerRect.height / 2,
     };
     const root = slower.getRootNode() as ShadowRoot;
@@ -272,8 +280,8 @@ test('200% bottom-right scale keeps the anchor and overflow hits', async ({
 
   expect(scaled.shell.right).toBeCloseTo(baseline.shell.right, 0);
   expect(scaled.shell.bottom).toBeCloseTo(baseline.shell.bottom, 0);
-  expect(scaled.shell.width).toBeGreaterThan(baseline.shell.width * 1.7);
-  expect(scaled.shell.height).toBeGreaterThan(baseline.shell.height * 1.7);
+  expect(scaled.shell.width).toBeGreaterThan(baseline.shell.width * 2.7);
+  expect(scaled.shell.height).toBeGreaterThan(baseline.shell.height * 2.7);
   expect(scaled.point.x).toBeLessThan(baseline.slowerLeft);
   expect(scaled.hitSlower || scaled.documentHitHost).toBe(true);
 
