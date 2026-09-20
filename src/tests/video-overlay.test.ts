@@ -200,6 +200,61 @@ describe('VideoOverlay', () => {
     expect((shell as HTMLElement).style.opacity).toBe('1');
   });
 
+  it('applies overlay scale on the host and keeps the position translate', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, overlayScale: 150 }));
+    overlay.setControlled(true);
+    overlay.layout();
+    expect(overlay.host.style.getPropertyValue('--overlay-scale')).toBe('1.5');
+    expect(overlay.host.style.getPropertyPriority('--overlay-scale')).toBe('important');
+    expect(overlay.host.style.transform).toBe('translate(-50%, 0)');
+
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, overlayScale: 25 }));
+    overlay.layout();
+    expect(overlay.host.style.getPropertyValue('--overlay-scale')).toBe('0.25');
+    expect(overlay.host.style.transform).toBe('translate(-50%, 0)');
+
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, overlayScale: 300 }));
+    overlay.layout();
+    expect(overlay.host.style.getPropertyValue('--overlay-scale')).toBe('3');
+    expect(overlay.host.style.getPropertyPriority('--overlay-scale')).toBe('important');
+    overlay.destroy();
+  });
+
+  it('maps overlay positions to shell row and column attributes', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setControlled(true);
+    const shell = (): HTMLElement => {
+      const element = overlay.host.shadowRoot?.querySelector('.controls-shell');
+      expect(element).toBeInstanceOf(HTMLElement);
+      return element as HTMLElement;
+    };
+
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayPosition: OVERLAY_POSITION.TOP_LEFT }),
+    );
+    overlay.layout();
+    expect(shell().dataset.row).toBe('0');
+    expect(shell().dataset.column).toBe('0');
+
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayPosition: OVERLAY_POSITION.CENTER }),
+    );
+    overlay.layout();
+    expect(shell().dataset.row).toBe('1');
+    expect(shell().dataset.column).toBe('1');
+
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayPosition: OVERLAY_POSITION.BOTTOM_RIGHT }),
+    );
+    overlay.layout();
+    expect(shell().dataset.row).toBe('2');
+    expect(shell().dataset.column).toBe('2');
+    overlay.destroy();
+  });
+
   it('does not intercept pointer input', () => {
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => undefined);
@@ -210,6 +265,14 @@ describe('VideoOverlay', () => {
   it('loads overlay CSS as an inline string', () => {
     expect(overlayCss).toContain('all: initial');
     expect(overlayCss).toContain('--background');
+    expect(overlayCss).toContain('--overlay-scale: 1');
+    expect(overlayCss).toContain('transform: scale(var(--overlay-scale))');
+    expect(overlayCss).toContain('--flash-scale: 1');
+    expect(overlayCss).toContain('transform: scale(var(--flash-scale))');
+    expect(overlayCss).toContain(".controls-shell[data-column='2']");
+    expect(overlayCss).toContain('--origin-x: 100%');
+    expect(overlayCss).toContain(".controls-shell[data-row='2']");
+    expect(overlayCss).toContain('--origin-y: 100%');
   });
 
   it('does not inherit page typography into the badge', () => {
@@ -1196,6 +1259,65 @@ describe('VideoOverlay', () => {
       }),
     );
     expect((pill as HTMLElement).style.opacity).toBe('0.55');
+  });
+
+  it('applies flash scale independently of overlay scale', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayScale: 150, flashScale: 150 }),
+    );
+    overlay.setControlled(true);
+    overlay.showHotkeyFlash({
+      kind: 'speed',
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    const flashHost = document.querySelector(HOTKEY_FLASH_HOST_TAG);
+    expect(flashHost).toBeInstanceOf(HTMLElement);
+    expect(overlay.host.style.getPropertyValue('--overlay-scale')).toBe('1.5');
+    expect(overlay.host.style.getPropertyValue('--flash-scale')).toBe('');
+    expect((flashHost as HTMLElement).style.getPropertyValue('--flash-scale')).toBe('1.5');
+    expect((flashHost as HTMLElement).style.getPropertyPriority('--flash-scale')).toBe('important');
+    expect((flashHost as HTMLElement).style.getPropertyValue('--overlay-scale')).toBe('');
+    expect((flashHost as HTMLElement).style.transform).toBe('translate(-50%, -50%)');
+
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayScale: 200, flashScale: 150 }),
+    );
+    expect(overlay.host.style.getPropertyValue('--overlay-scale')).toBe('2');
+    expect((flashHost as HTMLElement).style.getPropertyValue('--flash-scale')).toBe('1.5');
+
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayScale: 200, flashScale: 200 }),
+    );
+    expect((flashHost as HTMLElement).style.getPropertyValue('--flash-scale')).toBe('2');
+
+    overlay.destroy();
+    const next = new VideoOverlay(video, () => next.layout());
+    next.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlayScale: 100,
+        flashScale: 125,
+        overlayOpacity: 40,
+      }),
+    );
+    next.setControlled(true);
+    next.showHotkeyFlash({
+      kind: 'speed',
+      previousTargetSpeed: 1,
+      targetSpeed: 1.25,
+      binding: BUILT_IN_HOTKEYS.increaseSpeed,
+    });
+    const created = document.querySelector(HOTKEY_FLASH_HOST_TAG);
+    expect(created).toBeInstanceOf(HTMLElement);
+    expect(next.host.style.getPropertyValue('--overlay-scale')).toBe('1');
+    expect((created as HTMLElement).style.getPropertyValue('--flash-scale')).toBe('1.25');
+    const shell = next.host.shadowRoot?.querySelector('.controls-shell');
+    expect((shell as HTMLElement).style.opacity).toBe('0.4');
+    next.destroy();
   });
 
   it('hides the flash immediately when the toggle turns off and ignores a later delay APPLY', () => {

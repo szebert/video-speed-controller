@@ -7,7 +7,9 @@ import { visualHotkeyParts } from './hotkey-format';
 import {
   canonicalizeFlashDelayMs,
   canonicalizeFlashOpacity,
+  canonicalizeFlashScale,
   canonicalizeOverlayAutoHideDelayMs,
+  canonicalizeOverlayScale,
   overlayPositionToGrid,
 } from '../settings/site-behavior';
 import type { EffectiveHotkeyMap, HotkeyBinding } from '../settings/hotkey-binding';
@@ -170,9 +172,11 @@ export class VideoOverlay {
     if (hotkeys) {
       this.hotkeys = hotkeys;
     }
+    this.syncOverlayScale();
     if (this.flashOrigin && !this.flashOriginEnabled(behavior, this.flashOrigin)) {
       this.invalidateFlash();
     } else {
+      this.syncFlashScale();
       this.syncFlashOpacity();
     }
     this.syncView();
@@ -488,6 +492,7 @@ export class VideoOverlay {
     document.documentElement.append(host);
     this.flashHost = host;
     this.flashPill = pill;
+    this.syncFlashScale();
     return host;
   }
 
@@ -502,6 +507,22 @@ export class VideoOverlay {
       clearTimeout(this.flashTimer);
       this.flashTimer = null;
     }
+  }
+
+  private syncOverlayScale(): void {
+    if (!this.behavior) {
+      return;
+    }
+    const scale = String(canonicalizeOverlayScale(this.behavior.overlayScale) / 100);
+    this.host.style.setProperty('--overlay-scale', scale, 'important');
+  }
+
+  private syncFlashScale(): void {
+    if (!this.flashHost || !this.behavior) {
+      return;
+    }
+    const scale = String(canonicalizeFlashScale(this.behavior.flashScale) / 100);
+    this.flashHost.style.setProperty('--flash-scale', scale, 'important');
   }
 
   private syncFlashOpacity(): void {

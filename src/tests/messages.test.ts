@@ -174,6 +174,20 @@ describe('parseBackgroundInbound', () => {
       accepted({
         type: 'SET_BEHAVIOR_SETTING',
         scope: { kind: 'global' },
+        change: { kind: 'value', field: 'overlayScale', value: 150 },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'flashScale', value: 150 },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
         change: { kind: 'value', field: 'hotkeyFlash', value: false },
       }),
     ).toBe(true);

@@ -20,6 +20,8 @@ import {
   FLASH_DELAY_MS_MIN,
   FLASH_OPACITY_MAX,
   FLASH_OPACITY_MIN,
+  FLASH_SCALE_MAX,
+  FLASH_SCALE_MIN,
   HOTKEY_REPEAT_DELAY_MS_MAX,
   HOTKEY_REPEAT_DELAY_MS_MIN,
   HOTKEY_REPEAT_RATE_MAX,
@@ -28,6 +30,8 @@ import {
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
   OVERLAY_OPACITY_MIN,
+  OVERLAY_SCALE_MAX,
+  OVERLAY_SCALE_MIN,
   SKIP_SECONDS_MAX,
   SKIP_SECONDS_MIN,
   TRANSPORT_RATE_MAGNITUDE_MAX,
@@ -79,10 +83,12 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.overlayHoverHold).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayAutoHideDelayMs).toBe(2000);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayOpacity).toBe(70);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlayScale).toBe(100);
     expect(BUILT_IN_SITE_BEHAVIOR.buttonFlash).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyFlash).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.flashDelayMs).toBe(750);
     expect(BUILT_IN_SITE_BEHAVIOR.flashOpacity).toBe(70);
+    expect(BUILT_IN_SITE_BEHAVIOR.flashScale).toBe(100);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeat).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatDelayMs).toBe(500);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatRate).toBe(15);
@@ -168,6 +174,15 @@ describe('applied tab behavior', () => {
     ).toBe(OVERLAY_OPACITY_MAX);
   });
 
+  it('clamps applied overlay scale to 25–300', () => {
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayScale: 0 }).overlayScale).toBe(
+      OVERLAY_SCALE_MIN,
+    );
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, overlayScale: 400 }).overlayScale,
+    ).toBe(OVERLAY_SCALE_MAX);
+  });
+
   it('clamps applied hotkey repeat delay and snaps applied rate', () => {
     expect(
       toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyRepeatDelayMs: 0 })
@@ -186,6 +201,15 @@ describe('applied tab behavior', () => {
     expect(
       toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, hotkeyRepeatRate: 99 }).hotkeyRepeatRate,
     ).toBe(HOTKEY_REPEAT_RATE_MAX);
+  });
+
+  it('clamps applied flash scale to 25–300', () => {
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, flashScale: 0 }).flashScale).toBe(
+      FLASH_SCALE_MIN,
+    );
+    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, flashScale: 400 }).flashScale).toBe(
+      FLASH_SCALE_MAX,
+    );
   });
 
   it('clamps applied hotkey flash opacity to 1–100', () => {

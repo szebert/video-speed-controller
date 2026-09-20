@@ -69,6 +69,15 @@ export function canonicalizeOverlayOpacity(value: number): number {
   return Math.min(OVERLAY_OPACITY_MAX, Math.max(OVERLAY_OPACITY_MIN, Math.round(value)));
 }
 
+/** Smallest overlay scale the product accepts. */
+export const OVERLAY_SCALE_MIN = 25;
+/** Largest overlay scale the product accepts. */
+export const OVERLAY_SCALE_MAX = 300;
+
+export function canonicalizeOverlayScale(value: number): number {
+  return Math.min(OVERLAY_SCALE_MAX, Math.max(OVERLAY_SCALE_MIN, Math.round(value)));
+}
+
 /** Shortest flash auto-hide delay the product accepts (0.1s). */
 export const FLASH_DELAY_MS_MIN = 100;
 /** Longest flash auto-hide delay the product accepts (5s). */
@@ -85,6 +94,15 @@ export const FLASH_OPACITY_MAX = 100;
 
 export function canonicalizeFlashOpacity(value: number): number {
   return Math.min(FLASH_OPACITY_MAX, Math.max(FLASH_OPACITY_MIN, Math.round(value)));
+}
+
+/** Smallest flash scale the product accepts. */
+export const FLASH_SCALE_MIN = OVERLAY_SCALE_MIN;
+/** Largest flash scale the product accepts. */
+export const FLASH_SCALE_MAX = OVERLAY_SCALE_MAX;
+
+export function canonicalizeFlashScale(value: number): number {
+  return canonicalizeOverlayScale(value);
 }
 
 /** Shortest hold-to-repeat delay the product accepts (250 ms). */
@@ -514,6 +532,11 @@ function clampResolvedOverlayOpacity(setting: ResolvedSetting<number>): Resolved
   return value === setting.value ? setting : { ...setting, value };
 }
 
+function clampResolvedOverlayScale(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeOverlayScale(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
 function clampResolvedFlashDelay(setting: ResolvedSetting<number>): ResolvedSetting<number> {
   const value = canonicalizeFlashDelayMs(setting.value);
   return value === setting.value ? setting : { ...setting, value };
@@ -521,6 +544,11 @@ function clampResolvedFlashDelay(setting: ResolvedSetting<number>): ResolvedSett
 
 function clampResolvedFlashOpacity(setting: ResolvedSetting<number>): ResolvedSetting<number> {
   const value = canonicalizeFlashOpacity(setting.value);
+  return value === setting.value ? setting : { ...setting, value };
+}
+
+function clampResolvedFlashScale(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = canonicalizeFlashScale(setting.value);
   return value === setting.value ? setting : { ...setting, value };
 }
 
@@ -605,8 +633,10 @@ export function resolveSiteBehavior(
     resolved.overlayAutoHideDelayMs,
   );
   resolved.overlayOpacity = clampResolvedOverlayOpacity(resolved.overlayOpacity);
+  resolved.overlayScale = clampResolvedOverlayScale(resolved.overlayScale);
   resolved.flashDelayMs = clampResolvedFlashDelay(resolved.flashDelayMs);
   resolved.flashOpacity = clampResolvedFlashOpacity(resolved.flashOpacity);
+  resolved.flashScale = clampResolvedFlashScale(resolved.flashScale);
   resolved.hotkeyRepeatDelayMs = clampResolvedHotkeyRepeatDelay(resolved.hotkeyRepeatDelayMs);
   resolved.hotkeyRepeatRate = clampResolvedHotkeyRepeatRate(resolved.hotkeyRepeatRate);
   resolved.skipBackSeconds = clampResolvedSkipSeconds(resolved.skipBackSeconds);
@@ -1107,6 +1137,15 @@ export function canonicalizeBehaviorSettingChange(
         field: 'overlayOpacity',
         value: canonicalizeOverlayOpacity(change.value),
       };
+    case 'overlayScale':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'overlayScale',
+        value: canonicalizeOverlayScale(change.value),
+      };
     case 'flashDelayMs':
       if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
         return null;
@@ -1124,6 +1163,15 @@ export function canonicalizeBehaviorSettingChange(
         kind: 'value',
         field: 'flashOpacity',
         value: canonicalizeFlashOpacity(change.value),
+      };
+    case 'flashScale':
+      if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {
+        return null;
+      }
+      return {
+        kind: 'value',
+        field: 'flashScale',
+        value: canonicalizeFlashScale(change.value),
       };
     case 'hotkeyRepeatDelayMs':
       if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {

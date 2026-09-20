@@ -123,6 +123,11 @@ export const BEHAVIOR_FIELDS = {
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
+  overlayScale: {
+    default: 100,
+    category: 'overlay',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
   buttonFlash: {
     default: true,
     category: 'overlay',
@@ -140,6 +145,11 @@ export const BEHAVIOR_FIELDS = {
   },
   flashOpacity: {
     default: 70,
+    category: 'overlay',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  flashScale: {
+    default: 100,
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },

@@ -308,6 +308,60 @@ describe('backup format', () => {
     });
   });
 
+  it('accepts additive V1 flashScale and clamps it', () => {
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { flashScale: 0 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { flashScale: 25 }, sites: {} },
+    });
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { flashScale: 400 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { flashScale: 300 }, sites: {} },
+    });
+  });
+
+  it('accepts additive V1 overlayScale and clamps it', () => {
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { overlayScale: 0 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { overlayScale: 25 }, sites: {} },
+    });
+    expect(
+      parseBackupText(
+        JSON.stringify({
+          formatVersion: 1,
+          global: { overlayScale: 400 },
+          sites: {},
+        }),
+      ),
+    ).toEqual({
+      status: 'ready',
+      backup: { formatVersion: 1, global: { overlayScale: 300 }, sites: {} },
+    });
+  });
+
   it('accepts additive V1 overlayOpacity and clamps it', () => {
     expect(
       parseBackupText(

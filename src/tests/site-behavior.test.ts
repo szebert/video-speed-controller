@@ -22,6 +22,8 @@ import {
   FLASH_DELAY_MS_MIN,
   FLASH_OPACITY_MAX,
   FLASH_OPACITY_MIN,
+  FLASH_SCALE_MAX,
+  FLASH_SCALE_MIN,
   HOTKEY_REPEAT_DELAY_MS_MAX,
   HOTKEY_REPEAT_DELAY_MS_MIN,
   HOTKEY_REPEAT_RATE_MAX,
@@ -32,6 +34,8 @@ import {
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
   OVERLAY_OPACITY_MIN,
+  OVERLAY_SCALE_MAX,
+  OVERLAY_SCALE_MIN,
   overlayPositionFromGrid,
   overlayPositionToGrid,
   hotkeyChangesWouldConflict,
@@ -78,10 +82,12 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayHoverHold).toEqual({ value: false, source: 'built-in' });
     expect(resolved.overlayAutoHideDelayMs).toEqual({ value: 2000, source: 'built-in' });
     expect(resolved.overlayOpacity).toEqual({ value: 70, source: 'built-in' });
+    expect(resolved.overlayScale).toEqual({ value: 100, source: 'built-in' });
     expect(resolved.buttonFlash).toEqual({ value: true, source: 'built-in' });
     expect(resolved.hotkeyFlash).toEqual({ value: true, source: 'built-in' });
     expect(resolved.flashDelayMs).toEqual({ value: 750, source: 'built-in' });
     expect(resolved.flashOpacity).toEqual({ value: 70, source: 'built-in' });
+    expect(resolved.flashScale).toEqual({ value: 100, source: 'built-in' });
     expect(resolved.hotkeyRepeat).toEqual({ value: false, source: 'built-in' });
     expect(resolved.hotkeyRepeatDelayMs).toEqual({ value: 500, source: 'built-in' });
     expect(resolved.hotkeyRepeatRate).toEqual({ value: 15, source: 'built-in' });
@@ -478,6 +484,40 @@ describe('site behavior resolution', () => {
     });
   });
 
+  it('clamps stored flash scale outside 25–300 without dropping the override', () => {
+    expect(
+      resolveSiteBehavior({ flashScale: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .flashScale,
+    ).toEqual({
+      value: FLASH_SCALE_MIN,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior({ flashScale: { kind: 'value', value: 400, updatedAt: 10 } }, {})
+        .flashScale,
+    ).toEqual({
+      value: FLASH_SCALE_MAX,
+      source: 'global',
+    });
+  });
+
+  it('clamps stored overlay scale outside 25–300 without dropping the override', () => {
+    expect(
+      resolveSiteBehavior({ overlayScale: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .overlayScale,
+    ).toEqual({
+      value: OVERLAY_SCALE_MIN,
+      source: 'global',
+    });
+    expect(
+      resolveSiteBehavior({ overlayScale: { kind: 'value', value: 400, updatedAt: 10 } }, {})
+        .overlayScale,
+    ).toEqual({
+      value: OVERLAY_SCALE_MAX,
+      source: 'global',
+    });
+  });
+
   it('lets a global value override the built-in', () => {
     const resolved = resolveSiteBehavior(
       { speed: { kind: 'value', value: 1.25, updatedAt: 10 } },
@@ -809,6 +849,30 @@ describe('forward-compatible V1 parsers', () => {
     ).toEqual({});
     expect(
       parseBehaviorOverrides({
+        overlayScale: { kind: 'value', value: 40.5, updatedAt: 1 },
+      }),
+    ).toEqual({});
+    expect(
+      parseBehaviorOverrides({
+        overlayScale: { kind: 'value', value: 150, updatedAt: 1 },
+      }),
+    ).toEqual({
+      overlayScale: { kind: 'value', value: 150, updatedAt: 1 },
+    });
+    expect(
+      parseBehaviorOverrides({
+        flashScale: { kind: 'value', value: 40.5, updatedAt: 1 },
+      }),
+    ).toEqual({});
+    expect(
+      parseBehaviorOverrides({
+        flashScale: { kind: 'value', value: 150, updatedAt: 1 },
+      }),
+    ).toEqual({
+      flashScale: { kind: 'value', value: 150, updatedAt: 1 },
+    });
+    expect(
+      parseBehaviorOverrides({
         overlayOpacity: { kind: 'value', value: 40, updatedAt: 1 },
       }),
     ).toEqual({
@@ -945,6 +1009,68 @@ describe('behavior setting changes', () => {
         value: 150,
       }),
     ).toEqual({ kind: 'value', field: 'overlayOpacity', value: OVERLAY_OPACITY_MAX });
+  });
+
+  it('canonicalizes overlay scale to an integer percent', () => {
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayScale',
+        value: 125.4,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayScale', value: 125 });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayScale',
+        value: -1,
+      }),
+    ).toBeNull();
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayScale',
+        value: 0,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayScale', value: OVERLAY_SCALE_MIN });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayScale',
+        value: 400,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayScale', value: OVERLAY_SCALE_MAX });
+  });
+
+  it('canonicalizes flash scale to an integer percent', () => {
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'flashScale',
+        value: 125.4,
+      }),
+    ).toEqual({ kind: 'value', field: 'flashScale', value: 125 });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'flashScale',
+        value: -1,
+      }),
+    ).toBeNull();
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'flashScale',
+        value: 0,
+      }),
+    ).toEqual({ kind: 'value', field: 'flashScale', value: FLASH_SCALE_MIN });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'flashScale',
+        value: 400,
+      }),
+    ).toEqual({ kind: 'value', field: 'flashScale', value: FLASH_SCALE_MAX });
   });
 
   it('canonicalizes delay to integer milliseconds and clamps speed', () => {

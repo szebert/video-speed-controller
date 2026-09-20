@@ -234,7 +234,9 @@ export class OverlayView {
     const { behavior } = state;
     const policy = speedPolicyFromApplied(behavior);
     this.element.style.opacity = `${canonicalizeOverlayOpacity(behavior.overlayOpacity) / 100}`;
-    this.element.dataset.column = `${overlayPositionToGrid(behavior.overlayPosition).column}`;
+    const { row, column } = overlayPositionToGrid(behavior.overlayPosition);
+    this.element.dataset.row = `${row}`;
+    this.element.dataset.column = `${column}`;
     this.speedValue.textContent = formatSpeed(behavior.targetSpeed);
     this.speedReadout.disabled =
       canonicalizeSpeed(behavior.targetSpeed) === canonicalizeSpeed(behavior.defaultSpeed);

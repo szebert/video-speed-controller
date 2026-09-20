@@ -10,6 +10,8 @@
   --muted-foreground: #e2e8f0;
   --kbd: rgba(248, 250, 252, 0.22);
   --ring: #38bdf8;
+  --overlay-scale: 1;
+  --flash-scale: 1;
   position: fixed;
   pointer-events: none;
   user-select: none;
@@ -21,20 +23,34 @@
 }
 
 .controls-shell {
+  --origin-x: 0%;
+  --origin-y: 0%;
   position: relative;
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   pointer-events: auto;
+  transform: scale(var(--overlay-scale));
+  transform-origin: var(--origin-x) var(--origin-y);
 }
 
 .controls-shell[data-column='1'] {
+  --origin-x: 50%;
   align-items: center;
 }
 
 .controls-shell[data-column='2'] {
+  --origin-x: 100%;
   align-items: flex-end;
+}
+
+.controls-shell[data-row='1'] {
+  --origin-y: 50%;
+}
+
+.controls-shell[data-row='2'] {
+  --origin-y: 100%;
 }
 
 .controls {
@@ -258,6 +274,8 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   opacity: 1;
+  transform: scale(var(--flash-scale));
+  transform-origin: center;
   transition: opacity 0.12s ease-out;
   transition-behavior: allow-discrete;
 }
