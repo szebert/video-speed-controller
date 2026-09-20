@@ -109,7 +109,7 @@ export const BEHAVIOR_FIELDS = {
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
   buttonFlash: {
-    default: false,
+    default: true,
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },

@@ -785,7 +785,7 @@ export function useBehaviorSettings() {
   const overlayLocked = blocking || !overlayEnabled;
   const delayLocked = overlayLocked || !(behavior?.overlayAutoHide.value ?? true);
   const flashEnabled =
-    (behavior?.buttonFlash.value ?? false) || (behavior?.hotkeyFlash.value ?? true);
+    (behavior?.buttonFlash.value ?? true) || (behavior?.hotkeyFlash.value ?? true);
   const flashLocked = blocking || !flashEnabled;
   const hotkeyRepeatLocked = blocking || !(behavior?.hotkeyRepeat.value ?? false);
   const resetBadgeText = selection.kind === 'site' ? t('settingOverride') : t('settingCustom');

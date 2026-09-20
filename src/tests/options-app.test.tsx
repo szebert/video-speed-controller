@@ -1480,20 +1480,20 @@ describe('Options page', () => {
     });
   });
 
-  it('sends buttonFlash true from the Show button flash switch', async () => {
+  it('sends buttonFlash false from the Show button flash switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     await selectTab('Overlay');
     const toggle = container.querySelector('#button-flash');
     expect(toggle).toBeInstanceOf(HTMLInputElement);
-    expect((toggle as HTMLInputElement).checked).toBe(false);
+    expect((toggle as HTMLInputElement).checked).toBe(true);
     await act(async () => {
       click(toggle);
     });
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
-      change: { kind: 'value', field: 'buttonFlash', value: true },
+      change: { kind: 'value', field: 'buttonFlash', value: false },
     });
   });
 
@@ -1564,6 +1564,7 @@ describe('Options page', () => {
   it('disables flash delay when both flash toggles are off', async () => {
     const hidden = snapshot();
     hidden.global.hotkeyFlash = { value: false, source: 'global' };
+    hidden.global.buttonFlash = { value: false, source: 'global' };
     sendMessage.mockImplementation(loadReply(hidden));
     await renderApp();
     await selectTab('Overlay');
