@@ -79,7 +79,16 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   await expect(options.getByText('No site settings yet.')).toBeVisible();
   await expect(options.getByText('Built-in')).toHaveCount(0);
   await expect(options.getByRole('tab', { name: 'Playback' })).toBeVisible();
-  await expect(options.getByText('Customize the default speed and range.')).toBeVisible();
+  await expect(
+    options.getByText('Customize current speed, default speed, and the allowed range.'),
+  ).toBeVisible();
+  await expect(options.getByRole('heading', { name: 'Current default speed' })).toBeVisible();
+  await expect(options.getByRole('slider', { name: 'Current default speed' })).toBeVisible();
+  await expect(options.getByRole('button', { name: 'Reset to 1.00×' })).toBeVisible();
+  await expect(options.getByRole('slider', { name: 'Default speed', exact: true })).toBeVisible();
+  await expect(
+    options.getByRole('switch', { name: 'Use last used speed on new windows' }),
+  ).toBeChecked();
   await expect(options.getByRole('button', { name: 'Reset defaults' })).toBeEnabled();
   await selectOptionsTab(options, 'Overlay');
   await expect(options.getByText('Customize how the overlay appears on videos.')).toBeVisible();
@@ -108,6 +117,8 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
 test('options.html?site=127.0.0.1 selects Site', async ({ context, extensionId }) => {
   const options = await openOptions(context, extensionId, '127.0.0.1');
   await expect(options.getByRole('heading', { name: '127.0.0.1' })).toBeVisible();
+  await expect(options.getByRole('heading', { name: 'Current site speed' })).toBeVisible();
+  await expect(options.getByRole('slider', { name: 'Default speed', exact: true })).toBeVisible();
   await expect(
     options.getByRole('button', { name: 'Global defaults', exact: true }),
   ).not.toHaveAttribute('aria-current', 'page');
@@ -190,7 +201,7 @@ test('global speed 1.5 does not jump an active 1.25 tab', async ({
   await enableSiteAt(popup, site, 1.25);
   const options = await openOptions(context, extensionId, '127.0.0.1');
   await options.getByRole('button', { name: 'Global defaults', exact: true }).click();
-  await options.getByRole('button', { name: 'Faster' }).click();
+  await expect(options.getByRole('heading', { name: 'Current default speed' })).toBeVisible();
   await options.getByRole('button', { name: 'Faster' }).click();
   await expect(options.getByText('1.50×')).toBeVisible();
   await expect
@@ -229,7 +240,7 @@ test('site speed 1.5 updates videos overlay and popup, then delete restores 1.00
 
   await options.getByRole('button', { name: 'Delete site settings' }).click();
   await confirmDialog(options, 'Delete');
-  await expect(options.getByText('1.00×', { exact: true })).toBeVisible();
+  await expect(options.getByText('1.00×', { exact: true }).first()).toBeVisible();
   await expect
     .poll(async () =>
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),

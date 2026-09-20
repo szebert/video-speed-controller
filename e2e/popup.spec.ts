@@ -22,7 +22,7 @@ test('Enable is available on the fixture site and Faster applies to every video'
   await expect(popup.getByRole('heading', { name: 'OS Video Speed Controller' })).toBeVisible();
   await expect(popup.locator('header img')).toBeVisible();
   await expect(popup.getByText('127.0.0.1')).toBeVisible();
-  await expect(popup.getByRole('heading', { name: 'Site speed' })).toBeVisible();
+  await expect(popup.getByRole('heading', { name: 'Current site speed' })).toBeVisible();
   const enable = popup.getByRole('switch', { name: 'Enabled on this site' });
   await expect(enable).toBeEnabled();
   await expect(enable).toBeChecked();
@@ -314,7 +314,7 @@ test('keyboard Move and position cell close the picker and resume auto-hide', as
 
 test('slider keyboard changes site speed', async ({ site, openExtensionPopup }) => {
   const popup = await openExtensionPopup();
-  const slider = popup.getByRole('slider', { name: 'Site speed' });
+  const slider = popup.getByRole('slider', { name: 'Current site speed' });
   await expect(slider).toBeEnabled();
   await slider.focus();
   await slider.press('ArrowRight');
