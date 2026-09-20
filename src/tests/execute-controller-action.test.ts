@@ -106,6 +106,7 @@ describe('executeControllerAction', () => {
   });
 
   it('does not flash overlay-originated actions when button flash is off', async () => {
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, buttonFlash: false }));
     await executeControllerAction('increaseSpeed', {
       resolveRegistry: () => registry,
       source: { kind: 'overlay', video },
@@ -519,6 +520,7 @@ describe('executeControllerAction', () => {
   });
 
   it('does not flash overlay-originated navigation when button flash is off', async () => {
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, buttonFlash: false }));
     seekable(video, { currentTime: 30, duration: 120 });
     await executeControllerAction('skipForward', {
       resolveRegistry: () => registry,

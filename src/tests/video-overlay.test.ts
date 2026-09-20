@@ -1195,7 +1195,7 @@ describe('VideoOverlay', () => {
   it('shows a button flash only when that toggle is on', () => {
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, buttonFlash: false }));
     overlay.setControlled(true);
     overlay.showButtonFlash({
       kind: 'speed',
