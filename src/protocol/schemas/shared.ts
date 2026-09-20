@@ -158,6 +158,7 @@ export const BehaviorSettingsSnapshotSchema = z.object({
       behavior: EditableResolvedBehaviorSchema,
       hotkeys: ResolvedHotkeyMapSchema,
       speedOverrideKind: SpeedOverrideKindSchema,
+      defaultSpeedOverrideKind: SpeedOverrideKindSchema,
       seedTarget: z.number(),
     })
     .nullable(),

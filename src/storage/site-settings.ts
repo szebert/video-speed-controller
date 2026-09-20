@@ -35,7 +35,7 @@ import {
   mergeBehaviorOverrides,
   resolveAppliedSpeed,
   resolveSiteBehavior,
-  speedOverrideKindOf,
+  overrideKindOf,
   toEffectiveBehavior,
   hasSemanticOverrides,
   withSpeedInherit,
@@ -456,6 +456,7 @@ export type AppliedSiteBehaviorForUrl = {
   resolved: ReturnType<typeof resolveSiteBehavior>;
   targetSpeed: number;
   speedOverrideKind: SpeedOverrideKind;
+  defaultSpeedOverrideKind: SpeedOverrideKind;
 };
 
 async function resolveAppliedSiteBehaviorUnlocked(
@@ -471,7 +472,8 @@ async function resolveAppliedSiteBehaviorUnlocked(
   return {
     resolved,
     targetSpeed: resolveAppliedSpeed(loaded.globalOverrides, loaded.mergedOverrides, resolved),
-    speedOverrideKind: speedOverrideKindOf(loaded.mergedOverrides),
+    speedOverrideKind: overrideKindOf(loaded.mergedOverrides, 'speed'),
+    defaultSpeedOverrideKind: overrideKindOf(loaded.mergedOverrides, 'defaultSpeed'),
   };
 }
 

@@ -27,6 +27,7 @@ function snapshot(): BehaviorSettingsSnapshot {
       behavior: { ...global, speed: { value: 1.25, source: 'site' as const } },
       hotkeys,
       speedOverrideKind: 'value',
+      defaultSpeedOverrideKind: 'missing',
       seedTarget: 1.25,
     },
   };
@@ -359,6 +360,7 @@ describe('displayedCurrentSpeed', () => {
       }),
     ).toEqual({ value: 2, muted: true });
 
+    state.site.defaultSpeedOverrideKind = 'value';
     state.site.behavior.defaultSpeed = { value: 1.5, source: 'site' };
     state.site.behavior.rememberLastSpeed = { value: false, source: 'site' };
     const afterRememberOnWithSiteDefault = applyOptimisticChange(
@@ -375,6 +377,35 @@ describe('displayedCurrentSpeed', () => {
         { rememberLastSpeed: { kind: 'value', field: 'rememberLastSpeed', value: true } },
       ),
     ).toEqual({ value: 1.5, muted: true });
+  });
+
+  it('keeps Default when remember turns on over an inherited defaultSpeed', () => {
+    const state = snapshot();
+    state.global.speed = { value: 2, source: 'global' };
+    state.global.defaultSpeed = { value: 1, source: 'global' };
+    state.site = {
+      ...state.site!,
+      behavior: {
+        ...state.site!.behavior,
+        speed: { value: 1, source: 'built-in' },
+        defaultSpeed: { value: 1, source: 'global' },
+        rememberLastSpeed: { value: false, source: 'site' },
+      },
+      speedOverrideKind: 'missing',
+      defaultSpeedOverrideKind: 'inherit',
+      seedTarget: 1,
+    };
+    const afterRememberOn = applyOptimisticChange(
+      state.site.behavior,
+      { kind: 'value', field: 'rememberLastSpeed', value: true },
+      { kind: 'site', hostname: 'www.youtube.com' },
+      state,
+    );
+    expect(
+      displayedCurrentSpeed({ kind: 'site', hostname: 'www.youtube.com' }, afterRememberOn, state, {
+        rememberLastSpeed: { kind: 'value', field: 'rememberLastSpeed', value: true },
+      }),
+    ).toEqual({ value: 1, muted: true });
   });
 
   it('clamps an optimistic remember-on seed against the site policy', () => {

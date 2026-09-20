@@ -477,6 +477,7 @@ describe('site settings storage', () => {
       expect.objectContaining({
         targetSpeed: 2,
         speedOverrideKind: 'missing',
+        defaultSpeedOverrideKind: 'missing',
       }),
     );
   });
@@ -498,6 +499,29 @@ describe('site settings storage', () => {
       expect.objectContaining({
         targetSpeed: 2,
         speedOverrideKind: 'missing',
+        defaultSpeedOverrideKind: 'missing',
+      }),
+    );
+  });
+
+  it('reports defaultSpeed inherit separately from a missing defaultSpeed', async () => {
+    const deps = pair();
+    deps.sync.data['defaults:site-behavior'] = {
+      schemaVersion: 1,
+      overrides: { speed: { kind: 'value', value: 2, updatedAt: 1 } },
+    };
+    deps.local.data['site:marked.example'] = {
+      schemaVersion: 1,
+      lastUsedAt: 2,
+      overrides: { defaultSpeed: { kind: 'inherit', updatedAt: 2 } },
+    };
+    await expect(
+      resolveAppliedSiteBehaviorForUrl('https://marked.example/watch', deps),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        targetSpeed: 1,
+        speedOverrideKind: 'missing',
+        defaultSpeedOverrideKind: 'inherit',
       }),
     );
   });

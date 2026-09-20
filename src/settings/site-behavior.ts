@@ -870,8 +870,15 @@ export function revalidateResolvedSpeed<
 
 export type SpeedOverrideKind = 'missing' | 'inherit' | 'value';
 
+export function overrideKindOf(
+  overrides: BehaviorOverrides,
+  field: EditableBehaviorField,
+): SpeedOverrideKind {
+  return overrides[field]?.kind ?? 'missing';
+}
+
 export function speedOverrideKindOf(overrides: BehaviorOverrides): SpeedOverrideKind {
-  return overrides.speed?.kind ?? 'missing';
+  return overrideKindOf(overrides, 'speed');
 }
 
 export function resolveAppliedSpeed(

@@ -16,6 +16,7 @@ import {
   type ResolvedHotkeyMap,
   type SettingSource,
   type SiteHotkeyAction,
+  type SpeedOverrideKind,
 } from '../../settings/site-behavior';
 import { formatSpeed, resolveEffectiveSpeed } from '../../core/speed';
 import { normalizeSiteHostname } from '../../settings/site-hostname';
@@ -200,18 +201,27 @@ export function handleNumberInputKeyDown(
   }
 }
 
+function optimisticDefaultOverrideKind(
+  snapshot: BehaviorSettingsSnapshot,
+  optimistic: Partial<Record<EditableBehaviorField, BehaviorSettingChange>>,
+): SpeedOverrideKind {
+  const change = optimistic.defaultSpeed;
+  if (!change) {
+    return snapshot.site?.defaultSpeedOverrideKind ?? 'missing';
+  }
+  return change.kind === 'inherit' ? 'inherit' : 'value';
+}
+
 function missingSeedTarget(
   behavior: EditableResolvedBehavior,
   snapshot: BehaviorSettingsSnapshot,
   optimistic: Partial<Record<EditableBehaviorField, BehaviorSettingChange>>,
 ): number {
-  if (optimistic.defaultSpeed || !behavior.rememberLastSpeed.value) {
+  const defaultKind = optimisticDefaultOverrideKind(snapshot, optimistic);
+  if (defaultKind !== 'missing' || !behavior.rememberLastSpeed.value) {
     return behavior.defaultSpeed.value;
   }
   if (optimistic.rememberLastSpeed) {
-    if (behavior.defaultSpeed.source === 'site') {
-      return behavior.defaultSpeed.value;
-    }
     const globalCurrent =
       snapshot.global.speed.source === 'global'
         ? snapshot.global.speed.value

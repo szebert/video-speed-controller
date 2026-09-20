@@ -31,6 +31,7 @@ function snapshot(site: string | null = null): BehaviorSettingsSnapshot {
           behavior: { ...global },
           hotkeys,
           speedOverrideKind: 'missing',
+          defaultSpeedOverrideKind: 'missing',
           seedTarget: global.speed.value,
         }
       : null,

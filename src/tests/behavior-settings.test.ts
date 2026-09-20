@@ -120,7 +120,12 @@ describe('behavior settings API', () => {
     expect(missing).toMatchObject({
       ok: true,
       state: {
-        site: { hostname: 'new.example', speedOverrideKind: 'missing', seedTarget: 1 },
+        site: {
+          hostname: 'new.example',
+          speedOverrideKind: 'missing',
+          defaultSpeedOverrideKind: 'missing',
+          seedTarget: 1,
+        },
       },
     });
 
@@ -134,7 +139,12 @@ describe('behavior settings API', () => {
     expect(seeded).toMatchObject({
       ok: true,
       state: {
-        site: { hostname: 'new.example', speedOverrideKind: 'missing', seedTarget: 2 },
+        site: {
+          hostname: 'new.example',
+          speedOverrideKind: 'missing',
+          defaultSpeedOverrideKind: 'missing',
+          seedTarget: 2,
+        },
       },
     });
 
@@ -147,7 +157,12 @@ describe('behavior settings API', () => {
     expect(valued).toMatchObject({
       ok: true,
       state: {
-        site: { hostname: 'www.youtube.com', speedOverrideKind: 'value', seedTarget: 1.5 },
+        site: {
+          hostname: 'www.youtube.com',
+          speedOverrideKind: 'value',
+          defaultSpeedOverrideKind: 'missing',
+          seedTarget: 1.5,
+        },
       },
     });
 
@@ -164,7 +179,34 @@ describe('behavior settings API', () => {
     expect(inherited).toMatchObject({
       ok: true,
       state: {
-        site: { hostname: 'www.youtube.com', speedOverrideKind: 'inherit', seedTarget: 1.25 },
+        site: {
+          hostname: 'www.youtube.com',
+          speedOverrideKind: 'inherit',
+          defaultSpeedOverrideKind: 'missing',
+          seedTarget: 1.25,
+        },
+      },
+    });
+
+    const inheritedDefault = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'site', hostname: 'www.youtube.com' },
+        change: { kind: 'inherit', field: 'defaultSpeed' },
+        snapshotHostname: 'www.youtube.com',
+      },
+      extensionSender(),
+      deps,
+    );
+    expect(inheritedDefault).toMatchObject({
+      ok: true,
+      state: {
+        site: {
+          hostname: 'www.youtube.com',
+          speedOverrideKind: 'inherit',
+          defaultSpeedOverrideKind: 'inherit',
+          seedTarget: 1.25,
+        },
       },
     });
   });
@@ -256,6 +298,7 @@ describe('behavior settings API', () => {
         resetSpeed: expect.objectContaining({ source: 'built-in' }),
       }),
       speedOverrideKind: 'value',
+      defaultSpeedOverrideKind: 'missing',
       seedTarget: 1.25,
     });
   });
@@ -375,6 +418,45 @@ describe('behavior settings API', () => {
     if (response.ok) {
       expect(response.state).toBeUndefined();
     }
+  });
+
+  it('still reapplies when persist succeeds but post-persist remember read fails', async () => {
+    const local = memoryDurable();
+    let persistCommitted = false;
+    const rememberLocal = {
+      ...local,
+      async set(items: Record<string, unknown>) {
+        await local.set(items);
+        persistCommitted = true;
+      },
+      async get(keys?: string | string[] | Record<string, unknown> | null) {
+        if (persistCommitted && keys === GLOBAL_BEHAVIOR_KEY) {
+          throw new Error('remember read failed');
+        }
+        return local.get(keys);
+      },
+    };
+    const listTabIds = vi.fn(async () => []);
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'overlayAutoHide', value: false },
+      },
+      extensionSender(),
+      {
+        local: rememberLocal,
+        sync: memoryDurable(),
+        listTabIds,
+      },
+    );
+    expect(response).toMatchObject({
+      ok: true,
+      snapshotError: 'remember read failed',
+      reappliedTabs: 0,
+      reapplyFailures: 0,
+    });
+    expect(listTabIds).toHaveBeenCalled();
   });
 
   it('lists custom sites separately and returns a membership delta on delete', async () => {

@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getPopupState } from '../background/popup-state';
 import {
+  overrideKindOf,
   resolveAppliedSpeed,
   resolveSiteBehavior,
   type BehaviorOverrides,
@@ -13,7 +14,8 @@ function appliedFrom(globalOverrides: BehaviorOverrides, siteOverrides: Behavior
   return {
     resolved,
     targetSpeed: resolveAppliedSpeed(globalOverrides, siteOverrides, resolved),
-    speedOverrideKind: siteOverrides.speed?.kind ?? ('missing' as const),
+    speedOverrideKind: overrideKindOf(siteOverrides, 'speed'),
+    defaultSpeedOverrideKind: overrideKindOf(siteOverrides, 'defaultSpeed'),
   };
 }
 

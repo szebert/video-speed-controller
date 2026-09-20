@@ -110,6 +110,7 @@ export async function readBehaviorSettingsSnapshot(
         behavior: global,
         hotkeys: globalHotkeys,
         speedOverrideKind: 'missing',
+        defaultSpeedOverrideKind: 'missing',
         seedTarget: resolveAppliedSpeed(globalOverrides, {}, globalResolved),
       },
     };
@@ -122,6 +123,7 @@ export async function readBehaviorSettingsSnapshot(
       behavior: toEditableResolvedBehavior(applied.resolved),
       hotkeys: applied.resolved.hotkeys,
       speedOverrideKind: applied.speedOverrideKind,
+      defaultSpeedOverrideKind: applied.defaultSpeedOverrideKind,
       seedTarget: applied.targetSpeed,
     },
   };
@@ -254,7 +256,6 @@ export async function setBehaviorSetting(
   }
 
   const scope = message.scope.kind === 'global' ? 'global' : 'site';
-  let rememberLastSpeed: boolean;
   try {
     await flushPersistedSpeeds();
     if (message.scope.kind === 'global') {
@@ -262,9 +263,16 @@ export async function setBehaviorSetting(
     } else {
       await persistSiteBehaviorChanges(siteResolutionUrl(persistHostname!), changes, deps);
     }
-    rememberLastSpeed = await readRememberLastSpeed(scope, persistHostname, deps);
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to persist setting') };
+  }
+  let rememberLastSpeed: boolean;
+  try {
+    rememberLastSpeed = await readRememberLastSpeed(scope, persistHostname, deps);
+  } catch {
+    // Persist already won. Reapply with the built-in remember default so the
+    // tab session is still updated; snapshot refresh reports its own failure.
+    rememberLastSpeed = true;
   }
   const result = await afterPersist(
     snapshot.hostname,
