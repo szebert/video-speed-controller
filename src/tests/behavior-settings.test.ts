@@ -13,7 +13,7 @@ import {
   setHotkeySetting,
 } from '../background/behavior-settings';
 import { BUILT_IN_HOTKEYS } from '../settings/hotkey-binding';
-import { OVERLAY_POSITION } from '../settings/site-behavior';
+import { GLOBAL_BEHAVIOR_KEY, OVERLAY_POSITION } from '../settings/site-behavior';
 import {
   persistGlobalBehaviorChange,
   resetBehaviorDefaultsRepairBackoff,
@@ -31,6 +31,7 @@ import {
 } from '../background/coalesce-site-speed';
 import { resetTabMutationQueue } from '../background/tab-mutation-queue';
 import { memoryDurable } from './memory-store';
+import { tabBehavior } from './tab-behavior-fixture';
 
 const EXTENSION_ORIGIN = 'chrome-extension://extid';
 
@@ -259,6 +260,52 @@ describe('behavior settings API', () => {
     });
   });
 
+  it('uses post-persist rememberLastSpeed when choosing site speed reapply', async () => {
+    const deps = stores();
+    await persistSiteSpeed('https://www.youtube.com/watch', 1.25, deps);
+    const data: Record<string, unknown> = { 'tab:1': tabBehavior(2) };
+    const tabStateStore = {
+      data,
+      async get(keys?: string | string[] | Record<string, unknown> | null) {
+        if (typeof keys === 'string') {
+          return { [keys]: data[keys] };
+        }
+        return { ...data };
+      },
+      async set(items: Record<string, unknown>) {
+        Object.assign(data, items);
+      },
+      async remove(keys: string | string[]) {
+        for (const key of typeof keys === 'string' ? [keys] : keys) {
+          delete data[key];
+        }
+      },
+    };
+    const apply = vi.fn();
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'site', hostname: 'www.youtube.com' },
+        changes: [
+          { kind: 'value', field: 'rememberLastSpeed', value: false },
+          { kind: 'value', field: 'speed', value: 1.5 },
+        ],
+      },
+      extensionSender(),
+      {
+        ...deps,
+        getTab: async () => ({ id: 1, url: 'https://www.youtube.com/watch' }) as chrome.tabs.Tab,
+        tabStateStore,
+        readBehavior: async () => tabBehavior(1, { rememberLastSpeed: false }),
+        apply,
+      },
+    );
+    expect(response).toMatchObject({ ok: true, reappliedTabs: 1, reapplyFailures: 0 });
+    expect(data['tab:1']).toEqual(
+      expect.objectContaining({ targetSpeed: 2, rememberLastSpeed: false }),
+    );
+  });
+
   it('does not reapply when persist fails', async () => {
     const listTabIds = vi.fn(async () => {
       throw new Error('should not list tabs');
@@ -288,6 +335,7 @@ describe('behavior settings API', () => {
   it('returns ok with snapshotError when persist succeeds but refresh fails', async () => {
     const local = memoryDurable();
     let persistCommitted = false;
+    let postPersistBehaviorReads = 0;
     const snapshotLocal = {
       ...local,
       async set(items: Record<string, unknown>) {
@@ -295,8 +343,11 @@ describe('behavior settings API', () => {
         persistCommitted = true;
       },
       async get(keys?: string | string[] | Record<string, unknown> | null) {
-        if (persistCommitted) {
-          throw new Error('refresh failed');
+        if (persistCommitted && keys === GLOBAL_BEHAVIOR_KEY) {
+          postPersistBehaviorReads += 1;
+          if (postPersistBehaviorReads > 1) {
+            throw new Error('refresh failed');
+          }
         }
         return local.get(keys);
       },

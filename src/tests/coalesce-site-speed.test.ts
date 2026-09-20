@@ -198,6 +198,18 @@ describe('global speed persist coalescer', () => {
     expect(persistGlobal).toHaveBeenCalledTimes(1);
   });
 
+  it('writes the same speed again after an external mutation between bursts', async () => {
+    const persist = vi.fn<(speed: number) => Promise<void>>(async () => {});
+    const coalescer = createGlobalSpeedPersistCoalescer({ persist });
+    await coalescer.persist(2);
+    await vi.advanceTimersByTimeAsync(SITE_SPEED_PERSIST_COALESCE_MS);
+    expect(persist).toHaveBeenCalledTimes(1);
+    persist.mockClear();
+    await coalescer.persist(2);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith(2);
+  });
+
   it('flushPersistedSpeeds drains both lanes', async () => {
     const persistSite = vi.fn(async () => {});
     const persistGlobal = vi.fn(async () => {});

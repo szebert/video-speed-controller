@@ -299,9 +299,109 @@ describe('displayedCurrentSpeed', () => {
     );
     expect(
       displayedCurrentSpeed({ kind: 'site', hostname: 'www.youtube.com' }, behavior, state, {
-        kind: 'inherit',
-        field: 'speed',
+        speed: { kind: 'inherit', field: 'speed' },
       }),
     ).toEqual({ value: behavior.defaultSpeed.value, muted: true });
+  });
+
+  it('recomputes a missing seed when defaultSpeed or rememberLastSpeed is optimistic', () => {
+    const state = snapshot();
+    state.global.speed = { value: 2, source: 'global' };
+    state.site = {
+      ...state.site!,
+      behavior: {
+        ...state.site!.behavior,
+        speed: { value: 2, source: 'global' },
+        defaultSpeed: { value: 1, source: 'built-in' },
+        rememberLastSpeed: { value: true, source: 'built-in' },
+      },
+      speedOverrideKind: 'missing',
+      seedTarget: 2,
+    };
+    const afterDefault = applyOptimisticChange(
+      state.site.behavior,
+      { kind: 'value', field: 'defaultSpeed', value: 1.5 },
+      { kind: 'site', hostname: 'www.youtube.com' },
+      state,
+    );
+    expect(
+      displayedCurrentSpeed({ kind: 'site', hostname: 'www.youtube.com' }, afterDefault, state, {
+        defaultSpeed: { kind: 'value', field: 'defaultSpeed', value: 1.5 },
+      }),
+    ).toEqual({ value: 1.5, muted: true });
+
+    const afterRememberOff = applyOptimisticChange(
+      state.site.behavior,
+      { kind: 'value', field: 'rememberLastSpeed', value: false },
+      { kind: 'site', hostname: 'www.youtube.com' },
+      state,
+    );
+    expect(
+      displayedCurrentSpeed(
+        { kind: 'site', hostname: 'www.youtube.com' },
+        afterRememberOff,
+        state,
+        { rememberLastSpeed: { kind: 'value', field: 'rememberLastSpeed', value: false } },
+      ),
+    ).toEqual({ value: 1, muted: true });
+
+    state.site.seedTarget = 1;
+    state.site.behavior.rememberLastSpeed = { value: false, source: 'global' };
+    const afterRememberOn = applyOptimisticChange(
+      state.site.behavior,
+      { kind: 'value', field: 'rememberLastSpeed', value: true },
+      { kind: 'site', hostname: 'www.youtube.com' },
+      state,
+    );
+    expect(
+      displayedCurrentSpeed({ kind: 'site', hostname: 'www.youtube.com' }, afterRememberOn, state, {
+        rememberLastSpeed: { kind: 'value', field: 'rememberLastSpeed', value: true },
+      }),
+    ).toEqual({ value: 2, muted: true });
+
+    state.site.behavior.defaultSpeed = { value: 1.5, source: 'site' };
+    state.site.behavior.rememberLastSpeed = { value: false, source: 'site' };
+    const afterRememberOnWithSiteDefault = applyOptimisticChange(
+      state.site.behavior,
+      { kind: 'value', field: 'rememberLastSpeed', value: true },
+      { kind: 'site', hostname: 'www.youtube.com' },
+      state,
+    );
+    expect(
+      displayedCurrentSpeed(
+        { kind: 'site', hostname: 'www.youtube.com' },
+        afterRememberOnWithSiteDefault,
+        state,
+        { rememberLastSpeed: { kind: 'value', field: 'rememberLastSpeed', value: true } },
+      ),
+    ).toEqual({ value: 1.5, muted: true });
+  });
+
+  it('clamps an optimistic remember-on seed against the site policy', () => {
+    const state = snapshot();
+    state.global.speed = { value: 3, source: 'global' };
+    state.site = {
+      ...state.site!,
+      behavior: {
+        ...state.site!.behavior,
+        speed: { value: 1, source: 'built-in' },
+        defaultSpeed: { value: 1, source: 'built-in' },
+        speedMax: { value: 2, source: 'site' },
+        rememberLastSpeed: { value: false, source: 'global' },
+      },
+      speedOverrideKind: 'missing',
+      seedTarget: 1,
+    };
+    const afterRememberOn = applyOptimisticChange(
+      state.site.behavior,
+      { kind: 'value', field: 'rememberLastSpeed', value: true },
+      { kind: 'site', hostname: 'www.youtube.com' },
+      state,
+    );
+    expect(
+      displayedCurrentSpeed({ kind: 'site', hostname: 'www.youtube.com' }, afterRememberOn, state, {
+        rememberLastSpeed: { kind: 'value', field: 'rememberLastSpeed', value: true },
+      }),
+    ).toEqual({ value: 2, muted: true });
   });
 });

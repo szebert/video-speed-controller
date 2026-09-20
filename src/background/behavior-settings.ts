@@ -70,21 +70,6 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-function rememberAfterChanges(
-  changes: readonly BehaviorSettingChange[],
-  current: boolean,
-  inherited: boolean,
-): boolean {
-  let remember = current;
-  for (const change of changes) {
-    if (change.field !== 'rememberLastSpeed') {
-      continue;
-    }
-    remember = change.kind === 'value' ? change.value : inherited;
-  }
-  return remember;
-}
-
 async function readRememberLastSpeed(
   scope: 'global' | 'site',
   hostname: string | null,
@@ -271,16 +256,13 @@ export async function setBehaviorSetting(
   const scope = message.scope.kind === 'global' ? 'global' : 'site';
   let rememberLastSpeed: boolean;
   try {
-    const currentRemember = await readRememberLastSpeed(scope, persistHostname, deps);
-    const inheritedRemember =
-      scope === 'site' ? await readRememberLastSpeed('global', null, deps) : true;
-    rememberLastSpeed = rememberAfterChanges(changes, currentRemember, inheritedRemember);
     await flushPersistedSpeeds();
     if (message.scope.kind === 'global') {
       await persistGlobalBehaviorChanges(changes, deps);
     } else {
       await persistSiteBehaviorChanges(siteResolutionUrl(persistHostname!), changes, deps);
     }
+    rememberLastSpeed = await readRememberLastSpeed(scope, persistHostname, deps);
   } catch (error) {
     return { ok: false, error: errorMessage(error, 'Failed to persist setting') };
   }

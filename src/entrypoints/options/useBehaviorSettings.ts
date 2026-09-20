@@ -481,7 +481,7 @@ export function useBehaviorSettings() {
       currentSelection,
       current,
       currentSnapshot,
-      optimisticRef.current.speed,
+      optimisticRef.current,
     ).value;
     mutate({
       kind: 'value',
@@ -793,7 +793,7 @@ export function useBehaviorSettings() {
   const policy = behavior ? speedPolicyFromResolved(behavior) : undefined;
   const currentDisplay =
     behavior && snapshot
-      ? displayedCurrentSpeed(selection, behavior, snapshot, optimistic.speed)
+      ? displayedCurrentSpeed(selection, behavior, snapshot, optimistic)
       : { value: 1, muted: true };
   const currentSpeed = behavior
     ? resolveEffectiveSpeed(speedPreview ?? currentDisplay.value, policy)

@@ -7,6 +7,7 @@ import {
   BUILT_IN_SITE_BEHAVIOR,
   OVERLAY_POSITION,
   revalidateResolvedSpeed,
+  speedPolicyFromResolved,
   type BehaviorSettingChange,
   type EditableBehaviorField,
   type EditableResolvedBehavior,
@@ -16,7 +17,7 @@ import {
   type SettingSource,
   type SiteHotkeyAction,
 } from '../../settings/site-behavior';
-import { formatSpeed } from '../../core/speed';
+import { formatSpeed, resolveEffectiveSpeed } from '../../core/speed';
 import { normalizeSiteHostname } from '../../settings/site-hostname';
 
 export type Selection =
@@ -199,17 +200,39 @@ export function handleNumberInputKeyDown(
   }
 }
 
+function missingSeedTarget(
+  behavior: EditableResolvedBehavior,
+  snapshot: BehaviorSettingsSnapshot,
+  optimistic: Partial<Record<EditableBehaviorField, BehaviorSettingChange>>,
+): number {
+  if (optimistic.defaultSpeed || !behavior.rememberLastSpeed.value) {
+    return behavior.defaultSpeed.value;
+  }
+  if (optimistic.rememberLastSpeed) {
+    if (behavior.defaultSpeed.source === 'site') {
+      return behavior.defaultSpeed.value;
+    }
+    const globalCurrent =
+      snapshot.global.speed.source === 'global'
+        ? snapshot.global.speed.value
+        : behavior.defaultSpeed.value;
+    return resolveEffectiveSpeed(globalCurrent, speedPolicyFromResolved(behavior));
+  }
+  return snapshot.site?.seedTarget ?? behavior.defaultSpeed.value;
+}
+
 export function displayedCurrentSpeed(
   selection: Selection,
   behavior: EditableResolvedBehavior,
   snapshot: BehaviorSettingsSnapshot,
-  optimistic: BehaviorSettingChange | undefined,
+  optimistic: Partial<Record<EditableBehaviorField, BehaviorSettingChange>> = {},
 ): { value: number; muted: boolean } {
-  if (optimistic?.field === 'speed') {
-    if (optimistic.kind === 'inherit') {
-      return { value: behavior.defaultSpeed.value, muted: true };
-    }
-    return { value: optimistic.value, muted: false };
+  const speedChange = optimistic.speed;
+  if (speedChange?.kind === 'inherit') {
+    return { value: behavior.defaultSpeed.value, muted: true };
+  }
+  if (speedChange?.kind === 'value' && speedChange.field === 'speed') {
+    return { value: speedChange.value, muted: false };
   }
   if (selection.kind !== 'site' || snapshot.site == null) {
     if (ownsOverride(selection, behavior.speed.source)) {
@@ -223,7 +246,7 @@ export function displayedCurrentSpeed(
   if (snapshot.site.speedOverrideKind === 'inherit') {
     return { value: behavior.defaultSpeed.value, muted: true };
   }
-  return { value: snapshot.site.seedTarget, muted: true };
+  return { value: missingSeedTarget(behavior, snapshot, optimistic), muted: true };
 }
 
 export function currentBehavior(

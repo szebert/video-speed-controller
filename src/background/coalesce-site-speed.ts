@@ -239,6 +239,7 @@ export function createGlobalSpeedPersistCoalescer(
     clearTimer();
     burst.active = false;
     burst.latest = null;
+    burst.lastWritten = null;
   }
 
   function scheduleTrailing(): void {
