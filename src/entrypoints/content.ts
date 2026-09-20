@@ -47,6 +47,18 @@ const overlayActions: OverlayActions = {
       // executeControllerAction already logs transport failures.
     });
   },
+  resetSpeed(video) {
+    const engine = getActiveEngine();
+    if (!engine) {
+      return;
+    }
+    void executeControllerAction('resetSpeed', {
+      resolveRegistry: () => getActiveEngine()?.registry ?? engine.registry,
+      source: { kind: 'overlay', video },
+    }).catch(() => {
+      // executeControllerAction already logs transport failures.
+    });
+  },
   mediaAction(action, phase, video, hold) {
     const engine = getActiveEngine();
     if (!engine) {

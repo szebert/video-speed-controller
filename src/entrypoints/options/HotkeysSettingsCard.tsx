@@ -71,6 +71,11 @@ const HOTKEY_ROWS: readonly HotkeyRow[] = [
     description: 'hotkeyResetSpeedDescription',
   },
   {
+    action: 'resetSpeedToOne',
+    label: 'hotkeyResetSpeedToOne',
+    description: 'hotkeyResetSpeedToOneDescription',
+  },
+  {
     action: 'jumpToStart',
     label: 'hotkeyJumpToStart',
     description: 'hotkeyJumpToStartDescription',
@@ -111,6 +116,7 @@ const ACTION_LABEL: Record<SiteHotkeyAction, MessageKey> = {
   decreaseSpeed: 'hotkeyDecreaseSpeed',
   increaseSpeed: 'hotkeyIncreaseSpeed',
   resetSpeed: 'hotkeyResetSpeed',
+  resetSpeedToOne: 'hotkeyResetSpeedToOne',
   jumpToStart: 'hotkeyJumpToStart',
   rewind: 'hotkeyRewind',
   skipBack: 'hotkeySkipBack',

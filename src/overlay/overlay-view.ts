@@ -3,7 +3,7 @@
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
 import type { MediaNavigationAction, TransportHoldOwner } from '../core/controller-action';
 import { ariaKeyshortcutsFromBinding, visualHotkeyParts } from '../core/hotkey-format';
-import { canAdjustSpeed, formatSpeed } from '../core/speed';
+import { canAdjustSpeed, canonicalizeSpeed, formatSpeed } from '../core/speed';
 import { t, type MessageKey } from '../i18n/t';
 import type { HotkeyBinding } from '../settings/hotkey-binding';
 import {
@@ -41,13 +41,14 @@ const NAVIGATION_BUTTONS = [
 
 export class OverlayView {
   readonly element: HTMLDivElement;
-  readonly speedReadout: HTMLDivElement;
+  readonly speedReadout: HTMLButtonElement;
 
   private readonly document: Document;
   private readonly abort = new AbortController();
   private readonly bar: HTMLDivElement;
   private readonly move: HTMLButtonElement;
   private readonly slower: HTMLButtonElement;
+  private readonly speedValue: HTMLSpanElement;
   private readonly faster: HTMLButtonElement;
   private readonly settings: HTMLButtonElement;
   private navigationBar: HTMLDivElement | null = null;
@@ -98,8 +99,23 @@ export class OverlayView {
       { signal: this.abort.signal },
     );
 
-    this.speedReadout = document.createElement('div');
-    this.speedReadout.className = 'speed';
+    this.speedReadout = this.createChromeButton(
+      'control control-speed speed',
+      t('hotkeyResetSpeed'),
+    );
+    this.speedValue = document.createElement('span');
+    this.speedValue.className = 'speed-value';
+    this.speedReadout.append(this.speedValue);
+    this.speedReadout.addEventListener(
+      'click',
+      (event) => {
+        if (!this.speedReadout.disabled) {
+          this.callbacks.onReset();
+        }
+        blurAfterPointerClick(event);
+      },
+      { signal: this.abort.signal },
+    );
 
     this.faster = this.createChromeButton('control control-adjust', t('faster'));
     this.faster.append(createAdjustIcon(document, 1));
@@ -219,11 +235,18 @@ export class OverlayView {
     const policy = speedPolicyFromApplied(behavior);
     this.element.style.opacity = `${canonicalizeOverlayOpacity(behavior.overlayOpacity) / 100}`;
     this.element.dataset.column = `${overlayPositionToGrid(behavior.overlayPosition).column}`;
-    this.speedReadout.textContent = formatSpeed(behavior.targetSpeed);
+    this.speedValue.textContent = formatSpeed(behavior.targetSpeed);
+    this.speedReadout.disabled =
+      canonicalizeSpeed(behavior.targetSpeed) === canonicalizeSpeed(behavior.defaultSpeed);
     this.slower.disabled = !canAdjustSpeed(behavior.targetSpeed, -1, policy);
     this.faster.disabled = !canAdjustSpeed(behavior.targetSpeed, 1, policy);
     syncHotkeyHint(this.slower, state.hotkeys?.decreaseSpeed ?? null, behavior.overlayHotkeyHints);
     syncHotkeyHint(this.faster, state.hotkeys?.increaseSpeed ?? null, behavior.overlayHotkeyHints);
+    syncHotkeyHint(
+      this.speedReadout,
+      state.hotkeys?.resetSpeed ?? null,
+      behavior.overlayHotkeyHints,
+    );
 
     if (behavior.overlayPositionButton) {
       if (!this.move.isConnected) {

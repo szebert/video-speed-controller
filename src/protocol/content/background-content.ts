@@ -53,6 +53,7 @@ export const EffectiveHotkeyMapSchema = z.object({
   increaseSpeed: z.union([HotkeyBindingSchema, z.null()]),
   decreaseSpeed: z.union([HotkeyBindingSchema, z.null()]),
   resetSpeed: z.union([HotkeyBindingSchema, z.null()]),
+  resetSpeedToOne: z.union([HotkeyBindingSchema, z.null()]),
   jumpToStart: z.union([HotkeyBindingSchema, z.null()]),
   rewind: z.union([HotkeyBindingSchema, z.null()]),
   skipBack: z.union([HotkeyBindingSchema, z.null()]),

@@ -46,9 +46,9 @@ describe('dispatchTabAction', () => {
     expect(persist).toHaveBeenCalledTimes(2);
   });
 
-  it('resets the tab to 1× without writing site or global settings', async () => {
+  it('resets the tab to applied defaultSpeed and persists when remember is on', async () => {
     const tabStore = memoryTabStore();
-    await tabStore.set({ 'tab:4': tabBehavior(1.75) });
+    await tabStore.set({ 'tab:4': tabBehavior(1.75, { defaultSpeed: 1.25 }) });
     const apply = vi.fn();
     const persist = vi.fn();
     const result = await dispatchTabAction(
@@ -56,9 +56,25 @@ describe('dispatchTabAction', () => {
       'resetSpeed',
       { tabStore, apply, persist, ensure: vi.fn() },
     );
+    expect(result).toEqual({ ok: true, previousTargetSpeed: 1.75, targetSpeed: 1.25 });
+    expect(tabStore.data['tab:4']).toEqual(tabBehavior(1.25, { defaultSpeed: 1.25 }));
+    expect(apply).toHaveBeenCalledWith(4, tabBehavior(1.25, { defaultSpeed: 1.25 }));
+    expect(persist).toHaveBeenCalledWith('https://example.com/watch', 1.25);
+  });
+
+  it('resets the tab to 1× without writing site or global settings', async () => {
+    const tabStore = memoryTabStore();
+    await tabStore.set({ 'tab:4': tabBehavior(1.75, { defaultSpeed: 1.25 }) });
+    const apply = vi.fn();
+    const persist = vi.fn();
+    const result = await dispatchTabAction(
+      sender({ id: 4, url: 'https://example.com/watch' }),
+      'resetSpeedToOne',
+      { tabStore, apply, persist, ensure: vi.fn() },
+    );
     expect(result).toEqual({ ok: true, previousTargetSpeed: 1.75, targetSpeed: 1 });
-    expect(tabStore.data['tab:4']).toEqual(tabBehavior(1));
-    expect(apply).toHaveBeenCalledWith(4, tabBehavior(1));
+    expect(tabStore.data['tab:4']).toEqual(tabBehavior(1, { defaultSpeed: 1.25 }));
+    expect(apply).toHaveBeenCalledWith(4, tabBehavior(1, { defaultSpeed: 1.25 }));
     expect(persist).not.toHaveBeenCalled();
   });
 });

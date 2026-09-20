@@ -119,6 +119,7 @@ const BackupV1HotkeysSchema = z.strictObject({
   increaseSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   decreaseSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   resetSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  resetSpeedToOne: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   jumpToStart: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   rewind: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   skipBack: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),

@@ -138,6 +138,7 @@ export const ResolvedHotkeyMapSchema = z.object({
   increaseSpeed: ResolvedHotkeyBindingSchema,
   decreaseSpeed: ResolvedHotkeyBindingSchema,
   resetSpeed: ResolvedHotkeyBindingSchema,
+  resetSpeedToOne: ResolvedHotkeyBindingSchema,
   jumpToStart: ResolvedHotkeyBindingSchema,
   rewind: ResolvedHotkeyBindingSchema,
   skipBack: ResolvedHotkeyBindingSchema,

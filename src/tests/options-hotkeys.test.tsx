@@ -94,7 +94,7 @@ describe('Hotkeys settings card', () => {
         ? 'Decrease speed'
         : action === 'increaseSpeed'
           ? 'Increase speed'
-          : 'Reset speed';
+          : 'Reset to default speed';
     const button = container.querySelector(`[aria-label="Record shortcut: ${label}"]`);
     if (!(button instanceof HTMLButtonElement)) {
       throw new Error(`missing recorder for ${action}`);
@@ -108,7 +108,8 @@ describe('Hotkeys settings card', () => {
     expect(container.textContent).toContain('Hotkeys');
     expect(container.textContent).toContain('Decrease speed');
     expect(container.textContent).toContain('Increase speed');
-    expect(container.textContent).toContain('Reset speed');
+    expect(container.textContent).toContain('Reset to default speed');
+    expect(container.textContent).toContain('Reset to 1×');
 
     await act(async () => {
       recorder('decreaseSpeed').click();
@@ -254,14 +255,13 @@ describe('Hotkeys settings card', () => {
     );
 
     expect(recorder('resetSpeed').textContent).toContain('None');
-    expect(container.querySelector('[aria-label="Remove shortcut: Reset speed"]')).toHaveProperty(
-      'disabled',
-      true,
-    );
+    expect(
+      container.querySelector('[aria-label="Remove shortcut: Reset to default speed"]'),
+    ).toHaveProperty('disabled', true);
     expect(
       container.querySelector('[aria-label="Remove shortcut: Increase speed"]'),
     ).toHaveProperty('disabled', false);
-    const unboundReset = container.querySelector('[aria-label="Reset: Reset speed"]');
+    const unboundReset = container.querySelector('[aria-label="Reset: Reset to default speed"]');
     expect(unboundReset).toBeInstanceOf(HTMLButtonElement);
 
     const inheritIncrease = container.querySelector('[aria-label="Reset: Increase speed"]');
@@ -316,11 +316,12 @@ describe('Hotkeys settings card', () => {
     expect(
       [...container.querySelectorAll('[data-slot="field-label"]')]
         .map((node) => node.textContent)
-        .slice(-10),
+        .slice(-11),
     ).toEqual([
       'Decrease speed',
       'Increase speed',
-      'Reset speed',
+      'Reset to default speed',
+      'Reset to 1×',
       'Jump to start',
       'Rewind',
       'Skip back',

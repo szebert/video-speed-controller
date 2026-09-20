@@ -354,7 +354,13 @@ describe('site behavior resolution', () => {
       expect(hotkeyActionMode(action, false)).toBe('once');
       expect(hotkeyActionMode(action, true)).toBe('repeat');
     }
-    for (const action of ['resetSpeed', 'jumpToStart', 'jumpToEnd', 'playPause'] as const) {
+    for (const action of [
+      'resetSpeed',
+      'resetSpeedToOne',
+      'jumpToStart',
+      'jumpToEnd',
+      'playPause',
+    ] as const) {
       expect(hotkeyActionMode(action, false)).toBe('once');
       expect(hotkeyActionMode(action, true)).toBe('once');
     }

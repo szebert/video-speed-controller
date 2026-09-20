@@ -128,6 +128,10 @@ export class VideoOverlay {
         this.restartAutoHide();
         this.actions.adjustSpeed(direction, this.video);
       },
+      onReset: () => {
+        this.restartAutoHide();
+        this.actions.resetSpeed?.(this.video);
+      },
       onMediaAction: (action, phase, hold) => {
         this.restartAutoHide();
         // Hold buttons pass a per-gesture owner. Press actions have none.
@@ -156,7 +160,7 @@ export class VideoOverlay {
     }
   }
 
-  get speedReadout(): HTMLElement | null {
+  get speedReadout(): HTMLButtonElement | null {
     return this.view.speedReadout.isConnected ? this.view.speedReadout : null;
   }
 

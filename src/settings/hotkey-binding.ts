@@ -118,6 +118,7 @@ export function emptyEffectiveHotkeys(): EffectiveHotkeyMap {
     decreaseSpeed: null,
     increaseSpeed: null,
     resetSpeed: null,
+    resetSpeedToOne: null,
     jumpToStart: null,
     rewind: null,
     skipBack: null,

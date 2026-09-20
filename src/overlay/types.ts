@@ -11,6 +11,7 @@ import type { OverlayPosition } from '../settings/site-behavior';
 
 export type OverlayActions = {
   adjustSpeed(direction: -1 | 1, video: HTMLVideoElement): void;
+  resetSpeed?(video: HTMLVideoElement): void;
   /** One callback for every navigation button, rather than seven methods. */
   mediaAction?(
     action: MediaNavigationAction,
@@ -24,6 +25,7 @@ export type OverlayActions = {
 
 export type OverlayViewCallbacks = {
   onAdjust(direction: -1 | 1): void;
+  onReset(): void;
   onMediaAction(
     action: MediaNavigationAction,
     phase: ControllerActionPhase,

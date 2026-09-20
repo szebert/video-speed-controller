@@ -40,8 +40,14 @@ describe('content Mini protocol', () => {
         action: 'resetSpeed',
       }).data,
     ).toEqual({ type: 'DISPATCH_TAB_ACTION', action: 'resetSpeed' });
-    expect(TAB_SPEED_ACTIONS).toEqual(['increaseSpeed', 'decreaseSpeed', 'resetSpeed']);
+    expect(TAB_SPEED_ACTIONS).toEqual([
+      'increaseSpeed',
+      'decreaseSpeed',
+      'resetSpeed',
+      'resetSpeedToOne',
+    ]);
     expect(isTabSpeedAction('resetSpeed')).toBe(true);
+    expect(isTabSpeedAction('resetSpeedToOne')).toBe(true);
     expect(isTabSpeedAction('seekForward')).toBe(false);
     expect(
       CONTENT_TO_BACKGROUND.DISPATCH_TAB_ACTION.request.safeParse({

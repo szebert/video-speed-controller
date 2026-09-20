@@ -23,7 +23,7 @@ type FullscreenHosting = {
 async function overlayBadgeTexts(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     [...document.querySelectorAll('osvsc-overlay')].map(
-      (host) => host.shadowRoot?.querySelector('.speed')?.textContent ?? '',
+      (host) => host.shadowRoot?.querySelector('.speed-value')?.textContent ?? '',
     ),
   );
 }

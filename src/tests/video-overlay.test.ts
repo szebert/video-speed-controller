@@ -418,6 +418,28 @@ describe('VideoOverlay', () => {
     expect(overlay.host.style.visibility).toBe('hidden');
   });
 
+  it('resets to default speed from the speed readout and disables at Default', () => {
+    const resetSpeed = vi.fn();
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      resetSpeed,
+    });
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+    overlay.setControlled(true);
+    overlay.layout();
+    expect(overlay.speedReadout).toBeInstanceOf(HTMLButtonElement);
+    overlay.speedReadout?.click();
+    expect(resetSpeed).toHaveBeenCalledWith(video);
+
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.layout();
+    expect(overlay.speedReadout?.disabled).toBe(true);
+    resetSpeed.mockClear();
+    overlay.speedReadout?.click();
+    expect(resetSpeed).not.toHaveBeenCalled();
+  });
+
   it('restarts auto-hide when plus or minus is pressed', () => {
     vi.useFakeTimers();
     const adjustSpeed = vi.fn();
@@ -467,11 +489,13 @@ describe('VideoOverlay', () => {
     expect(controls.map((node) => node.getAttribute('aria-label') ?? node.className)).toEqual([
       'Move overlay',
       'Slower',
-      'speed',
+      'Reset to default speed',
       'Faster',
       'Open settings',
     ]);
-    expect(overlay.speedReadout?.tagName.toLowerCase()).not.toBe('button');
+    expect(overlay.speedReadout?.tagName.toLowerCase()).toBe('button');
+    expect(overlay.speedReadout?.querySelector('.speed-value')?.textContent).toBe('1.25×');
+    expect(overlay.speedReadout?.hasAttribute('disabled')).toBe(false);
     expect(overlay.host.hasAttribute('aria-hidden')).toBe(false);
   });
 
@@ -871,7 +895,7 @@ describe('VideoOverlay', () => {
     expect(requestLayout).not.toHaveBeenCalled();
   });
 
-  it('shows [ / ] captions and aria-keyshortcuts on −/+ only when those actions are bound', () => {
+  it('shows [ / \\ ] captions and aria-keyshortcuts on −/reset/+ only when those actions are bound', () => {
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
     overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }), builtInEffectiveHotkeys());
@@ -891,8 +915,8 @@ describe('VideoOverlay', () => {
     );
     expect(overlayCss).toContain('flex-direction: row');
     expect(overlayCss).toContain('height: 15px');
-    expect(overlay.speedReadout?.getAttribute('aria-keyshortcuts')).toBeNull();
-    expect(overlay.speedReadout?.querySelector('.hotkey-hint')).toBeNull();
+    expect(overlay.speedReadout?.getAttribute('aria-keyshortcuts')).toBe('\\');
+    expect(overlay.speedReadout?.querySelector('.hotkey-hint')?.textContent).toBe('\\');
 
     overlay.setBehavior(
       tabBehavior(1.25, { overlayAutoHide: false, overlayHotkeyHints: false }),
@@ -900,8 +924,10 @@ describe('VideoOverlay', () => {
     );
     expect(slower?.getAttribute('aria-keyshortcuts')).toBe('[');
     expect(faster?.getAttribute('aria-keyshortcuts')).toBe(']');
+    expect(overlay.speedReadout?.getAttribute('aria-keyshortcuts')).toBe('\\');
     expect(slower?.querySelector('.hotkey-hint')).toBeNull();
     expect(faster?.querySelector('.hotkey-hint')).toBeNull();
+    expect(overlay.speedReadout?.querySelector('.hotkey-hint')).toBeNull();
 
     overlay.setBehavior(
       tabBehavior(1.25, { overlayAutoHide: false, overlayHotkeyHints: true }),
@@ -937,6 +963,13 @@ describe('VideoOverlay', () => {
       root?.querySelector('[aria-label="Slower"]')?.getAttribute('aria-keyshortcuts'),
     ).toBeNull();
     expect(root?.querySelector('[aria-label="Faster"]')?.querySelector('.hotkey-hint')).toBeNull();
+    expect(overlay.speedReadout?.querySelector('.hotkey-hint')?.textContent).toBe('\\');
+
+    overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }), {
+      ...builtInEffectiveHotkeys(),
+      resetSpeed: null,
+    });
+    expect(overlay.speedReadout?.getAttribute('aria-keyshortcuts')).toBeNull();
     expect(overlay.speedReadout?.querySelector('.hotkey-hint')).toBeNull();
   });
 

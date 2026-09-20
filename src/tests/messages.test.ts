@@ -33,6 +33,7 @@ describe('parseBackgroundInbound', () => {
     expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'increaseSpeed' })).toBe(true);
     expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'decreaseSpeed' })).toBe(true);
     expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'resetSpeed' })).toBe(true);
+    expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'resetSpeedToOne' })).toBe(true);
     expect(accepted({ type: 'DISPATCH_TAB_ACTION', action: 'seekForward' })).toBe(false);
     expect(
       accepted({

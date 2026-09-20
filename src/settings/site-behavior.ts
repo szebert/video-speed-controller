@@ -181,6 +181,7 @@ export type SiteHotkeyAction =
   | 'increaseSpeed'
   | 'decreaseSpeed'
   | 'resetSpeed'
+  | 'resetSpeedToOne'
   | 'jumpToStart'
   | 'rewind'
   | 'skipBack'
@@ -193,6 +194,7 @@ export const SITE_HOTKEY_ACTIONS = [
   'increaseSpeed',
   'decreaseSpeed',
   'resetSpeed',
+  'resetSpeedToOne',
   'jumpToStart',
   'rewind',
   'skipBack',

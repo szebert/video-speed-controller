@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type { TabSpeedAction } from '../core/controller-action';
 import type { DispatchTabActionResponse } from '../protocol/content/content-background';
 import { getTabState } from '../storage/tab-state';
@@ -20,17 +21,20 @@ export async function dispatchTabAction(
     return { ok: false, error: 'Unsupported tab' };
   }
 
-  const previousTargetSpeed = await readPreviousTargetSpeed(resolved.tabId, resolved.url, deps);
-  if (previousTargetSpeed == null) {
+  const behavior = await readTabBehavior(resolved.tabId, resolved.url, deps);
+  if (behavior == null) {
     return { ok: false, error: 'Failed to resolve site behavior' };
   }
+  const previousTargetSpeed = behavior.targetSpeed;
 
   const result =
     action === 'increaseSpeed'
       ? await adjustTabSpeed(sender, 1, deps)
       : action === 'decreaseSpeed'
         ? await adjustTabSpeed(sender, -1, deps)
-        : await setSpeed(resolved.tabId, resolved.url, 1, { ...deps, persist: false });
+        : action === 'resetSpeedToOne'
+          ? await setSpeed(resolved.tabId, resolved.url, 1, { ...deps, persist: false })
+          : await setSpeed(resolved.tabId, resolved.url, behavior.defaultSpeed, deps);
 
   if (!result.ok) {
     return result;
@@ -43,19 +47,18 @@ export async function dispatchTabAction(
   };
 }
 
-async function readPreviousTargetSpeed(
+async function readTabBehavior(
   tabId: number,
   url: string,
   deps: AdjustTabSpeedDeps,
-): Promise<number | null> {
+): Promise<AppliedTabBehavior | null> {
   const existing = await getTabState(tabId, deps.tabStore);
   if (existing) {
-    return existing.targetSpeed;
+    return existing;
   }
   try {
     const readBehavior = deps.readBehavior ?? readAppliedTabBehavior;
-    const behavior = await readBehavior(url);
-    return behavior.targetSpeed;
+    return await readBehavior(url);
   } catch {
     return null;
   }

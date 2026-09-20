@@ -9,7 +9,12 @@ export type { SiteHotkeyAction };
 /** Actions content can execute: tab-wide speed plus media-local navigation. */
 export type ControllerAction = SiteHotkeyAction;
 
-export const TAB_SPEED_ACTIONS = ['increaseSpeed', 'decreaseSpeed', 'resetSpeed'] as const;
+export const TAB_SPEED_ACTIONS = [
+  'increaseSpeed',
+  'decreaseSpeed',
+  'resetSpeed',
+  'resetSpeedToOne',
+] as const;
 
 /** Actions that may cross DISPATCH_TAB_ACTION. Stays the tab-wide speed subset. */
 export type TabSpeedAction = (typeof TAB_SPEED_ACTIONS)[number];
