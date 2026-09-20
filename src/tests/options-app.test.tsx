@@ -17,7 +17,7 @@ import {
   type BehaviorOverrides,
   type BehaviorSettingChange,
 } from '../settings/site-behavior';
-import { SPEED_MIN_SETTING_MIN } from '../core/speed';
+import { DEFAULT_SPEED_POLICY, SPEED_MIN_SETTING_MIN } from '../core/speed';
 import { App } from '../entrypoints/options/App';
 
 function snapshot(site: string | null = null): BehaviorSettingsSnapshot {
@@ -600,9 +600,10 @@ describe('Options page', () => {
     expect(resetSpeed).toBeTruthy();
     expect(resetSpeed?.hasAttribute('disabled')).toBe(true);
     expect(container.querySelector('[aria-label="Reset: Minimum speed"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Reset: Speed step"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Reset: Decrease speed step"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Reset: Increase speed step"]')).toBeNull();
     expect(container.querySelector('[aria-label="Reset: Maximum speed"]')).toBeNull();
-    for (const id of ['speed-min', 'speed-tick', 'speed-max']) {
+    for (const id of ['speed-min', 'decrease-speed-step', 'increase-speed-step', 'speed-max']) {
       expect(container.querySelector(`#${id}`)?.classList.contains('text-muted-foreground')).toBe(
         true,
       );
@@ -998,7 +999,7 @@ describe('Options page', () => {
     });
   });
 
-  it('clamps minimum speed below 0.0625 and tick below 0.0005', async () => {
+  it('clamps minimum speed below 0.0625 and speed steps below 0.0005', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
         return { ok: true, customSites: [] };
@@ -1015,9 +1016,11 @@ describe('Options page', () => {
     });
     await renderApp();
     const minInput = container.querySelector('#speed-min');
-    const tickInput = container.querySelector('#speed-tick');
+    const decreaseInput = container.querySelector('#decrease-speed-step');
+    const increaseInput = container.querySelector('#increase-speed-step');
     expect(minInput).toBeInstanceOf(HTMLInputElement);
-    expect(tickInput).toBeInstanceOf(HTMLInputElement);
+    expect(decreaseInput).toBeInstanceOf(HTMLInputElement);
+    expect(increaseInput).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
       if (!(minInput instanceof HTMLInputElement)) {
         return;
@@ -1029,28 +1032,36 @@ describe('Options page', () => {
       );
       minInput.blur();
     });
-    expect(sendMessage).toHaveBeenCalledWith({
-      type: 'SET_BEHAVIOR_SETTING',
-      scope: { kind: 'global' },
-      change: { kind: 'value', field: 'speedMin', value: 0.0625 },
-    });
     await act(async () => {
-      if (!(tickInput instanceof HTMLInputElement)) {
+      if (!(decreaseInput instanceof HTMLInputElement)) {
         return;
       }
-      tickInput.focus();
-      setInputValue(tickInput, '0.0001');
-      tickInput.dispatchEvent(
+      decreaseInput.focus();
+      setInputValue(decreaseInput, '0.0001');
+      decreaseInput.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
       );
-      tickInput.blur();
+      decreaseInput.blur();
+    });
+    await act(async () => {
+      if (!(increaseInput instanceof HTMLInputElement)) {
+        return;
+      }
+      increaseInput.focus();
+      setInputValue(increaseInput, '0.0001');
+      increaseInput.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      increaseInput.blur();
     });
     await flushHiddenWrites();
-    expect(sendMessage).toHaveBeenCalledWith({
-      type: 'SET_BEHAVIOR_SETTING',
-      scope: { kind: 'global' },
-      change: { kind: 'value', field: 'speedTick', value: 0.0005 },
-    });
+    expect(sentBehaviorChanges()).toEqual(
+      expect.arrayContaining([
+        { kind: 'value', field: 'speedMin', value: 0.0625 },
+        { kind: 'value', field: 'decreaseSpeedStep', value: 0.0005 },
+        { kind: 'value', field: 'increaseSpeedStep', value: 0.0005 },
+      ]),
+    );
   });
 
   it('persists speed max 1', async () => {
@@ -1176,7 +1187,7 @@ describe('Options page', () => {
     }
   });
 
-  it('persists speed max 10 and tick 0.05', async () => {
+  it('persists speed max 10 and independent speed steps', async () => {
     sendMessage.mockImplementation(async (message: { type?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
         return { ok: true, customSites: [] };
@@ -1193,9 +1204,11 @@ describe('Options page', () => {
     });
     await renderApp();
     const maxInput = container.querySelector('#speed-max');
-    const tickInput = container.querySelector('#speed-tick');
+    const decreaseInput = container.querySelector('#decrease-speed-step');
+    const increaseInput = container.querySelector('#increase-speed-step');
     expect(maxInput).toBeInstanceOf(HTMLInputElement);
-    expect(tickInput).toBeInstanceOf(HTMLInputElement);
+    expect(decreaseInput).toBeInstanceOf(HTMLInputElement);
+    expect(increaseInput).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
       if (!(maxInput instanceof HTMLInputElement)) {
         return;
@@ -1207,28 +1220,36 @@ describe('Options page', () => {
       );
       maxInput.blur();
     });
-    expect(sendMessage).toHaveBeenCalledWith({
-      type: 'SET_BEHAVIOR_SETTING',
-      scope: { kind: 'global' },
-      change: { kind: 'value', field: 'speedMax', value: 10 },
-    });
     await act(async () => {
-      if (!(tickInput instanceof HTMLInputElement)) {
+      if (!(decreaseInput instanceof HTMLInputElement)) {
         return;
       }
-      tickInput.focus();
-      setInputValue(tickInput, '0.05');
-      tickInput.dispatchEvent(
+      decreaseInput.focus();
+      setInputValue(decreaseInput, '0.05');
+      decreaseInput.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
       );
-      tickInput.blur();
+      decreaseInput.blur();
+    });
+    await act(async () => {
+      if (!(increaseInput instanceof HTMLInputElement)) {
+        return;
+      }
+      increaseInput.focus();
+      setInputValue(increaseInput, '0.1');
+      increaseInput.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      increaseInput.blur();
     });
     await flushHiddenWrites();
-    expect(sendMessage).toHaveBeenCalledWith({
-      type: 'SET_BEHAVIOR_SETTING',
-      scope: { kind: 'global' },
-      change: { kind: 'value', field: 'speedTick', value: 0.05 },
-    });
+    expect(sentBehaviorChanges()).toEqual(
+      expect.arrayContaining([
+        { kind: 'value', field: 'speedMax', value: 10 },
+        { kind: 'value', field: 'decreaseSpeedStep', value: 0.05 },
+        { kind: 'value', field: 'increaseSpeedStep', value: 0.1 },
+      ]),
+    );
   });
 
   it('sends overlayNavigationBar true from the Show navigation bar switch', async () => {
@@ -1531,7 +1552,7 @@ describe('Options page', () => {
   it('places input descriptions under their input groups', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
-    for (const id of ['speed-min', 'speed-tick', 'speed-max']) {
+    for (const id of ['speed-min', 'decrease-speed-step', 'increase-speed-step', 'speed-max']) {
       const input = container.querySelector(`#${id}`);
       const group = input?.closest('[data-slot="input-group"]');
       expect(group?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
@@ -3460,7 +3481,7 @@ describe('SpeedControls preview vs persist', () => {
         <SpeedControls
           displaySpeed={3.99}
           disabled={false}
-          policy={{ min: SPEED_MIN_SETTING_MIN, max: 4, tick: 0.25 }}
+          policy={{ ...DEFAULT_SPEED_POLICY, min: SPEED_MIN_SETTING_MIN, max: 4 }}
           onAdjust={() => {}}
           onReset={() => {}}
           onCommitSlider={onCommit}
@@ -3488,7 +3509,7 @@ describe('SpeedControls preview vs persist', () => {
         <SpeedControls
           displaySpeed={0.25}
           disabled={false}
-          policy={{ min: 0.25, max: 4, tick: 0.25 }}
+          policy={DEFAULT_SPEED_POLICY}
           onAdjust={() => {}}
           onReset={() => {}}
           onCommitSlider={() => {}}
@@ -3516,7 +3537,7 @@ describe('SpeedControls preview vs persist', () => {
         <SpeedControls
           displaySpeed={1}
           disabled={false}
-          policy={{ min: 1, max: 1, tick: 0.25 }}
+          policy={{ ...DEFAULT_SPEED_POLICY, min: 1, max: 1 }}
           onAdjust={() => {}}
           onReset={() => {}}
           onPreviewSlider={onPreview}
@@ -3553,7 +3574,7 @@ describe('SpeedControls preview vs persist', () => {
         <SpeedControls
           displaySpeed={2.25}
           disabled={false}
-          policy={{ min: 1, max: 1, tick: 0.25 }}
+          policy={{ ...DEFAULT_SPEED_POLICY, min: 1, max: 1 }}
           onAdjust={() => {}}
           onReset={() => {}}
           onCommitSlider={() => {}}

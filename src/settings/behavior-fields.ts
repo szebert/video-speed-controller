@@ -36,8 +36,13 @@ export const BEHAVIOR_FIELDS = {
     category: 'playback',
     reapply: { global: 'revalidate-target', site: 'revalidate-target' },
   },
-  speedTick: {
-    default: DEFAULT_SPEED_POLICY.tick,
+  decreaseSpeedStep: {
+    default: DEFAULT_SPEED_POLICY.decreaseStep,
+    category: 'playback',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
+  increaseSpeedStep: {
+    default: DEFAULT_SPEED_POLICY.increaseStep,
     category: 'playback',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },

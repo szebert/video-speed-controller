@@ -11,8 +11,8 @@ import {
 import {
   SPEED_MAX_SETTING_MIN,
   SPEED_MIN_SETTING_MIN,
-  SPEED_TICK_SETTING_MAX,
-  SPEED_TICK_SETTING_MIN,
+  SPEED_STEP_SETTING_MAX,
+  SPEED_STEP_SETTING_MIN,
 } from '../core/speed';
 import {
   BUILT_IN_SITE_BEHAVIOR,
@@ -69,7 +69,8 @@ describe('applied tab behavior', () => {
   it('uses a 2s built-in auto-hide default', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.speedMin).toBe(0.25);
     expect(BUILT_IN_SITE_BEHAVIOR.speedMax).toBe(4);
-    expect(BUILT_IN_SITE_BEHAVIOR.speedTick).toBe(0.25);
+    expect(BUILT_IN_SITE_BEHAVIOR.decreaseSpeedStep).toBe(0.25);
+    expect(BUILT_IN_SITE_BEHAVIOR.increaseSpeedStep).toBe(0.25);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayVisible).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayPositionButton).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.overlaySettingsButton).toBe(true);
@@ -103,14 +104,20 @@ describe('applied tab behavior', () => {
     );
   });
 
-  it('clamps applied speedTick to the product range', () => {
-    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedTick: 0 }).speedTick).toBe(
-      SPEED_TICK_SETTING_MIN,
-    );
-    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedTick: 2 }).speedTick).toBe(
-      SPEED_TICK_SETTING_MAX,
-    );
-    expect(toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, speedTick: 0.1 }).speedTick).toBe(0.1);
+  it('clamps applied speed steps to the product range independently', () => {
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, decreaseSpeedStep: 0 }).decreaseSpeedStep,
+    ).toBe(SPEED_STEP_SETTING_MIN);
+    expect(
+      toAppliedTabBehavior({ ...BUILT_IN_SITE_BEHAVIOR, increaseSpeedStep: 2 }).increaseSpeedStep,
+    ).toBe(SPEED_STEP_SETTING_MAX);
+    const mixed = toAppliedTabBehavior({
+      ...BUILT_IN_SITE_BEHAVIOR,
+      decreaseSpeedStep: 0.1,
+      increaseSpeedStep: 0.5,
+    });
+    expect(mixed.decreaseSpeedStep).toBe(0.1);
+    expect(mixed.increaseSpeedStep).toBe(0.5);
   });
 
   it('clamps applied skip distances and keeps transport rates signed', () => {

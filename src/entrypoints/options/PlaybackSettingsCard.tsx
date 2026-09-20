@@ -19,8 +19,8 @@ import {
   SPEED_MIN_SETTING_MAX,
   SPEED_MIN_SETTING_MIN,
   SPEED_SLIDER_STEP,
-  SPEED_TICK_SETTING_MAX,
-  SPEED_TICK_SETTING_MIN,
+  SPEED_STEP_SETTING_MAX,
+  SPEED_STEP_SETTING_MIN,
   formatSpeed,
   isFixedSpeedPolicy,
   sliderBounds,
@@ -191,7 +191,7 @@ export function PlaybackSettingsCard({
               description={t('speedMinDescription')}
               min={SPEED_MIN_SETTING_MIN}
               max={SPEED_MIN_SETTING_MAX}
-              step={SPEED_TICK_SETTING_MIN}
+              step={SPEED_STEP_SETTING_MIN}
               value={drafts.speedMin ?? String(behavior.speedMin.value)}
               disabled={pending}
               muted={showsInherited(selection, behavior.speedMin.source, drafts.speedMin)}
@@ -210,6 +210,38 @@ export function PlaybackSettingsCard({
               }}
               onReset={() => {
                 onMutate({ kind: 'inherit', field: 'speedMin' });
+              }}
+            />
+            <OptionsNumberField
+              id="decrease-speed-step"
+              name="decreaseSpeedStep"
+              label={t('decreaseSpeedStep')}
+              description={t('decreaseSpeedStepDescription')}
+              min={SPEED_STEP_SETTING_MIN}
+              max={SPEED_STEP_SETTING_MAX}
+              step={SPEED_STEP_SETTING_MIN}
+              value={drafts.decreaseSpeedStep ?? String(behavior.decreaseSpeedStep.value)}
+              disabled={pending}
+              muted={showsInherited(
+                selection,
+                behavior.decreaseSpeedStep.source,
+                drafts.decreaseSpeedStep,
+              )}
+              resetActive={ownsOverride(selection, behavior.decreaseSpeedStep.source)}
+              resetLabel={resetFieldLabel(t('decreaseSpeedStep'))}
+              onDraftChange={(value) => {
+                onDraftChange('decreaseSpeedStep', value);
+              }}
+              onCommit={() => {
+                onCommitDecimal(
+                  'decreaseSpeedStep',
+                  behavior.decreaseSpeedStep.value,
+                  SPEED_STEP_SETTING_MIN,
+                  SPEED_STEP_SETTING_MAX,
+                );
+              }}
+              onReset={() => {
+                onMutate({ kind: 'inherit', field: 'decreaseSpeedStep' });
               }}
             />
             <OptionsNumberField
@@ -241,32 +273,35 @@ export function PlaybackSettingsCard({
               }}
             />
             <OptionsNumberField
-              id="speed-tick"
-              name="speedTick"
-              className={OPTIONS_FIELD_SPAN}
-              label={t('speedTick')}
-              description={t('speedTickDescription')}
-              min={SPEED_TICK_SETTING_MIN}
-              max={SPEED_TICK_SETTING_MAX}
-              step={SPEED_TICK_SETTING_MIN}
-              value={drafts.speedTick ?? String(behavior.speedTick.value)}
+              id="increase-speed-step"
+              name="increaseSpeedStep"
+              label={t('increaseSpeedStep')}
+              description={t('increaseSpeedStepDescription')}
+              min={SPEED_STEP_SETTING_MIN}
+              max={SPEED_STEP_SETTING_MAX}
+              step={SPEED_STEP_SETTING_MIN}
+              value={drafts.increaseSpeedStep ?? String(behavior.increaseSpeedStep.value)}
               disabled={pending}
-              muted={showsInherited(selection, behavior.speedTick.source, drafts.speedTick)}
-              resetActive={ownsOverride(selection, behavior.speedTick.source)}
-              resetLabel={resetFieldLabel(t('speedTick'))}
+              muted={showsInherited(
+                selection,
+                behavior.increaseSpeedStep.source,
+                drafts.increaseSpeedStep,
+              )}
+              resetActive={ownsOverride(selection, behavior.increaseSpeedStep.source)}
+              resetLabel={resetFieldLabel(t('increaseSpeedStep'))}
               onDraftChange={(value) => {
-                onDraftChange('speedTick', value);
+                onDraftChange('increaseSpeedStep', value);
               }}
               onCommit={() => {
                 onCommitDecimal(
-                  'speedTick',
-                  behavior.speedTick.value,
-                  SPEED_TICK_SETTING_MIN,
-                  SPEED_TICK_SETTING_MAX,
+                  'increaseSpeedStep',
+                  behavior.increaseSpeedStep.value,
+                  SPEED_STEP_SETTING_MIN,
+                  SPEED_STEP_SETTING_MAX,
                 );
               }}
               onReset={() => {
-                onMutate({ kind: 'inherit', field: 'speedTick' });
+                onMutate({ kind: 'inherit', field: 'increaseSpeedStep' });
               }}
             />
           </FieldGroup>

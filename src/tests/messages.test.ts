@@ -153,7 +153,14 @@ describe('parseBackgroundInbound', () => {
       accepted({
         type: 'SET_BEHAVIOR_SETTING',
         scope: { kind: 'global' },
-        change: { kind: 'value', field: 'speedTick', value: 0.05 },
+        change: { kind: 'value', field: 'decreaseSpeedStep', value: 0.05 },
+      }),
+    ).toBe(true);
+    expect(
+      accepted({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'increaseSpeedStep', value: 0.1 },
       }),
     ).toBe(true);
     expect(

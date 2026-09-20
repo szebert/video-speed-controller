@@ -23,7 +23,7 @@ import {
 describe('speed policy', () => {
   it('allows a 1× maximum and treats min===max as a fixed speed', () => {
     expect(SPEED_MAX_SETTING_MIN).toBe(1);
-    const fixed = { min: 1, max: 1, tick: 0.25 };
+    const fixed = { ...DEFAULT_SPEED_POLICY, min: 1, max: 1 };
     expect(isFixedSpeedPolicy(fixed)).toBe(true);
     expect(sliderBounds(fixed)).toEqual({ minValue: 1, maxValue: 1 });
     expect(sliderValue(1, fixed)).toBe(1);
@@ -54,7 +54,7 @@ describe('speed policy', () => {
     expect(snapSliderSpeed(4)).toBe(4);
     expect(snapSliderSpeed(1.204)).toBe(1.2);
     expect(snapSliderSpeed(3.9)).toBe(3.9);
-    const fromFloor = { min: SPEED_MIN_SETTING_MIN, max: 4, tick: 0.25 };
+    const fromFloor = { ...DEFAULT_SPEED_POLICY, min: SPEED_MIN_SETTING_MIN, max: 4 };
     expect(snapSliderSpeed(1.0625, fromFloor)).toBe(1.06);
     expect(snapSliderSpeed(0.1, fromFloor)).toBe(0.1);
     expect(snapSliderSpeed(0.05, fromFloor)).toBe(SPEED_MIN_SETTING_MIN);
@@ -64,7 +64,7 @@ describe('speed policy', () => {
 
   it('aligns the slider origin so max is a legal 0.01 step', () => {
     expect(sliderBounds()).toEqual({ minValue: 0.25, maxValue: 4 });
-    const fromFloor = { min: SPEED_MIN_SETTING_MIN, max: 4, tick: 0.25 };
+    const fromFloor = { ...DEFAULT_SPEED_POLICY, min: SPEED_MIN_SETTING_MIN, max: 4 };
     const bounds = sliderBounds(fromFloor);
     expect(bounds).toEqual({ minValue: 0.06, maxValue: 4 });
     expect(canonicalizeSpeed((bounds.maxValue - bounds.minValue) / SPEED_SLIDER_STEP) % 1).toBe(0);
@@ -73,12 +73,18 @@ describe('speed policy', () => {
     expect(sliderValue(1, fromFloor)).toBe(1);
   });
 
-  it('steps from the playbackRate min by the configured tick', () => {
-    const policy = { ...DEFAULT_SPEED_POLICY, min: SPEED_MIN_SETTING_MIN, tick: 0.01 };
+  it('steps from the playbackRate min by the configured increase step', () => {
+    const policy = { ...DEFAULT_SPEED_POLICY, min: SPEED_MIN_SETTING_MIN, increaseStep: 0.01 };
     expect(adjustSpeed(SPEED_MIN_SETTING_MIN, 1, policy)).toBe(
       canonicalizeSpeed(SPEED_MIN_SETTING_MIN + 0.01),
     );
     expect(canAdjustSpeed(SPEED_MIN_SETTING_MIN, -1, policy)).toBe(false);
+  });
+
+  it('uses independent decrease and increase steps', () => {
+    const policy = { ...DEFAULT_SPEED_POLICY, decreaseStep: 0.1, increaseStep: 0.5 };
+    expect(adjustSpeed(1, 1, policy)).toBe(1.5);
+    expect(adjustSpeed(1, -1, policy)).toBe(0.9);
   });
 
   it('keeps stored siteSpeed 5 when max is 4 and only resolves effective 4', () => {
@@ -116,6 +122,6 @@ describe('speed policy', () => {
     expect(canAdjustSpeed(4, -1)).toBe(true);
     expect(canAdjustSpeed(2, 1, { ...DEFAULT_SPEED_POLICY, max: 2 })).toBe(false);
     expect(canAdjustSpeed(1, 1)).toBe(true);
-    expect(canAdjustSpeed(1, 1, { min: 0.25, max: 1, tick: 0.25 })).toBe(false);
+    expect(canAdjustSpeed(1, 1, { ...DEFAULT_SPEED_POLICY, min: 0.25, max: 1 })).toBe(false);
   });
 });

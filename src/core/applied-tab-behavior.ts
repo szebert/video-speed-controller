@@ -25,8 +25,8 @@ import {
   SPEED_MAX_SETTING_MIN,
   SPEED_MIN_SETTING_MAX,
   SPEED_MIN_SETTING_MIN,
-  SPEED_TICK_SETTING_MAX,
-  SPEED_TICK_SETTING_MIN,
+  SPEED_STEP_SETTING_MAX,
+  SPEED_STEP_SETTING_MIN,
   clampPolicyNumber,
   resolveEffectiveSpeed,
   speedPolicyFrom,
@@ -66,19 +66,30 @@ export function toAppliedTabBehavior(
   const fields = omit(effective, ['speed', 'hotkeys']);
   const speedMin = clampPolicyNumber(fields.speedMin, SPEED_MIN_SETTING_MIN, SPEED_MIN_SETTING_MAX);
   const speedMax = clampPolicyNumber(fields.speedMax, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX);
-  const speedTick = clampPolicyNumber(
-    fields.speedTick,
-    SPEED_TICK_SETTING_MIN,
-    SPEED_TICK_SETTING_MAX,
+  const decreaseSpeedStep = clampPolicyNumber(
+    fields.decreaseSpeedStep,
+    SPEED_STEP_SETTING_MIN,
+    SPEED_STEP_SETTING_MAX,
   );
-  const policy = speedPolicyFrom({ min: speedMin, max: speedMax, tick: speedTick });
+  const increaseSpeedStep = clampPolicyNumber(
+    fields.increaseSpeedStep,
+    SPEED_STEP_SETTING_MIN,
+    SPEED_STEP_SETTING_MAX,
+  );
+  const policy = speedPolicyFrom({
+    min: speedMin,
+    max: speedMax,
+    decreaseStep: decreaseSpeedStep,
+    increaseStep: increaseSpeedStep,
+  });
   return {
     ...fields,
     targetSpeed,
     defaultSpeed: resolveEffectiveSpeed(fields.defaultSpeed, policy),
     speedMin,
     speedMax,
-    speedTick,
+    decreaseSpeedStep,
+    increaseSpeedStep,
     overlayAutoHideDelayMs: canonicalizeOverlayAutoHideDelayMs(fields.overlayAutoHideDelayMs),
     overlayOpacity: canonicalizeOverlayOpacity(fields.overlayOpacity),
     flashDelayMs: canonicalizeFlashDelayMs(fields.flashDelayMs),
@@ -110,12 +121,16 @@ export function nonTargetBehaviorFrom(
 }
 
 export function speedPolicyFromApplied(
-  behavior: Pick<AppliedTabBehavior, 'speedMin' | 'speedMax' | 'speedTick'>,
+  behavior: Pick<
+    AppliedTabBehavior,
+    'speedMin' | 'speedMax' | 'decreaseSpeedStep' | 'increaseSpeedStep'
+  >,
 ): SpeedPolicy {
   return speedPolicyFrom({
     min: behavior.speedMin,
     max: behavior.speedMax,
-    tick: behavior.speedTick,
+    decreaseStep: behavior.decreaseSpeedStep,
+    increaseStep: behavior.increaseSpeedStep,
   });
 }
 

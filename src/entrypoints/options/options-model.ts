@@ -26,7 +26,8 @@ export type Selection =
 export type DraftKey =
   | 'speedMin'
   | 'speedMax'
-  | 'speedTick'
+  | 'decreaseSpeedStep'
+  | 'increaseSpeedStep'
   | 'skipBackSeconds'
   | 'skipForwardSeconds'
   | 'fastForwardSpeed'

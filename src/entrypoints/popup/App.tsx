@@ -180,7 +180,8 @@ export function App() {
   const policy = speedPolicyFrom({
     min: view.speedMin,
     max: view.speedMax,
-    tick: view.speedTick,
+    decreaseStep: view.decreaseSpeedStep,
+    increaseStep: view.increaseSpeedStep,
   });
   const shown = sliderPreview ?? displaySpeed({ ...view, policy });
 

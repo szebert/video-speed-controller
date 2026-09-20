@@ -6,8 +6,8 @@ import {
   SPEED_MAX_SETTING_MAX,
   SPEED_MAX_SETTING_MIN,
   SPEED_MIN_SETTING_MIN,
-  SPEED_TICK_SETTING_MAX,
-  SPEED_TICK_SETTING_MIN,
+  SPEED_STEP_SETTING_MAX,
+  SPEED_STEP_SETTING_MIN,
 } from '../core/speed';
 import { emptyEffectiveHotkeys, matchHotkeyAction } from '../settings/hotkey-binding';
 import {
@@ -68,7 +68,8 @@ describe('site behavior resolution', () => {
     });
     expect(resolved.speedMin).toEqual({ value: 0.25, source: 'built-in' });
     expect(resolved.speedMax).toEqual({ value: 4, source: 'built-in' });
-    expect(resolved.speedTick).toEqual({ value: 0.25, source: 'built-in' });
+    expect(resolved.decreaseSpeedStep).toEqual({ value: 0.25, source: 'built-in' });
+    expect(resolved.increaseSpeedStep).toEqual({ value: 0.25, source: 'built-in' });
     expect(resolved.overlayVisible).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlayPositionButton).toEqual({ value: true, source: 'built-in' });
     expect(resolved.overlaySettingsButton).toEqual({ value: true, source: 'built-in' });
@@ -575,16 +576,17 @@ describe('site behavior resolution', () => {
     });
   });
 
-  it('clamps stored speedTick to the product range without rewriting storage', () => {
+  it('clamps stored speed steps to the product range without rewriting storage', () => {
     const stored: Override<number> = { kind: 'value', value: 2, updatedAt: 10 };
-    expect(resolveSiteBehavior({ speedTick: stored }, {}).speedTick).toEqual({
-      value: SPEED_TICK_SETTING_MAX,
+    expect(resolveSiteBehavior({ decreaseSpeedStep: stored }, {}).decreaseSpeedStep).toEqual({
+      value: SPEED_STEP_SETTING_MAX,
       source: 'global',
     });
     expect(
-      resolveSiteBehavior({ speedTick: { kind: 'value', value: 0, updatedAt: 10 } }, {}).speedTick,
+      resolveSiteBehavior({ increaseSpeedStep: { kind: 'value', value: 0, updatedAt: 10 } }, {})
+        .increaseSpeedStep,
     ).toEqual({
-      value: SPEED_TICK_SETTING_MIN,
+      value: SPEED_STEP_SETTING_MIN,
       source: 'global',
     });
     expect(stored).toEqual({ kind: 'value', value: 2, updatedAt: 10 });
@@ -1027,14 +1029,29 @@ describe('behavior setting changes', () => {
       canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedMin', value: 0.0625 }),
     ).toEqual({ kind: 'value', field: 'speedMin', value: 0.0625 });
     expect(
-      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedTick', value: 0.1 }),
-    ).toEqual({ kind: 'value', field: 'speedTick', value: 0.1 });
+      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'decreaseSpeedStep', value: 0.1 }),
+    ).toEqual({ kind: 'value', field: 'decreaseSpeedStep', value: 0.1 });
     expect(
-      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedTick', value: 0.0005 }),
-    ).toEqual({ kind: 'value', field: 'speedTick', value: 0.0005 });
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'increaseSpeedStep',
+        value: 0.0005,
+      }),
+    ).toEqual({ kind: 'value', field: 'increaseSpeedStep', value: 0.0005 });
     expect(
-      canonicalizeBehaviorSettingChange({ kind: 'value', field: 'speedTick', value: 0.0001 }),
-    ).toEqual({ kind: 'value', field: 'speedTick', value: 0.0005 });
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'decreaseSpeedStep',
+        value: 0.0001,
+      }),
+    ).toEqual({ kind: 'value', field: 'decreaseSpeedStep', value: 0.0005 });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'increaseSpeedStep',
+        value: 0.0001,
+      }),
+    ).toEqual({ kind: 'value', field: 'increaseSpeedStep', value: 0.0005 });
     expect(
       canonicalizeBehaviorSettingChange({ kind: 'inherit', field: 'overlayPosition' }),
     ).toEqual({ kind: 'inherit', field: 'overlayPosition' });

@@ -23,7 +23,8 @@ function popupState(overrides: Partial<PopupStateResponse> = {}): PopupStateResp
     siteAccess: false,
     speedMin: 0.25,
     speedMax: 4,
-    speedTick: 0.25,
+    decreaseSpeedStep: 0.25,
+    increaseSpeedStep: 0.25,
     ...overrides,
   };
 }

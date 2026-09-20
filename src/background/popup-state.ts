@@ -30,7 +30,8 @@ function unsupportedState(): PopupStateResponse {
     siteAccess: false,
     speedMin: DEFAULT_SPEED_POLICY.min,
     speedMax: DEFAULT_SPEED_POLICY.max,
-    speedTick: DEFAULT_SPEED_POLICY.tick,
+    decreaseSpeedStep: DEFAULT_SPEED_POLICY.decreaseStep,
+    increaseSpeedStep: DEFAULT_SPEED_POLICY.increaseStep,
   };
 }
 
@@ -62,6 +63,7 @@ export async function getPopupState(
     siteAccess,
     speedMin: effective?.speedMin ?? DEFAULT_SPEED_POLICY.min,
     speedMax: effective?.speedMax ?? DEFAULT_SPEED_POLICY.max,
-    speedTick: effective?.speedTick ?? DEFAULT_SPEED_POLICY.tick,
+    decreaseSpeedStep: effective?.decreaseSpeedStep ?? DEFAULT_SPEED_POLICY.decreaseStep,
+    increaseSpeedStep: effective?.increaseSpeedStep ?? DEFAULT_SPEED_POLICY.increaseStep,
   };
 }

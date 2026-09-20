@@ -6,8 +6,8 @@ import {
   SPEED_MAX_SETTING_MIN,
   SPEED_MIN_SETTING_MAX,
   SPEED_MIN_SETTING_MIN,
-  SPEED_TICK_SETTING_MAX,
-  SPEED_TICK_SETTING_MIN,
+  SPEED_STEP_SETTING_MAX,
+  SPEED_STEP_SETTING_MIN,
   canonicalizeSpeed,
   clampPolicyNumber,
   clampSpeed,
@@ -559,8 +559,8 @@ function clampResolvedSpeedMax(setting: ResolvedSetting<number>): ResolvedSettin
   return value === setting.value ? setting : { ...setting, value };
 }
 
-function clampResolvedSpeedTick(setting: ResolvedSetting<number>): ResolvedSetting<number> {
-  const value = clampPolicyNumber(setting.value, SPEED_TICK_SETTING_MIN, SPEED_TICK_SETTING_MAX);
+function clampResolvedSpeedStep(setting: ResolvedSetting<number>): ResolvedSetting<number> {
+  const value = clampPolicyNumber(setting.value, SPEED_STEP_SETTING_MIN, SPEED_STEP_SETTING_MAX);
   return value === setting.value ? setting : { ...setting, value };
 }
 
@@ -583,13 +583,15 @@ export function resolveSiteBehavior(
   }
   resolved.speedMin = clampResolvedSpeedMin(resolved.speedMin);
   resolved.speedMax = clampResolvedSpeedMax(resolved.speedMax);
-  resolved.speedTick = clampResolvedSpeedTick(resolved.speedTick);
+  resolved.decreaseSpeedStep = clampResolvedSpeedStep(resolved.decreaseSpeedStep);
+  resolved.increaseSpeedStep = clampResolvedSpeedStep(resolved.increaseSpeedStep);
   const effectivePolicy =
     policy ??
     speedPolicyFrom({
       min: resolved.speedMin.value,
       max: resolved.speedMax.value,
-      tick: resolved.speedTick.value,
+      decreaseStep: resolved.decreaseSpeedStep.value,
+      increaseStep: resolved.increaseSpeedStep.value,
     });
   resolved.speed = {
     value: resolveEffectiveSpeed(resolved.speed.value, effectivePolicy),
@@ -842,19 +844,23 @@ export function isEditableBehaviorField(value: unknown): value is EditableBehavi
 }
 
 export function speedPolicyFromResolved(
-  behavior: Pick<ResolvedSiteBehavior, 'speedMin' | 'speedMax' | 'speedTick'>,
+  behavior: Pick<
+    ResolvedSiteBehavior,
+    'speedMin' | 'speedMax' | 'decreaseSpeedStep' | 'increaseSpeedStep'
+  >,
 ): SpeedPolicy {
   return speedPolicyFrom({
     min: behavior.speedMin.value,
     max: behavior.speedMax.value,
-    tick: behavior.speedTick.value,
+    decreaseStep: behavior.decreaseSpeedStep.value,
+    increaseStep: behavior.increaseSpeedStep.value,
   });
 }
 
 export function revalidateResolvedSpeed<
   T extends Pick<
     ResolvedSiteBehavior,
-    'speed' | 'defaultSpeed' | 'speedMin' | 'speedMax' | 'speedTick'
+    'speed' | 'defaultSpeed' | 'speedMin' | 'speedMax' | 'decreaseSpeedStep' | 'increaseSpeedStep'
   >,
 >(behavior: T): T {
   const policy = speedPolicyFromResolved(behavior);
@@ -1073,14 +1079,15 @@ export function canonicalizeBehaviorSettingChange(
         field: 'speedMax',
         value: clampPolicyNumber(change.value, SPEED_MAX_SETTING_MIN, SPEED_MAX_SETTING_MAX),
       };
-    case 'speedTick':
+    case 'decreaseSpeedStep':
+    case 'increaseSpeedStep':
       if (typeof change.value !== 'number' || !Number.isFinite(change.value)) {
         return null;
       }
       return {
         kind: 'value',
-        field: 'speedTick',
-        value: clampPolicyNumber(change.value, SPEED_TICK_SETTING_MIN, SPEED_TICK_SETTING_MAX),
+        field: change.field,
+        value: clampPolicyNumber(change.value, SPEED_STEP_SETTING_MIN, SPEED_STEP_SETTING_MAX),
       };
     case 'overlayAutoHideDelayMs':
       if (typeof change.value !== 'number' || !Number.isFinite(change.value) || change.value < 0) {

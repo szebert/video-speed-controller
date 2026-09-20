@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 export type SpeedPolicy = {
-  tick: number;
   min: number;
   max: number;
+  decreaseStep: number;
+  increaseStep: number;
 };
 
 /** Chromium `HTMLMediaElement.kMinPlaybackRate`. Values below this throw. */
@@ -13,23 +14,27 @@ export const SPEED_MIN_SETTING_MAX = 1;
 export const SPEED_MAX_SETTING_MIN = 1;
 /** Chromium `HTMLMediaElement.kMaxPlaybackRate`. Values above this throw. */
 export const SPEED_MAX_SETTING_MAX = 16;
-/** Faster/Slower increment. Independent of the playbackRate floor. */
-export const SPEED_TICK_SETTING_MIN = 0.0005;
-export const SPEED_TICK_SETTING_MAX = 1;
+/** Decrease/Increase speed increment. Independent of the playbackRate floor. */
+export const SPEED_STEP_SETTING_MIN = 0.0005;
+export const SPEED_STEP_SETTING_MAX = 1;
 const SPEED_CANONICAL_SCALE = 10_000;
 export const SPEED_SLIDER_STEP = 0.01;
 
 export const DEFAULT_SPEED_POLICY: SpeedPolicy = {
-  tick: 0.25,
   min: 0.25,
   max: 4,
+  decreaseStep: 0.25,
+  increaseStep: 0.25,
 };
 
-export function speedPolicyFrom(range: Pick<SpeedPolicy, 'min' | 'max' | 'tick'>): SpeedPolicy {
+export function speedPolicyFrom(
+  range: Pick<SpeedPolicy, 'min' | 'max' | 'decreaseStep' | 'increaseStep'>,
+): SpeedPolicy {
   return {
-    tick: canonicalizeSpeed(range.tick),
     min: canonicalizeSpeed(range.min),
     max: canonicalizeSpeed(range.max),
+    decreaseStep: canonicalizeSpeed(range.decreaseStep),
+    increaseStep: canonicalizeSpeed(range.increaseStep),
   };
 }
 
@@ -63,7 +68,8 @@ export function adjustSpeed(
   direction: 1 | -1,
   policy: SpeedPolicy = DEFAULT_SPEED_POLICY,
 ): number {
-  return canonicalizeSpeed(clampSpeed(current + direction * policy.tick, policy));
+  const step = direction === 1 ? policy.increaseStep : policy.decreaseStep;
+  return canonicalizeSpeed(clampSpeed(current + direction * step, policy));
 }
 
 export function canAdjustSpeed(
