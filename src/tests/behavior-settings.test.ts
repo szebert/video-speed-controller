@@ -465,6 +465,55 @@ describe('behavior settings API', () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it('refreshes directional speed steps on an open tab without moving Current', async () => {
+    const deps = stores();
+    const tabStateStore = memoryTabStore({
+      'tab:1': tabBehavior(2, { decreaseSpeedStep: 0.25, increaseSpeedStep: 0.25 }),
+    });
+    const apply = vi.fn();
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        changes: [
+          { kind: 'value', field: 'decreaseSpeedStep', value: 0.1 },
+          { kind: 'value', field: 'increaseSpeedStep', value: 0.5 },
+        ],
+      },
+      extensionSender(),
+      {
+        ...deps,
+        getTab: async () => ({ id: 1, url: 'https://www.youtube.com/watch' }) as chrome.tabs.Tab,
+        tabStateStore,
+        readBehavior: async (url) => readAppliedTabBehavior(url, { ...deps, touchUsage: false }),
+        apply,
+      },
+    );
+    expect(response).toMatchObject({ ok: true, reappliedTabs: 1, reapplyFailures: 0 });
+    expect(tabStateStore.data['tab:1']).toEqual(
+      expect.objectContaining({
+        targetSpeed: 2,
+        decreaseSpeedStep: 0.1,
+        increaseSpeedStep: 0.5,
+      }),
+    );
+
+    const persist = vi.fn();
+    const sender = { tab: { id: 1, url: 'https://www.youtube.com/watch' } as chrome.tabs.Tab };
+    const actionDeps = { tabStore: tabStateStore, apply, persist, ensure: vi.fn() };
+    const slower = await dispatchTabAction(sender, 'decreaseSpeed', actionDeps);
+    expect(slower).toEqual({ ok: true, previousTargetSpeed: 2, targetSpeed: 1.9 });
+    const faster = await dispatchTabAction(sender, 'increaseSpeed', actionDeps);
+    expect(faster).toEqual({ ok: true, previousTargetSpeed: 1.9, targetSpeed: 2.4 });
+    expect(tabStateStore.data['tab:1']).toEqual(
+      expect.objectContaining({
+        targetSpeed: 2.4,
+        decreaseSpeedStep: 0.1,
+        increaseSpeedStep: 0.5,
+      }),
+    );
+  });
+
   it('preserves the tab target when a site speed write cannot reread remember', async () => {
     const deps = stores();
     await persistGlobalBehaviorChange(

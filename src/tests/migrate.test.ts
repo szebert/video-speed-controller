@@ -143,4 +143,15 @@ describe('reapplyModeForFields', () => {
     expect(reapplyModeForFields('global', [{ field: 'defaultSpeed' }])).toBe('preserve-target');
     expect(reapplyModeForFields('site', [{ field: 'defaultSpeed' }])).toBe('preserve-target');
   });
+
+  it('refreshes directional speed steps without retargeting', () => {
+    expect(reapplyModeForFields('global', [{ field: 'decreaseSpeedStep' }])).toBe(
+      'preserve-target',
+    );
+    expect(reapplyModeForFields('global', [{ field: 'increaseSpeedStep' }])).toBe(
+      'preserve-target',
+    );
+    expect(reapplyModeForFields('site', [{ field: 'decreaseSpeedStep' }])).toBe('preserve-target');
+    expect(reapplyModeForFields('site', [{ field: 'increaseSpeedStep' }])).toBe('preserve-target');
+  });
 });
