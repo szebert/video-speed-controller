@@ -138,4 +138,9 @@ describe('reapplyModeForFields', () => {
       ),
     ).toBe('resolve-target');
   });
+
+  it('refreshes defaultSpeed without retargeting', () => {
+    expect(reapplyModeForFields('global', [{ field: 'defaultSpeed' }])).toBe('preserve-target');
+    expect(reapplyModeForFields('site', [{ field: 'defaultSpeed' }])).toBe('preserve-target');
+  });
 });

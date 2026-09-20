@@ -19,7 +19,7 @@ export const BEHAVIOR_FIELDS = {
   defaultSpeed: {
     default: 1,
     category: 'playback',
-    reapply: { global: 'none', site: 'none' },
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
   rememberLastSpeed: {
     default: true,

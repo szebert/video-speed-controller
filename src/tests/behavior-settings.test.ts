@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readAppliedTabBehavior } from '../background/applied-behavior';
+import { dispatchTabAction } from '../background/dispatch-tab-action';
 import {
   deleteSiteBehaviorSettings,
   exportBehaviorBackup,
@@ -19,6 +21,7 @@ import {
   resetBehaviorDefaultsRepairBackoff,
 } from '../storage/behavior-defaults';
 import {
+  persistSiteBehaviorChanges,
   persistSiteHotkeyChanges,
   persistSiteSpeed,
   resetSiteRepairBackoff,
@@ -44,6 +47,27 @@ function stores() {
     sync: memoryDurable(),
     local: memoryDurable(),
     now: () => 1_000,
+  };
+}
+
+function memoryTabStore(initial: Record<string, unknown> = {}) {
+  const data: Record<string, unknown> = { ...initial };
+  return {
+    data,
+    async get(keys?: string | string[] | Record<string, unknown> | null) {
+      if (typeof keys === 'string') {
+        return { [keys]: data[keys] };
+      }
+      return { ...data };
+    },
+    async set(items: Record<string, unknown>) {
+      Object.assign(data, items);
+    },
+    async remove(keys: string | string[]) {
+      for (const key of typeof keys === 'string' ? [keys] : keys) {
+        delete data[key];
+      }
+    },
   };
 }
 
@@ -347,6 +371,98 @@ describe('behavior settings API', () => {
     expect(data['tab:1']).toEqual(
       expect.objectContaining({ targetSpeed: 2, rememberLastSpeed: false }),
     );
+  });
+
+  it('refreshes site defaultSpeed on an open tab without moving Current, then reset uses it', async () => {
+    const deps = stores();
+    const tabStateStore = memoryTabStore({ 'tab:1': tabBehavior(2, { defaultSpeed: 1 }) });
+    const apply = vi.fn();
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'site', hostname: 'www.youtube.com' },
+        change: { kind: 'value', field: 'defaultSpeed', value: 1.5 },
+      },
+      extensionSender(),
+      {
+        ...deps,
+        getTab: async () => ({ id: 1, url: 'https://www.youtube.com/watch' }) as chrome.tabs.Tab,
+        tabStateStore,
+        readBehavior: async (url) => readAppliedTabBehavior(url, { ...deps, touchUsage: false }),
+        apply,
+      },
+    );
+    expect(response).toMatchObject({ ok: true, reappliedTabs: 1, reapplyFailures: 0 });
+    expect(tabStateStore.data['tab:1']).toEqual(
+      expect.objectContaining({ targetSpeed: 2, defaultSpeed: 1.5 }),
+    );
+
+    const persist = vi.fn();
+    const reset = await dispatchTabAction(
+      { tab: { id: 1, url: 'https://www.youtube.com/watch' } as chrome.tabs.Tab },
+      'resetSpeed',
+      { tabStore: tabStateStore, apply, persist, ensure: vi.fn() },
+    );
+    expect(reset).toEqual({ ok: true, previousTargetSpeed: 2, targetSpeed: 1.5 });
+    expect(tabStateStore.data['tab:1']).toEqual(
+      expect.objectContaining({ targetSpeed: 1.5, defaultSpeed: 1.5 }),
+    );
+  });
+
+  it('refreshes inherited defaultSpeed from a global Default change', async () => {
+    const deps = stores();
+    const tabStateStore = memoryTabStore({ 'tab:1': tabBehavior(2, { defaultSpeed: 1 }) });
+    const apply = vi.fn();
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'defaultSpeed', value: 1.5 },
+      },
+      extensionSender(),
+      {
+        ...deps,
+        getTab: async () => ({ id: 1, url: 'https://www.youtube.com/watch' }) as chrome.tabs.Tab,
+        tabStateStore,
+        readBehavior: async (url) => readAppliedTabBehavior(url, { ...deps, touchUsage: false }),
+        apply,
+      },
+    );
+    expect(response).toMatchObject({ ok: true, reappliedTabs: 1, reapplyFailures: 0 });
+    expect(tabStateStore.data['tab:1']).toEqual(
+      expect.objectContaining({ targetSpeed: 2, defaultSpeed: 1.5 }),
+    );
+  });
+
+  it('skips a global defaultSpeed change when the site owns Default', async () => {
+    const deps = stores();
+    await persistSiteBehaviorChanges(
+      'https://www.youtube.com/watch',
+      [{ kind: 'value', field: 'defaultSpeed', value: 2 }],
+      deps,
+    );
+    const tabStateStore = memoryTabStore({ 'tab:1': tabBehavior(3, { defaultSpeed: 2 }) });
+    const apply = vi.fn();
+    const response = await setBehaviorSetting(
+      {
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: { kind: 'value', field: 'defaultSpeed', value: 1.5 },
+      },
+      extensionSender(),
+      {
+        ...deps,
+        getTab: async () => ({ id: 1, url: 'https://www.youtube.com/watch' }) as chrome.tabs.Tab,
+        tabStateStore,
+        readBehavior: async (url) => readAppliedTabBehavior(url, { ...deps, touchUsage: false }),
+        apply,
+      },
+    );
+    expect(response).toMatchObject({ ok: true, reappliedTabs: 0, reapplyFailures: 0 });
+    expect(tabStateStore.data['tab:1']).toEqual(
+      expect.objectContaining({ targetSpeed: 3, defaultSpeed: 2 }),
+    );
+    expect(apply).not.toHaveBeenCalled();
   });
 
   it('preserves the tab target when a site speed write cannot reread remember', async () => {
