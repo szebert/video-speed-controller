@@ -94,7 +94,9 @@ test('options.html shows Global defaults', async ({ context, extensionId }) => {
   await expect(options.getByText('Customize how the overlay appears on videos.')).toBeVisible();
   await expect(options.getByRole('switch', { name: 'Prevent auto-hide on hover' })).toBeEnabled();
   await expect(options.getByRole('slider', { name: 'Opacity', exact: true })).toBeVisible();
+  await expect(options.getByRole('slider', { name: 'Overlay size' })).toBeVisible();
   await expect(options.getByRole('slider', { name: 'Flash opacity' })).toBeVisible();
+  await expect(options.getByRole('slider', { name: 'Flash size' })).toBeVisible();
   await expect(options.getByRole('button', { name: 'Reset ALL Settings' })).toHaveCount(0);
 
   await options.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -145,6 +147,142 @@ test('site position moves the overlay and keeps speed 1.25', async ({
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
     )
     .toBe(1.25);
+});
+
+test('200% bottom-right scale keeps the anchor and overflow hits', async ({
+  context,
+  extensionId,
+  serviceWorker,
+  site,
+}) => {
+  const popup = await openPopup(context, extensionId, site, serviceWorker);
+  await enableSiteAt(popup, site, 1.25);
+
+  const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Overlay');
+  await clickOptionsSwitch(options, 'Auto-hide overlay');
+  await options.getByText('Bottom right', { exact: true }).click();
+  await expect.poll(async () => overlayTransform(site)).toBe('translate(-100%, -100%)');
+  await expect.poll(async () => overlayVisibility(site)).toBe('visible');
+
+  await site.locator('#v1').hover();
+  const baseline = await site.locator('#v1').evaluate((video) => {
+    const rect = video.getBoundingClientRect();
+    const host = [...document.querySelectorAll('osvsc-overlay')].find((candidate) => {
+      const shell = candidate.shadowRoot?.querySelector('.controls-shell');
+      if (!(shell instanceof HTMLElement)) {
+        return false;
+      }
+      const box = shell.getBoundingClientRect();
+      return (
+        Math.abs(box.right - (rect.right - 8)) < 24 && Math.abs(box.bottom - (rect.bottom - 8)) < 24
+      );
+    });
+    const shell = host?.shadowRoot?.querySelector('.controls-shell');
+    const slower = host?.shadowRoot?.querySelector('[aria-label="Slower"]');
+    if (
+      !(host instanceof HTMLElement) ||
+      !(shell instanceof HTMLElement) ||
+      !(slower instanceof HTMLElement)
+    ) {
+      throw new Error('Missing #v1 overlay chrome');
+    }
+    const shellRect = shell.getBoundingClientRect();
+    const slowerRect = slower.getBoundingClientRect();
+    return {
+      scale: host.style.getPropertyValue('--overlay-scale'),
+      shell: {
+        right: shellRect.right,
+        bottom: shellRect.bottom,
+        width: shellRect.width,
+        height: shellRect.height,
+      },
+      slowerLeft: slowerRect.left,
+    };
+  });
+
+  const sizeInput = options.locator(
+    '[data-slot="slider"][aria-label="Overlay size"] input[type="range"]',
+  );
+  await sizeInput.fill('200');
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => {
+        const rect = video.getBoundingClientRect();
+        const host = [...document.querySelectorAll('osvsc-overlay')].find((candidate) => {
+          const shell = candidate.shadowRoot?.querySelector('.controls-shell');
+          if (!(shell instanceof HTMLElement)) {
+            return false;
+          }
+          const box = shell.getBoundingClientRect();
+          return (
+            Math.abs(box.right - (rect.right - 8)) < 24 &&
+            Math.abs(box.bottom - (rect.bottom - 8)) < 24
+          );
+        });
+        return host instanceof HTMLElement ? host.style.getPropertyValue('--overlay-scale') : '';
+      }),
+    )
+    .toBe('2');
+  await expect.poll(async () => overlayTransform(site)).toBe('translate(-100%, -100%)');
+
+  await site.locator('#v1').hover();
+  const scaled = await site.locator('#v1').evaluate((video, slowerLeft) => {
+    const rect = video.getBoundingClientRect();
+    const host = [...document.querySelectorAll('osvsc-overlay')].find((candidate) => {
+      const shell = candidate.shadowRoot?.querySelector('.controls-shell');
+      if (!(shell instanceof HTMLElement)) {
+        return false;
+      }
+      const box = shell.getBoundingClientRect();
+      return (
+        Math.abs(box.right - (rect.right - 8)) < 24 && Math.abs(box.bottom - (rect.bottom - 8)) < 24
+      );
+    });
+    const shell = host?.shadowRoot?.querySelector('.controls-shell');
+    const slower = host?.shadowRoot?.querySelector('[aria-label="Slower"]');
+    if (
+      !(host instanceof HTMLElement) ||
+      !(shell instanceof HTMLElement) ||
+      !(slower instanceof HTMLElement)
+    ) {
+      throw new Error('Missing #v1 overlay chrome');
+    }
+    const shellRect = shell.getBoundingClientRect();
+    const slowerRect = slower.getBoundingClientRect();
+    const point = {
+      x: (slowerRect.left + slowerLeft) / 2,
+      y: slowerRect.top + slowerRect.height / 2,
+    };
+    const root = slower.getRootNode() as ShadowRoot;
+    const hit = root.elementFromPoint(point.x, point.y);
+    const fromDocument = document.elementsFromPoint(point.x, point.y);
+    return {
+      shell: {
+        right: shellRect.right,
+        bottom: shellRect.bottom,
+        width: shellRect.width,
+        height: shellRect.height,
+      },
+      point,
+      hitSlower: hit === slower || (hit instanceof Node && slower.contains(hit)),
+      documentHitHost: fromDocument.some((node) => node === host),
+    };
+  }, baseline.slowerLeft);
+
+  expect(scaled.shell.right).toBeCloseTo(baseline.shell.right, 0);
+  expect(scaled.shell.bottom).toBeCloseTo(baseline.shell.bottom, 0);
+  expect(scaled.shell.width).toBeGreaterThan(baseline.shell.width * 1.7);
+  expect(scaled.shell.height).toBeGreaterThan(baseline.shell.height * 1.7);
+  expect(scaled.point.x).toBeLessThan(baseline.slowerLeft);
+  expect(scaled.hitSlower || scaled.documentHitHost).toBe(true);
+
+  await site.mouse.click(scaled.point.x, scaled.point.y);
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1);
 });
 
 test('site auto-hide off stays visible and deleting the site restores the timeout', async ({

@@ -786,6 +786,8 @@ describe('Options page', () => {
     await selectTab('Overlay');
     expect(container.textContent).toContain('Where overlay controls appear on videos.');
     expect(container.textContent).toContain('How opaque the overlay appears over videos.');
+    expect(container.textContent).toContain('Adjust the size of the video controls.');
+    expect(container.textContent).toContain('Adjust the size of the on-video action feedback.');
     expect(container.textContent).toContain('Seconds of inactivity before the overlay hides.');
     for (const label of labels) {
       expect(container.textContent).toContain(label);
@@ -996,6 +998,123 @@ describe('Options page', () => {
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
       change: { kind: 'inherit', field: 'overlayOpacity' },
+    });
+  });
+
+  it('sends overlay scale from the slider', async () => {
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(snapshot());
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    await selectTab('Overlay');
+    expect(container.textContent).toContain('100%');
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Overlay size"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlayScale', value: 99 },
+    });
+  });
+
+  it('inherits a global overlay scale override from the Reset badge', async () => {
+    const state = snapshot();
+    state.global.overlayScale = { value: 150, source: 'global' };
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return { ok: true, customSites: [] };
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return getOk(state);
+      }
+      return {
+        ok: true,
+        state: snapshot(),
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      };
+    });
+    await renderApp();
+    await selectTab('Overlay');
+    expect(container.textContent).toContain('150%');
+    const { button, root } = resetBadge(container, 'Reset: Overlay size');
+    expect(button).toBeTruthy();
+    expect(root?.textContent).toContain('Custom');
+    expect(root?.hasAttribute('data-active')).toBe(true);
+    await act(async () => {
+      click(button);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'inherit', field: 'overlayScale' },
+    });
+  });
+
+  it('sends flash scale from the slider', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await selectTab('Overlay');
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Flash size"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      input.focus();
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'flashScale', value: 99 },
+    });
+  });
+
+  it('inherits a global flash scale override from the Reset badge', async () => {
+    const state = snapshot();
+    state.global.flashScale = { value: 150, source: 'global' };
+    sendMessage.mockImplementation(loadReply(state));
+    await renderApp();
+    await selectTab('Overlay');
+    expect(container.textContent).toContain('150%');
+    const { button, root } = resetBadge(container, 'Reset: Flash size');
+    expect(button).toBeTruthy();
+    expect(root?.textContent).toContain('Custom');
+    expect(root?.hasAttribute('data-active')).toBe(true);
+    await act(async () => {
+      click(button);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'inherit', field: 'flashScale' },
     });
   });
 
@@ -1744,6 +1863,11 @@ describe('Options page', () => {
     );
     expect(flashOpacity).toBeInstanceOf(HTMLInputElement);
     expect((flashOpacity as HTMLInputElement).disabled).toBe(true);
+    const flashSize = container.querySelector(
+      '[data-slot="slider"][aria-label="Flash size"] input[type="range"]',
+    );
+    expect(flashSize).toBeInstanceOf(HTMLInputElement);
+    expect((flashSize as HTMLInputElement).disabled).toBe(true);
   });
 
   it('keeps flash delay enabled when only Show button flash is on', async () => {
@@ -1761,6 +1885,11 @@ describe('Options page', () => {
     );
     expect(flashOpacity).toBeInstanceOf(HTMLInputElement);
     expect((flashOpacity as HTMLInputElement).disabled).toBe(false);
+    const flashSize = container.querySelector(
+      '[data-slot="slider"][aria-label="Flash size"] input[type="range"]',
+    );
+    expect(flashSize).toBeInstanceOf(HTMLInputElement);
+    expect((flashSize as HTMLInputElement).disabled).toBe(false);
   });
 
   it('sends flash opacity from the slider', async () => {
@@ -2043,11 +2172,21 @@ describe('Options page', () => {
     );
     expect(flashOpacity).toBeInstanceOf(HTMLInputElement);
     expect((flashOpacity as HTMLInputElement).disabled).toBe(false);
+    const flashSize = container.querySelector(
+      '[data-slot="slider"][aria-label="Flash size"] input[type="range"]',
+    );
+    expect(flashSize).toBeInstanceOf(HTMLInputElement);
+    expect((flashSize as HTMLInputElement).disabled).toBe(false);
     const opacity = container.querySelector(
       '[data-slot="slider"][aria-label="Opacity"] input[type="range"]',
     );
     expect(opacity).toBeInstanceOf(HTMLInputElement);
     expect((opacity as HTMLInputElement).disabled).toBe(true);
+    const size = container.querySelector(
+      '[data-slot="slider"][aria-label="Overlay size"] input[type="range"]',
+    );
+    expect(size).toBeInstanceOf(HTMLInputElement);
+    expect((size as HTMLInputElement).disabled).toBe(true);
   });
 
   it('disables auto-hide delay when Auto-hide overlay is off', async () => {

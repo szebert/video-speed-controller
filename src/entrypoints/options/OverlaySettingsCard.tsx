@@ -17,15 +17,21 @@ import { t } from '@/i18n/t';
 import { cn } from 'cn';
 import {
   canonicalizeFlashOpacity,
+  canonicalizeFlashScale,
   canonicalizeOverlayOpacity,
+  canonicalizeOverlayScale,
   FLASH_DELAY_MS_MAX,
   FLASH_DELAY_MS_MIN,
   FLASH_OPACITY_MAX,
   FLASH_OPACITY_MIN,
+  FLASH_SCALE_MAX,
+  FLASH_SCALE_MIN,
   OVERLAY_AUTO_HIDE_DELAY_MS_MAX,
   OVERLAY_AUTO_HIDE_DELAY_MS_MIN,
   OVERLAY_OPACITY_MAX,
   OVERLAY_OPACITY_MIN,
+  OVERLAY_SCALE_MAX,
+  OVERLAY_SCALE_MIN,
   type BehaviorSettingChange,
   type EditableResolvedBehavior,
   type OverlayPosition,
@@ -111,7 +117,7 @@ export function OverlaySettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutate}
             />
-            <Field className={OPTIONS_FIELD_SPAN} data-disabled={overlayLocked || undefined}>
+            <Field data-disabled={overlayLocked || undefined}>
               <div className="flex items-start justify-between gap-2">
                 <FieldContent>
                   <FieldLabel id="overlay-opacity-label">{t('overlayOpacity')}</FieldLabel>
@@ -160,6 +166,58 @@ export function OverlaySettingsCard({
                   )}
                 >
                   {`${behavior.overlayOpacity.value}%`}
+                </span>
+              </div>
+            </Field>
+            <Field data-disabled={overlayLocked || undefined}>
+              <div className="flex items-start justify-between gap-2">
+                <FieldContent>
+                  <FieldLabel id="overlay-scale-label">{t('overlayScale')}</FieldLabel>
+                  <FieldDescription id="overlay-scale-help">
+                    {t('overlayScaleDescription')}
+                  </FieldDescription>
+                </FieldContent>
+                <ResetBadge
+                  active={ownsOverride(selection, behavior.overlayScale.source)}
+                  disabled={overlayLocked}
+                  text={resetBadgeText}
+                  label={resetFieldLabel(t('overlayScale'))}
+                  onReset={() => {
+                    onMutate({ kind: 'inherit', field: 'overlayScale' });
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Slider
+                  aria-label={t('overlayScale')}
+                  aria-labelledby="overlay-scale-label"
+                  aria-describedby="overlay-scale-help"
+                  isDisabled={overlayLocked}
+                  minValue={OVERLAY_SCALE_MIN}
+                  maxValue={OVERLAY_SCALE_MAX}
+                  step={1}
+                  formatOptions={{ style: 'unit', unit: 'percent', maximumFractionDigits: 0 }}
+                  value={behavior.overlayScale.value}
+                  onChange={(value) => {
+                    const next = Array.isArray(value) ? value[0] : value;
+                    if (next == null) {
+                      return;
+                    }
+                    onMutate({
+                      kind: 'value',
+                      field: 'overlayScale',
+                      value: canonicalizeOverlayScale(next),
+                    });
+                  }}
+                />
+                <span
+                  className={cn(
+                    'w-12 shrink-0 text-right text-sm tabular-nums',
+                    showsInherited(selection, behavior.overlayScale.source) &&
+                      'text-muted-foreground',
+                  )}
+                >
+                  {`${behavior.overlayScale.value}%`}
                 </span>
               </div>
             </Field>
@@ -322,28 +380,7 @@ export function OverlaySettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutate}
             />
-            <OptionsNumberField
-              id="flash-delay"
-              name="flashDelay"
-              label={t('flashDelay')}
-              description={t('flashDelayDescription')}
-              min={FLASH_DELAY_MS_MIN / 1000}
-              max={FLASH_DELAY_MS_MAX / 1000}
-              step={0.1}
-              value={drafts.flashDelay ?? flashDelaySeconds}
-              disabled={flashLocked}
-              muted={showsInherited(selection, behavior.flashDelayMs.source, drafts.flashDelay)}
-              resetActive={ownsOverride(selection, behavior.flashDelayMs.source)}
-              resetLabel={resetFieldLabel(t('flashDelay'))}
-              onDraftChange={(value) => {
-                onDraftChange('flashDelay', value);
-              }}
-              onCommit={onCommitFlashDelay}
-              onReset={() => {
-                onMutate({ kind: 'inherit', field: 'flashDelayMs' });
-              }}
-            />
-            <Field className={OPTIONS_FIELD_SPAN} data-disabled={flashLocked || undefined}>
+            <Field data-disabled={flashLocked || undefined}>
               <div className="flex items-start justify-between gap-2">
                 <FieldContent>
                   <FieldLabel id="flash-opacity-label">{t('flashOpacity')}</FieldLabel>
@@ -395,7 +432,80 @@ export function OverlaySettingsCard({
                 </span>
               </div>
             </Field>
+            <Field data-disabled={flashLocked || undefined}>
+              <div className="flex items-start justify-between gap-2">
+                <FieldContent>
+                  <FieldLabel id="flash-scale-label">{t('flashScale')}</FieldLabel>
+                  <FieldDescription id="flash-scale-help">
+                    {t('flashScaleDescription')}
+                  </FieldDescription>
+                </FieldContent>
+                <ResetBadge
+                  active={ownsOverride(selection, behavior.flashScale.source)}
+                  disabled={flashLocked}
+                  text={resetBadgeText}
+                  label={resetFieldLabel(t('flashScale'))}
+                  onReset={() => {
+                    onMutate({ kind: 'inherit', field: 'flashScale' });
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Slider
+                  aria-label={t('flashScale')}
+                  aria-labelledby="flash-scale-label"
+                  aria-describedby="flash-scale-help"
+                  isDisabled={flashLocked}
+                  minValue={FLASH_SCALE_MIN}
+                  maxValue={FLASH_SCALE_MAX}
+                  step={1}
+                  formatOptions={{ style: 'unit', unit: 'percent', maximumFractionDigits: 0 }}
+                  value={behavior.flashScale.value}
+                  onChange={(value) => {
+                    const next = Array.isArray(value) ? value[0] : value;
+                    if (next == null) {
+                      return;
+                    }
+                    onMutate({
+                      kind: 'value',
+                      field: 'flashScale',
+                      value: canonicalizeFlashScale(next),
+                    });
+                  }}
+                />
+                <span
+                  className={cn(
+                    'w-12 shrink-0 text-right text-sm tabular-nums',
+                    showsInherited(selection, behavior.flashScale.source) &&
+                      'text-muted-foreground',
+                  )}
+                >
+                  {`${behavior.flashScale.value}%`}
+                </span>
+              </div>
+            </Field>
           </FieldGroup>
+          <OptionsNumberField
+            id="flash-delay"
+            name="flashDelay"
+            label={t('flashDelay')}
+            description={t('flashDelayDescription')}
+            min={FLASH_DELAY_MS_MIN / 1000}
+            max={FLASH_DELAY_MS_MAX / 1000}
+            step={0.1}
+            value={drafts.flashDelay ?? flashDelaySeconds}
+            disabled={flashLocked}
+            muted={showsInherited(selection, behavior.flashDelayMs.source, drafts.flashDelay)}
+            resetActive={ownsOverride(selection, behavior.flashDelayMs.source)}
+            resetLabel={resetFieldLabel(t('flashDelay'))}
+            onDraftChange={(value) => {
+              onDraftChange('flashDelay', value);
+            }}
+            onCommit={onCommitFlashDelay}
+            onReset={() => {
+              onMutate({ kind: 'inherit', field: 'flashDelayMs' });
+            }}
+          />
         </FieldSet>
       </CardContent>
     </Card>
