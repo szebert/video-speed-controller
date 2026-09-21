@@ -2,6 +2,8 @@
   "js/ts.tsdk.path": "node_modules/typescript/lib",
   "js/ts.tsdk.promptToUseWorkspaceVersion": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
   "i18n-ally.localesPaths": ["src/locales"],
   "i18n-ally.sourceLanguage": "en",
   "i18n-ally.displayLanguage": "en",
