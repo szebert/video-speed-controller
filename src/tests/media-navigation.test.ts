@@ -9,6 +9,7 @@ import {
   safePause,
   seekableRange,
   seekBy,
+  seekTo,
   togglePlayback,
 } from '../core/media-navigation';
 
@@ -129,6 +130,34 @@ describe('media navigation', () => {
     const plain = stubVideo({ currentTime: 5, duration: 60 });
     expect(jumpToEnd(plain)).toBe(true);
     expect(plain.currentTime).toBe(60);
+  });
+
+  it('seeks to an absolute time on a finite connected timeline', () => {
+    const video = stubVideo({ currentTime: 10, duration: 60 });
+    expect(seekTo(video, 25)).toBe(true);
+    expect(video.currentTime).toBe(25);
+    expect(seekTo(video, -4)).toBe(true);
+    expect(video.currentTime).toBe(0);
+    expect(seekTo(video, 99)).toBe(true);
+    expect(video.currentTime).toBe(60);
+    expect(seekTo(video, Number.NaN)).toBe(false);
+    expect(seekTo(video, Number.POSITIVE_INFINITY)).toBe(false);
+    expect(video.currentTime).toBe(60);
+
+    const live = stubVideo({ currentTime: 8, duration: Number.POSITIVE_INFINITY });
+    expect(seekTo(live, 12)).toBe(false);
+    expect(live.currentTime).toBe(8);
+
+    const unknown = stubVideo({ currentTime: 3 });
+    expect(seekTo(unknown, 4)).toBe(false);
+
+    const throwing = stubVideo({ currentTime: 10, duration: 60, seekThrows: true });
+    expect(seekTo(throwing, 20)).toBe(false);
+
+    const detached = stubVideo({ currentTime: 10, duration: 60 });
+    detached.remove();
+    expect(seekTo(detached, 20)).toBe(false);
+    expect(detached.currentTime).toBe(10);
   });
 
   it('no-ops without usable bounds or when the seek setter throws', () => {

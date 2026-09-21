@@ -117,6 +117,18 @@ export function OverlaySettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutate}
             />
+            <BehaviorSwitchField
+              id="overlay-seek-bar"
+              name="overlaySeekBar"
+              field="overlaySeekBar"
+              label={t('overlaySeekBar')}
+              description={t('overlaySeekBarDescription')}
+              setting={behavior.overlaySeekBar}
+              selection={selection}
+              disabled={overlayLocked}
+              resetBadgeText={resetBadgeText}
+              onMutate={onMutate}
+            />
             <Field data-disabled={overlayLocked || undefined}>
               <div className="flex items-start justify-between gap-2">
                 <FieldContent>

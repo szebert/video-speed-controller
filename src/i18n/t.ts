@@ -13,14 +13,42 @@ export const ENGLISH_MESSAGES: Record<MessageKey, string> = en;
  * `getMessage` returns "" for every key until the extension is toggled.
  * Fall back to the English source catalog so the popup never renders blank labels.
  */
-export function t(key: MessageKey, translate: (key: MessageKey) => string = lookup): string {
-  return translate(key) || ENGLISH_MESSAGES[key];
+export function t(key: MessageKey, translate?: (key: MessageKey) => string): string;
+export function t(key: MessageKey, substitutions: readonly string[]): string;
+export function t(
+  key: MessageKey,
+  substitutionsOrTranslate?: readonly string[] | ((key: MessageKey) => string),
+): string {
+  if (typeof substitutionsOrTranslate === 'function') {
+    return substitutionsOrTranslate(key) || ENGLISH_MESSAGES[key];
+  }
+  const substitutions = substitutionsOrTranslate;
+  const translated = lookup(key, substitutions);
+  if (translated) {
+    return translated;
+  }
+  return applySubstitutions(ENGLISH_MESSAGES[key], substitutions);
 }
 
-function lookup(key: MessageKey): string {
+function lookup(key: MessageKey, substitutions?: readonly string[]): string {
   try {
-    return i18n.t(key);
+    return translate(key, substitutions);
   } catch {
     return '';
   }
+}
+
+function translate(key: MessageKey, substitutions?: readonly string[]): string {
+  const translateMessage = i18n.t as (name: string, values?: readonly string[]) => string;
+  return substitutions ? translateMessage(key, substitutions) : translateMessage(key);
+}
+
+function applySubstitutions(template: string, substitutions?: readonly string[]): string {
+  if (!substitutions) {
+    return template;
+  }
+  return substitutions.reduce(
+    (text, value, index) => text.replaceAll(`$${index + 1}`, value),
+    template,
+  );
 }

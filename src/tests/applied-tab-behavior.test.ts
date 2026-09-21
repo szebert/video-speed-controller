@@ -93,6 +93,7 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatDelayMs).toBe(500);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatRate).toBe(15);
     expect(BUILT_IN_SITE_BEHAVIOR.overlayNavigationBar).toBe(false);
+    expect(BUILT_IN_SITE_BEHAVIOR.overlaySeekBar).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.skipBackSeconds).toBe(5);
     expect(BUILT_IN_SITE_BEHAVIOR.skipForwardSeconds).toBe(10);
     expect(BUILT_IN_SITE_BEHAVIOR.skipScaleWithPlaybackRate).toBe(false);
@@ -142,6 +143,7 @@ describe('applied tab behavior', () => {
     delete missing.skipForwardSeconds;
     expect(isAppliedTabBehavior(missing)).toBe(false);
     expect(isAppliedTabBehavior({ ...tabBehavior(1.25), overlayNavigationBar: 1 })).toBe(false);
+    expect(isAppliedTabBehavior({ ...tabBehavior(1.25), overlaySeekBar: 1 })).toBe(false);
     expect(isAppliedTabBehavior({ ...tabBehavior(1.25), rewindSpeed: '-1' })).toBe(false);
   });
 

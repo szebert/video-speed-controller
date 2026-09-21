@@ -9,6 +9,16 @@ import type {
 import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { OverlayPosition } from '../settings/site-behavior';
 
+export type OverlayBufferedRange = { start: number; end: number };
+
+export type OverlayTimelineState = {
+  currentTime: number;
+  duration: number | null;
+  buffered: readonly OverlayBufferedRange[];
+};
+
+export type OverlaySeekPhase = 'input' | 'commit';
+
 export type OverlayActions = {
   adjustSpeed(direction: -1 | 1, video: HTMLVideoElement): void;
   resetSpeed?(video: HTMLVideoElement): void;
@@ -21,6 +31,7 @@ export type OverlayActions = {
   ): void;
   setOverlayPosition?(position: OverlayPosition): void;
   openSettings?(): void;
+  seek?(seconds: number, video: HTMLVideoElement): boolean;
 };
 
 export type OverlayViewCallbacks = {
@@ -34,6 +45,8 @@ export type OverlayViewCallbacks = {
   onSetPosition(position: OverlayPosition): void;
   onOpenSettings(): void;
   onInteractiveChange(active: boolean): void;
+  onSeek(seconds: number, phase: OverlaySeekPhase): void;
+  onSeekCancel(): void;
 };
 
 export type OverlayViewState = {

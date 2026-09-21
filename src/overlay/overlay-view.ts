@@ -4,6 +4,12 @@ import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
 import type { MediaNavigationAction, TransportHoldOwner } from '../core/controller-action';
 import { ariaKeyshortcutsFromBinding, visualHotkeyParts } from '../core/hotkey-format';
 import { canAdjustSpeed, canonicalizeSpeed, formatSpeed } from '../core/speed';
+import {
+  bufferedStructureKey,
+  clampDisplayedCurrentTime,
+  formatMediaTime,
+  formatTimelineReadout,
+} from '../core/media-time';
 import { t, type MessageKey } from '../i18n/t';
 import type { HotkeyBinding } from '../settings/hotkey-binding';
 import {
@@ -12,7 +18,7 @@ import {
   overlayPositionToGrid,
   type OverlayPosition,
 } from '../settings/site-behavior';
-import type { OverlayViewCallbacks, OverlayViewState } from './types';
+import type { OverlayTimelineState, OverlayViewCallbacks, OverlayViewState } from './types';
 
 const POSITION_LABELS = [
   'positionTopLeft',
@@ -53,6 +59,15 @@ export class OverlayView {
   private readonly settings: HTMLButtonElement;
   private navigationBar: HTMLDivElement | null = null;
   private navigationButtons: Map<MediaNavigationAction, HTMLButtonElement> | null = null;
+  private seekBar: HTMLDivElement | null = null;
+  private seekRange: HTMLInputElement | null = null;
+  private seekPlayed: HTMLDivElement | null = null;
+  private seekBufferedHost: HTMLDivElement | null = null;
+  private seekReadout: HTMLSpanElement | null = null;
+  private bufferCacheKey = '';
+  private scrubbing = false;
+  private pointerSeeking = false;
+  private pointerCommitted = false;
   private readonly activeHolds = new Set<() => void>();
   private picker: HTMLDivElement | null = null;
   private pickerOpen = false;
@@ -60,6 +75,10 @@ export class OverlayView {
   private focusWithin = false;
   private lastInteractive: boolean | null = null;
   private state: OverlayViewState | null = null;
+
+  get isScrubbing(): boolean {
+    return this.scrubbing;
+  }
 
   constructor(
     document: Document,
@@ -191,6 +210,7 @@ export class OverlayView {
       this.releaseHolds();
       this.pointerWithin = false;
       this.focusWithin = false;
+      this.clearSeekGesture();
       this.setPickerOpen(false);
     } else if (!state.behavior.overlayPositionButton) {
       this.setPickerOpen(false);
@@ -204,11 +224,32 @@ export class OverlayView {
 
   destroy(): void {
     this.releaseHolds();
+    this.clearSeekGesture();
     this.abort.abort();
     this.picker = null;
     this.navigationBar = null;
     this.navigationButtons = null;
+    this.seekBar = null;
+    this.seekRange = null;
+    this.seekPlayed = null;
+    this.seekBufferedHost = null;
+    this.seekReadout = null;
     this.element.remove();
+  }
+
+  updateTimeline(state: OverlayTimelineState): void {
+    if (!this.seekBar || !this.state?.behavior.overlaySeekBar) {
+      return;
+    }
+    this.applyTimelinePosition(state.currentTime, state.duration);
+    this.applyBufferedRanges(state.duration, state.buffered);
+  }
+
+  updateTimelinePosition(currentTime: number, duration: number | null): void {
+    if (!this.seekBar || !this.state?.behavior.overlaySeekBar) {
+      return;
+    }
+    this.applyTimelinePosition(currentTime, duration);
   }
 
   /** Ends every live hold, so teardown cannot strand a temporary rate. */
@@ -268,6 +309,7 @@ export class OverlayView {
     }
 
     this.syncNavigation(state);
+    this.syncSeek(state);
 
     if (this.pickerOpen && state.visible && behavior.overlayPositionButton) {
       this.renderPicker();
@@ -319,8 +361,225 @@ export class OverlayView {
     }
     this.navigationBar = bar;
     this.navigationButtons = buttons;
-    this.element.insertBefore(bar, this.picker);
+    this.bar.after(bar);
     return buttons;
+  }
+
+  private syncSeek(state: OverlayViewState): void {
+    if (!state.behavior.overlaySeekBar) {
+      this.removeSeekBar();
+      return;
+    }
+    this.ensureSeekBar();
+  }
+
+  private ensureSeekBar(): HTMLDivElement {
+    if (this.seekBar?.isConnected) {
+      return this.seekBar;
+    }
+    const bar = this.document.createElement('div');
+    bar.className = 'controls controls-seek';
+    bar.setAttribute('role', 'group');
+
+    const wrap = this.document.createElement('div');
+    wrap.className = 'seek-track-wrap';
+
+    const track = this.document.createElement('div');
+    track.className = 'seek-track';
+    track.setAttribute('aria-hidden', 'true');
+
+    const bufferedHost = this.document.createElement('div');
+    const played = this.document.createElement('div');
+    played.className = 'seek-played';
+    track.append(bufferedHost, played);
+
+    const range = this.document.createElement('input');
+    range.type = 'range';
+    range.className = 'seek-range';
+    range.min = '0';
+    range.max = '1';
+    range.step = 'any';
+    range.value = '0';
+    range.disabled = true;
+    range.setAttribute('aria-label', t('seekVideo'));
+
+    const ticks = this.document.createElement('div');
+    ticks.className = 'seek-ticks';
+    ticks.setAttribute('aria-hidden', 'true');
+    for (let percent = 0; percent <= 100; percent += 10) {
+      const tick = this.document.createElement('span');
+      tick.className = percent % 50 === 0 ? 'seek-tick seek-tick-major' : 'seek-tick';
+      ticks.append(tick);
+    }
+
+    const readout = this.document.createElement('span');
+    readout.className = 'seek-readout';
+    readout.textContent = formatTimelineReadout(0, null);
+
+    wrap.append(track, ticks, range);
+    bar.append(wrap, readout);
+
+    const signal = this.abort.signal;
+    range.addEventListener(
+      'input',
+      () => {
+        const seconds = Number(range.value);
+        if (!Number.isFinite(seconds)) {
+          return;
+        }
+        this.applyTimelinePosition(seconds, this.durationFromRange());
+        this.callbacks.onSeek(seconds, 'input');
+      },
+      { signal },
+    );
+    range.addEventListener(
+      'pointerdown',
+      (event) => {
+        this.pointerSeeking = true;
+        this.pointerCommitted = false;
+        this.scrubbing = true;
+        try {
+          range.setPointerCapture(event.pointerId);
+        } catch {
+          // Capture is optional. pointerup / pointercancel still end the gesture.
+        }
+        this.notifyInteractive();
+      },
+      { signal },
+    );
+    range.addEventListener('pointerup', () => this.finishPointerSeek(), { signal });
+    range.addEventListener('change', () => this.finishPointerSeekOrCommit(), { signal });
+    range.addEventListener('pointercancel', () => this.cancelPointerSeek(), { signal });
+
+    this.seekBar = bar;
+    this.seekRange = range;
+    this.seekPlayed = played;
+    this.seekBufferedHost = bufferedHost;
+    this.seekReadout = readout;
+    this.bufferCacheKey = '';
+    (this.navigationBar ?? this.bar).after(bar);
+    return bar;
+  }
+
+  private removeSeekBar(): void {
+    if (!this.seekBar) {
+      return;
+    }
+    this.clearSeekGesture();
+    this.seekBar.remove();
+    this.seekBar = null;
+    this.seekRange = null;
+    this.seekPlayed = null;
+    this.seekBufferedHost = null;
+    this.seekReadout = null;
+    this.bufferCacheKey = '';
+  }
+
+  private finishPointerSeekOrCommit(): void {
+    if (this.pointerSeeking) {
+      this.finishPointerSeek();
+      return;
+    }
+    if (this.pointerCommitted) {
+      return;
+    }
+    const seconds = Number(this.seekRange?.value);
+    if (Number.isFinite(seconds)) {
+      this.callbacks.onSeek(seconds, 'commit');
+    }
+  }
+
+  private finishPointerSeek(): void {
+    if (!this.pointerSeeking || this.pointerCommitted) {
+      return;
+    }
+    this.pointerSeeking = false;
+    this.pointerCommitted = true;
+    this.scrubbing = false;
+    const seconds = Number(this.seekRange?.value);
+    if (Number.isFinite(seconds)) {
+      this.callbacks.onSeek(seconds, 'commit');
+    }
+    this.seekRange?.blur();
+    this.notifyInteractive();
+  }
+
+  private cancelPointerSeek(): void {
+    if (!this.pointerSeeking && !this.scrubbing) {
+      return;
+    }
+    this.pointerSeeking = false;
+    this.pointerCommitted = true;
+    this.scrubbing = false;
+    this.seekRange?.blur();
+    this.callbacks.onSeekCancel();
+    this.notifyInteractive();
+  }
+
+  private clearSeekGesture(): void {
+    this.pointerSeeking = false;
+    this.pointerCommitted = false;
+    this.scrubbing = false;
+  }
+
+  private durationFromRange(): number | null {
+    const max = Number(this.seekRange?.max);
+    return Number.isFinite(max) && max > 0 && this.seekRange?.disabled !== true ? max : null;
+  }
+
+  private applyTimelinePosition(currentTime: number, duration: number | null): void {
+    const range = this.seekRange;
+    const played = this.seekPlayed;
+    const readout = this.seekReadout;
+    const bar = this.seekBar;
+    if (!range || !played || !readout || !bar) {
+      return;
+    }
+    const usable = duration != null;
+    const shown = clampDisplayedCurrentTime(currentTime, duration);
+    range.min = '0';
+    range.max = usable ? String(duration) : '1';
+    range.step = 'any';
+    range.disabled = !usable;
+    range.value = usable ? String(shown) : '0';
+    bar.toggleAttribute('data-disabled', !usable);
+    played.style.left = '0';
+    played.style.width = usable && duration > 0 ? `${(shown / duration) * 100}%` : '0%';
+    readout.textContent = formatTimelineReadout(shown, duration);
+    if (usable) {
+      range.setAttribute(
+        'aria-valuetext',
+        t('seekPosition', [formatMediaTime(shown), formatMediaTime(duration)]),
+      );
+    } else {
+      range.removeAttribute('aria-valuetext');
+    }
+  }
+
+  private applyBufferedRanges(
+    duration: number | null,
+    buffered: OverlayTimelineState['buffered'],
+  ): void {
+    const host = this.seekBufferedHost;
+    if (!host) {
+      return;
+    }
+    const key = bufferedStructureKey(duration, buffered);
+    if (key === this.bufferCacheKey) {
+      return;
+    }
+    this.bufferCacheKey = key;
+    host.replaceChildren();
+    if (duration == null || duration <= 0) {
+      return;
+    }
+    for (const range of buffered) {
+      const segment = this.document.createElement('div');
+      segment.className = 'seek-buffered';
+      segment.style.left = `${(range.start / duration) * 100}%`;
+      segment.style.width = `${((range.end - range.start) / duration) * 100}%`;
+      host.append(segment);
+    }
   }
 
   private removeNavigationBar(): void {
@@ -537,6 +796,7 @@ export class OverlayView {
     const interactive =
       visible &&
       (this.focusWithin ||
+        this.scrubbing ||
         this.activeHolds.size > 0 ||
         (this.pointerWithin && (behavior?.overlayHoverHold ?? false)));
     if (this.lastInteractive === interactive) {

@@ -13,7 +13,6 @@ what ships today. Implementation work is tracked in
 
 ## Planned
 
-- Seek bar with current time and duration
 - Volume, mute, and volume slider
 - Fullscreen and Picture-in-Picture
 - Caption toggle and track selection when the video supports it
@@ -23,7 +22,6 @@ what ships today. Implementation work is tracked in
 ## Exploring
 
 - True reverse decode and reverse audio
-- Buffered-range visualization
 - More advanced overlay layout and grouping
 
 ## Release

@@ -1387,6 +1387,22 @@ describe('Options page', () => {
     });
   });
 
+  it('sends overlaySeekBar true from the Show seek bar switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await selectTab('Overlay');
+    const seekSwitch = container.querySelector('#overlay-seek-bar');
+    expect(seekSwitch).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(seekSwitch);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlaySeekBar', value: true },
+    });
+  });
+
   it('persists independent skip distances and a fast-forward speed', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
@@ -2158,6 +2174,10 @@ describe('Options page', () => {
     expect((settingsButton as HTMLInputElement).disabled).toBe(true);
     const hotkeyHints = container.querySelector('#overlay-hotkey-hints');
     expect((hotkeyHints as HTMLInputElement).disabled).toBe(true);
+    const navigationBar = container.querySelector('#overlay-navigation-bar');
+    expect((navigationBar as HTMLInputElement).disabled).toBe(true);
+    const seekBar = container.querySelector('#overlay-seek-bar');
+    expect((seekBar as HTMLInputElement).disabled).toBe(true);
     const buttonFlash = container.querySelector('#button-flash');
     expect(buttonFlash).toBeInstanceOf(HTMLInputElement);
     expect((buttonFlash as HTMLInputElement).disabled).toBe(false);

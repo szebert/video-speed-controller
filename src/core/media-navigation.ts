@@ -73,6 +73,21 @@ function isLiveMedia(video: HTMLVideoElement): boolean {
   return video.isConnected;
 }
 
+/**
+ * Seeks to an absolute time on the finite VOD timeline `0..duration`.
+ * The video must still be connected. Requested seconds must be finite.
+ */
+export function seekTo(video: HTMLVideoElement, seconds: number): boolean {
+  if (!isLiveMedia(video) || !Number.isFinite(seconds)) {
+    return false;
+  }
+  const duration = video.duration;
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return false;
+  }
+  return writeCurrentTime(video, Math.min(duration, Math.max(0, seconds)));
+}
+
 /** Assigns `currentTime`. Returns false when the element is gone or the write throws. */
 export function writeCurrentTime(video: HTMLVideoElement, seconds: number): boolean {
   if (!isLiveMedia(video)) {

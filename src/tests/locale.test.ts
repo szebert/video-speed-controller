@@ -21,4 +21,9 @@ describe('locale resolution', () => {
     expect(t('enabledOnThisSite', () => '')).toBe('Enabled on this site');
     expect(t('reset', () => 'Reset')).toBe('Reset');
   });
+
+  it('substitutes positional values on the English fallback', () => {
+    expect(t('seekPosition', ['12:43', '48:21'])).toBe('12:43 of 48:21');
+    expect(t('seekVideo')).toBe('Seek video');
+  });
 });

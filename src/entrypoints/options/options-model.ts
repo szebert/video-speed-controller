@@ -40,6 +40,7 @@ export type BooleanBehaviorFieldName =
   | 'overlayPositionButton'
   | 'overlaySettingsButton'
   | 'overlayNavigationBar'
+  | 'overlaySeekBar'
   | 'overlayHotkeyHints'
   | 'overlayAutoHide'
   | 'overlayHoverHold'

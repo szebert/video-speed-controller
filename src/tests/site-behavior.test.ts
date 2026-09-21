@@ -376,6 +376,7 @@ describe('site behavior resolution', () => {
   it('defaults navigation to 5s back, 10s forward, −1× rewind, and 3× fast forward', () => {
     const resolved = resolveSiteBehavior();
     expect(resolved.overlayNavigationBar).toEqual({ value: false, source: 'built-in' });
+    expect(resolved.overlaySeekBar).toEqual({ value: false, source: 'built-in' });
     expect(resolved.skipBackSeconds).toEqual({ value: 5, source: 'built-in' });
     expect(resolved.skipForwardSeconds).toEqual({ value: 10, source: 'built-in' });
     expect(resolved.skipScaleWithPlaybackRate).toEqual({ value: false, source: 'built-in' });
@@ -1202,6 +1203,13 @@ describe('behavior setting changes', () => {
         value: false,
       }),
     ).toEqual({ kind: 'value', field: 'overlayHotkeyHints', value: false });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlaySeekBar',
+        value: true,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlaySeekBar', value: true });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',

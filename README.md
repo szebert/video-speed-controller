@@ -23,6 +23,7 @@ OS Video Speed Controller (OS VSC) is a toolbar popup and a per-video overlay. Y
 - Per-video speed readout, faster / slower, position picker, and settings button
 - Move it, hide it, change opacity, auto-hide, and show shortcut hints
 - Optional navigation bar: jump to start or end, play / pause, skip back or forward, hold-to-fast-forward, and hold-to-rewind
+- Optional seek bar: current time, duration, played progress, and buffered ranges
 - Configurable skip distances, with optional scaling by the current playback rate
 - Fast forward holds a temporary rate and restores the previous one on release
 - Rewind seeks backward while held. Chrome cannot play video in reverse, so there is no reverse audio
@@ -51,7 +52,7 @@ See [ROADMAP.md](ROADMAP.md) for planned work. Store listing notes are in [CHROM
 
 ## Install (development)
 
-Requirements: Node.js 22+ and pnpm 12.4.1.
+Requirements: Node.js 22+ and pnpm 12.5.1.
 
 ```bash
 pnpm install
