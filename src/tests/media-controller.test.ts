@@ -13,6 +13,16 @@ function surrender(video: HTMLVideoElement, playerRate: number): void {
   }
 }
 
+/**
+ * jsdom 30+ queues native `ratechange` as a document task. Flushing those
+ * tasks can reschedule the defense retry after the current pending-timer set
+ * is captured, so the retry needs a second flush.
+ */
+function flushRateRetry(): void {
+  vi.runOnlyPendingTimers();
+  vi.runOnlyPendingTimers();
+}
+
 describe('MediaController isolation', () => {
   it('adopts locally without changing another video', () => {
     vi.useFakeTimers();
@@ -212,7 +222,7 @@ describe('MediaController temporary transport rate', () => {
 
     video.playbackRate = 1.5;
     video.dispatchEvent(new Event('ratechange'));
-    vi.runOnlyPendingTimers();
+    flushRateRetry();
     expect(video.playbackRate).toBe(3);
 
     // A relentless page cannot make a transport session hand over ownership
@@ -221,7 +231,7 @@ describe('MediaController temporary transport rate', () => {
     for (let index = 0; index < 8; index += 1) {
       video.playbackRate = 1.5;
       video.dispatchEvent(new Event('ratechange'));
-      vi.runOnlyPendingTimers();
+      flushRateRetry();
     }
     expect(controller.surrendered).toBe(false);
     expect(controller.temporaryRate).toBe(3);
