@@ -25,6 +25,14 @@ async function enableSeekOverlay(
   await site.bringToFront();
 }
 
+async function setOptionsSwitch(options: Page, name: string, checked: boolean): Promise<void> {
+  const control = options.getByRole('switch', { name });
+  if ((await control.isChecked()) === checked) {
+    return;
+  }
+  await clickOptionsSwitch(options, name);
+}
+
 test('seek bar stays off until enabled and can scrub currentTime', async ({
   context,
   extensionId,
@@ -86,4 +94,83 @@ test('seek bar stays off until enabled and can scrub currentTime', async ({
     .toBeGreaterThan(3);
   await expect(overlay.locator('.seek-readout')).toContainText('/');
   await expect(overlay.locator('.seek-track')).toBeVisible();
+  await expect(overlay.locator('.seek-buffered').first()).toBeVisible();
+});
+
+test('pointer drag commits after release away from the range', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  const site = await context.newPage();
+  await site.goto(`${fixtureOrigin}/rewind.html`);
+  const popup = await openPopup(context, extensionId, site, serviceWorker);
+  await popup.getByRole('button', { name: 'Faster' }).click();
+  await popup.getByRole('button', { name: 'Reset' }).click();
+  await expect.poll(async () => site.locator('osvsc-overlay').count()).toBe(1);
+
+  const overlay = site.locator('osvsc-overlay').first();
+  const options = await openOptions(context, extensionId, '127.0.0.1');
+  await selectOptionsTab(options, 'Overlay');
+  await setOptionsSwitch(options, 'Show seek bar', true);
+  await setOptionsSwitch(options, 'Auto-hide overlay', true);
+  await expect(options.getByRole('switch', { name: 'Auto-hide overlay' })).toBeChecked();
+  await site.bringToFront();
+  await site.locator('#v1').hover();
+  await expect(overlay.locator('.controls-seek')).toBeVisible();
+  await expect
+    .poll(async () =>
+      site
+        .locator('#v1')
+        .evaluate((video) => Number.isFinite((video as HTMLVideoElement).duration)),
+    )
+    .toBe(true);
+
+  await site.mouse.move(500, 400);
+  await expect
+    .poll(async () => overlay.evaluate((host) => (host as HTMLElement).style.visibility), {
+      timeout: 5_000,
+    })
+    .toBe('hidden');
+
+  await site.locator('#v1').evaluate((node) => {
+    const video = node as HTMLVideoElement;
+    video.pause();
+    video.currentTime = 1;
+  });
+  await site.locator('#v1').hover();
+  await expect(overlay).toHaveCSS('visibility', 'visible');
+
+  const range = overlay.locator('.seek-range');
+  const box = await range.boundingBox();
+  if (!box) {
+    throw new Error('Missing seek range bounds');
+  }
+  const y = box.y + box.height / 2;
+  await site.mouse.move(box.x + box.width * 0.15, y);
+  await site.mouse.down();
+  await site.mouse.move(box.x + box.width * 0.75, y, { steps: 12 });
+  await site.mouse.move(box.x + box.width * 0.75, box.y + box.height + 80, { steps: 4 });
+  await site.mouse.up();
+
+  await expect
+    .poll(async () =>
+      site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).currentTime),
+    )
+    .toBeGreaterThan(3);
+  await expect
+    .poll(async () =>
+      overlay.evaluate(
+        (host) => host.shadowRoot?.activeElement?.classList.contains('seek-range') === true,
+      ),
+    )
+    .toBe(false);
+
+  // Leave the 320×180 fixture video so auto-hide can expire.
+  await site.mouse.move(500, 400);
+  await expect
+    .poll(async () => overlay.evaluate((host) => (host as HTMLElement).style.visibility), {
+      timeout: 5_000,
+    })
+    .toBe('hidden');
 });

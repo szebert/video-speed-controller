@@ -67,6 +67,7 @@ export class OverlayView {
   private bufferCacheKey = '';
   private scrubbing = false;
   private pointerSeeking = false;
+  private pointerSeekId: number | null = null;
   private pointerCommitted = false;
   private readonly activeHolds = new Set<() => void>();
   private picker: HTMLDivElement | null = null;
@@ -432,24 +433,50 @@ export class OverlayView {
       },
       { signal },
     );
+    // Pointer identity for this scrub. Chromium can fire lostpointercapture
+    // (and a blur) as soon as setPointerCapture runs in a shadow tree.
+    // Those must not end a still-down scrub; pointerup / pointercancel do.
+    const endPointerSeek = (event: Event): void => {
+      if (!this.pointerSeeking) {
+        return;
+      }
+      if (
+        this.pointerSeekId != null &&
+        event instanceof PointerEvent &&
+        event.pointerId !== this.pointerSeekId
+      ) {
+        return;
+      }
+      if (event.type === 'pointercancel') {
+        this.cancelPointerSeek();
+        return;
+      }
+      this.finishPointerSeek();
+    };
     range.addEventListener(
       'pointerdown',
       (event) => {
+        if (this.pointerSeeking) {
+          return;
+        }
         this.pointerSeeking = true;
+        this.pointerSeekId = typeof event.pointerId === 'number' ? event.pointerId : null;
         this.pointerCommitted = false;
         this.scrubbing = true;
         try {
           range.setPointerCapture(event.pointerId);
         } catch {
-          // Capture is optional. pointerup / pointercancel still end the gesture.
+          // Capture is optional. Document pointerup / pointercancel still end.
         }
         this.notifyInteractive();
       },
       { signal },
     );
-    range.addEventListener('pointerup', () => this.finishPointerSeek(), { signal });
+    for (const type of ['pointerup', 'pointercancel'] as const) {
+      range.addEventListener(type, endPointerSeek, { signal });
+      this.document.addEventListener(type, endPointerSeek, { capture: true, signal });
+    }
     range.addEventListener('change', () => this.finishPointerSeekOrCommit(), { signal });
-    range.addEventListener('pointercancel', () => this.cancelPointerSeek(), { signal });
 
     this.seekBar = bar;
     this.seekRange = range;
@@ -494,6 +521,7 @@ export class OverlayView {
       return;
     }
     this.pointerSeeking = false;
+    this.pointerSeekId = null;
     this.pointerCommitted = true;
     this.scrubbing = false;
     const seconds = Number(this.seekRange?.value);
@@ -509,6 +537,7 @@ export class OverlayView {
       return;
     }
     this.pointerSeeking = false;
+    this.pointerSeekId = null;
     this.pointerCommitted = true;
     this.scrubbing = false;
     this.seekRange?.blur();
@@ -518,6 +547,7 @@ export class OverlayView {
 
   private clearSeekGesture(): void {
     this.pointerSeeking = false;
+    this.pointerSeekId = null;
     this.pointerCommitted = false;
     this.scrubbing = false;
   }

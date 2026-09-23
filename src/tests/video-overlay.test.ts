@@ -1925,7 +1925,31 @@ describe('VideoOverlay', () => {
     range.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, bubbles: true }));
     range.value = '22';
     range.dispatchEvent(new Event('input', { bubbles: true }));
-    range.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, bubbles: true }));
+    document.body.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, bubbles: true }));
+    range.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(seek.mock.calls.filter((call) => call[0] === 22)).toHaveLength(1);
+  });
+
+  it('ignores a different pointer ending a live seek scrub', () => {
+    const seek = vi.fn((seconds: number, video: HTMLVideoElement) => {
+      video.currentTime = seconds;
+      return true;
+    });
+    const video = timelineVideo({ currentTime: 10, duration: 60 });
+    const overlay = new VideoOverlay(video, () => overlay.layout(), { adjustSpeed() {}, seek });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlaySeekBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const range = seekRange(overlay);
+    range.setPointerCapture = () => undefined;
+    range.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, bubbles: true }));
+    range.value = '22';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    document.body.dispatchEvent(new PointerEvent('pointerup', { pointerId: 8, bubbles: true }));
+    expect(seekReadout(overlay)).toBe('0:22 / 1:00');
+    video.dispatchEvent(new Event('progress'));
+    expect(seekReadout(overlay)).toBe('0:22 / 1:00');
+    document.body.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, bubbles: true }));
     range.dispatchEvent(new Event('change', { bubbles: true }));
     expect(seek.mock.calls.filter((call) => call[0] === 22)).toHaveLength(1);
   });
