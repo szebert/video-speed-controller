@@ -83,6 +83,7 @@ Enable a site from the popup. After granting access, existing videos should resp
 | `pnpm zip`           | Pack `opensource-video-speed-controller-<version>-chrome.zip`                  |
 | `pnpm check:release` | License, lockfile, manifest, and bundle growth vs the last GitHub release zip  |
 | `pnpm notices`       | Generate `THIRD_PARTY_NOTICES`                                                 |
+| `pnpm notices:check` | Fail when `THIRD_PARTY_NOTICES` does not match the import graph                |
 | `pnpm icons`         | Rasterize toolbar/store PNGs from `src/assets/logo.svg`                        |
 
 ## License

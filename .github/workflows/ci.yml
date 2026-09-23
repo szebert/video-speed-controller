@@ -27,7 +27,7 @@ jobs:
       - name: Unit tests
         run: pnpm test
       - name: Third-party notices
-        run: pnpm notices
+        run: pnpm notices:check
       - name: Build
         run: pnpm build
       - name: Inspect artifact

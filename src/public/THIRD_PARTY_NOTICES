@@ -7,7 +7,7 @@ under GPL-3.0-only.
 - @internationalized/date@3.12.4: Apache-2.0
 - @internationalized/number@3.6.8: Apache-2.0
 - @internationalized/string@3.2.10: Apache-2.0
-- @wxt-dev/browser@0.2.7: MIT
+- @wxt-dev/browser@0.3.0: MIT
 - @wxt-dev/i18n@0.2.7: MIT
 - class-variance-authority@0.7.1: Apache-2.0
 - client-only@0.0.1: MIT
@@ -21,6 +21,6 @@ under GPL-3.0-only.
 - react@19.3.0: MIT
 - scheduler@0.28.0: MIT
 - sonner@2.0.8: MIT
-- use-sync-external-store@1.6.0: MIT
+- use-sync-external-store@1.7.0: MIT
 - wxt@0.21.4: MIT
 - zod@4.6.5: MIT

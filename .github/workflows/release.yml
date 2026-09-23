@@ -19,7 +19,7 @@ jobs:
       - name: Check tag, license, and lockfile
         run: pnpm check:release
       - name: Notices
-        run: pnpm notices
+        run: pnpm notices:check
       - name: Build ZIP
         run: pnpm zip
       - name: Require matching ZIP

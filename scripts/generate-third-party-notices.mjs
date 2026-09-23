@@ -230,15 +230,31 @@ export function renderThirdPartyNotices() {
   return lines.join('\n');
 }
 
+const NOTICE_TARGETS = [
+  join(root, 'THIRD_PARTY_NOTICES'),
+  join(root, 'src/public/THIRD_PARTY_NOTICES'),
+];
+
 export function writeThirdPartyNotices() {
   const text = renderThirdPartyNotices();
-  const targets = [join(root, 'THIRD_PARTY_NOTICES'), join(root, 'src/public/THIRD_PARTY_NOTICES')];
-  for (const target of targets) {
+  for (const target of NOTICE_TARGETS) {
     writeFileSync(target, text);
   }
   const count = (text.match(/^- /gm) ?? []).length;
   console.log(`Wrote THIRD_PARTY_NOTICES (${count} entries)`);
   return text;
+}
+
+export function checkThirdPartyNotices() {
+  const text = renderThirdPartyNotices();
+  const stale = NOTICE_TARGETS.filter(
+    (target) => !existsSync(target) || readFileSync(target, 'utf8') !== text,
+  );
+  if (stale.length === 0) {
+    return;
+  }
+  console.error(`Third-party notices are stale:\n${stale.join('\n')}\nRun pnpm notices.`);
+  process.exitCode = 1;
 }
 
 const invokedAsScript =
@@ -247,6 +263,8 @@ const invokedAsScript =
 if (invokedAsScript) {
   if (process.argv.includes('--print')) {
     process.stdout.write(renderThirdPartyNotices());
+  } else if (process.argv.includes('--check')) {
+    checkThirdPartyNotices();
   } else {
     writeThirdPartyNotices();
   }

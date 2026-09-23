@@ -48,7 +48,8 @@ tests, and established implementation decisions.
 
 - Add or update tests when behavior changes and testing is appropriate.
 - After making changes, run the local checks CI also runs for that work.
-  `pnpm format:check` and `pnpm lint` are always in that set. Also run
+  `pnpm format:check`, `pnpm lint`, and `pnpm notices:check` are always in that set.
+  If `notices:check` fails, run `pnpm notices` and include both notice files. Also run
   `pnpm compile` and the affected `pnpm test` files when types or behavior
   changed. Do not skip `format:check` because a subset of files "looks fine".
 - Do not create a commit until those required checks have been run against
