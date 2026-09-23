@@ -14,7 +14,7 @@ function surrender(video: HTMLVideoElement, playerRate: number): void {
 }
 
 /**
- * jsdom 30+ queues native `ratechange` as a document task. Flushing those
+ * jsdom 30.1+ queues native `ratechange` as a document task. Flushing those
  * tasks can reschedule the defense retry after the current pending-timer set
  * is captured, so the retry needs a second flush.
  */

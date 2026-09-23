@@ -52,7 +52,7 @@ See [ROADMAP.md](ROADMAP.md) for planned work. Store listing notes are in [CHROM
 
 ## Install (development)
 
-Requirements: Node.js 22+ and pnpm 12.5.1.
+Requirements: Node.js 22+ and pnpm 12.6.0.
 
 ```bash
 pnpm install
