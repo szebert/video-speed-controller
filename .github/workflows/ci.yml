@@ -8,6 +8,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Longer than Playwright globalTimeout so a wedged e2e run can report
+    # before Actions kills the job. Earlier steps use part of this budget.
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:

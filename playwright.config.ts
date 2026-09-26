@@ -7,9 +7,12 @@ export default defineConfig({
   testDir: 'e2e',
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
+  // Per-test timeout does not bound a wedged run. CI gets a suite ceiling so
+  // Playwright can exit and print its report before the job timeout.
+  globalTimeout: process.env.CI ? 10 * 60_000 : undefined,
   timeout: 30_000,
   webServer: {
-    command: 'pnpm exec -- node e2e/serve-fixtures.mjs',
+    command: 'node e2e/serve-fixtures.mjs',
     url: 'http://127.0.0.1:4173/multi-video.html',
     reuseExistingServer: !process.env.CI,
   },
