@@ -1828,6 +1828,29 @@ describe('VideoOverlay', () => {
     overlay.layout();
     expect(seekReadout(overlay)).toBe('12:43 / --:--');
     expect(seekRange(overlay).disabled).toBe(true);
+    const slots = overlay.host.shadowRoot?.querySelectorAll('.seek-time');
+    expect(slots?.[0]?.getAttribute('data-reserve')).toBe('00:00');
+    expect(slots?.[1]?.getAttribute('data-reserve')).toBe('--:--');
+  });
+
+  it('sizes both seek clocks to the duration so later digits do not widen the row', () => {
+    const video = timelineVideo({ currentTime: 599, duration: 3723 });
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlaySeekBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    expect(seekReadout(overlay)).toBe('9:59 / 1:02:03');
+    expect(seekReserves(overlay)).toEqual(['0:00:00', '0:00:00']);
+
+    video.currentTime = 600;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(seekReadout(overlay)).toBe('10:00 / 1:02:03');
+    expect(seekReserves(overlay)).toEqual(['0:00:00', '0:00:00']);
+
+    video.currentTime = 3600;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(seekReadout(overlay)).toBe('1:00:00 / 1:02:03');
+    expect(seekReserves(overlay)).toEqual(['0:00:00', '0:00:00']);
   });
 
   it('seeks only the owned video through OverlayActions.seek', () => {
@@ -2535,6 +2558,12 @@ function seekRange(overlay: VideoOverlay): HTMLInputElement {
 
 function seekReadout(overlay: VideoOverlay): string {
   return overlay.host.shadowRoot?.querySelector('.seek-readout')?.textContent ?? '';
+}
+
+function seekReserves(overlay: VideoOverlay): string[] {
+  return [...(overlay.host.shadowRoot?.querySelectorAll('.seek-time') ?? [])].map(
+    (slot) => slot.getAttribute('data-reserve') ?? '',
+  );
 }
 
 function volumeBar(overlay: VideoOverlay): HTMLElement {

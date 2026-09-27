@@ -38,6 +38,26 @@ export function formatTimelineReadout(currentTime: number, duration: number | nu
   return `${shown} / ${formatMediaTime(duration)}`;
 }
 
+/**
+ * Width template for one clock slot. Same digit and colon shape as the widest
+ * `formatMediaTime` label from 0 through `seconds`, so a tabular slot sized to
+ * it does not grow at 10:00 or when hours appear. Unknown time stays `--:--`.
+ */
+export function mediaTimeReserve(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) {
+    return '--:--';
+  }
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  if (hours > 0) {
+    return `${'0'.repeat(String(hours).length)}:00:00`;
+  }
+  if (total >= 600) {
+    return '00:00';
+  }
+  return '0:00';
+}
+
 export function normalizeBufferedRanges(
   buffered: { length: number; start(index: number): number; end(index: number): number },
   duration: number | null,

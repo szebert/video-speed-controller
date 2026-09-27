@@ -6,6 +6,7 @@ import {
   clampDisplayedCurrentTime,
   formatMediaTime,
   formatTimelineReadout,
+  mediaTimeReserve,
   normalizeBufferedRanges,
   usableDuration,
 } from '../core/media-time';
@@ -55,6 +56,18 @@ describe('media time', () => {
     expect(formatMediaTime(null)).toBe('--:--');
     expect(formatTimelineReadout(763, 2901)).toBe('12:43 / 48:21');
     expect(formatTimelineReadout(763, null)).toBe('12:43 / --:--');
+  });
+
+  it('reserves the widest clock shape a duration can display', () => {
+    expect(mediaTimeReserve(null)).toBe('--:--');
+    expect(mediaTimeReserve(Number.NaN)).toBe('--:--');
+    expect(mediaTimeReserve(0)).toBe('0:00');
+    expect(mediaTimeReserve(599)).toBe('0:00');
+    expect(mediaTimeReserve(600)).toBe('00:00');
+    expect(mediaTimeReserve(3599)).toBe('00:00');
+    expect(mediaTimeReserve(3600)).toBe('0:00:00');
+    expect(mediaTimeReserve(36000)).toBe('00:00:00');
+    expect(mediaTimeReserve(360000)).toBe('000:00:00');
   });
 
   it('clamps buffered ranges to duration and drops empty leftovers', () => {

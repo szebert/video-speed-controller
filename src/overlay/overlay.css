@@ -399,10 +399,30 @@
 }
 
 .seek-readout {
+  display: inline-flex;
+  align-items: baseline;
   flex: 0 0 auto;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Each clock is sized by an invisible duration template (`data-reserve`),
+   so 9:59 → 10:00 and the hour rollover do not resize the track. */
+.seek-time {
+  display: inline-grid;
+}
+
+.seek-time::before {
+  content: attr(data-reserve);
+  grid-area: 1 / 1;
+  visibility: hidden;
+  white-space: pre;
+}
+
+.seek-time-value {
+  grid-area: 1 / 1;
+  text-align: end;
 }
 
 .controls-volume {

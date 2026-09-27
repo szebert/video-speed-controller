@@ -8,7 +8,7 @@ import {
   bufferedStructureKey,
   clampDisplayedCurrentTime,
   formatMediaTime,
-  formatTimelineReadout,
+  mediaTimeReserve,
 } from '../core/media-time';
 import { t, type MessageKey } from '../i18n/t';
 import type { HotkeyBinding } from '../settings/hotkey-binding';
@@ -73,6 +73,8 @@ export class OverlayView {
   private seekPlayed: HTMLDivElement | null = null;
   private seekBufferedHost: HTMLDivElement | null = null;
   private seekReadout: HTMLSpanElement | null = null;
+  private seekCurrentSlot: HTMLSpanElement | null = null;
+  private seekDurationSlot: HTMLSpanElement | null = null;
   private bufferCacheKey = '';
   private volumeBar: HTMLDivElement | null = null;
   private volumeListeners: AbortController | null = null;
@@ -256,6 +258,8 @@ export class OverlayView {
     this.seekPlayed = null;
     this.seekBufferedHost = null;
     this.seekReadout = null;
+    this.seekCurrentSlot = null;
+    this.seekDurationSlot = null;
     this.clearVolumeDrag();
     this.volumeListeners?.abort();
     this.volumeListeners = null;
@@ -447,7 +451,12 @@ export class OverlayView {
 
     const readout = this.document.createElement('span');
     readout.className = 'seek-readout';
-    readout.textContent = formatTimelineReadout(0, null);
+    const currentSlot = this.createSeekTimeSlot();
+    const durationSlot = this.createSeekTimeSlot();
+    readout.append(currentSlot, this.document.createTextNode(' / '), durationSlot);
+    this.seekCurrentSlot = currentSlot;
+    this.seekDurationSlot = durationSlot;
+    this.paintSeekReadout(0, null);
 
     wrap.append(track, ticks, range);
     bar.append(wrap, readout);
@@ -554,6 +563,8 @@ export class OverlayView {
     this.seekPlayed = null;
     this.seekBufferedHost = null;
     this.seekReadout = null;
+    this.seekCurrentSlot = null;
+    this.seekDurationSlot = null;
     this.bufferCacheKey = '';
   }
 
@@ -816,6 +827,41 @@ export class OverlayView {
     return Number.isFinite(max) && max > 0 && this.seekRange?.disabled !== true ? max : null;
   }
 
+  private createSeekTimeSlot(): HTMLSpanElement {
+    const slot = this.document.createElement('span');
+    slot.className = 'seek-time';
+    const value = this.document.createElement('span');
+    value.className = 'seek-time-value';
+    slot.append(value);
+    return slot;
+  }
+
+  private paintSeekReadout(shown: number, duration: number | null): void {
+    this.paintSeekTime(
+      this.seekCurrentSlot,
+      formatMediaTime(shown),
+      mediaTimeReserve(duration ?? shown),
+    );
+    this.paintSeekTime(
+      this.seekDurationSlot,
+      formatMediaTime(duration),
+      mediaTimeReserve(duration),
+    );
+  }
+
+  private paintSeekTime(slot: HTMLSpanElement | null, label: string, reserve: string): void {
+    if (!slot) {
+      return;
+    }
+    if (slot.getAttribute('data-reserve') !== reserve) {
+      slot.setAttribute('data-reserve', reserve);
+    }
+    const value = slot.firstElementChild;
+    if (value && value.textContent !== label) {
+      value.textContent = label;
+    }
+  }
+
   private applyTimelinePosition(currentTime: number, duration: number | null): void {
     const range = this.seekRange;
     const played = this.seekPlayed;
@@ -834,7 +880,7 @@ export class OverlayView {
     bar.toggleAttribute('data-disabled', !usable);
     played.style.left = '0';
     played.style.width = usable && duration > 0 ? `${(shown / duration) * 100}%` : '0%';
-    readout.textContent = formatTimelineReadout(shown, duration);
+    this.paintSeekReadout(shown, duration);
     if (usable) {
       range.setAttribute(
         'aria-valuetext',
