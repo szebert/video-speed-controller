@@ -1242,6 +1242,7 @@ export function canonicalizeBehaviorSettingChange(
     case 'overlaySettingsButton':
     case 'overlayNavigationBar':
     case 'overlaySeekBar':
+    case 'overlayVolumeBar':
     case 'overlayHotkeyHints':
     case 'overlayAutoHide':
     case 'overlayHoverHold':

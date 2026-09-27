@@ -2309,6 +2309,189 @@ describe('VideoOverlay', () => {
     overlay.layout();
     expect(overlay.host.style.visibility).toBe('visible');
   });
+
+  it('places the volume row after seek and navigation whenever they appear', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    expect(rowClasses(overlay)).toEqual(['controls', 'controls controls-volume']);
+    expect(overlay.host.shadowRoot?.querySelectorAll('.volume-tick')).toHaveLength(11);
+    expect(overlay.host.shadowRoot?.querySelector('.volume-readout')?.textContent).toBe('100%');
+
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true, overlaySeekBar: true }),
+    );
+    overlay.layout();
+    expect(rowClasses(overlay)).toEqual([
+      'controls',
+      'controls controls-seek',
+      'controls controls-volume',
+    ]);
+
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlayVolumeBar: true,
+        overlaySeekBar: true,
+        overlayNavigationBar: true,
+      }),
+    );
+    overlay.layout();
+    expect(rowClasses(overlay)).toEqual([
+      'controls',
+      'controls controls-nav',
+      'controls controls-seek',
+      'controls controls-volume',
+    ]);
+
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlayVolumeBar: true,
+        overlayNavigationBar: true,
+      }),
+    );
+    overlay.layout();
+    expect(rowClasses(overlay)).toEqual([
+      'controls',
+      'controls controls-nav',
+      'controls controls-volume',
+    ]);
+  });
+
+  it('snapshots volume and muted, and follows a later volumechange', () => {
+    const video = sizedVideo();
+    video.volume = 0.2;
+    video.muted = true;
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const mute = volumeMute(overlay);
+    expect(volumeRange(overlay).value).toBe('0.2');
+    expect(overlay.host.shadowRoot?.querySelector('.volume-readout')?.textContent).toBe('20%');
+    expect(mute.dataset.volumeIcon).toBe('muted');
+    expect(mute.getAttribute('aria-label')).toBe('Unmute');
+
+    video.muted = false;
+    video.volume = 0;
+    video.dispatchEvent(new Event('volumechange'));
+    expect(mute.dataset.volumeIcon).toBe('silent');
+    expect(mute.getAttribute('aria-label')).toBe('Mute');
+
+    video.volume = 0.9;
+    video.dispatchEvent(new Event('volumechange'));
+    expect(mute.dataset.volumeIcon).toBe('high');
+    video.volume = 0.2;
+    video.dispatchEvent(new Event('volumechange'));
+    expect(mute.dataset.volumeIcon).toBe('low');
+  });
+
+  it('reads the current volume again when the row is re-enabled', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.setControlled(true);
+    overlay.layout();
+    video.volume = 0.9;
+    video.muted = false;
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
+    overlay.layout();
+    expect(volumeMute(overlay).dataset.volumeIcon).toBe('high');
+    expect(volumeRange(overlay).value).toBe('0.9');
+  });
+
+  it('toggles mute without changing volume and unmutes only the owned video from the slider', () => {
+    const other = sizedVideo();
+    other.volume = 1;
+    const toggleMute = vi.fn((video: HTMLVideoElement) => {
+      video.muted = !video.muted;
+      video.dispatchEvent(new Event('volumechange'));
+      return true;
+    });
+    const setVolume = vi.fn((level: number, video: HTMLVideoElement) => {
+      video.volume = level;
+      if (level > 0) {
+        video.muted = false;
+      }
+      return true;
+    });
+    const video = sizedVideo();
+    video.volume = 0.8;
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      toggleMute,
+      setVolume,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    volumeMute(overlay).click();
+    expect(toggleMute).toHaveBeenCalledTimes(1);
+    expect(video.muted).toBe(true);
+    expect(video.volume).toBe(0.8);
+    expect(volumeMute(overlay).dataset.volumeIcon).toBe('muted');
+    expect(other.volume).toBe(1);
+    expect(other.muted).toBe(false);
+
+    const range = volumeRange(overlay);
+    range.value = '0.4';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(setVolume).toHaveBeenCalledTimes(1);
+    expect(setVolume).toHaveBeenCalledWith(0.4, video);
+    expect(video.muted).toBe(false);
+    expect(other.volume).toBe(1);
+  });
+
+  it('ends a volume drag outside the range once without another write', () => {
+    const setVolume = vi.fn((level: number, video: HTMLVideoElement) => {
+      video.volume = level;
+      if (level > 0) {
+        video.muted = false;
+      }
+      return true;
+    });
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      setVolume,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const range = volumeRange(overlay);
+    range.setPointerCapture = () => undefined;
+    range.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, bubbles: true }));
+    range.value = '0.4';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    document.body.dispatchEvent(new PointerEvent('pointerup', { pointerId: 8, bubbles: true }));
+    expect(volumeBar(overlay).hasAttribute('data-scrubbing')).toBe(true);
+    expect(setVolume).toHaveBeenCalledTimes(1);
+    document.body.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, bubbles: true }));
+    expect(setVolume).toHaveBeenCalledTimes(1);
+    expect(setVolume).toHaveBeenCalledWith(0.4, video);
+    expect(volumeBar(overlay).hasAttribute('data-scrubbing')).toBe(false);
+    expect(overlay.host.shadowRoot?.activeElement).not.toBe(range);
+  });
+
+  it('drops document volume listeners when the row is removed during a drag', () => {
+    const hits = countCaptureListeners('pointerup');
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const range = volumeRange(overlay);
+    range.setPointerCapture = () => undefined;
+    range.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 3, bubbles: true }));
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.layout();
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 3 }));
+    expect(hits()).toBe(0);
+    expect(overlay.host.shadowRoot?.querySelector('.controls-volume')).toBeNull();
+  });
 });
 
 function timelineVideo(options: {
@@ -2352,6 +2535,18 @@ function seekRange(overlay: VideoOverlay): HTMLInputElement {
 
 function seekReadout(overlay: VideoOverlay): string {
   return overlay.host.shadowRoot?.querySelector('.seek-readout')?.textContent ?? '';
+}
+
+function volumeBar(overlay: VideoOverlay): HTMLElement {
+  return overlay.host.shadowRoot?.querySelector('.controls-volume') as HTMLElement;
+}
+
+function volumeRange(overlay: VideoOverlay): HTMLInputElement {
+  return overlay.host.shadowRoot?.querySelector('.volume-range') as HTMLInputElement;
+}
+
+function volumeMute(overlay: VideoOverlay): HTMLButtonElement {
+  return overlay.host.shadowRoot?.querySelector('.volume-mute') as HTMLButtonElement;
 }
 
 function countCaptureListeners(type: string): () => number {

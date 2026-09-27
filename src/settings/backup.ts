@@ -92,6 +92,7 @@ const BackupV1FieldSchema = z.strictObject({
   overlaySettingsButton: z.boolean().optional(),
   overlayNavigationBar: z.boolean().optional(),
   overlaySeekBar: z.boolean().optional(),
+  overlayVolumeBar: z.boolean().optional(),
   overlayHotkeyHints: z.boolean().optional(),
   overlayAutoHide: z.boolean().optional(),
   overlayHoverHold: z.boolean().optional(),

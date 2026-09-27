@@ -1403,6 +1403,22 @@ describe('Options page', () => {
     });
   });
 
+  it('sends overlayVolumeBar true from the Show volume bar switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await selectTab('Overlay');
+    const volumeSwitch = container.querySelector('#overlay-volume-bar');
+    expect(volumeSwitch).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(volumeSwitch);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlayVolumeBar', value: true },
+    });
+  });
+
   it('persists independent skip distances and a fast-forward speed', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();

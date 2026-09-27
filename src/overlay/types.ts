@@ -19,6 +19,26 @@ export type OverlayTimelineState = {
 
 export type OverlaySeekPhase = 'input' | 'commit';
 
+export type OverlayVolumeState = {
+  volume: number;
+  muted: boolean;
+};
+
+export type VolumeIconKind = 'muted' | 'silent' | 'low' | 'high';
+
+export function volumeIconKind(volume: number, muted: boolean): VolumeIconKind {
+  if (muted) {
+    return 'muted';
+  }
+  if (!(volume > 0)) {
+    return 'silent';
+  }
+  if (volume <= 0.5) {
+    return 'low';
+  }
+  return 'high';
+}
+
 export type OverlayActions = {
   adjustSpeed(direction: -1 | 1, video: HTMLVideoElement): void;
   resetSpeed?(video: HTMLVideoElement): void;
@@ -32,6 +52,8 @@ export type OverlayActions = {
   setOverlayPosition?(position: OverlayPosition): void;
   openSettings?(): void;
   seek?(seconds: number, video: HTMLVideoElement): boolean;
+  setVolume?(level: number, video: HTMLVideoElement): boolean;
+  toggleMute?(video: HTMLVideoElement): boolean;
 };
 
 export type OverlayViewCallbacks = {
@@ -47,6 +69,9 @@ export type OverlayViewCallbacks = {
   onInteractiveChange(active: boolean): void;
   onSeek(seconds: number, phase: OverlaySeekPhase): void;
   onSeekCancel(): void;
+  onVolume(level: number): void;
+  onToggleMute(): void;
+  onVolumeDragEnd(): void;
 };
 
 export type OverlayViewState = {

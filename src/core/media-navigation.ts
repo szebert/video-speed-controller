@@ -101,6 +101,36 @@ export function writeCurrentTime(video: HTMLVideoElement, seconds: number): bool
   }
 }
 
+/** Writes `volume` in 0..1. A positive level clears mute. */
+export function setMediaVolume(video: HTMLVideoElement, level: number): boolean {
+  if (!isLiveMedia(video) || !Number.isFinite(level)) {
+    return false;
+  }
+  const next = Math.min(1, Math.max(0, level));
+  try {
+    video.volume = next;
+    if (next > 0 && video.muted) {
+      video.muted = false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Toggles `muted` and leaves `volume` unchanged. */
+export function toggleMediaMute(video: HTMLVideoElement): boolean {
+  if (!isLiveMedia(video)) {
+    return false;
+  }
+  try {
+    video.muted = !video.muted;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Seeks by a signed delta, clamped to the usable range. */
 export function seekBy(video: HTMLVideoElement, deltaSeconds: number): SkipResult | null {
   if (!isLiveMedia(video) || !Number.isFinite(deltaSeconds)) {

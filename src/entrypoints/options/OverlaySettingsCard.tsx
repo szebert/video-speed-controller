@@ -129,6 +129,18 @@ export function OverlaySettingsCard({
               resetBadgeText={resetBadgeText}
               onMutate={onMutate}
             />
+            <BehaviorSwitchField
+              id="overlay-volume-bar"
+              name="overlayVolumeBar"
+              field="overlayVolumeBar"
+              label={t('overlayVolumeBar')}
+              description={t('overlayVolumeBarDescription')}
+              setting={behavior.overlayVolumeBar}
+              selection={selection}
+              disabled={overlayLocked}
+              resetBadgeText={resetBadgeText}
+              onMutate={onMutate}
+            />
             <Field data-disabled={overlayLocked || undefined}>
               <div className="flex items-start justify-between gap-2">
                 <FieldContent>

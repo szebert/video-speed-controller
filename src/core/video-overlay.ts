@@ -2,7 +2,7 @@
 
 import { OverlayView } from '../overlay/overlay-view';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
-import type { OverlayActions, OverlaySeekPhase } from '../overlay/types';
+import type { OverlayActions, OverlaySeekPhase, OverlayVolumeState } from '../overlay/types';
 import {
   bufferedStructureKey,
   clampDisplayedCurrentTime,
@@ -170,6 +170,15 @@ export class VideoOverlay {
       onSeekCancel: () => {
         this.handleSeekCancel();
       },
+      onVolume: (level) => {
+        this.handleVolume(level);
+      },
+      onToggleMute: () => {
+        this.handleToggleMute();
+      },
+      onVolumeDragEnd: () => {
+        this.applyVolumeSnapshot();
+      },
     });
     shadow.append(this.view.element);
     document.documentElement.append(this.host);
@@ -188,6 +197,7 @@ export class VideoOverlay {
     for (const type of ['loadedmetadata', 'durationchange', 'progress', 'emptied'] as const) {
       video.addEventListener(type, () => this.onTimelineStructureEvent(), { signal });
     }
+    video.addEventListener('volumechange', () => this.onVolumeChange(), { signal });
   }
 
   get speedReadout(): HTMLButtonElement | null {
@@ -209,6 +219,7 @@ export class VideoOverlay {
     }
     this.syncView();
     this.reconcileSeekUi(previous, behavior);
+    this.reconcileVolumeUi(previous);
     // Transform is grid-only: apply even when auto-hide has already hidden the
     // host, so a later position APPLY is not stuck on the previous anchor.
     this.applyPositionTransform();
@@ -236,6 +247,9 @@ export class VideoOverlay {
     this.syncView();
     if (!wasOwned && this.seekUiUsable()) {
       this.applyFullSnapshot();
+    }
+    if (!wasOwned && this.volumeUiUsable()) {
+      this.applyVolumeSnapshot();
     }
     this.requestLayout();
   }
@@ -513,6 +527,61 @@ export class VideoOverlay {
       return;
     }
     this.applyPositionSnapshot();
+  }
+
+  private volumeUiUsable(): boolean {
+    return (
+      this.controlled &&
+      this.behavior?.overlayVisible === true &&
+      this.behavior?.overlayVolumeBar === true
+    );
+  }
+
+  private readVolumeState(): OverlayVolumeState {
+    const volume = this.video.volume;
+    return {
+      volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1,
+      muted: this.video.muted,
+    };
+  }
+
+  private applyVolumeSnapshot(): void {
+    if (!this.volumeUiUsable()) {
+      return;
+    }
+    this.view.updateVolume(this.readVolumeState());
+  }
+
+  private onVolumeChange(): void {
+    if (this.view.isVolumeScrubbing) {
+      return;
+    }
+    this.applyVolumeSnapshot();
+  }
+
+  private handleVolume(level: number): void {
+    if (!this.volumeUiUsable()) {
+      return;
+    }
+    this.restartAutoHide();
+    this.actions.setVolume?.(level, this.video);
+  }
+
+  private handleToggleMute(): void {
+    if (!this.volumeUiUsable()) {
+      return;
+    }
+    this.restartAutoHide();
+    this.actions.toggleMute?.(this.video);
+  }
+
+  private reconcileVolumeUi(previous: AppliedTabBehavior | null): void {
+    const usable = this.volumeUiUsable();
+    const wasUsable =
+      this.controlled && previous?.overlayVisible === true && previous.overlayVolumeBar === true;
+    if (usable && !wasUsable) {
+      this.applyVolumeSnapshot();
+    }
   }
 
   private reconcileSeekUi(previous: AppliedTabBehavior | null, next: AppliedTabBehavior): void {

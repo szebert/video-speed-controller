@@ -241,6 +241,7 @@ describe('parseBackgroundInbound', () => {
       { kind: 'value', field: 'fastForwardSpeed', value: 3 },
       { kind: 'value', field: 'overlayNavigationBar', value: true },
       { kind: 'value', field: 'overlaySeekBar', value: true },
+      { kind: 'value', field: 'overlayVolumeBar', value: true },
     ]) {
       expect(accepted({ type: 'SET_BEHAVIOR_SETTING', scope: { kind: 'global' }, change })).toBe(
         true,

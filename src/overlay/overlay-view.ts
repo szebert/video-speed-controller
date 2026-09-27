@@ -18,7 +18,14 @@ import {
   overlayPositionToGrid,
   type OverlayPosition,
 } from '../settings/site-behavior';
-import type { OverlayTimelineState, OverlayViewCallbacks, OverlayViewState } from './types';
+import {
+  volumeIconKind,
+  type OverlayTimelineState,
+  type OverlayViewCallbacks,
+  type OverlayVolumeState,
+  type OverlayViewState,
+  type VolumeIconKind,
+} from './types';
 
 const POSITION_LABELS = [
   'positionTopLeft',
@@ -67,7 +74,15 @@ export class OverlayView {
   private seekBufferedHost: HTMLDivElement | null = null;
   private seekReadout: HTMLSpanElement | null = null;
   private bufferCacheKey = '';
+  private volumeBar: HTMLDivElement | null = null;
+  private volumeListeners: AbortController | null = null;
+  private volumeRange: HTMLInputElement | null = null;
+  private volumeLevel: HTMLDivElement | null = null;
+  private volumeMute: HTMLButtonElement | null = null;
+  private volumeReadout: HTMLSpanElement | null = null;
   private scrubbing = false;
+  private volumeScrubbing = false;
+  private volumePointerId: number | null = null;
   private pointerSeeking = false;
   private pointerSeekId: number | null = null;
   private pointerCommitted = false;
@@ -81,6 +96,10 @@ export class OverlayView {
 
   get isScrubbing(): boolean {
     return this.scrubbing;
+  }
+
+  get isVolumeScrubbing(): boolean {
+    return this.volumeScrubbing;
   }
 
   constructor(
@@ -237,6 +256,14 @@ export class OverlayView {
     this.seekPlayed = null;
     this.seekBufferedHost = null;
     this.seekReadout = null;
+    this.clearVolumeDrag();
+    this.volumeListeners?.abort();
+    this.volumeListeners = null;
+    this.volumeBar = null;
+    this.volumeRange = null;
+    this.volumeLevel = null;
+    this.volumeMute = null;
+    this.volumeReadout = null;
     this.element.remove();
   }
 
@@ -313,6 +340,7 @@ export class OverlayView {
 
     this.syncNavigation(state);
     this.syncSeek(state);
+    this.syncVolume(state);
 
     if (this.pickerOpen && state.visible && behavior.overlayPositionButton) {
       this.renderPicker();
@@ -527,6 +555,205 @@ export class OverlayView {
     this.seekBufferedHost = null;
     this.seekReadout = null;
     this.bufferCacheKey = '';
+  }
+
+  private syncVolume(state: OverlayViewState): void {
+    if (!state.behavior.overlayVolumeBar) {
+      this.removeVolumeBar();
+      return;
+    }
+    this.ensureVolumeBar();
+  }
+
+  private ensureVolumeBar(): HTMLDivElement {
+    if (this.volumeBar?.isConnected) {
+      return this.volumeBar;
+    }
+    const bar = this.document.createElement('div');
+    bar.className = 'controls controls-volume';
+    bar.setAttribute('role', 'group');
+
+    const mute = this.document.createElement('button');
+    mute.type = 'button';
+    mute.className = 'control volume-mute';
+    mute.append(createVolumeIcon(this.document, 'high'));
+
+    const wrap = this.document.createElement('div');
+    wrap.className = 'volume-track-wrap';
+
+    const track = this.document.createElement('div');
+    track.className = 'volume-track';
+    track.setAttribute('aria-hidden', 'true');
+    const level = this.document.createElement('div');
+    level.className = 'volume-level';
+    track.append(level);
+
+    const ticks = this.document.createElement('div');
+    ticks.className = 'volume-ticks';
+    ticks.setAttribute('aria-hidden', 'true');
+    for (let percent = 0; percent <= 100; percent += 10) {
+      const tick = this.document.createElement('span');
+      tick.className = percent % 50 === 0 ? 'volume-tick volume-tick-major' : 'volume-tick';
+      ticks.append(tick);
+    }
+
+    const range = this.document.createElement('input');
+    range.type = 'range';
+    range.className = 'volume-range';
+    range.min = '0';
+    range.max = '1';
+    range.step = '0.01';
+    range.value = '1';
+    range.setAttribute('aria-label', t('volumeLevel'));
+
+    const readout = this.document.createElement('span');
+    readout.className = 'volume-readout';
+    readout.textContent = '100%';
+
+    wrap.append(track, ticks, range);
+    bar.append(mute, wrap, readout);
+
+    this.volumeListeners = this.openRowListeners(this.volumeListeners);
+    const signal = this.volumeListeners.signal;
+    const endPointerVolume = (event: Event): void => {
+      if (!this.volumeScrubbing) {
+        return;
+      }
+      if (
+        this.volumePointerId != null &&
+        event instanceof PointerEvent &&
+        event.pointerId !== this.volumePointerId
+      ) {
+        return;
+      }
+      this.finishVolumeDrag();
+    };
+    mute.addEventListener(
+      'click',
+      (event) => {
+        this.callbacks.onToggleMute();
+        blurAfterPointerClick(event);
+      },
+      { signal },
+    );
+    range.addEventListener(
+      'input',
+      () => {
+        const levelValue = Number(range.value);
+        if (!Number.isFinite(levelValue)) {
+          return;
+        }
+        this.paintVolume(levelValue, levelValue > 0 ? false : this.volumeMuted());
+        this.callbacks.onVolume(levelValue);
+      },
+      { signal },
+    );
+    range.addEventListener(
+      'pointerdown',
+      (event) => {
+        if (this.volumeScrubbing) {
+          return;
+        }
+        this.volumeScrubbing = true;
+        this.volumePointerId = typeof event.pointerId === 'number' ? event.pointerId : null;
+        bar.toggleAttribute('data-scrubbing', true);
+        try {
+          range.setPointerCapture(event.pointerId);
+        } catch {
+          // Capture is optional. Document pointerup / pointercancel still end.
+        }
+        this.notifyInteractive();
+      },
+      { signal },
+    );
+    for (const type of ['pointerup', 'pointercancel'] as const) {
+      range.addEventListener(type, endPointerVolume, { signal });
+      this.document.addEventListener(type, endPointerVolume, { capture: true, signal });
+    }
+
+    this.volumeBar = bar;
+    this.volumeRange = range;
+    this.volumeLevel = level;
+    this.volumeMute = mute;
+    this.volumeReadout = readout;
+    const anchor = this.seekBar?.isConnected
+      ? this.seekBar
+      : this.navigationBar?.isConnected
+        ? this.navigationBar
+        : this.bar;
+    anchor.after(bar);
+    return bar;
+  }
+
+  private removeVolumeBar(): void {
+    if (!this.volumeBar) {
+      return;
+    }
+    this.clearVolumeDrag();
+    this.volumeListeners?.abort();
+    this.volumeListeners = null;
+    this.volumeBar.remove();
+    this.volumeBar = null;
+    this.volumeRange = null;
+    this.volumeLevel = null;
+    this.volumeMute = null;
+    this.volumeReadout = null;
+  }
+
+  updateVolume(state: OverlayVolumeState): void {
+    if (!this.volumeBar || !this.state?.behavior.overlayVolumeBar || this.volumeScrubbing) {
+      return;
+    }
+    this.paintVolume(state.volume, state.muted);
+  }
+
+  private volumeMuted(): boolean {
+    return this.volumeMute?.getAttribute('aria-pressed') === 'true';
+  }
+
+  private paintVolume(volume: number, muted: boolean): void {
+    const range = this.volumeRange;
+    const level = this.volumeLevel;
+    const mute = this.volumeMute;
+    const readout = this.volumeReadout;
+    const shown = Math.min(1, Math.max(0, volume));
+    const percent = `${Math.round(shown * 100)}%`;
+    if (range) {
+      if (!this.volumeScrubbing) {
+        range.value = String(shown);
+      }
+      range.setAttribute('aria-valuetext', percent);
+    }
+    if (level) {
+      level.style.width = `${shown * 100}%`;
+    }
+    if (readout) {
+      readout.textContent = percent;
+    }
+    if (!mute) {
+      return;
+    }
+    const kind = volumeIconKind(shown, muted);
+    mute.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    mute.setAttribute('aria-label', t(muted ? 'volumeUnmute' : 'volumeMute'));
+    mute.dataset.volumeIcon = kind;
+    mute.replaceChildren(createVolumeIcon(this.document, kind));
+  }
+
+  private finishVolumeDrag(): void {
+    if (!this.volumeScrubbing) {
+      return;
+    }
+    this.clearVolumeDrag();
+    this.volumeRange?.blur();
+    this.callbacks.onVolumeDragEnd();
+    this.notifyInteractive();
+  }
+
+  private clearVolumeDrag(): void {
+    this.volumeScrubbing = false;
+    this.volumePointerId = null;
+    this.volumeBar?.toggleAttribute('data-scrubbing', false);
   }
 
   private finishPointerSeekOrCommit(): void {
@@ -868,6 +1095,7 @@ export class OverlayView {
       visible &&
       (this.focusWithin ||
         this.scrubbing ||
+        this.volumeScrubbing ||
         this.activeHolds.size > 0 ||
         (this.pointerWithin && (behavior?.overlayHoverHold ?? false)));
     if (this.lastInteractive === interactive) {
@@ -1002,6 +1230,22 @@ function createNavigationIcon(document: Document, action: MediaNavigationAction)
         ['path', { d: 'M19 5v14' }],
       ]);
   }
+}
+
+function createVolumeIcon(document: Document, kind: VolumeIconKind): SVGSVGElement {
+  const speaker =
+    'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z';
+  const children: Array<readonly [string, Record<string, string>]> = [['path', { d: speaker }]];
+  if (kind === 'low' || kind === 'high') {
+    children.push(['path', { d: 'M16 9a5 5 0 0 1 0 6' }]);
+  }
+  if (kind === 'high') {
+    children.push(['path', { d: 'M19.364 5.636a9 9 0 0 1 0 12.728' }]);
+  }
+  if (kind === 'muted') {
+    children.push(['path', { d: 'm22 9-6 6' }], ['path', { d: 'm16 9 6 6' }]);
+  }
+  return createSvg(document, children);
 }
 
 function createSettingsIcon(document: Document): SVGSVGElement {

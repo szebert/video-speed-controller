@@ -54,11 +54,13 @@
 }
 
 .controls {
+  --overlay-row-height: 22px;
   pointer-events: auto;
   display: flex;
   flex-wrap: nowrap;
-  align-items: stretch;
+  align-items: center;
   box-sizing: border-box;
+  height: var(--overlay-row-height);
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -260,11 +262,9 @@
   --seek-track: 4px;
   --seek-input: 16px;
   --seek-inset: calc(var(--seek-thumb) / 2);
-  align-self: stretch;
-  overflow: visible;
   align-items: center;
   gap: 8px;
-  padding: 4px 8px;
+  padding: 2px 8px;
 }
 
 .seek-track-wrap {
@@ -331,7 +331,8 @@
 }
 
 .controls-seek:not([data-disabled]) .seek-track-wrap:hover,
-.controls-seek:not([data-disabled])[data-scrubbing] {
+.controls-seek:not([data-disabled])[data-scrubbing],
+.controls-seek:not([data-disabled]):has(.seek-range:focus-visible) {
   --seek-thumb-opacity: 1;
 }
 
@@ -404,6 +405,159 @@
   white-space: nowrap;
 }
 
+.controls-volume {
+  --seek-thumb: 8px;
+  --seek-thumb-opacity: 0;
+  --seek-track: 4px;
+  --seek-input: 16px;
+  --seek-inset: calc(var(--seek-thumb) / 2);
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+}
+
+.volume-mute {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 16px;
+  padding: 0;
+}
+
+.volume-mute svg {
+  width: 14px;
+  height: 14px;
+}
+
+.volume-track-wrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 7.5rem;
+  height: var(--seek-input);
+}
+
+.volume-track,
+.volume-ticks {
+  position: absolute;
+  top: 50%;
+  inset-inline: var(--seek-inset);
+  translate: 0 -50%;
+  pointer-events: none;
+}
+
+.volume-track {
+  height: var(--seek-track);
+  overflow: hidden;
+  background: var(--muted);
+}
+
+.volume-ticks {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 0;
+}
+
+.volume-tick {
+  display: block;
+  width: 1px;
+  height: 6px;
+  min-height: 0;
+  flex: 0 0 auto;
+  line-height: 0;
+  background: var(--muted-foreground);
+  opacity: 0.45;
+}
+
+.volume-tick-major {
+  height: 8px;
+  opacity: 0.7;
+}
+
+.volume-level {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  background: var(--foreground);
+}
+
+.volume-readout {
+  /* Three tabular digits plus the percent sign, so 9% / 10% / 100% share one width. */
+  flex: 0 0 calc(3ch + 0.85em);
+  width: calc(3ch + 0.85em);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.controls-volume:not([data-disabled]) .volume-track-wrap:hover,
+.controls-volume:not([data-disabled])[data-scrubbing],
+.controls-volume:not([data-disabled]):has(.volume-range:focus-visible) {
+  --seek-thumb-opacity: 1;
+}
+
+.volume-range {
+  appearance: none;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: var(--seek-input);
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.volume-range:focus {
+  outline: none;
+}
+
+.volume-range:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.volume-range::-webkit-slider-runnable-track {
+  height: var(--seek-input);
+  border: none;
+  background: transparent;
+}
+
+.volume-range::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--seek-thumb);
+  height: var(--seek-thumb);
+  margin-top: calc((var(--seek-input) - var(--seek-thumb)) / 2);
+  border: 0;
+  border-radius: 999px;
+  background: var(--foreground);
+  opacity: var(--seek-thumb-opacity);
+  transition: opacity 0.08s ease;
+}
+
+.volume-range::-moz-range-track {
+  height: var(--seek-input);
+  border: none;
+  background: transparent;
+}
+
+.volume-range::-moz-range-thumb {
+  width: var(--seek-thumb);
+  height: var(--seek-thumb);
+  border: 0;
+  border-radius: 999px;
+  background: var(--foreground);
+  opacity: var(--seek-thumb-opacity);
+  transition: opacity 0.08s ease;
+}
+
 .controls-seek[data-disabled] .seek-readout,
 .controls-seek[data-disabled] .seek-played,
 .controls-seek[data-disabled] .seek-buffered,
@@ -445,6 +599,8 @@
 @media (prefers-reduced-motion: reduce) {
   .seek-range::-webkit-slider-thumb,
   .seek-range::-moz-range-thumb,
+  .volume-range::-webkit-slider-thumb,
+  .volume-range::-moz-range-thumb,
   .hotkey-flash {
     transition-duration: 0.01s;
   }

@@ -103,6 +103,11 @@ export const BEHAVIOR_FIELDS = {
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
+  overlayVolumeBar: {
+    default: false,
+    category: 'overlay',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
   overlayHotkeyHints: {
     default: true,
     category: 'overlay',

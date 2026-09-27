@@ -58,6 +58,7 @@ export const behaviorValueSchemas = {
   overlaySettingsButton: z.boolean(),
   overlayNavigationBar: z.boolean(),
   overlaySeekBar: z.boolean(),
+  overlayVolumeBar: z.boolean(),
   overlayHotkeyHints: z.boolean(),
   overlayAutoHide: z.boolean(),
   overlayHoverHold: z.boolean(),
