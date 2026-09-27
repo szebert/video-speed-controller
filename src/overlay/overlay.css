@@ -256,6 +256,7 @@
 
 .controls-seek {
   --seek-thumb: 8px;
+  --seek-thumb-opacity: 0;
   --seek-track: 4px;
   --seek-input: 16px;
   --seek-inset: calc(var(--seek-thumb) / 2);
@@ -287,7 +288,6 @@
 .seek-track {
   height: var(--seek-track);
   overflow: hidden;
-  border-radius: 999px;
   background: var(--muted);
 }
 
@@ -319,7 +319,6 @@
   position: absolute;
   top: 0;
   height: 100%;
-  border-radius: 999px;
   pointer-events: none;
 }
 
@@ -329,6 +328,11 @@
 
 .seek-played {
   background: var(--foreground);
+}
+
+.controls-seek:not([data-disabled]) .seek-track-wrap:hover,
+.controls-seek:not([data-disabled])[data-scrubbing] {
+  --seek-thumb-opacity: 1;
 }
 
 .seek-range {
@@ -373,6 +377,8 @@
   border: 0;
   border-radius: 999px;
   background: var(--foreground);
+  opacity: var(--seek-thumb-opacity);
+  transition: opacity 0.08s ease;
 }
 
 .seek-range::-moz-range-track {
@@ -387,6 +393,8 @@
   border: 0;
   border-radius: 999px;
   background: var(--foreground);
+  opacity: var(--seek-thumb-opacity);
+  transition: opacity 0.08s ease;
 }
 
 .seek-readout {
@@ -435,6 +443,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .seek-range::-webkit-slider-thumb,
+  .seek-range::-moz-range-thumb,
   .hotkey-flash {
     transition-duration: 0.01s;
   }

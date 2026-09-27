@@ -1923,9 +1923,15 @@ describe('VideoOverlay', () => {
     const range = seekRange(overlay);
     range.setPointerCapture = () => undefined;
     range.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, bubbles: true }));
+    expect(
+      overlay.host.shadowRoot?.querySelector('.controls-seek')?.hasAttribute('data-scrubbing'),
+    ).toBe(true);
     range.value = '22';
     range.dispatchEvent(new Event('input', { bubbles: true }));
     document.body.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, bubbles: true }));
+    expect(
+      overlay.host.shadowRoot?.querySelector('.controls-seek')?.hasAttribute('data-scrubbing'),
+    ).toBe(false);
     range.dispatchEvent(new Event('change', { bubbles: true }));
     expect(seek.mock.calls.filter((call) => call[0] === 22)).toHaveLength(1);
   });

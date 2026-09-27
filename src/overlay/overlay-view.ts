@@ -467,7 +467,7 @@ export class OverlayView {
         this.pointerSeeking = true;
         this.pointerSeekId = typeof event.pointerId === 'number' ? event.pointerId : null;
         this.pointerCommitted = false;
-        this.scrubbing = true;
+        this.setScrubbing(true);
         try {
           range.setPointerCapture(event.pointerId);
         } catch {
@@ -550,7 +550,7 @@ export class OverlayView {
     this.pointerSeeking = false;
     this.pointerSeekId = null;
     this.pointerCommitted = true;
-    this.scrubbing = false;
+    this.setScrubbing(false);
     const seconds = Number(this.seekRange?.value);
     if (Number.isFinite(seconds)) {
       this.callbacks.onSeek(seconds, 'commit');
@@ -566,7 +566,7 @@ export class OverlayView {
     this.pointerSeeking = false;
     this.pointerSeekId = null;
     this.pointerCommitted = true;
-    this.scrubbing = false;
+    this.setScrubbing(false);
     this.seekRange?.blur();
     this.callbacks.onSeekCancel();
     this.notifyInteractive();
@@ -576,7 +576,12 @@ export class OverlayView {
     this.pointerSeeking = false;
     this.pointerSeekId = null;
     this.pointerCommitted = false;
-    this.scrubbing = false;
+    this.setScrubbing(false);
+  }
+
+  private setScrubbing(active: boolean): void {
+    this.scrubbing = active;
+    this.seekBar?.toggleAttribute('data-scrubbing', active);
   }
 
   private durationFromRange(): number | null {
