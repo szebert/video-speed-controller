@@ -104,6 +104,7 @@ export const EditableResolvedBehaviorSchema = z.object({
   flashDelayMs: resolvedSettingSchema(z.number()),
   flashOpacity: resolvedSettingSchema(z.number()),
   flashScale: resolvedSettingSchema(z.number()),
+  hotkeyConsumeMatchedKeys: resolvedSettingSchema(z.boolean()),
   hotkeyRepeat: resolvedSettingSchema(z.boolean()),
   hotkeyRepeatDelayMs: resolvedSettingSchema(z.number()),
   hotkeyRepeatRate: resolvedSettingSchema(z.number()),

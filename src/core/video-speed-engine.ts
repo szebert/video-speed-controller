@@ -38,6 +38,7 @@ function createEngine(actions?: OverlayActions): VideoSpeedEngine {
         delayMs: behavior.hotkeyRepeatDelayMs,
         rate: behavior.hotkeyRepeatRate,
       });
+      hotkeys?.setConsumeMatchedKeys(behavior.hotkeyConsumeMatchedKeys);
       if (nextHotkeys) {
         hotkeys?.setHotkeys(nextHotkeys);
       }

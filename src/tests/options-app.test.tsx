@@ -1969,6 +1969,23 @@ describe('Options page', () => {
     });
   });
 
+  it('sends hotkeyConsumeMatchedKeys false from the Block native controls switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await selectTab('Hotkeys');
+    const toggle = container.querySelector('#hotkey-consume-matched-keys');
+    expect(toggle).toBeInstanceOf(HTMLInputElement);
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    await act(async () => {
+      click(toggle);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'hotkeyConsumeMatchedKeys', value: false },
+    });
+  });
+
   it('sends hotkeyRepeat true from the Enable key repeat switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();

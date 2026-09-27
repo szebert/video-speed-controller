@@ -104,6 +104,7 @@ const BackupV1FieldSchema = z.strictObject({
   flashDelayMs: BackupV1NonNegativeIntegerSchema.optional(),
   flashOpacity: BackupV1NonNegativeIntegerSchema.optional(),
   flashScale: BackupV1NonNegativeIntegerSchema.optional(),
+  hotkeyConsumeMatchedKeys: z.boolean().optional(),
   hotkeyRepeat: z.boolean().optional(),
   hotkeyRepeatDelayMs: BackupV1NonNegativeIntegerSchema.optional(),
   hotkeyRepeatRate: z.number().optional(),

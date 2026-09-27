@@ -163,6 +163,11 @@ export const BEHAVIOR_FIELDS = {
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
+  hotkeyConsumeMatchedKeys: {
+    default: true,
+    category: 'hotkeys',
+    reapply: { global: 'preserve-target', site: 'preserve-target' },
+  },
   hotkeyRepeat: {
     default: false,
     category: 'hotkeys',

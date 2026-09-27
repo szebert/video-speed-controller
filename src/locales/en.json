@@ -90,6 +90,8 @@
   "flashOpacityDescription": "How opaque the flash appears over videos.",
   "flashScale": "Flash size",
   "flashScaleDescription": "Adjust the size of the on-video action feedback.",
+  "hotkeyConsumeMatchedKeys": "Block native controls",
+  "hotkeyConsumeMatchedKeysDescription": "The website and video player ignore these shortcuts when possible. Turn this off to let them handle these shortcuts too.",
   "hotkeyRepeat": "Enable key repeat",
   "hotkeyRepeatDescription": "Allow most hotkeys to repeat the same command multiple times while the key is held down.",
   "hotkeyRepeatDelay": "Repeat delay",

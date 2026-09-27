@@ -48,6 +48,7 @@ export type BooleanBehaviorFieldName =
   | 'skipScaleWithPlaybackRate'
   | 'buttonFlash'
   | 'hotkeyFlash'
+  | 'hotkeyConsumeMatchedKeys'
   | 'hotkeyRepeat'
   | 'rememberLastSpeed';
 export type RecoverKind = 'pane' | 'sidebar' | 'pane-and-sidebar';

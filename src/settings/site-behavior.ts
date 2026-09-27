@@ -1249,6 +1249,7 @@ export function canonicalizeBehaviorSettingChange(
     case 'skipScaleWithPlaybackRate':
     case 'buttonFlash':
     case 'hotkeyFlash':
+    case 'hotkeyConsumeMatchedKeys':
     case 'hotkeyRepeat':
     case 'rememberLastSpeed':
       return typeof change.value === 'boolean' ? change : null;

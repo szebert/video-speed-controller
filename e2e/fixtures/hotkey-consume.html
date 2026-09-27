@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OS VSC hotkey consume fixture</title>
+    <style>
+      video {
+        display: block;
+        width: 320px;
+        height: 180px;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="v1" muted></video>
+    <script>
+      window.__osvscPageKeydowns = [];
+      window.addEventListener('keydown', (event) => {
+        window.__osvscPageKeydowns.push(event.code);
+      });
+    </script>
+  </body>
+</html>

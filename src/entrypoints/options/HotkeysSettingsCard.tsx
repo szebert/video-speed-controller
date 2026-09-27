@@ -218,6 +218,19 @@ export function HotkeysSettingsCard({
           <FieldLegend className="sr-only">{t('settingsHotkeys')}</FieldLegend>
           <FieldGroup className={OPTIONS_FIELD_GRID}>
             <BehaviorSwitchField
+              id="hotkey-consume-matched-keys"
+              className={OPTIONS_FIELD_SPAN}
+              name="hotkeyConsumeMatchedKeys"
+              field="hotkeyConsumeMatchedKeys"
+              label={t('hotkeyConsumeMatchedKeys')}
+              description={t('hotkeyConsumeMatchedKeysDescription')}
+              setting={behavior.hotkeyConsumeMatchedKeys}
+              selection={selection}
+              disabled={pending}
+              resetBadgeText={resetBadgeText}
+              onMutate={onMutateBehavior}
+            />
+            <BehaviorSwitchField
               id="hotkey-repeat"
               className={OPTIONS_FIELD_SPAN}
               name="hotkeyRepeat"

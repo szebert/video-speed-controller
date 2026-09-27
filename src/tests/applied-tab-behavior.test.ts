@@ -89,6 +89,8 @@ describe('applied tab behavior', () => {
     expect(BUILT_IN_SITE_BEHAVIOR.flashDelayMs).toBe(750);
     expect(BUILT_IN_SITE_BEHAVIOR.flashOpacity).toBe(70);
     expect(BUILT_IN_SITE_BEHAVIOR.flashScale).toBe(100);
+    expect(BUILT_IN_SITE_BEHAVIOR.hotkeyConsumeMatchedKeys).toBe(true);
+    expect(builtInAppliedTabBehavior().hotkeyConsumeMatchedKeys).toBe(true);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeat).toBe(false);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatDelayMs).toBe(500);
     expect(BUILT_IN_SITE_BEHAVIOR.hotkeyRepeatRate).toBe(15);

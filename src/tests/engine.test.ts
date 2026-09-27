@@ -106,4 +106,40 @@ describe('engine lifecycle', () => {
     expect(controller.surrendered).toBe(true);
     expect(video.playbackRate).toBe(1.5);
   });
+
+  it('updates hotkey consumption on a behavior-only setBehavior', () => {
+    const sendMessage = vi.fn(async () => ({
+      ok: true,
+      previousTargetSpeed: 2,
+      targetSpeed: 1,
+    }));
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+    const engine = startEngine();
+    const behavior = builtInAppliedTabBehavior(2);
+    engine.setBehavior(behavior, builtInEffectiveHotkeys());
+    engine.setBehavior({ ...behavior, hotkeyConsumeMatchedKeys: false });
+    const later = vi.fn();
+    const controller = new AbortController();
+    window.addEventListener('keydown', later, {
+      capture: true,
+      signal: controller.signal,
+    });
+    try {
+      const event = new KeyboardEvent('keydown', {
+        code: 'BracketLeft',
+        key: '[',
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(later).toHaveBeenCalledTimes(1);
+      expect(sendMessage).toHaveBeenCalledWith({
+        type: 'DISPATCH_TAB_ACTION',
+        action: 'decreaseSpeed',
+      });
+    } finally {
+      controller.abort();
+    }
+  });
 });

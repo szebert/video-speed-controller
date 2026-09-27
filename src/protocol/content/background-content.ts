@@ -39,6 +39,7 @@ export const AppliedTabBehaviorSchema = z.object({
   flashDelayMs: z.number(),
   flashOpacity: z.number(),
   flashScale: z.number(),
+  hotkeyConsumeMatchedKeys: z.boolean(),
   hotkeyRepeat: z.boolean(),
   hotkeyRepeatDelayMs: z.number(),
   hotkeyRepeatRate: z.number(),

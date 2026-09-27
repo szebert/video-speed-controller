@@ -70,6 +70,7 @@ export const behaviorValueSchemas = {
   flashDelayMs: StoredNonNegativeIntegerSchema,
   flashOpacity: StoredNonNegativeIntegerSchema,
   flashScale: StoredNonNegativeIntegerSchema,
+  hotkeyConsumeMatchedKeys: z.boolean(),
   hotkeyRepeat: z.boolean(),
   hotkeyRepeatDelayMs: StoredNonNegativeIntegerSchema,
   hotkeyRepeatRate: z.number(),

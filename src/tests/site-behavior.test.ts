@@ -88,6 +88,7 @@ describe('site behavior resolution', () => {
     expect(resolved.flashDelayMs).toEqual({ value: 750, source: 'built-in' });
     expect(resolved.flashOpacity).toEqual({ value: 70, source: 'built-in' });
     expect(resolved.flashScale).toEqual({ value: 100, source: 'built-in' });
+    expect(resolved.hotkeyConsumeMatchedKeys).toEqual({ value: true, source: 'built-in' });
     expect(resolved.hotkeyRepeat).toEqual({ value: false, source: 'built-in' });
     expect(resolved.hotkeyRepeatDelayMs).toEqual({ value: 500, source: 'built-in' });
     expect(resolved.hotkeyRepeatRate).toEqual({ value: 15, source: 'built-in' });
@@ -1267,6 +1268,13 @@ describe('behavior setting changes', () => {
         value: 99_000,
       }),
     ).toEqual({ kind: 'value', field: 'flashDelayMs', value: FLASH_DELAY_MS_MAX });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'hotkeyConsumeMatchedKeys',
+        value: false,
+      }),
+    ).toEqual({ kind: 'value', field: 'hotkeyConsumeMatchedKeys', value: false });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',

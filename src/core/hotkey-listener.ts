@@ -46,6 +46,7 @@ const DEFAULT_REPEAT_POLICY: HotkeyRepeatPolicy = {
 export class HotkeyListener {
   private map: EffectiveHotkeyMap | null = null;
   private policy: HotkeyRepeatPolicy = DEFAULT_REPEAT_POLICY;
+  private consumeMatchedKeys = true;
   private held: HeldHotkey | null = null;
   private targetObserver: MutationObserver | null = null;
   private readonly abort = new AbortController();
@@ -99,6 +100,10 @@ export class HotkeyListener {
     this.cancelHeld();
   }
 
+  setConsumeMatchedKeys(enabled: boolean): void {
+    this.consumeMatchedKeys = enabled;
+  }
+
   destroy(): void {
     this.cancelHeld();
     this.abort.abort();
@@ -124,8 +129,10 @@ export class HotkeyListener {
     if (isMediaNavigationAction(action) && !isLiveMedia(video)) {
       return;
     }
-    event.preventDefault();
-    event.stopImmediatePropagation();
+    if (this.consumeMatchedKeys) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
     if (event.repeat) {
       return;
     }

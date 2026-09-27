@@ -32,6 +32,19 @@ function keydown(code: string, extras: KeyboardEventInit = {}): KeyboardEvent {
   });
 }
 
+function withLaterCapture(handler: (event: Event) => void, run: () => void): void {
+  const controller = new AbortController();
+  window.addEventListener('keydown', handler, {
+    capture: true,
+    signal: controller.signal,
+  });
+  try {
+    run();
+  } finally {
+    controller.abort();
+  }
+}
+
 function keyup(code: string, extras: KeyboardEventInit = {}): KeyboardEvent {
   return new KeyboardEvent('keyup', {
     code,
@@ -582,6 +595,79 @@ describe('HotkeyListener', () => {
 
     video.remove();
     await Promise.resolve();
+    expect(navigationCalls()).toEqual([
+      ['fastForward', 'start'],
+      ['fastForward', 'end'],
+    ]);
+  });
+
+  it('consumes a matched keydown and blocks a later capture listener', () => {
+    listener.setHotkeys(builtInEffectiveHotkeys());
+    const later = vi.fn();
+    const event = keydown('BracketLeft', { key: '[' });
+    withLaterCapture(later, () => {
+      window.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(true);
+    expect(later).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'DISPATCH_TAB_ACTION',
+      action: 'decreaseSpeed',
+    });
+  });
+
+  it('consumes a repeated matched keydown without dispatching again', () => {
+    listener.setHotkeys(builtInEffectiveHotkeys());
+    window.dispatchEvent(keydown('BracketLeft', { key: '[' }));
+    sendMessage.mockClear();
+    const later = vi.fn();
+    const event = keydown('BracketLeft', { key: '[', repeat: true });
+    withLaterCapture(later, () => {
+      window.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(true);
+    expect(later).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('passes a matched keydown through when consumption is off', () => {
+    listener.setHotkeys(builtInEffectiveHotkeys());
+    listener.setConsumeMatchedKeys(false);
+    const later = vi.fn();
+    const event = keydown('BracketLeft', { key: '[' });
+    withLaterCapture(later, () => {
+      window.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(false);
+    expect(later).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'DISPATCH_TAB_ACTION',
+      action: 'decreaseSpeed',
+    });
+  });
+
+  it('passes a repeated matched keydown through without dispatching again', () => {
+    listener.setHotkeys(builtInEffectiveHotkeys());
+    listener.setConsumeMatchedKeys(false);
+    window.dispatchEvent(keydown('BracketLeft', { key: '[' }));
+    sendMessage.mockClear();
+    const later = vi.fn();
+    const event = keydown('BracketLeft', { key: '[', repeat: true });
+    withLaterCapture(later, () => {
+      window.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(false);
+    expect(later).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('does not end a fast forward hold when consumption is toggled', () => {
+    listener.setHotkeys(navigationMap());
+    window.dispatchEvent(keydown('KeyL'));
+    listener.setConsumeMatchedKeys(false);
+    listener.setConsumeMatchedKeys(true);
+    expect(navigationCalls()).toEqual([['fastForward', 'start']]);
+    window.dispatchEvent(keyup('KeyL'));
     expect(navigationCalls()).toEqual([
       ['fastForward', 'start'],
       ['fastForward', 'end'],
