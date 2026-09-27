@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { AlertCircleIcon, Trash2Icon } from 'lucide-react';
+import {
+  AlertCircleIcon,
+  GaugeIcon,
+  KeyboardIcon,
+  LayersIcon,
+  SkipForwardIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { AppTitle } from '@/components/AppTitle';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -227,15 +234,27 @@ export function App() {
 
                     <Tabs defaultSelectedKey="playback" className="w-full min-w-0">
                       <TabsList
-                        className="w-full max-w-full overflow-x-auto"
+                        className="w-full max-w-full"
                         aria-label={
                           selection.kind === 'site' ? t('settingsSite') : t('settingsDefaults')
                         }
                       >
-                        <TabsTrigger id="playback">{t('settingsPlayback')}</TabsTrigger>
-                        <TabsTrigger id="overlay">{t('settingsOverlay')}</TabsTrigger>
-                        <TabsTrigger id="navigation">{t('settingsNavigation')}</TabsTrigger>
-                        <TabsTrigger id="hotkeys">{t('settingsHotkeys')}</TabsTrigger>
+                        <TabsTrigger id="playback">
+                          <GaugeIcon data-icon="inline-start" />
+                          {t('settingsPlayback')}
+                        </TabsTrigger>
+                        <TabsTrigger id="overlay">
+                          <LayersIcon data-icon="inline-start" />
+                          {t('settingsOverlay')}
+                        </TabsTrigger>
+                        <TabsTrigger id="navigation">
+                          <SkipForwardIcon data-icon="inline-start" />
+                          {t('settingsNavigation')}
+                        </TabsTrigger>
+                        <TabsTrigger id="hotkeys">
+                          <KeyboardIcon data-icon="inline-start" />
+                          {t('settingsHotkeys')}
+                        </TabsTrigger>
                       </TabsList>
                       <TabsContent id="playback">
                         <PlaybackSettingsCard

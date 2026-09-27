@@ -290,7 +290,7 @@ describe('Options page', () => {
     await renderApp();
     expect(sendMessage).toHaveBeenCalledWith({ type: 'GET_BEHAVIOR_SETTINGS' });
     expect(sendMessage).toHaveBeenCalledWith({ type: 'GET_CUSTOM_SITES' });
-    expect(container.textContent).toContain('Global defaults');
+    expect(container.textContent).toContain('Global Defaults');
     expect(container.textContent).toContain('Sites use these values until you change them.');
     expect(container.textContent).toContain('No site settings yet.');
     expect(container.textContent).not.toContain('Built-in');
@@ -320,7 +320,7 @@ describe('Options page', () => {
     expect(container.textContent).toContain(
       'Shortcuts are ignored while you type. Browser and system shortcuts cannot be captured.',
     );
-    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Global defaults');
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Global Defaults');
     expect(container.textContent).not.toContain('Reset ALL Settings');
     expect(deleteSiteButton()).toBeNull();
   });
@@ -347,7 +347,7 @@ describe('Options page', () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp('chrome-extension://extid/options.html?site=example.com:8080');
     expect(sendMessage).toHaveBeenCalledWith({ type: 'GET_BEHAVIOR_SETTINGS' });
-    expect(container.querySelector('h2')?.textContent).toBe('Global defaults');
+    expect(container.querySelector('h2')?.textContent).toBe('Global Defaults');
   });
 
   it('lists custom sites and loads a site when selected', async () => {

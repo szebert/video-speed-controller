@@ -32,7 +32,7 @@
   "allSitesAccessAlertDescription": "Chrome may ask for permission to read and change data on all websites. This permission allows Video Speed Controller to detect and control videos automatically on the pages you visit. The extension does not collect page data or send extension traffic to a server. All-site access is optional and can be revoked at any time.",
   "allSitesAccessSwitchDescription": "Applies only to this browser profile. This permission is not synced.",
   "allSitesAccessError": "Could not update site access. Try again, or change this extension’s Site access in Chrome.",
-  "settingsDefaults": "Global defaults",
+  "settingsDefaults": "Global Defaults",
   "settingsDefaultsDescription": "Sites use these values until you change them.",
   "settingsSites": "Sites",
   "settingsSortSites": "Site sort",

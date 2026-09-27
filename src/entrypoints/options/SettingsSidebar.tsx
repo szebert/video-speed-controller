@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownAZIcon, ArrowUpZAIcon, ClockArrowDownIcon, ClockArrowUpIcon } from 'lucide-react';
-import { Button, buttonVariants } from '@/components/ui/button';
+import {
+  ArrowDownAZIcon,
+  ArrowUpZAIcon,
+  ClockArrowDownIcon,
+  ClockArrowUpIcon,
+  GlobeIcon,
+  ListIcon,
+  SettingsIcon,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Separator } from '@/components/ui/separator';
 import { t } from '@/i18n/t';
-import { cn } from 'cn';
 import type { CustomSiteSummary } from '../../settings/site-summary';
 import type { Selection } from './options-model';
 import {
@@ -61,10 +68,9 @@ export function SettingsSidebar({
   return (
     <aside className="flex min-h-0 min-w-0 flex-col border-b md:h-full md:w-64 md:shrink-0 md:border-b-0 md:border-e">
       <nav aria-label={t('settingsTitle')} className="flex min-h-0 flex-col gap-3 p-3 md:flex-1">
-        <div className="flex shrink-0 flex-col gap-1">
+        <div className="flex shrink-0 flex-col gap-1.5">
           <Button
             type="button"
-            size="sm"
             variant={selection.kind === 'settings' ? 'default' : 'outline'}
             aria-current={selection.kind === 'settings' ? 'page' : undefined}
             isDisabled={pending}
@@ -73,11 +79,11 @@ export function SettingsSidebar({
               onSelectPane({ kind: 'settings' });
             }}
           >
+            <SettingsIcon data-icon="inline-start" />
             {t('settingsTitle')}
           </Button>
           <Button
             type="button"
-            size="sm"
             variant={selection.kind === 'global' ? 'default' : 'outline'}
             aria-current={selection.kind === 'global' ? 'page' : undefined}
             isDisabled={pending}
@@ -86,13 +92,18 @@ export function SettingsSidebar({
               onSelectPane({ kind: 'global' });
             }}
           >
+            <GlobeIcon data-icon="inline-start" />
             {t('settingsDefaults')}
           </Button>
         </div>
         <Separator className="shrink-0" />
         <div className="flex min-h-0 flex-col gap-2 md:flex-1">
           <div className="flex shrink-0 items-center justify-between gap-1">
-            <p id={sitesHeadingId} className="px-2 text-xs font-medium text-muted-foreground">
+            <p
+              id={sitesHeadingId}
+              className="flex items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground"
+            >
+              <ListIcon className="size-3.5" />
               {t('settingsSites')}
             </p>
             <ButtonGroup aria-label={t('settingsSortSites')}>
@@ -138,25 +149,21 @@ export function SettingsSidebar({
                     selection.kind === 'site' && selection.hostname === site.hostname;
                   return (
                     <li key={site.hostname}>
-                      <button
+                      <Button
                         ref={selected ? selectedSiteRef : undefined}
-                        type="button"
-                        disabled={pending}
+                        size="sm"
+                        variant={selected ? 'default' : 'ghost'}
                         aria-current={selected ? 'page' : undefined}
-                        title={formatActivity(site.lastUsedAt)}
-                        className={cn(
-                          buttonVariants({
-                            size: 'sm',
-                            variant: selected ? 'default' : 'ghost',
-                          }),
-                          'w-full justify-start',
-                        )}
-                        onClick={() => {
+                        isDisabled={pending}
+                        className="w-full justify-start"
+                        onPress={() => {
                           onSelectSite(site.hostname);
                         }}
                       >
-                        <span className="truncate">{site.hostname}</span>
-                      </button>
+                        <span className="truncate" title={formatActivity(site.lastUsedAt)}>
+                          {site.hostname}
+                        </span>
+                      </Button>
                     </li>
                   );
                 })}

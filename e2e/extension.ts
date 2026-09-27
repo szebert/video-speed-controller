@@ -58,7 +58,7 @@ export async function openOptions(
   const options = await context.newPage();
   const query = hostname ? `?site=${encodeURIComponent(hostname)}` : '';
   await options.goto(`chrome-extension://${extensionId}/options.html${query}`);
-  await options.getByRole('button', { name: 'Global defaults', exact: true }).waitFor();
+  await options.getByRole('button', { name: 'Global Defaults', exact: true }).waitFor();
   return options;
 }
 

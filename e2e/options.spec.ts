@@ -66,14 +66,14 @@ async function enableSiteAt(popup: Page, site: Page, speed: number): Promise<voi
   await expect.poll(async () => overlayBadgeTexts(site)).toEqual(['1.25×', '1.25×', '1.25×']);
 }
 
-test('options.html shows Global defaults', async ({ context, extensionId }) => {
+test('options.html shows Global Defaults', async ({ context, extensionId }) => {
   const options = await openOptions(context, extensionId);
   await expect(options).toHaveTitle('Settings');
   await expect(options.getByRole('heading', { name: 'OS Video Speed Controller' })).toBeVisible();
   await expect(options.locator('header img')).toBeVisible();
-  await expect(options.getByRole('heading', { name: 'Global defaults' })).toBeVisible();
+  await expect(options.getByRole('heading', { name: 'Global Defaults' })).toBeVisible();
   await expect(
-    options.getByRole('button', { name: 'Global defaults', exact: true }),
+    options.getByRole('button', { name: 'Global Defaults', exact: true }),
   ).toHaveAttribute('aria-current', 'page');
   await expect(options.getByText('Sites use these values until you change them.')).toBeVisible();
   await expect(options.getByText('No site settings yet.')).toBeVisible();
@@ -122,7 +122,7 @@ test('options.html?site=127.0.0.1 selects Site', async ({ context, extensionId }
   await expect(options.getByRole('heading', { name: 'Current site speed' })).toBeVisible();
   await expect(options.getByRole('slider', { name: 'Default speed', exact: true })).toBeVisible();
   await expect(
-    options.getByRole('button', { name: 'Global defaults', exact: true }),
+    options.getByRole('button', { name: 'Global Defaults', exact: true }),
   ).not.toHaveAttribute('aria-current', 'page');
 });
 
@@ -327,7 +327,7 @@ test('global position applies on a site with no position override', async ({
   const popup = await openPopup(context, extensionId, site, serviceWorker);
   await enableSiteAt(popup, site, 1.25);
   const options = await openOptions(context, extensionId, '127.0.0.1');
-  await options.getByRole('button', { name: 'Global defaults', exact: true }).click();
+  await options.getByRole('button', { name: 'Global Defaults', exact: true }).click();
   await selectOptionsTab(options, 'Overlay');
   await options.getByText('Bottom left', { exact: true }).click();
   await expect
@@ -346,7 +346,7 @@ test('global speed 1.5 does not jump an active 1.25 tab', async ({
   const popup = await openPopup(context, extensionId, site, serviceWorker);
   await enableSiteAt(popup, site, 1.25);
   const options = await openOptions(context, extensionId, '127.0.0.1');
-  await options.getByRole('button', { name: 'Global defaults', exact: true }).click();
+  await options.getByRole('button', { name: 'Global Defaults', exact: true }).click();
   await expect(options.getByRole('heading', { name: 'Current default speed' })).toBeVisible();
   await options.getByRole('button', { name: 'Faster' }).click();
   await expect(options.getByText('1.50×')).toBeVisible();
