@@ -59,7 +59,9 @@ export class OverlayView {
   private readonly settings: HTMLButtonElement;
   private navigationBar: HTMLDivElement | null = null;
   private navigationButtons: Map<MediaNavigationAction, HTMLButtonElement> | null = null;
+  private navigationListeners: AbortController | null = null;
   private seekBar: HTMLDivElement | null = null;
+  private seekListeners: AbortController | null = null;
   private seekRange: HTMLInputElement | null = null;
   private seekPlayed: HTMLDivElement | null = null;
   private seekBufferedHost: HTMLDivElement | null = null;
@@ -351,11 +353,13 @@ export class OverlayView {
     const bar = this.document.createElement('div');
     bar.className = 'controls controls-nav';
     bar.setAttribute('role', 'group');
+    this.navigationListeners = this.openRowListeners(this.navigationListeners);
+    const signal = this.navigationListeners.signal;
     const buttons = new Map<MediaNavigationAction, HTMLButtonElement>();
     for (const { action, label } of NAVIGATION_BUTTONS) {
       const button = HOLD_ACTIONS.has(action)
-        ? this.createHoldButton(action, t(label))
-        : this.createPressButton(action, t(label));
+        ? this.createHoldButton(action, t(label), signal)
+        : this.createPressButton(action, t(label), signal);
       button.append(createNavigationIcon(this.document, action));
       buttons.set(action, button);
       bar.append(button);
@@ -420,7 +424,8 @@ export class OverlayView {
     wrap.append(track, ticks, range);
     bar.append(wrap, readout);
 
-    const signal = this.abort.signal;
+    this.seekListeners = this.openRowListeners(this.seekListeners);
+    const signal = this.seekListeners.signal;
     range.addEventListener(
       'input',
       () => {
@@ -488,11 +493,33 @@ export class OverlayView {
     return bar;
   }
 
+  /**
+   * Listeners for one navigation or seek row. Aborting the row drops its
+   * document listeners. Destroying the view aborts a row that is still up,
+   * and removing the row detaches that destroy hook so toggles do not pile up.
+   */
+  private openRowListeners(current: AbortController | null): AbortController {
+    current?.abort();
+    const row = new AbortController();
+    const abortRow = () => row.abort();
+    this.abort.signal.addEventListener('abort', abortRow, { once: true });
+    row.signal.addEventListener(
+      'abort',
+      () => {
+        this.abort.signal.removeEventListener('abort', abortRow);
+      },
+      { once: true },
+    );
+    return row;
+  }
+
   private removeSeekBar(): void {
     if (!this.seekBar) {
       return;
     }
     this.clearSeekGesture();
+    this.seekListeners?.abort();
+    this.seekListeners = null;
     this.seekBar.remove();
     this.seekBar = null;
     this.seekRange = null;
@@ -618,12 +645,18 @@ export class OverlayView {
     }
     // The row is going away while a pointer or key may still be down.
     this.releaseHolds();
+    this.navigationListeners?.abort();
+    this.navigationListeners = null;
     this.navigationBar.remove();
     this.navigationBar = null;
     this.navigationButtons = null;
   }
 
-  private createPressButton(action: MediaNavigationAction, label: string): HTMLButtonElement {
+  private createPressButton(
+    action: MediaNavigationAction,
+    label: string,
+    signal: AbortSignal,
+  ): HTMLButtonElement {
     const button = this.createChromeButton('control control-nav', label);
     button.addEventListener(
       'click',
@@ -633,16 +666,19 @@ export class OverlayView {
         }
         blurAfterPointerClick(event);
       },
-      { signal: this.abort.signal },
+      { signal },
     );
     return button;
   }
 
   // Press starts the action and release ends it, so a click never fires it once.
   // Each start allocates a fresh owner so a replaced hold's end is a no-op.
-  private createHoldButton(action: MediaNavigationAction, label: string): HTMLButtonElement {
+  private createHoldButton(
+    action: MediaNavigationAction,
+    label: string,
+    signal: AbortSignal,
+  ): HTMLButtonElement {
     const button = this.createChromeButton('control control-nav', label);
-    const signal = this.abort.signal;
     let activeOwner: TransportHoldOwner | null = null;
     let pointerHold = false;
     let pointerId: number | null = null;

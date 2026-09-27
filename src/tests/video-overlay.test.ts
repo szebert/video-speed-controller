@@ -1930,6 +1930,50 @@ describe('VideoOverlay', () => {
     expect(seek.mock.calls.filter((call) => call[0] === 22)).toHaveLength(1);
   });
 
+  it('drops document seek listeners when the seek row is removed', () => {
+    const hits = countCaptureListeners('pointerup');
+    const video = timelineVideo({ currentTime: 10, duration: 60 });
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlaySeekBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+    expect(hits()).toBe(1);
+
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.layout();
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlaySeekBar: true }));
+    overlay.layout();
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+    expect(hits()).toBe(2);
+
+    overlay.destroy();
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+    expect(hits()).toBe(2);
+  });
+
+  it('drops document hold listeners when the navigation row is removed', () => {
+    const hits = countCaptureListeners('pointerup');
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+    expect(hits()).toBe(2);
+
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+    overlay.layout();
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayNavigationBar: true }));
+    overlay.layout();
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+    expect(hits()).toBe(4);
+
+    overlay.destroy();
+    document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+    expect(hits()).toBe(4);
+  });
+
   it('ignores a different pointer ending a live seek scrub', () => {
     const seek = vi.fn((seconds: number, video: HTMLVideoElement) => {
       video.currentTime = seconds;
@@ -2302,4 +2346,26 @@ function seekRange(overlay: VideoOverlay): HTMLInputElement {
 
 function seekReadout(overlay: VideoOverlay): string {
   return overlay.host.shadowRoot?.querySelector('.seek-readout')?.textContent ?? '';
+}
+
+function countCaptureListeners(type: string): () => number {
+  let calls = 0;
+  const original = document.addEventListener.bind(document);
+  vi.spyOn(document, 'addEventListener').mockImplementation((event, listener, options) => {
+    const capture =
+      typeof options === 'object' &&
+      options !== null &&
+      'capture' in options &&
+      options.capture === true;
+    if (event === type && capture && typeof listener === 'function') {
+      const wrapped: EventListener = (evt) => {
+        calls += 1;
+        listener.call(document, evt);
+      };
+      original(event, wrapped, options);
+      return;
+    }
+    original(event, listener as EventListener, options);
+  });
+  return () => calls;
 }
