@@ -2499,6 +2499,60 @@ describe('VideoOverlay', () => {
     expect(overlay.host.shadowRoot?.activeElement).not.toBe(range);
   });
 
+  it('ends a volume drag when the overlay hides and shows the media volume again', () => {
+    const setVolume = vi.fn((level: number, video: HTMLVideoElement) => {
+      video.volume = level;
+      return true;
+    });
+    const video = sizedVideo();
+    video.volume = 0.8;
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      setVolume,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const range = volumeRange(overlay);
+    range.setPointerCapture = () => undefined;
+    range.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 4, bubbles: true }));
+    range.value = '0.2';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(volumeBar(overlay).hasAttribute('data-scrubbing')).toBe(true);
+    expect(range.value).toBe('0.2');
+
+    overlay.setControlled(false);
+    expect(volumeBar(overlay).hasAttribute('data-scrubbing')).toBe(false);
+    video.volume = 0.8;
+    video.dispatchEvent(new Event('volumechange'));
+
+    overlay.setControlled(true);
+    expect(range.value).toBe('0.8');
+    expect(overlay.host.shadowRoot?.querySelector('.volume-readout')?.textContent).toBe('80%');
+    expect(volumeBar(overlay).hasAttribute('data-scrubbing')).toBe(false);
+  });
+
+  it('restores the media volume when a keyboard volume write fails', () => {
+    const setVolume = vi.fn(() => false);
+    const video = sizedVideo();
+    video.volume = 0.8;
+    const overlay = new VideoOverlay(video, () => overlay.layout(), {
+      adjustSpeed() {},
+      setVolume,
+    });
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    const range = volumeRange(overlay);
+    range.value = '0.3';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(setVolume).toHaveBeenCalledWith(0.3, video);
+    expect(video.volume).toBe(0.8);
+    expect(range.value).toBe('0.8');
+    expect(overlay.host.shadowRoot?.querySelector('.volume-readout')?.textContent).toBe('80%');
+    expect(volumeBar(overlay).hasAttribute('data-scrubbing')).toBe(false);
+  });
+
   it('drops document volume listeners when the row is removed during a drag', () => {
     const hits = countCaptureListeners('pointerup');
     const video = sizedVideo();

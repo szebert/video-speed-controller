@@ -235,6 +235,7 @@ export class OverlayView {
       this.pointerWithin = false;
       this.focusWithin = false;
       this.clearSeekGesture();
+      this.finishVolumeDrag();
       this.setPickerOpen(false);
     } else if (!state.behavior.overlayPositionButton) {
       this.setPickerOpen(false);

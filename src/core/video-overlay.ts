@@ -564,7 +564,10 @@ export class VideoOverlay {
       return;
     }
     this.restartAutoHide();
-    this.actions.setVolume?.(level, this.video);
+    const applied = this.actions.setVolume?.(level, this.video) ?? false;
+    if (!applied && !this.view.isVolumeScrubbing) {
+      this.applyVolumeSnapshot();
+    }
   }
 
   private handleToggleMute(): void {
