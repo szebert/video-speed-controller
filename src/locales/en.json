@@ -91,7 +91,7 @@
   "flashScale": "Flash size",
   "flashScaleDescription": "Adjust the size of the on-video action feedback.",
   "hotkeyConsumeMatchedKeys": "Block native controls",
-  "hotkeyConsumeMatchedKeysDescription": "The website and video player ignore these shortcuts when possible. Turn this off to let them handle these shortcuts too.",
+  "hotkeyConsumeMatchedKeysDescription": "When a shortcut matches, prevent the page or player from also handling that key. Turn off to pass matched shortcuts through; OS VSC will still run its action.",
   "hotkeyRepeat": "Enable key repeat",
   "hotkeyRepeatDescription": "Allow most hotkeys to repeat the same command multiple times while the key is held down.",
   "hotkeyRepeatDelay": "Repeat delay",
