@@ -352,6 +352,12 @@ describe('Hotkeys settings card', () => {
       'Jump to 80%',
       'Jump to 90%',
     ]);
+    expect(container.querySelector('#hotkey-jumpTo10Percent-help')?.textContent).toBe(
+      'Seek the video to 10% in its seekable range.',
+    );
+    expect(container.querySelector('#hotkey-jumpTo90Percent-help')?.textContent).toBe(
+      'Seek the video to 90% in its seekable range.',
+    );
     for (const label of ['Jump to start', 'Skip back', 'Fast forward']) {
       expect(
         container.querySelector(`[aria-label="Record shortcut: ${label}"]`)?.textContent,

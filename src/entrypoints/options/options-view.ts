@@ -216,6 +216,13 @@ function hotkeyActionLabel(action: SiteHotkeyAction): string {
   return t(ACTION_LABEL[action]);
 }
 
+function hotkeyActionDescription(action: SiteHotkeyAction, description: MessageKey): string {
+  if (isJumpPercentAction(action)) {
+    return t(description, [String(JUMP_PERCENT_BY_ACTION[action])]);
+  }
+  return t(description);
+}
+
 export function hotkeyConflictMessage(action: SiteHotkeyAction): string {
   return `${t('hotkeyAlreadyUsed')} ${hotkeyActionLabel(action)}.`;
 }
@@ -1786,7 +1793,7 @@ export class OptionsView {
         el('p', {
           class: 'text-sm text-muted-foreground',
           attrs: { id: helpId, 'data-slot': 'field-description' },
-          text: t(description),
+          text: hotkeyActionDescription(action, description),
         }),
         status,
       ),
