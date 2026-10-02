@@ -2,7 +2,6 @@
 
 import eslint from '@eslint/js';
 import prettier from 'eslint-config-prettier';
-import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 import autoImports from './.wxt/eslint-auto-imports.mjs';
@@ -23,7 +22,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   tseslint.configs.recommended,
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.ts'],
     ...autoImports,
     languageOptions: {
       ...autoImports.languageOptions,
@@ -32,10 +31,6 @@ export default tseslint.config(
         ...globals.browser,
       },
     },
-  },
-  {
-    files: ['src/**/*.{ts,tsx}'],
-    ...reactHooks.configs.flat.recommended,
   },
   {
     files: ['src/public/**/*.js'],
@@ -108,7 +103,7 @@ export default tseslint.config(
       'src/core/media-registry.ts',
       'src/core/arbitration.ts',
       'src/core/speed.ts',
-      'src/overlay/**/*.{ts,tsx}',
+      'src/overlay/**/*.ts',
     ],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
@@ -150,7 +145,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/protocol/content/**/*.{ts,tsx}'],
+    files: ['src/protocol/content/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -184,11 +179,7 @@ export default tseslint.config(
     },
   },
   {
-    files: [
-      'src/entrypoints/popup/**/*.{ts,tsx}',
-      'src/entrypoints/options/**/*.{ts,tsx}',
-      'src/components/**/*.{ts,tsx}',
-    ],
+    files: ['src/entrypoints/popup/**/*.ts', 'src/entrypoints/options/**/*.ts', 'src/ui/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -238,7 +229,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.ts'],
     ignores: ['src/storage/durable-store.ts', 'src/tests/**'],
     rules: {
       'no-restricted-syntax': [

@@ -58,7 +58,7 @@ function analyzeBundlePlugin(): Plugin {
 export default defineConfig({
   srcDir: 'src',
   publicDir: 'src/public',
-  modules: ['@wxt-dev/module-react', '@wxt-dev/i18n/module'],
+  modules: ['@wxt-dev/i18n/module'],
   imports: {
     eslintrc: {
       enabled: 9,
@@ -66,11 +66,6 @@ export default defineConfig({
   },
   vite: () => ({
     plugins: [tailwindcss(), ...(analyzeBundle ? [analyzeBundlePlugin()] : [])],
-    // Real budget is last-release compare in check-release. This only quiets
-    // Vite's 500 kB default for the known popup/options globals chunk.
-    build: {
-      chunkSizeWarningLimit: 650,
-    },
   }),
   manifest: {
     default_locale: 'en',

@@ -3,13 +3,11 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
-    "jsx": "react-jsx",
     "typeRoots": ["./node_modules/@types"],
     "types": ["chrome"],
     // TypeScript replaces `compilerOptions.paths` from `extends` instead of
     // merging. Redeclare WXT's aliases here, rebased to this file's directory,
-    // so tools like the shadcn CLI do not treat `.wxt`'s `../src` as outside
-    // the repo.
+    // because `.wxt`'s paths are relative to `.wxt` rather than the repo root.
     "paths": {
       // src/ (WXT default)
       "@": ["./src"],
