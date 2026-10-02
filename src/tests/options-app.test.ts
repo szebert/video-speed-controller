@@ -566,6 +566,9 @@ describe('Options page', () => {
     expect(container.textContent).toContain('Reset to 1.50×');
     const { button, root } = resetBadge(container, 'Reset: Default speed');
     expect(button).toBeTruthy();
+    expect(button?.className).toContain('size-4');
+    expect(button?.className).not.toContain('size-6');
+    expect(root?.className).toContain('pe-1.5');
     expect(root?.textContent).toContain('Custom');
     expect(root?.hasAttribute('data-active')).toBe(true);
     await act(async () => {
@@ -841,6 +844,12 @@ describe('Options page', () => {
     const { button, root } = resetBadge(container, 'Reset: Position');
     expect(button).toBeTruthy();
     expect(root?.textContent).toContain('Custom');
+    const choice = container.querySelector('[data-slot="radio-group"] label');
+    expect(choice?.className).toContain('not-has-[:disabled]:hover:border-foreground/30');
+    expect(choice?.className).toContain('not-has-[:disabled]:not-data-selected:hover:bg-muted');
+    expect(choice?.className).toContain('has-[:disabled]:cursor-not-allowed');
+    expect(choice?.className).not.toContain('pointer-events-none');
+    expect(choice?.className).toContain('has-[:disabled]:opacity-40');
     expect(root?.hasAttribute('data-active')).toBe(true);
     await act(async () => {
       click(button);
@@ -1825,6 +1834,9 @@ describe('Options page', () => {
       const input = container.querySelector(`#${id}`);
       const group = input?.closest('[data-slot="input-group"]');
       expect(group?.nextElementSibling?.getAttribute('data-slot')).toBe('field-description');
+      expect(group?.className).toContain('has-[:disabled]:bg-input/50');
+      expect(group?.className).toContain('has-[:disabled]:opacity-50');
+      expect(group?.className).toContain('dark:has-[:disabled]:bg-input/80');
     }
     await selectTab('Overlay');
     for (const id of ['overlay-auto-hide-delay', 'flash-delay']) {
@@ -2464,6 +2476,19 @@ describe('Options page', () => {
     );
     expect(titles.indexOf('Enable on all sites')).toBeGreaterThanOrEqual(0);
     expect(titles.indexOf('Export')).toBeGreaterThan(titles.indexOf('Enable on all sites'));
+    const alert = container.querySelector('[data-slot="alert"]');
+    expect(alert?.className).toContain('has-[>svg]:grid-cols-[auto_1fr]');
+    expect(alert?.className).toContain('*:[svg]:row-span-2');
+    expect(alert?.querySelector('[data-slot="alert-title"]')?.className).toContain('col-start-2');
+    expect(alert?.querySelector('[data-slot="alert-description"]')?.className).toContain(
+      'col-start-2',
+    );
+    for (const label of ['Export', 'Import', 'Reset ALL Settings']) {
+      const control = [...container.querySelectorAll('button')].find(
+        (candidate) => candidate.textContent === label,
+      );
+      expect(control?.className).toContain('w-fit');
+    }
     const main = container.querySelector('main');
     expect(main?.className).toContain('overflow-y-auto');
     expect(main?.className).toContain('overflow-x-hidden');

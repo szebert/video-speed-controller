@@ -13,8 +13,11 @@ import {
   type SpeedPolicy,
 } from '@/core/speed';
 import { t } from '@/i18n/t';
+import { badge } from './components/badge';
+import { button } from './components/button';
+import { buttonGroup } from './components/button-group';
+import { rangeControl } from './components/slider';
 import { el } from './dom';
-import { badge, button, rangeControl } from './widgets';
 
 export function speedControls(options: {
   displaySpeed: number;
@@ -81,9 +84,8 @@ export function speedControls(options: {
       attrs: { 'aria-live': 'polite', 'data-slot': 'speed-readout' },
       text: formatSpeed(shown),
     }),
-    el(
-      'div',
-      { class: 'flex w-full [&>[data-slot=button]]:flex-1' },
+    buttonGroup(
+      { label, full: true },
       button(null, {
         variant: 'outline',
         icon: 'minus',

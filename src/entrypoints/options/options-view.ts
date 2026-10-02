@@ -64,23 +64,21 @@ import {
   type SiteHotkeyAction,
 } from '@/settings/site-behavior';
 import type { ThemePreference } from '@/settings/theme';
+import { destructiveAlert, infoAlert } from '@/ui/components/alert';
+import { button, paintButton } from '@/ui/components/button';
+import { buttonGroup } from '@/ui/components/button-group';
+import { card } from '@/ui/components/card';
+import { openConfirmDialog } from '@/ui/components/dialog';
+import { fieldGroup } from '@/ui/components/field';
+import { inputGroup } from '@/ui/components/input-group';
+import { createMenuButton, RADIO_CHOICE_CLASS } from '@/ui/components/menu';
+import { rangeControl, syncRange } from '@/ui/components/slider';
+import { switchControl, syncSwitch } from '@/ui/components/switch';
+import { createTabs } from '@/ui/components/tabs';
 import { classes, el } from '@/ui/dom';
 import type { IconName } from '@/ui/icons';
 import { icon } from '@/ui/icons';
 import type { ThemeController } from '@/ui/theme-controller';
-import {
-  button,
-  paintButton,
-  createMenuButton,
-  createTabs,
-  fieldGroup,
-  openConfirmDialog,
-  RADIO_CHOICE_CLASS,
-  rangeControl,
-  switchControl,
-  syncRange,
-  syncSwitch,
-} from '@/ui/widgets';
 import { formatBackupFileSize, readAndParseBackupFile, type StagedBackupFile } from './backup-file';
 import type { OptionsController } from './options-controller';
 import {
@@ -247,39 +245,9 @@ function formatActivity(lastUsedAt: number): string | undefined {
 
 function separator(): HTMLElement {
   return el('hr', {
-    class: 'shrink-0 border-border',
+    class: 'block h-px w-full shrink-0 border-0 bg-border',
     attrs: { 'data-slot': 'separator' },
   });
-}
-
-function card(title: string, description: string, ...children: Array<Node | null>): HTMLElement {
-  return el(
-    'div',
-    {
-      class:
-        'flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10',
-      attrs: { 'data-slot': 'card' },
-    },
-    el(
-      'div',
-      { class: 'grid gap-1 px-4', attrs: { 'data-slot': 'card-header' } },
-      el('div', {
-        class: 'text-base leading-snug font-medium',
-        attrs: { 'data-slot': 'card-title' },
-        text: title,
-      }),
-      el('div', {
-        class: 'text-sm text-muted-foreground',
-        attrs: { 'data-slot': 'card-description' },
-        text: description,
-      }),
-    ),
-    el(
-      'div',
-      { class: 'flex flex-col gap-4 px-4', attrs: { 'data-slot': 'card-content' } },
-      ...children,
-    ),
-  );
 }
 
 function fieldSet(legend: string, ...children: Array<Node | null>): HTMLFieldSetElement {
@@ -299,37 +267,6 @@ function optionsFieldGroup(...children: Array<Node | null>): HTMLDivElement {
   const group = fieldGroup(...children);
   group.classList.add('lg:grid', 'lg:grid-cols-2', 'lg:items-start');
   return group;
-}
-
-function infoAlert(title: string, description: string): HTMLElement {
-  return el(
-    'div',
-    {
-      class: 'grid grid-cols-[auto_1fr] gap-x-2 rounded-lg border bg-card px-2.5 py-2 text-sm',
-      attrs: { role: 'alert', 'data-slot': 'alert' },
-    },
-    icon('info'),
-    el('div', { class: 'font-medium', attrs: { 'data-slot': 'alert-title' }, text: title }),
-    el('div', {
-      class: 'text-sm text-muted-foreground',
-      attrs: { 'data-slot': 'alert-description' },
-      text: description,
-    }),
-  );
-}
-
-function destructiveAlert(title: string, description: string): HTMLElement {
-  return el(
-    'div',
-    {
-      class:
-        'grid grid-cols-[auto_1fr] gap-x-2 rounded-lg border bg-card px-2.5 py-2 text-sm text-destructive',
-      attrs: { role: 'alert', 'data-slot': 'alert' },
-    },
-    icon('circle-alert'),
-    el('div', { class: 'font-medium', attrs: { 'data-slot': 'alert-title' }, text: title }),
-    el('div', { attrs: { 'data-slot': 'alert-description' }, text: description }),
-  );
 }
 
 function fieldError(id: string, message: string): HTMLElement {
@@ -451,7 +388,9 @@ function shortcutKeys(parts: readonly string[], muted: boolean): HTMLElement {
 
 function positionChoiceClass(inherited: boolean): string {
   return classes(
-    'flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-center text-xs',
+    'flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-center text-xs transition-colors',
+    'not-has-[:disabled]:hover:border-foreground/30 not-has-[:disabled]:not-data-selected:hover:bg-muted',
+    'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40',
     RADIO_CHOICE_CLASS,
     inherited
       ? 'data-selected:bg-muted data-selected:text-muted-foreground'
@@ -491,7 +430,7 @@ function paintResetBadge(
 ): void {
   const isDisabled = spec.disabled || !spec.active;
   badge.className = classes(
-    'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent bg-secondary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-secondary-foreground select-none',
+    'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent bg-secondary py-0.5 ps-2 pe-1.5 text-xs font-medium whitespace-nowrap text-secondary-foreground select-none',
     !spec.active && 'invisible pointer-events-none',
     isDisabled && 'bg-muted text-muted-foreground opacity-50',
   );
@@ -964,15 +903,7 @@ export class OptionsView {
               icon('list', 'size-3.5'),
               t('settingsSites'),
             ),
-            el(
-              'div',
-              {
-                class: 'flex w-fit',
-                attrs: { role: 'group', 'aria-label': t('settingsSortSites') },
-              },
-              nameSort,
-              recentSort,
-            ),
+            buttonGroup({ label: t('settingsSortSites') }, nameSort, recentSort),
           ),
           siteRegion,
         ),
@@ -1170,6 +1101,7 @@ export class OptionsView {
     this.ensureAccess();
     const resetAll = button(t('resetAllSettings'), {
       variant: 'destructive',
+      class: 'w-fit',
       disabled: state.pending,
       onClick: () => {
         openConfirmDialog({
@@ -1549,7 +1481,7 @@ export class OptionsView {
         el('h2', { class: 'text-sm font-medium', text: heading }),
       ),
       readout,
-      el('div', { class: 'flex w-full [&>[data-slot=button]]:flex-1' }, slower, reset, faster),
+      buttonGroup({ label: heading, full: true }, slower, reset, faster),
       el(
         'div',
         { class: 'flex items-center gap-2 text-xs text-muted-foreground' },
@@ -1995,12 +1927,9 @@ export class OptionsView {
         this.render();
       },
     });
-    return el(
-      'div',
-      { class: 'flex w-fit', attrs: { 'data-shortcut-group': action } },
-      record,
-      remove,
-    );
+    const group = buttonGroup({ label }, record, remove);
+    group.setAttribute('data-shortcut-group', action);
+    return group;
   }
 
   private beginRecording(action: SiteHotkeyAction): void {
@@ -2436,7 +2365,7 @@ export class OptionsView {
     const previous = { value: initial.value };
     const input = el('input', {
       class: classes(
-        'min-w-0 flex-1 border-0 bg-transparent shadow-none outline-none',
+        'min-w-0 flex-1 border-0 bg-transparent shadow-none outline-none disabled:cursor-not-allowed disabled:bg-transparent',
         initial.muted && 'text-muted-foreground',
       ),
       attrs: {
@@ -2482,16 +2411,7 @@ export class OptionsView {
         attrs: { for: spec.id, 'data-slot': 'field-label' },
         text: spec.label,
       }),
-      el(
-        'div',
-        {
-          class:
-            'relative flex h-8 w-full min-w-0 items-center rounded-lg border border-input px-2',
-          attrs: { 'data-slot': 'input-group' },
-        },
-        input,
-        resetSlot,
-      ),
+      inputGroup(input, resetSlot),
       el('p', {
         class: 'text-sm text-muted-foreground',
         attrs: { id: helpId, 'data-slot': 'field-description' },
@@ -2889,9 +2809,9 @@ export class OptionsView {
         { attrs: { 'data-slot': 'reset-badge-action' } },
         button(null, {
           variant: 'ghost',
-          size: 'icon-xs',
+          size: 'icon-2xs',
           icon: 'x',
-          class: 'size-4 rounded-full disabled:opacity-100',
+          class: 'disabled:opacity-100',
           attrs: { 'aria-label': spec.label },
           onClick: () => {
             if (badge.hasAttribute('data-disabled')) {
@@ -3072,6 +2992,7 @@ export class OptionsView {
         t('exportSettingsDescription'),
         button(t('exportSettings'), {
           variant: 'outline',
+          class: 'w-fit',
           disabled: state.pending,
           onClick: () => {
             void this.controller.exportBackup();
@@ -3084,6 +3005,7 @@ export class OptionsView {
         fileInput,
         button(t('importSettings'), {
           variant: 'outline',
+          class: 'w-fit',
           disabled: state.pending,
           onClick: () => {
             fileInput.click();
@@ -3114,9 +3036,7 @@ export class OptionsView {
             'div',
             {
               class: classes(
-                'flex w-fit max-w-full min-w-40 items-center gap-2 rounded-xl border bg-card p-2 text-sm text-card-foreground',
-                attachmentState === 'idle' && 'border-dashed',
-                attachmentState === 'error' && 'border-destructive/30',
+                'group/attachment relative flex w-fit max-w-full min-w-40 shrink-0 items-center gap-2 rounded-xl border bg-card p-2 text-sm text-card-foreground transition-colors data-[state=idle]:border-dashed data-[state=error]:border-destructive/30',
               ),
               attrs: {
                 'data-slot': 'attachment',
@@ -3165,12 +3085,8 @@ export class OptionsView {
             }),
           ),
         ),
-        el(
-          'div',
-          {
-            class: 'flex w-fit',
-            attrs: { role: 'group', 'aria-label': t('importBackupActions') },
-          },
+        buttonGroup(
+          { label: t('importBackupActions') },
           button(t('importMerge'), {
             variant: 'outline',
             disabled: state.pending || !ready,
@@ -3223,11 +3139,8 @@ export class OptionsView {
     const attachment = root.querySelector('[data-slot="attachment"]');
     if (attachment instanceof HTMLElement) {
       attachment.dataset.state = attachmentState;
-      attachment.className = classes(
-        'flex w-fit max-w-full min-w-40 items-center gap-2 rounded-xl border bg-card p-2 text-sm text-card-foreground',
-        attachmentState === 'idle' && 'border-dashed',
-        attachmentState === 'error' && 'border-destructive/30',
-      );
+      attachment.className =
+        'group/attachment relative flex w-fit max-w-full min-w-40 shrink-0 items-center gap-2 rounded-xl border bg-card p-2 text-sm text-card-foreground transition-colors data-[state=idle]:border-dashed data-[state=error]:border-destructive/30';
     }
     const title = root.querySelector('[data-slot="attachment-title"]');
     if (title) {
@@ -3303,6 +3216,10 @@ export class OptionsView {
     this.toast?.remove();
     this.toastToken = feedback.token;
     this.toast = el('div', {
+      class: classes(
+        'fixed end-4 bottom-4 z-50 max-w-sm rounded-lg bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10',
+        feedback.level === 'error' && 'text-destructive',
+      ),
       attrs: {
         'data-slot': 'toast',
         'data-sonner-toast': '',

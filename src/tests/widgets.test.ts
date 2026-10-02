@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { button } from '../ui/components/button';
+import { buttonGroup } from '../ui/components/button-group';
+import { openConfirmDialog } from '../ui/components/dialog';
 import { icon } from '../ui/icons';
-import {
-  createMenuButton,
-  createTabs,
-  openConfirmDialog,
-  rangeControl,
-  switchControl,
-} from '../ui/widgets';
+import { createMenuButton } from '../ui/components/menu';
+import { rangeControl } from '../ui/components/slider';
+import { switchControl } from '../ui/components/switch';
+import { createTabs } from '../ui/components/tabs';
 
 function rect(box: Pick<DOMRect, 'top' | 'left' | 'width' | 'height'>): DOMRect {
   return {
@@ -57,6 +57,48 @@ describe('shared widgets', () => {
     }
     expect(root.querySelector('[role="tablist"]')?.className).toContain('h-8');
     expect(root.querySelector('[role="tablist"]')?.className).toContain('min-w-0');
+  });
+
+  it('joins related buttons into one segmented group', () => {
+    const group = buttonGroup(
+      { label: 'Speed', full: true },
+      button(null, { variant: 'outline', icon: 'minus', attrs: { 'aria-label': 'Slower' } }),
+      button('Reset', { variant: 'outline' }),
+      button(null, { variant: 'outline', icon: 'plus', attrs: { 'aria-label': 'Faster' } }),
+    );
+    expect(group.getAttribute('role')).toBe('group');
+    expect(group.getAttribute('aria-label')).toBe('Speed');
+    expect(group.className).toContain('w-full');
+    expect(group.className).toContain('[&>[data-slot=button]]:rounded-e-none');
+    expect(group.className).toContain('border-s-0');
+    expect(group.className).toContain('rounded-e-lg!');
+    expect(group.querySelectorAll('[data-slot="button"]')).toHaveLength(3);
+
+    const compact = buttonGroup({}, button('Merge', { variant: 'outline' }), button('Replace'));
+    expect(compact.className).toContain('w-fit');
+    expect(compact.className).not.toContain('w-full');
+  });
+
+  it('fades a disabled button, including one that stays selected', () => {
+    const node = button('Export', { variant: 'outline', disabled: true });
+    expect(node.disabled).toBe(true);
+    expect(node.className).toContain('disabled:opacity-50');
+    expect(node.className).toContain('disabled:cursor-not-allowed');
+    expect(node.className).not.toContain('disabled:pointer-events-none');
+    expect(node.className).toContain('border-border');
+    expect(node.className).not.toContain('border-transparent');
+    expect(node.className).toContain('enabled:hover:bg-muted');
+
+    const selected = button(null, {
+      variant: 'default',
+      size: 'icon-xs',
+      disabled: true,
+      attrs: { 'aria-pressed': 'true' },
+    });
+    expect(selected.disabled).toBe(true);
+    expect(selected.className).toContain('border-transparent');
+    expect(selected.className).toContain('disabled:opacity-50');
+    expect(selected.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('keeps a slider drag target at least 28px tall and rings the thumb on focus-visible', () => {
@@ -133,6 +175,9 @@ describe('shared widgets', () => {
     });
     const dialog = document.querySelector('dialog');
     expect(dialog).toBeInstanceOf(HTMLDialogElement);
+    expect(dialog?.className).toContain('supports-backdrop-filter:backdrop:backdrop-blur-xs');
+    expect(dialog?.className).toContain('ring-1');
+    expect(dialog?.className).toContain('ring-foreground/10');
     if (!(dialog instanceof HTMLDialogElement)) {
       return;
     }

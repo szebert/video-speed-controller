@@ -15,19 +15,16 @@ import { t } from '@/i18n/t';
 import logoUrl from '@/assets/logo.svg';
 import { openExtensionOptionsPage } from '@/settings/options-page';
 import type { ThemePreference } from '@/settings/theme';
+import { badge } from '@/ui/components/badge';
+import { button } from '@/ui/components/button';
+import { buttonGroup } from '@/ui/components/button-group';
 import { classes } from '@/ui/dom';
 import { el } from '@/ui/dom';
 import { icon } from '@/ui/icons';
+import { createMenuButton } from '@/ui/components/menu';
+import { rangeControl, syncRange } from '@/ui/components/slider';
+import { switchControl, syncSwitch } from '@/ui/components/switch';
 import { ThemeController } from '@/ui/theme-controller';
-import {
-  badge,
-  button,
-  createMenuButton,
-  rangeControl,
-  switchControl,
-  syncRange,
-  syncSwitch,
-} from '@/ui/widgets';
 import { popupSpeedPolicy, shownSpeed, type PopupState } from './popup-model';
 import { PopupController } from './popup-controller';
 
@@ -326,13 +323,7 @@ export class PopupView {
       attrs: { 'aria-label': t('faster') },
       onClick: () => this.popup.adjust(1),
     });
-    const group = el(
-      'div',
-      { class: 'flex w-full [&>[data-slot=button]]:flex-1' },
-      slower,
-      reset,
-      faster,
-    );
+    const group = buttonGroup({ label: t('currentSiteSpeed'), full: true }, slower, reset, faster);
     const slider = fixed
       ? el('div', {
           class: 'relative flex h-7 w-full items-center opacity-50',
