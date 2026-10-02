@@ -54,6 +54,10 @@ async function flush(): Promise<void> {
 }
 
 describe('Hotkeys settings card', () => {
+  it('names a percent jump in a shortcut conflict', () => {
+    expect(hotkeyConflictMessage('jumpTo50Percent')).toBe('Already used by Jump to 50%.');
+  });
+
   let root: Root | null = null;
   let container: HTMLElement;
 

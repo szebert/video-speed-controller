@@ -74,7 +74,7 @@
   "hotkeyJumpToEnd": "Jump to end",
   "hotkeyJumpToEndDescription": "Seek the video to the end. Unavailable on live streams.",
   "hotkeyJumpToPercent": "Jump to $1%",
-  "hotkeyJumpToPercentDescription": "Seek the video to this percentage of its length.",
+  "hotkeyJumpToPercentDescription": "Seek the video to this point in its seekable range.",
   "hotkeyNone": "None",
   "hotkeyPressShortcut": "Press shortcut…",
   "hotkeyRecord": "Record shortcut",
