@@ -23,12 +23,13 @@ import {
   badge,
   button,
   createMenuButton,
-  paintRange,
   rangeControl,
   switchControl,
+  syncRange,
   syncSwitch,
 } from '@/ui/widgets';
-import { PopupController, shownSpeed, type PopupState } from './popup-controller';
+import { popupSpeedPolicy, shownSpeed, type PopupState } from './popup-model';
+import { PopupController } from './popup-controller';
 
 const THEME_ICONS = {
   dark: 'moon',
@@ -52,6 +53,8 @@ export class PopupView {
   private unsubscribeTheme: (() => void) | null = null;
   private enableInput: HTMLInputElement | null = null;
   private speedRoot: HTMLElement | null = null;
+  private resetButton: HTMLButtonElement | null = null;
+  private disabledBadge: HTMLElement | null = null;
   private mode: 'loading' | 'unavailable' | 'ready' = 'loading';
   private shellAbort = new AbortController();
 
@@ -117,29 +120,35 @@ export class PopupView {
       return;
     }
     syncSwitch(this.enableInput, view.siteAccess, false);
-    const policy = speedPolicyFrom({
-      min: view.speedMin,
-      max: view.speedMax,
-      decreaseStep: view.decreaseSpeedStep,
-      increaseStep: view.increaseSpeedStep,
-    });
+    const policy = popupSpeedPolicy(view);
     const shown = shownSpeed(state);
+    const locked = !view.siteAccess;
     const readout = this.speedRoot.querySelector('[data-slot="speed-readout"]');
     if (readout) {
       readout.textContent = formatSpeed(shown);
     }
     const range = this.speedRoot.querySelector('[data-slot="slider"]');
     if (range instanceof HTMLElement) {
-      const input = range.querySelector('input[type="range"]');
-      if (input instanceof HTMLInputElement) {
-        input.disabled = !view.siteAccess;
-        if (document.activeElement !== input) {
-          input.value = String(sliderValue(shown, policy));
-          paintRange(range);
-        }
-      }
+      syncRange(range, sliderValue(shown, policy), locked || isFixedSpeedPolicy(policy));
     }
-    this.syncAdjustButtons(shown, policy, !view.siteAccess);
+    this.syncDisabledBadge(locked);
+    this.syncAdjustButtons(shown, policy, locked);
+  }
+
+  private syncDisabledBadge(locked: boolean): void {
+    const header = this.speedRoot?.querySelector('h2')?.parentElement;
+    if (!header) {
+      return;
+    }
+    if (locked) {
+      if (!this.disabledBadge?.isConnected) {
+        this.disabledBadge = badge(t('disabled'), 'secondary');
+        header.append(this.disabledBadge);
+      }
+      return;
+    }
+    this.disabledBadge?.remove();
+    this.disabledBadge = null;
   }
 
   private syncAdjustButtons(shown: number, policy: SpeedPolicy, locked: boolean): void {
@@ -151,6 +160,9 @@ export class PopupView {
     }
     if (faster instanceof HTMLButtonElement) {
       faster.disabled = locked || fixed || !canAdjustSpeed(shown, 1, policy);
+    }
+    if (this.resetButton) {
+      this.resetButton.disabled = locked;
     }
   }
 
@@ -172,12 +184,7 @@ export class PopupView {
           el('p', { class: 'truncate text-sm text-muted-foreground', text: view.hostname }),
         );
       }
-      const policy = speedPolicyFrom({
-        min: view.speedMin,
-        max: view.speedMax,
-        decreaseStep: view.decreaseSpeedStep,
-        increaseStep: view.increaseSpeedStep,
-      });
+      const policy = popupSpeedPolicy(view);
       main.append(
         this.enableRow(view.siteAccess, false),
         this.speedControls(shownSpeed(state), !view.siteAccess, policy),
@@ -284,11 +291,12 @@ export class PopupView {
     const root = el('div', { class: 'flex flex-col gap-3' });
     this.speedRoot = root;
     const heading = el('h2', { class: 'text-sm font-medium', text: t('currentSiteSpeed') });
+    this.disabledBadge = disabled ? badge(t('disabled'), 'secondary') : null;
     const header = el(
       'div',
       { class: 'flex items-center justify-between gap-3' },
       heading,
-      disabled ? badge(t('disabled'), 'secondary') : null,
+      this.disabledBadge,
     );
     const readout = el('div', {
       class: 'text-center text-3xl font-semibold tabular-nums',
@@ -309,6 +317,7 @@ export class PopupView {
       disabled: locked,
       onClick: () => this.popup.reset(),
     });
+    this.resetButton = reset;
     const faster = button(null, {
       variant: 'outline',
       icon: 'plus',
@@ -326,7 +335,7 @@ export class PopupView {
     );
     const slider = fixed
       ? el('div', {
-          class: 'relative flex w-full items-center opacity-50',
+          class: 'relative flex h-7 w-full items-center opacity-50',
           attrs: { 'data-slot': 'slider', 'data-disabled': 'true', 'aria-hidden': 'true' },
         })
       : rangeControl({

@@ -64,6 +64,11 @@ describe('Popup settings button', () => {
         query: vi.fn(async () => [{ id: 1, url: 'https://www.youtube.com/watch' }]),
         create: createTab,
       },
+      permissions: {
+        request: vi.fn(async () => true),
+        remove: vi.fn(async () => true),
+        contains: vi.fn(async () => false),
+      },
       storage: {
         session: {
           get: vi.fn(async () => ({})),
@@ -154,5 +159,67 @@ describe('Popup settings button', () => {
     expectPopupControlsOrder(container);
     expect(container.textContent).toContain('Disabled');
     expect(container.textContent).not.toContain('Changes apply to this site');
+  });
+
+  it('updates the mounted speed controls when site access turns on and off', async () => {
+    let access = false;
+    sendMessage.mockImplementation(async (message: { type?: string }) => {
+      if (message.type === 'GET_POPUP_STATE') {
+        return popupState({ siteAccess: access });
+      }
+      if (message.type === 'ENABLE_SITE') {
+        access = true;
+        return { ok: true, targetSpeed: 1 };
+      }
+      return { ok: true, targetSpeed: 1 };
+    });
+    await renderApp();
+    const slider = container.querySelector('[data-slot="slider"]');
+    const range = slider?.querySelector('input[type="range"]');
+    const reset = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Reset',
+    );
+    const enable = container.querySelector('[role="switch"]');
+    expect(slider).toBeInstanceOf(HTMLElement);
+    expect(range).toBeInstanceOf(HTMLInputElement);
+    expect(reset).toBeInstanceOf(HTMLButtonElement);
+    expect(enable).toBeInstanceOf(HTMLInputElement);
+    if (
+      !(slider instanceof HTMLElement) ||
+      !(range instanceof HTMLInputElement) ||
+      !(reset instanceof HTMLButtonElement) ||
+      !(enable instanceof HTMLInputElement)
+    ) {
+      return;
+    }
+    expect(enable.checked).toBe(false);
+    expect(range.disabled).toBe(true);
+    expect(slider.hasAttribute('data-disabled')).toBe(true);
+    expect(slider.className).toContain('opacity-50');
+    expect(reset.disabled).toBe(true);
+    expect(container.textContent).toContain('Disabled');
+
+    await enable.click();
+    await vi.waitFor(() => {
+      expect(enable.checked).toBe(true);
+    });
+    expect(container.querySelector('[data-slot="slider"]')).toBe(slider);
+    expect(range.disabled).toBe(false);
+    expect(slider.hasAttribute('data-disabled')).toBe(false);
+    expect(slider.className).not.toContain('opacity-50');
+    expect(reset.disabled).toBe(false);
+    expect(container.textContent).not.toContain('Disabled');
+
+    access = false;
+    await enable.click();
+    await vi.waitFor(() => {
+      expect(enable.checked).toBe(false);
+    });
+    expect(container.querySelector('[data-slot="slider"]')).toBe(slider);
+    expect(range.disabled).toBe(true);
+    expect(slider.hasAttribute('data-disabled')).toBe(true);
+    expect(slider.className).toContain('opacity-50');
+    expect(reset.disabled).toBe(true);
+    expect(container.textContent).toContain('Disabled');
   });
 });

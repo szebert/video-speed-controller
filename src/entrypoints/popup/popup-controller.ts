@@ -10,22 +10,17 @@ import {
   disableExactOriginAccess,
   requestExactOriginAccess,
 } from '@/access/site-access';
-import { adjustSpeed, displaySpeed, resolveEffectiveSpeed, speedPolicyFrom } from '@/core/speed';
+import { adjustSpeed } from '@/core/speed';
 import { t } from '@/i18n/t';
 import { sendPopupRequest } from '@/protocol/rpc';
-import type { PopupStateResponse } from '@/protocol/schemas/popup-background';
+import {
+  adjustmentSpeed,
+  popupSpeedPolicy,
+  type PopupSession,
+  type PopupState,
+} from './popup-model';
 
-export type PopupSession = PopupStateResponse & {
-  tabId: number;
-  url: string;
-};
-
-export type PopupState = {
-  ready: boolean;
-  view: PopupSession | null;
-  notice: string | null;
-  sliderPreview: number | null;
-};
+export type { PopupSession, PopupState };
 
 type Listener = () => void;
 
@@ -120,16 +115,8 @@ export class PopupController {
     if (!view?.supported) {
       return;
     }
-    const policy = speedPolicyFrom({
-      min: view.speedMin,
-      max: view.speedMax,
-      decreaseStep: view.decreaseSpeedStep,
-      increaseStep: view.increaseSpeedStep,
-    });
-    const current = view.siteAccess
-      ? (view.tabTarget ?? resolveEffectiveSpeed(view.seedTarget, policy))
-      : resolveEffectiveSpeed(view.seedTarget, policy);
-    void this.sendSpeed(adjustSpeed(current, direction, policy));
+    const policy = popupSpeedPolicy(view);
+    void this.sendSpeed(adjustSpeed(adjustmentSpeed(view), direction, policy));
   }
 
   reset(): void {
@@ -264,18 +251,4 @@ export class PopupController {
       listener();
     }
   }
-}
-
-export function shownSpeed(state: PopupState): number {
-  const view = state.view;
-  if (!view?.supported) {
-    return 1;
-  }
-  const policy = speedPolicyFrom({
-    min: view.speedMin,
-    max: view.speedMax,
-    decreaseStep: view.decreaseSpeedStep,
-    increaseStep: view.increaseSpeedStep,
-  });
-  return state.sliderPreview ?? displaySpeed({ ...view, policy });
 }
