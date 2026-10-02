@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AppTitle } from '@/components/AppTitle';
+import { OptionsController } from '../entrypoints/options/options-controller';
+import { OptionsView } from '../entrypoints/options/options-view';
+import { resolveSiteBehavior } from '../settings/site-behavior';
+import { ThemeController } from '../ui/theme-controller';
 
 describe('AppTitle', () => {
-  let root: Root | null = null;
+  let view: OptionsView | null = null;
   let container: HTMLElement;
 
   afterEach(() => {
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
+    view?.destroy();
+    view = null;
     container?.remove();
     document.body.replaceChildren();
   });
@@ -21,11 +20,12 @@ describe('AppTitle', () => {
   it('places a decorative logo before the product title', () => {
     container = document.createElement('div');
     document.body.append(container);
-    root = createRoot(container);
-    act(() => {
-      root?.render(<AppTitle />);
-    });
-
+    const controller = new OptionsController();
+    const { hotkeys, ...global } = resolveSiteBehavior();
+    controller.snapshot = { global, globalHotkeys: hotkeys, site: null };
+    controller.ready = true;
+    view = new OptionsView(container, controller, new ThemeController('dark'));
+    view.start();
     const heading = container.querySelector('h1');
     const logo = container.querySelector('img');
     expect(heading?.textContent).toBe('OS Video Speed Controller');

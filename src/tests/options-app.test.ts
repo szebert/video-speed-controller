@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ThemeProvider } from '@/components/theme-provider';
-import { SpeedControls } from '@/components/SpeedControls';
 import type { GetBehaviorSettingsResponse } from '../protocol/schemas/options-background';
 import type { BehaviorSettingsSnapshot, CustomSiteSummary } from '../protocol/schemas/shared';
 import { SITE_LIST_SORT_STORAGE_KEY } from '../entrypoints/options/site-list-sort';
@@ -17,8 +12,14 @@ import {
   type BehaviorOverrides,
   type BehaviorSettingChange,
 } from '../settings/site-behavior';
-import { DEFAULT_SPEED_POLICY, SPEED_MIN_SETTING_MIN } from '../core/speed';
-import { App } from '../entrypoints/options/App';
+import { OptionsController } from '../entrypoints/options/options-controller';
+import { OptionsView } from '../entrypoints/options/options-view';
+import { ThemeController } from '../ui/theme-controller';
+
+async function act(callback: () => void | Promise<void>): Promise<void> {
+  await Promise.resolve(callback());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 function snapshot(site: string | null = null): BehaviorSettingsSnapshot {
   const { hotkeys, ...global } = resolveSiteBehavior();
@@ -128,7 +129,9 @@ function setInputValue(input: HTMLInputElement, value: string): void {
 }
 
 describe('Options page', () => {
-  let root: Root | null = null;
+  let view: OptionsView | null = null;
+  let optionsPage: OptionsController | null = null;
+  let theme: ThemeController | null = null;
   let container: HTMLElement;
   const sendMessage = vi.fn();
   const permissionsContains = vi.fn();
@@ -150,16 +153,14 @@ describe('Options page', () => {
     });
     container = document.createElement('div');
     document.body.append(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(
-        <ThemeProvider initialTheme="dark">
-          <App />
-        </ThemeProvider>,
-      );
-    });
-    await act(async () => {
-      await Promise.resolve();
+    theme = new ThemeController('dark');
+    optionsPage = new OptionsController();
+    view = new OptionsView(container, optionsPage, theme);
+    theme.start();
+    optionsPage.start();
+    view.start();
+    await vi.waitFor(() => {
+      expect(container.textContent ?? '').not.toContain('Loading settings');
     });
   }
 
@@ -275,11 +276,12 @@ describe('Options page', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      toast.dismiss();
-      root?.unmount();
-    });
-    root = null;
+    view?.destroy();
+    optionsPage?.destroy();
+    theme?.destroy();
+    view = null;
+    optionsPage = null;
+    theme = null;
     container?.remove();
     document.body.replaceChildren();
     vi.unstubAllGlobals();
@@ -419,10 +421,12 @@ describe('Options page', () => {
       container.querySelector('[aria-label="Sort by name, Z to A"]')?.getAttribute('aria-pressed'),
     ).toBe('true');
 
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
+    view?.destroy();
+    optionsPage?.destroy();
+    theme?.destroy();
+    view = null;
+    optionsPage = null;
+    theme = null;
     container.remove();
 
     await renderApp();
@@ -3600,184 +3604,5 @@ describe('Options page', () => {
       'Some settings were created by a newer version and were left unchanged.',
     );
     expect(container.textContent).toContain('example.com');
-  });
-});
-
-describe('SpeedControls preview vs persist', () => {
-  let root: Root | null = null;
-
-  beforeEach(() => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      bottom: 10,
-      right: 100,
-      width: 100,
-      height: 10,
-      toJSON() {
-        return this;
-      },
-    });
-  });
-
-  afterEach(() => {
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
-    document.body.replaceChildren();
-    vi.restoreAllMocks();
-  });
-
-  it('previews slider movement without committing until change end', async () => {
-    const onPreview = vi.fn();
-    const onCommit = vi.fn();
-    const container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(
-        <SpeedControls
-          displaySpeed={1}
-          disabled={false}
-          onAdjust={() => {}}
-          onReset={() => {}}
-          onPreviewSlider={onPreview}
-          onCommitSlider={onCommit}
-        />,
-      );
-    });
-    const slider =
-      container.querySelector('[role="slider"]') ??
-      container.querySelector('[data-slot="slider-thumb"]');
-    expect(slider).toBeTruthy();
-    await act(async () => {
-      slider?.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
-      );
-    });
-    expect(onPreview).toHaveBeenCalledWith(1.01);
-    expect(onCommit).toHaveBeenCalledTimes(1);
-    expect(onCommit).toHaveBeenCalledWith(1.01);
-  });
-
-  it('reaches policy max when min is the playbackRate floor', async () => {
-    const onCommit = vi.fn();
-    const container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(
-        <SpeedControls
-          displaySpeed={3.99}
-          disabled={false}
-          policy={{ ...DEFAULT_SPEED_POLICY, min: SPEED_MIN_SETTING_MIN, max: 4 }}
-          onAdjust={() => {}}
-          onReset={() => {}}
-          onCommitSlider={onCommit}
-        />,
-      );
-    });
-    const slider =
-      container.querySelector('[role="slider"]') ??
-      container.querySelector('[data-slot="slider-thumb"]');
-    expect(slider).toBeTruthy();
-    await act(async () => {
-      slider?.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
-      );
-    });
-    expect(onCommit).toHaveBeenCalledWith(4);
-  });
-
-  it('disables minus and plus at the policy bounds', async () => {
-    const container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(
-        <SpeedControls
-          displaySpeed={0.25}
-          disabled={false}
-          policy={DEFAULT_SPEED_POLICY}
-          onAdjust={() => {}}
-          onReset={() => {}}
-          onCommitSlider={() => {}}
-        />,
-      );
-    });
-    const slower = container.querySelector('[aria-label="Slower"]');
-    const faster = container.querySelector('[aria-label="Faster"]');
-    expect(slower).toBeInstanceOf(HTMLButtonElement);
-    expect(faster).toBeInstanceOf(HTMLButtonElement);
-    expect(slower?.querySelector('svg')).not.toBeNull();
-    expect(faster?.querySelector('svg')).not.toBeNull();
-    expect((slower as HTMLButtonElement).disabled).toBe(true);
-    expect((faster as HTMLButtonElement).disabled).toBe(false);
-  });
-
-  it('disables the slider and both ticks when min and max are 1×', async () => {
-    const onPreview = vi.fn();
-    const onCommit = vi.fn();
-    const container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(
-        <SpeedControls
-          displaySpeed={1}
-          disabled={false}
-          policy={{ ...DEFAULT_SPEED_POLICY, min: 1, max: 1 }}
-          onAdjust={() => {}}
-          onReset={() => {}}
-          onPreviewSlider={onPreview}
-          onCommitSlider={onCommit}
-        />,
-      );
-    });
-    const group = container.querySelector('[data-slot="slider"]');
-    const thumb = container.querySelector('[data-slot="slider-thumb"]');
-    const slower = container.querySelector('[aria-label="Slower"]');
-    const faster = container.querySelector('[aria-label="Faster"]');
-    expect(container.querySelector('[role="slider"]')).toBeNull();
-    expect(container.querySelector('[aria-valuemax]')).toBeNull();
-    expect(group?.getAttribute('aria-hidden')).toBe('true');
-    expect(group?.getAttribute('data-disabled')).toBe('true');
-    expect(thumb).toBeInstanceOf(HTMLElement);
-    expect((slower as HTMLButtonElement).disabled).toBe(true);
-    expect((faster as HTMLButtonElement).disabled).toBe(true);
-    await act(async () => {
-      thumb?.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
-      );
-    });
-    expect(onPreview).not.toHaveBeenCalled();
-    expect(onCommit).not.toHaveBeenCalled();
-  });
-
-  it('clamps an out-of-range readout and disables ticks when the policy is fixed', async () => {
-    const container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(
-        <SpeedControls
-          displaySpeed={2.25}
-          disabled={false}
-          policy={{ ...DEFAULT_SPEED_POLICY, min: 1, max: 1 }}
-          onAdjust={() => {}}
-          onReset={() => {}}
-          onCommitSlider={() => {}}
-        />,
-      );
-    });
-    expect(container.textContent).toContain('1.00×');
-    expect(container.textContent).not.toContain('2.25×');
-    const slower = container.querySelector('[aria-label="Slower"]');
-    const faster = container.querySelector('[aria-label="Faster"]');
-    expect((slower as HTMLButtonElement).disabled).toBe(true);
-    expect((faster as HTMLButtonElement).disabled).toBe(true);
   });
 });

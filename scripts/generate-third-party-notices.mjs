@@ -12,8 +12,8 @@ const projectName = 'video-speed-controller';
 const ENTRYPOINTS = [
   'src/entrypoints/background.ts',
   'src/entrypoints/content.ts',
-  'src/entrypoints/options/main.tsx',
-  'src/entrypoints/popup/main.tsx',
+  'src/entrypoints/options/main.ts',
+  'src/entrypoints/popup/main.ts',
 ];
 
 const WXT_RUNTIME = [

@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { act, useLayoutEffect, useRef } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GetBehaviorSettingsResponse } from '../protocol/schemas/options-background';
 import type { BehaviorSettingsSnapshot } from '../protocol/schemas/shared';
 import { OVERLAY_POSITION, resolveSiteBehavior } from '../settings/site-behavior';
-import { useBehaviorSettings } from '../entrypoints/options/useBehaviorSettings';
+import { OptionsController } from '../entrypoints/options/options-controller';
 
 function snapshot(): BehaviorSettingsSnapshot {
   const { hotkeys, ...global } = resolveSiteBehavior();
@@ -33,27 +30,9 @@ function deferred<T>(): {
   return { promise, resolve };
 }
 
-function FirstWriteProbe() {
-  const settings = useBehaviorSettings();
-  const wrote = useRef(false);
-  useLayoutEffect(() => {
-    if (wrote.current || !settings.ready || !settings.behavior) {
-      return;
-    }
-    wrote.current = true;
-    settings.mutate({
-      kind: 'value',
-      field: 'overlayPosition',
-      value: OVERLAY_POSITION.BOTTOM_LEFT,
-    });
-  }, [settings]);
-  return settings.ready ? <div data-ready /> : <div data-loading />;
-}
-
-describe('useBehaviorSettings first write', () => {
-  let root: Root | null = null;
-  let container: HTMLElement;
+describe('OptionsController first write', () => {
   const sendMessage = vi.fn();
+  let controller: OptionsController | null = null;
 
   beforeEach(() => {
     sendMessage.mockReset();
@@ -61,9 +40,6 @@ describe('useBehaviorSettings first write', () => {
       configurable: true,
       value: new URL('chrome-extension://extid/options.html'),
     });
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
     vi.stubGlobal('chrome', {
       runtime: { sendMessage },
       storage: {
@@ -80,17 +56,12 @@ describe('useBehaviorSettings first write', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      toast.dismiss();
-      root?.unmount();
-    });
-    root = null;
-    container?.remove();
-    document.body.replaceChildren();
+    controller?.destroy();
+    controller = null;
     vi.unstubAllGlobals();
   });
 
-  it('persists the first mutation on the first usable render', async () => {
+  it('persists the first mutation on the first usable state', async () => {
     const settingsLoad = deferred<GetBehaviorSettingsResponse>();
     sendMessage.mockImplementation(async (message: { type?: string }) => {
       if (message.type === 'GET_CUSTOM_SITES') {
@@ -107,29 +78,39 @@ describe('useBehaviorSettings first write', () => {
       };
     });
 
-    await act(async () => {
-      root?.render(<FirstWriteProbe />);
+    controller = new OptionsController();
+    let wrote = false;
+    controller.subscribe(() => {
+      const state = controller?.getState();
+      if (!controller || wrote || !state?.ready || !state.behavior) {
+        return;
+      }
+      wrote = true;
+      controller.mutate({
+        kind: 'value',
+        field: 'overlayPosition',
+        value: OVERLAY_POSITION.BOTTOM_LEFT,
+      });
     });
-    expect(container.querySelector('[data-loading]')).toBeTruthy();
+    controller.start();
+    expect(controller.getState().ready).toBe(false);
     expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual([
       'GET_BEHAVIOR_SETTINGS',
       'GET_CUSTOM_SITES',
     ]);
 
-    await act(async () => {
-      settingsLoad.resolve(getOk(snapshot()));
-      await settingsLoad.promise;
-    });
-
-    expect(container.querySelector('[data-ready]')).toBeTruthy();
-    expect(sendMessage).toHaveBeenCalledWith({
-      type: 'SET_BEHAVIOR_SETTING',
-      scope: { kind: 'global' },
-      change: {
-        kind: 'value',
-        field: 'overlayPosition',
-        value: OVERLAY_POSITION.BOTTOM_LEFT,
-      },
+    settingsLoad.resolve(getOk(snapshot()));
+    await settingsLoad.promise;
+    await vi.waitFor(() => {
+      expect(sendMessage).toHaveBeenCalledWith({
+        type: 'SET_BEHAVIOR_SETTING',
+        scope: { kind: 'global' },
+        change: {
+          kind: 'value',
+          field: 'overlayPosition',
+          value: OVERLAY_POSITION.BOTTOM_LEFT,
+        },
+      });
     });
   });
 });

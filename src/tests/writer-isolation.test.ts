@@ -8,9 +8,9 @@ const SRC = join(process.cwd(), 'src');
 
 const UI_ENTRIES = [
   join(SRC, 'entrypoints/popup/main.ts'),
-  join(SRC, 'entrypoints/options/main.tsx'),
+  join(SRC, 'entrypoints/options/main.ts'),
   join(SRC, 'entrypoints/content.ts'),
-  join(SRC, 'components/theme-provider.tsx'),
+  join(SRC, 'ui/theme-controller.ts'),
 ];
 
 const FORBIDDEN_PERSIST = new Set([
@@ -156,8 +156,6 @@ describe('durable writer isolation', () => {
     }
     expect(persistViolations).toEqual([]);
     expect(mutatorViolations).toEqual([]);
-    expect([...scanned].map(srcPath)).toEqual(
-      expect.arrayContaining(['components/theme-provider.tsx']),
-    );
+    expect([...scanned].map(srcPath)).toEqual(expect.arrayContaining(['ui/theme-controller.ts']));
   });
 });

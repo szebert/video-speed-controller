@@ -1,26 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OptionsController } from '../entrypoints/options/options-controller';
 import {
-  HotkeysSettingsCard,
   hotkeyConflictMessage,
   hotkeyShadowedMessage,
-} from '../entrypoints/options/HotkeysSettingsCard';
+  OptionsView,
+} from '../entrypoints/options/options-view';
 import { BUILT_IN_HOTKEYS } from '../settings/hotkey-binding';
 import { resolveSiteBehavior, type HotkeySettingChange } from '../settings/site-behavior';
+import { ThemeController } from '../ui/theme-controller';
 
-function flashCardProps() {
-  return {
-    behavior: resolveSiteBehavior(),
-    drafts: {},
-    hotkeyRepeatDelaySeconds: '0.5',
-    hotkeyRepeatLocked: true,
-    onMutateBehavior() {},
-    onDraftChange() {},
-    onCommitHotkeyRepeatDelay() {},
-  };
+async function act(callback: () => void | Promise<void>): Promise<void> {
+  await Promise.resolve(callback());
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function keydown(
@@ -58,7 +51,7 @@ describe('Hotkeys settings card', () => {
     expect(hotkeyConflictMessage('jumpTo50Percent')).toBe('Already used by Jump to 50%.');
   });
 
-  let root: Root | null = null;
+  let view: OptionsView | null = null;
   let container: HTMLElement;
 
   async function renderCard(
@@ -66,28 +59,44 @@ describe('Hotkeys settings card', () => {
     hotkeys = resolveSiteBehavior().hotkeys,
     selection: { kind: 'global' } | { kind: 'site'; hostname: string } = { kind: 'global' },
   ): Promise<void> {
+    const resolved = resolveSiteBehavior();
+    const { hotkeys: builtInHotkeys, ...global } = resolved;
+    const controller = new OptionsController();
+    controller.selection = selection;
+    controller.snapshot = {
+      global,
+      globalHotkeys: selection.kind === 'global' ? hotkeys : builtInHotkeys,
+      site:
+        selection.kind === 'site'
+          ? {
+              hostname: selection.hostname,
+              behavior: global,
+              hotkeys,
+              speedOverrideKind: 'missing',
+              defaultSpeedOverrideKind: 'missing',
+              seedTarget: global.speed.value,
+            }
+          : null,
+    };
+    controller.ready = true;
+    controller.mutateHotkey = onMutate;
     container = document.createElement('div');
     document.body.append(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(
-        <HotkeysSettingsCard
-          selection={selection}
-          hotkeys={hotkeys}
-          pending={false}
-          resetBadgeText={selection.kind === 'site' ? 'Override' : 'Custom'}
-          onMutate={onMutate}
-          {...flashCardProps()}
-        />,
-      );
+    view = new OptionsView(container, controller, new ThemeController('dark'));
+    const state = controller.getState();
+    view.mountHotkeysFixture({
+      ...state,
+      snapshot: state.snapshot!,
+      behavior: state.behavior!,
+      hotkeys,
+      policy: state.policy!,
+      resetBadgeText: selection.kind === 'site' ? 'Override' : 'Custom',
     });
   }
 
   afterEach(() => {
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
+    view?.destroy();
+    view = null;
     container?.remove();
     document.body.replaceChildren();
   });

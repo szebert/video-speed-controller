@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { OverlayPositionIcon } from '../entrypoints/options/OverlayPositionIcon';
+import { overlayPositionIcon } from '../entrypoints/options/options-view';
 import {
   OVERLAY_POSITION,
   overlayPositionToGrid,
@@ -14,28 +12,17 @@ const AXIS = [4, 8.5, 13] as const;
 const BOX = 7;
 
 describe('OverlayPositionIcon', () => {
-  let root: Root | null = null;
   let container: HTMLElement;
 
   function renderIcon(position: OverlayPosition, className?: string): SVGSVGElement {
     container = document.createElement('div');
     document.body.append(container);
-    root = createRoot(container);
-    act(() => {
-      root?.render(<OverlayPositionIcon position={position} className={className} />);
-    });
-    const svg = container.querySelector('svg');
-    if (!(svg instanceof SVGSVGElement)) {
-      throw new Error('OverlayPositionIcon did not render an svg');
-    }
+    const svg = overlayPositionIcon(position, className);
+    container.append(svg);
     return svg;
   }
 
   afterEach(() => {
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
     container?.remove();
     document.body.replaceChildren();
   });
@@ -55,9 +42,6 @@ describe('OverlayPositionIcon', () => {
       expect(rect?.getAttribute('y')).toBe(String(y));
       expect(rect?.getAttribute('width')).toBe(String(BOX));
       expect(rect?.getAttribute('height')).toBe(String(BOX));
-      act(() => {
-        root?.unmount();
-      });
       container.remove();
     }
   });
@@ -82,9 +66,6 @@ describe('OverlayPositionIcon', () => {
       for (const path of hidden) {
         expect(dots).not.toContain(path);
       }
-      act(() => {
-        root?.unmount();
-      });
       container.remove();
     }
   });

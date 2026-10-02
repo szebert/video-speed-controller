@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ResetBadge } from '@/components/ResetBadge';
+import { OptionsController } from '../entrypoints/options/options-controller';
+import { OptionsView } from '../entrypoints/options/options-view';
+import { ThemeController } from '../ui/theme-controller';
 
 describe('ResetBadge', () => {
-  let root: Root | null = null;
+  let view: OptionsView | null = null;
   let container: HTMLElement;
 
   function renderBadge(props: {
@@ -16,25 +16,19 @@ describe('ResetBadge', () => {
   }): void {
     container = document.createElement('div');
     document.body.append(container);
-    root = createRoot(container);
-    act(() => {
-      root?.render(
-        <ResetBadge
-          active={props.active ?? true}
-          disabled={props.disabled}
-          text="Custom"
-          label="Reset: Show overlay"
-          onReset={props.onReset ?? (() => {})}
-        />,
-      );
+    view = new OptionsView(container, new OptionsController(), new ThemeController('dark'));
+    view.mountResetBadge({
+      active: props.active ?? true,
+      disabled: props.disabled,
+      text: 'Custom',
+      label: 'Reset: Show overlay',
+      onReset: props.onReset ?? (() => undefined),
     });
   }
 
   afterEach(() => {
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
+    view?.destroy();
+    view = null;
     container?.remove();
     document.body.replaceChildren();
   });
@@ -70,11 +64,9 @@ describe('ResetBadge', () => {
     expect(close?.hasAttribute('disabled')).toBe(true);
     expect(close?.parentElement?.className).toContain('cursor-not-allowed');
     expect(badge?.hasAttribute('data-disabled')).toBe(true);
-    act(() => {
-      if (close instanceof HTMLElement) {
-        close.click();
-      }
-    });
+    if (close instanceof HTMLElement) {
+      close.click();
+    }
     expect(onReset).not.toHaveBeenCalled();
   });
 });

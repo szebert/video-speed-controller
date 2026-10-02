@@ -35,20 +35,7 @@ describe('third-party notices', () => {
   });
 
   it('lists runtime packages that ship in the extension', () => {
-    expect(names).toEqual(
-      expect.arrayContaining([
-        '@wxt-dev/i18n',
-        'class-variance-authority',
-        'cn',
-        'lucide-react',
-        'react',
-        'react-aria-components',
-        'react-dom',
-        'sonner',
-        'wxt',
-        'zod',
-      ]),
-    );
+    expect(names).toEqual(expect.arrayContaining(['@wxt-dev/i18n', 'wxt', 'zod']));
   });
 
   it('omits toolchain packages that do not ship', () => {
@@ -60,8 +47,15 @@ describe('third-party notices', () => {
         '@resvg/resvg-wasm',
         'cacheable',
         'chokidar',
+        'class-variance-authority',
+        'cn',
         'eslint',
+        'lucide-react',
         'prettier',
+        'react',
+        'react-aria-components',
+        'react-dom',
+        'sonner',
         'typescript',
         'vite',
         'vitest',
