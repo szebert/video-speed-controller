@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createMenuButton, openConfirmDialog, rangeControl, switchControl } from '../ui/widgets';
+import { icon } from '../ui/icons';
+import {
+  createMenuButton,
+  createTabs,
+  openConfirmDialog,
+  rangeControl,
+  switchControl,
+} from '../ui/widgets';
 
 function rect(box: Pick<DOMRect, 'top' | 'left' | 'width' | 'height'>): DOMRect {
   return {
@@ -20,6 +27,36 @@ describe('shared widgets', () => {
   afterEach(() => {
     document.body.replaceChildren();
     vi.restoreAllMocks();
+  });
+
+  it('sizes tab icons so they stay inside the tab bar', () => {
+    const gauge = icon('gauge');
+    expect(gauge.getAttribute('width')).toBe('16');
+    expect(gauge.getAttribute('height')).toBe('16');
+    expect(gauge.getAttribute('class')).toContain('shrink-0');
+
+    const sized = icon('layers', 'size-6');
+    expect(sized.getAttribute('class')).toContain('size-6');
+
+    const root = createTabs({
+      label: 'Settings',
+      tabs: [
+        { id: 'playback', label: 'Playback', icon: 'gauge', panel: document.createElement('div') },
+        { id: 'overlay', label: 'Overlay', icon: 'layers', panel: document.createElement('div') },
+      ],
+    });
+    const tabs = [...root.querySelectorAll('[role="tab"]')];
+    expect(tabs).toHaveLength(2);
+    for (const tab of tabs) {
+      const svg = tab.querySelector('svg');
+      expect(svg?.getAttribute('width')).toBe('16');
+      expect(svg?.getAttribute('height')).toBe('16');
+      expect(svg?.getAttribute('class')).toContain('size-4');
+      expect(tab.className).toContain('min-w-0');
+      expect(tab.className).toContain("[&_svg:not([class*='size-'])]:size-4");
+    }
+    expect(root.querySelector('[role="tablist"]')?.className).toContain('h-8');
+    expect(root.querySelector('[role="tablist"]')?.className).toContain('min-w-0');
   });
 
   it('keeps a slider drag target at least 28px tall and rings the thumb on focus-visible', () => {

@@ -620,7 +620,7 @@ export function createTabs(options: {
   const tabButtons: HTMLButtonElement[] = [];
   const list = el('div', {
     class:
-      'inline-flex h-8 w-full max-w-full items-center justify-center rounded-lg bg-muted p-[3px]',
+      'flex h-8 w-full min-w-0 max-w-full items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground',
     attrs: { role: 'tablist', 'aria-label': options.label, 'data-slot': 'tabs-list' },
   });
   const panels = el('div', { class: 'min-w-0' });
@@ -629,7 +629,7 @@ export function createTabs(options: {
       'button',
       {
         class:
-          'inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 aria-selected:bg-background aria-selected:text-foreground',
+          "relative inline-flex h-[calc(100%-1px)] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring aria-selected:bg-background aria-selected:text-foreground aria-selected:shadow-sm dark:aria-selected:border-input dark:aria-selected:bg-input/30 dark:aria-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         attrs: {
           type: 'button',
           role: 'tab',
@@ -638,7 +638,7 @@ export function createTabs(options: {
           'data-slot': 'tabs-trigger',
         },
       },
-      tab.icon ? icon(tab.icon) : null,
+      tab.icon ? icon(tab.icon, 'size-4') : null,
       tab.label,
     );
     tab.panel.id = `panel-${tab.id}`;
