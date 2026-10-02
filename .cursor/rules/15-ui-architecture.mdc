@@ -1,6 +1,6 @@
 ---
 description: Vanilla TypeScript UI architecture and accessibility invariants.
-globs: src/components/**, src/entrypoints/options/**, src/entrypoints/popup/**, src/overlay/**, src/styles/**, e2e/**
+globs: src/components/**, src/entrypoints/options/**, src/entrypoints/popup/**, src/overlay/**, src/styles/**, src/tests/**, e2e/**
 alwaysApply: false
 ---
 
