@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 const SRC = join(process.cwd(), 'src');
 
 const UI_ENTRIES = [
-  join(SRC, 'entrypoints/popup/main.tsx'),
+  join(SRC, 'entrypoints/popup/main.ts'),
   join(SRC, 'entrypoints/options/main.tsx'),
   join(SRC, 'entrypoints/content.ts'),
   join(SRC, 'components/theme-provider.tsx'),

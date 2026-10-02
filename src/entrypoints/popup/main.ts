@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { I18nProvider } from 'react-aria-components';
-import { createRoot } from 'react-dom/client';
-import { StrictMode } from 'react';
-import { ThemeProvider } from '@/components/theme-provider';
 import { applyDocumentLocale, resolveLocale } from '@/i18n/locale';
 import { applyTheme, DEFAULT_THEME, getStoredTheme } from '@/settings/theme';
-import { App } from './App';
+import { ThemeController } from '@/ui/theme-controller';
 import '@/styles/globals.css';
+import { PopupController } from './popup-controller';
+import { PopupView } from './popup-view';
 
 const locale = resolveLocale();
 applyDocumentLocale(locale);
@@ -20,12 +18,9 @@ if (!root) {
 const initialTheme = await getStoredTheme().catch(() => DEFAULT_THEME);
 applyTheme(initialTheme);
 
-createRoot(root).render(
-  <StrictMode>
-    <I18nProvider locale={locale}>
-      <ThemeProvider initialTheme={initialTheme}>
-        <App />
-      </ThemeProvider>
-    </I18nProvider>
-  </StrictMode>,
-);
+const theme = new ThemeController(initialTheme);
+const popup = new PopupController();
+const view = new PopupView(root, popup, theme);
+theme.start();
+popup.start();
+view.start();

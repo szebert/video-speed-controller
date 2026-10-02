@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ThemeProvider } from '@/components/theme-provider';
 import type { PopupStateResponse } from '../protocol/schemas/popup-background';
-import { App } from '../entrypoints/popup/App';
+import { PopupController } from '../entrypoints/popup/popup-controller';
+import { PopupView } from '../entrypoints/popup/popup-view';
+import { ThemeController } from '../ui/theme-controller';
 
 function expectPopupControlsOrder(container: HTMLElement): void {
   const text = container.textContent ?? '';
@@ -30,24 +29,24 @@ function popupState(overrides: Partial<PopupStateResponse> = {}): PopupStateResp
 }
 
 describe('Popup settings button', () => {
-  let root: Root | null = null;
   let container: HTMLElement;
+  let view: PopupView | null = null;
+  let popup: PopupController | null = null;
+  let theme: ThemeController | null = null;
   const sendMessage = vi.fn();
   const createTab = vi.fn();
 
   async function renderApp(): Promise<void> {
     container = document.createElement('div');
     document.body.append(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(
-        <ThemeProvider initialTheme="dark">
-          <App />
-        </ThemeProvider>,
-      );
-    });
-    await act(async () => {
-      await Promise.resolve();
+    theme = new ThemeController('dark');
+    popup = new PopupController();
+    view = new PopupView(container, popup, theme);
+    theme.start();
+    popup.start();
+    view.start();
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Enabled on this site');
     });
   }
 
@@ -82,10 +81,12 @@ describe('Popup settings button', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
+    view?.destroy();
+    popup?.destroy();
+    theme?.destroy();
+    view = null;
+    popup = null;
+    theme = null;
     container?.remove();
     document.body.replaceChildren();
     vi.unstubAllGlobals();
@@ -96,11 +97,9 @@ describe('Popup settings button', () => {
     await renderApp();
     const button = container.querySelector('[aria-label="Open settings"]');
     expect(button).toBeInstanceOf(HTMLButtonElement);
-    await act(async () => {
-      if (button instanceof HTMLButtonElement) {
-        button.click();
-      }
-    });
+    if (button instanceof HTMLButtonElement) {
+      button.click();
+    }
     expect(createTab).toHaveBeenCalledWith({
       url: 'chrome-extension://extid/options.html?site=www.youtube.com',
     });
@@ -111,11 +110,9 @@ describe('Popup settings button', () => {
     await renderApp();
     const button = container.querySelector('[aria-label="Open settings"]');
     expect(button).toBeInstanceOf(HTMLButtonElement);
-    await act(async () => {
-      if (button instanceof HTMLButtonElement) {
-        button.click();
-      }
-    });
+    if (button instanceof HTMLButtonElement) {
+      button.click();
+    }
     expect(createTab).toHaveBeenCalledWith({
       url: 'chrome-extension://extid/options.html',
     });
