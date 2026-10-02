@@ -16,7 +16,7 @@ export const BUNDLE_GROWTH_SLACK = 1.1;
 export const CHROME_ZIP_ASSET = /^opensource-video-speed-controller-.+-chrome\.zip$/;
 
 export function listOutputFiles(dir) {
-  return readdirSync(dir, { recursive: true }).map(String);
+  return readdirSync(dir, { recursive: true }).map((entry) => String(entry).replaceAll('\\', '/'));
 }
 
 export function chromeZipAsset(release) {
