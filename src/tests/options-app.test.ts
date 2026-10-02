@@ -580,6 +580,86 @@ describe('Options page', () => {
     });
   });
 
+  it('keeps the same slider node across repeated arrow keys and its own input', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Default speed"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    const press = (key: 'ArrowRight' | 'ArrowLeft'): void => {
+      expect(document.activeElement).toBe(input);
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+      );
+    };
+    const addListener = vi.spyOn(document, 'addEventListener');
+    input.focus();
+    await act(async () => {
+      press('ArrowRight');
+    });
+    expect(Number(input.value)).toBeCloseTo(1.01, 5);
+    await act(async () => {
+      press('ArrowRight');
+    });
+    expect(Number(input.value)).toBeCloseTo(1.02, 5);
+    await act(async () => {
+      press('ArrowLeft');
+    });
+    expect(Number(input.value)).toBeCloseTo(1.01, 5);
+    await act(async () => {
+      press('ArrowLeft');
+    });
+    expect(Number(input.value)).toBeCloseTo(1, 5);
+    expect(document.activeElement).toBe(input);
+    expect(input.isConnected).toBe(true);
+    expect(addListener.mock.calls.filter(([type]) => type === 'pointerdown')).toHaveLength(0);
+    addListener.mockRestore();
+    expect(
+      container.querySelector(
+        '[data-slot="slider"][aria-label="Default speed"] input[type="range"]',
+      ),
+    ).toBe(input);
+    await act(async () => {
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(
+      container.querySelector(
+        '[data-slot="slider"][aria-label="Default speed"] input[type="range"]',
+      ),
+    ).toBe(input);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('keeps the focused tab mounted when an unrelated slider update arrives', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    const tab = container.querySelector('#tab-playback');
+    expect(tab).toBeInstanceOf(HTMLElement);
+    if (!(tab instanceof HTMLElement)) {
+      return;
+    }
+    tab.focus();
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Default speed"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    await act(async () => {
+      input.value = '1.25';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(document.activeElement).toBe(tab);
+    expect(tab.isConnected).toBe(true);
+    expect(container.querySelector('#tab-playback')).toBe(tab);
+    expect(input.isConnected).toBe(true);
+  });
+
   it('sends rememberLastSpeed false from its switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
@@ -3551,6 +3631,15 @@ describe('Options page', () => {
       click(visibleSwitch);
     });
     await selectTab('Playback');
+    const playback = container.querySelector('#tab-playback');
+    const range = container.querySelector(
+      '[data-slot="slider"][aria-label="Current default speed"] input[type="range"]',
+    );
+    expect(playback).toBeInstanceOf(HTMLElement);
+    expect(range).toBeInstanceOf(HTMLInputElement);
+    if (playback instanceof HTMLElement) {
+      playback.focus();
+    }
     const slider =
       container.querySelector('[role="slider"]') ??
       container.querySelector('[data-slot="slider-thumb"]');
@@ -3569,6 +3658,14 @@ describe('Options page', () => {
       });
     });
     expect(container.textContent).toContain('1.01×');
+    expect(container.querySelector('#tab-playback')).toBe(playback);
+    expect(
+      container.querySelector(
+        '[data-slot="slider"][aria-label="Current default speed"] input[type="range"]',
+      ),
+    ).toBe(range);
+    expect(document.activeElement).toBe(playback);
+    expect(playback instanceof HTMLElement && playback.isConnected).toBe(true);
   });
 
   it('warns when Reset All skipped newer-version records', async () => {

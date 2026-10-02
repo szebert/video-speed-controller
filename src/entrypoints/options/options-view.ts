@@ -61,7 +61,6 @@ import {
   TRANSPORT_RATE_MAGNITUDE_MIN,
   type EditableBehaviorField,
   type OverlayPosition,
-  type SettingSource,
   type SiteHotkeyAction,
 } from '@/settings/site-behavior';
 import type { ThemePreference } from '@/settings/theme';
@@ -77,6 +76,8 @@ import {
   openConfirmDialog,
   rangeControl,
   switchControl,
+  syncRange,
+  syncSwitch,
 } from '@/ui/widgets';
 import { formatBackupFileSize, readAndParseBackupFile, type StagedBackupFile } from './backup-file';
 import type { OptionsController } from './options-controller';
@@ -141,6 +142,30 @@ type ReadyState = OptionsSnapshotState & {
 type DecimalDraft = Exclude<DraftKey, 'delay' | 'flashDelay' | 'hotkeyRepeatDelay'>;
 type SecondsDraft = 'delay' | 'flashDelay' | 'hotkeyRepeatDelay';
 type RecordingEnd = 'assign' | 'cancel' | 'unbind' | 'takeover';
+type SliderLive = {
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  disabled: boolean;
+  muted: boolean;
+  readout: string;
+  resetActive: boolean;
+  resetText: string;
+};
+type NumberLive = {
+  value: string;
+  disabled: boolean;
+  muted: boolean;
+  resetActive: boolean;
+};
+type SwitchLive = {
+  checked: boolean;
+  disabled: boolean;
+  inherited: boolean;
+  resetActive: boolean;
+  resetText: string;
+};
 
 const ACTION_LABEL: Record<Exclude<SiteHotkeyAction, JumpPercentAction>, MessageKey> = {
   decreaseSpeed: 'hotkeyDecreaseSpeed',
@@ -422,6 +447,98 @@ function shortcutKeys(parts: readonly string[], muted: boolean): HTMLElement {
   );
 }
 
+function positionChoiceClass(inherited: boolean): string {
+  return classes(
+    'flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-center text-xs',
+    inherited
+      ? 'data-selected:bg-muted data-selected:text-muted-foreground'
+      : 'data-selected:bg-accent',
+  );
+}
+
+function hotkeyStatusNodes(
+  helpId: string,
+  conflict: string | undefined,
+  shadowedBy: SiteHotkeyAction | null,
+  takeover: boolean,
+): HTMLElement[] {
+  if (conflict) {
+    return [fieldError(`${helpId}-error`, conflict)];
+  }
+  if (shadowedBy) {
+    return [fieldWarning(hotkeyShadowedMessage(shadowedBy))];
+  }
+  if (takeover) {
+    return [fieldWarning(t('hotkeyBrowserTookShortcut'))];
+  }
+  return [];
+}
+
+function flagAttr(node: HTMLElement, name: string, on: boolean): void {
+  if (on) {
+    node.setAttribute(name, 'true');
+  } else {
+    node.removeAttribute(name);
+  }
+}
+
+function paintResetBadge(
+  badge: HTMLElement,
+  spec: { active: boolean; disabled: boolean; text: string },
+): void {
+  const isDisabled = spec.disabled || !spec.active;
+  badge.className = classes(
+    'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent bg-secondary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-secondary-foreground select-none',
+    !spec.active && 'invisible pointer-events-none',
+    isDisabled && 'bg-muted text-muted-foreground opacity-50',
+  );
+  flagAttr(badge, 'data-active', spec.active);
+  flagAttr(badge, 'data-disabled', isDisabled);
+  const text = badge.querySelector('[data-slot="reset-badge-text"]');
+  if (text) {
+    text.textContent = spec.text;
+  }
+  const action = badge.querySelector('[data-slot="reset-badge-action"]');
+  if (action instanceof HTMLElement) {
+    action.className = classes('inline-flex', isDisabled && 'cursor-not-allowed');
+  }
+  const control = badge.querySelector('button');
+  if (control instanceof HTMLButtonElement) {
+    control.disabled = isDisabled;
+  }
+}
+
+type FieldLock = 'pending' | 'overlay' | 'delay' | 'flash' | 'hotkeyRepeat';
+
+function fieldLocked(state: ReadyState, lock: FieldLock): boolean {
+  if (lock === 'pending') {
+    return state.pending;
+  }
+  if (lock === 'overlay') {
+    return state.overlayLocked;
+  }
+  if (lock === 'delay') {
+    return state.delayLocked;
+  }
+  if (lock === 'flash') {
+    return state.flashLocked;
+  }
+  return state.hotkeyRepeatLocked;
+}
+
+function syncOwnedRange(
+  root: HTMLElement,
+  live: { min: number; max: number; step: number; value: number; disabled: boolean },
+): void {
+  const input = root.querySelector('input[type="range"]');
+  if (input instanceof HTMLInputElement) {
+    input.min = String(live.min);
+    input.max = String(live.max);
+    input.step = String(live.step);
+  }
+  syncRange(root, live.value, live.disabled);
+}
+
 export class OptionsView {
   private readonly abort = new AbortController();
   private unsubscribeController: (() => void) | null = null;
@@ -448,6 +565,8 @@ export class OptionsView {
   private accessError: string | null = null;
   private toast: HTMLElement | null = null;
   private toastToken = 0;
+  private mountedKey = '';
+  private syncers: Array<(state: ReadyState) => void> = [];
 
   constructor(
     private readonly root: HTMLElement,
@@ -492,6 +611,8 @@ export class OptionsView {
     this.accessGeneration += 1;
     this.toast?.remove();
     this.toast = null;
+    this.syncers = [];
+    this.mountedKey = '';
     this.root.replaceChildren();
   }
 
@@ -502,6 +623,8 @@ export class OptionsView {
     label: string;
     onReset: () => void;
   }): void {
+    this.syncers = [];
+    this.mountedKey = '';
     this.root.replaceChildren(
       this.resetBadge({
         active: spec.active,
@@ -516,6 +639,8 @@ export class OptionsView {
   /** Mounts only the hotkeys card so shortcut tests can drive it without the page shell. */
   mountHotkeysFixture(state: ReadyState): void {
     this.stopRecordingListeners();
+    this.syncers = [];
+    this.mountedKey = '';
     this.root.replaceChildren(this.hotkeysCard(state));
   }
 
@@ -535,21 +660,57 @@ export class OptionsView {
     }
     const state = this.controller.getState();
     this.notePane(state.selection);
-    const active = document.activeElement;
-    const activeId =
-      active instanceof HTMLElement && active.id && this.root.contains(active) ? active.id : '';
-    this.rendering = true;
-    this.root.replaceChildren(this.page(state));
-    this.rendering = false;
-    if (activeId) {
-      const next = this.root.querySelector(`#${CSS.escape(activeId)}`);
-      if (next instanceof HTMLElement) {
-        next.focus({ preventScroll: true });
+    const key = this.mountKey(state);
+    if (this.mountedKey !== key || this.root.childElementCount === 0) {
+      const active = document.activeElement;
+      const activeId =
+        active instanceof HTMLElement && active.id && this.root.contains(active) ? active.id : '';
+      this.syncers = [];
+      this.mountedKey = key;
+      this.rendering = true;
+      this.root.replaceChildren(this.page(state));
+      this.rendering = false;
+      if (activeId) {
+        const next = this.root.querySelector(`#${CSS.escape(activeId)}`);
+        if (next instanceof HTMLElement) {
+          next.focus({ preventScroll: true });
+        }
       }
+      this.scrollSelectedSite(state);
+    } else if (isReady(state)) {
+      for (const sync of this.syncers) {
+        sync(state);
+      }
+      this.syncThemeIcon();
     }
-    this.scrollSelectedSite(state);
     this.syncToast(state);
     this.syncRecording();
+  }
+
+  private mountKey(state: OptionsSnapshotState): string {
+    if (!isReady(state)) {
+      return state.error ? `error:${state.error}` : 'loading';
+    }
+    const selection =
+      state.selection.kind === 'site' ? `site:${state.selection.hostname}` : state.selection.kind;
+    const sites = sortCustomSites(state.customSites, this.sort)
+      .map((site) => site.hostname)
+      .join('\n');
+    const fixed = isFixedSpeedPolicy(state.policy) ? 'fixed' : 'range';
+    return `${selection}|${this.sort.mode}:${this.sort.direction}|${sites}|${fixed}`;
+  }
+
+  private track(sync: (state: ReadyState) => void): void {
+    this.syncers.push(sync);
+  }
+
+  private syncThemeIcon(): void {
+    const trigger = this.root.querySelector('[aria-haspopup="menu"]');
+    const existing = trigger?.querySelector('svg');
+    if (!trigger || !existing) {
+      return;
+    }
+    existing.replaceWith(icon(THEME_ICONS[this.theme.getState().theme]));
   }
 
   private notePane(selection: Selection): void {
@@ -695,7 +856,7 @@ export class OptionsView {
               );
             }),
           );
-    return el(
+    const aside = el(
       'aside',
       {
         class:
@@ -781,6 +942,21 @@ export class OptionsView {
         ),
       ),
     );
+    this.track((next) => {
+      for (const control of aside.querySelectorAll('button')) {
+        control.disabled = next.pending;
+      }
+      for (const site of sortCustomSites(next.customSites, this.sort)) {
+        const control = [...aside.querySelectorAll('button')].find(
+          (candidate) => candidate.textContent === site.hostname,
+        );
+        const title = formatActivity(site.lastUsedAt);
+        if (control && title) {
+          control.title = title;
+        }
+      }
+    });
+    return aside;
   }
 
   private paneButton(
@@ -825,7 +1001,22 @@ export class OptionsView {
 
   private settingsPane(state: ReadyState): HTMLElement {
     this.ensureAccess();
-    return el(
+    const resetAll = button(t('resetAllSettings'), {
+      variant: 'destructive',
+      disabled: state.pending,
+      onClick: () => {
+        openConfirmDialog({
+          title: t('resetAllSettings'),
+          description: t('resetAllConfirm'),
+          cancelLabel: t('cancel'),
+          confirmLabel: t('confirmReset'),
+          onConfirm: () => {
+            void this.controller.resetAll();
+          },
+        });
+      },
+    });
+    const pane = el(
       'div',
       { class: 'flex flex-col gap-6' },
       el(
@@ -839,26 +1030,12 @@ export class OptionsView {
       ),
       this.allSitesCard(),
       this.backupCards(state),
-      card(
-        t('resetAllSettings'),
-        t('restoreSettingsToDefaults'),
-        button(t('resetAllSettings'), {
-          variant: 'destructive',
-          disabled: state.pending,
-          onClick: () => {
-            openConfirmDialog({
-              title: t('resetAllSettings'),
-              description: t('resetAllConfirm'),
-              cancelLabel: t('cancel'),
-              confirmLabel: t('confirmReset'),
-              onConfirm: () => {
-                void this.controller.resetAll();
-              },
-            });
-          },
-        }),
-      ),
+      card(t('resetAllSettings'), t('restoreSettingsToDefaults'), resetAll),
     );
+    this.track((next) => {
+      resetAll.disabled = next.pending;
+    });
+    return pane;
   }
 
   private behaviorPane(state: ReadyState): HTMLElement {
@@ -909,6 +1086,9 @@ export class OptionsView {
       ),
       this.behaviorTabs(state),
     );
+    this.track((next) => {
+      action.disabled = next.pending;
+    });
     return form;
   }
 
@@ -982,7 +1162,6 @@ export class OptionsView {
   }
 
   private playbackCard(state: ReadyState): HTMLElement {
-    const { behavior, selection } = state;
     return card(
       t('settingsPlayback'),
       t('settingsPlaybackDescription'),
@@ -998,48 +1177,52 @@ export class OptionsView {
               text: t('currentSpeedResetHint'),
             }),
           ),
-          this.sliderField({
+          this.sliderField(state, {
             className: FIELD_SPAN,
             label: t('defaultSpeed'),
             description: t('defaultSpeedDescription'),
             labelId: 'default-speed-label',
             helpId: 'default-speed-help',
             ariaLabel: t('defaultSpeed'),
-            min: sliderBounds(state.policy).minValue,
-            max: sliderBounds(state.policy).maxValue,
-            step: SPEED_SLIDER_STEP,
-            value: sliderValue(state.defaultSpeed, state.policy),
-            disabled: state.pending || isFixedSpeedPolicy(state.policy),
-            muted: showsInherited(selection, behavior.defaultSpeed.source),
-            readout: formatSpeed(state.defaultSpeed),
             readoutClass: 'w-14',
-            resetActive: ownsOverride(selection, behavior.defaultSpeed.source),
-            resetText: state.resetBadgeText,
+            live: (next) => ({
+              min: sliderBounds(next.policy).minValue,
+              max: sliderBounds(next.policy).maxValue,
+              step: SPEED_SLIDER_STEP,
+              value: sliderValue(next.defaultSpeed, next.policy),
+              disabled: next.pending || isFixedSpeedPolicy(next.policy),
+              muted: showsInherited(next.selection, next.behavior.defaultSpeed.source),
+              readout: formatSpeed(next.defaultSpeed),
+              resetActive: ownsOverride(next.selection, next.behavior.defaultSpeed.source),
+              resetText: next.resetBadgeText,
+            }),
             onReset: () => {
               this.inherit('defaultSpeed');
             },
             onInput: (value) => {
+              const current = this.controller.getState().policy;
+              if (!current) {
+                return;
+              }
               this.controller.mutate({
                 kind: 'value',
                 field: 'defaultSpeed',
-                value: snapSliderSpeed(value, state.policy),
+                value: snapSliderSpeed(value, current),
               });
             },
             onCommit: (value) => {
+              const current = this.controller.getState().policy;
+              if (!current) {
+                return;
+              }
               this.controller.mutate({
                 kind: 'value',
                 field: 'defaultSpeed',
-                value: snapSliderSpeed(value, state.policy),
+                value: snapSliderSpeed(value, current),
               });
             },
           }),
-          this.boolSwitch(
-            state,
-            'remember-last-speed',
-            'rememberLastSpeed',
-            state.pending,
-            FIELD_SPAN,
-          ),
+          this.boolSwitch(state, 'remember-last-speed', 'rememberLastSpeed', 'pending', FIELD_SPAN),
           this.decimalField(state, {
             id: 'speed-min',
             name: 'speedMin',
@@ -1108,19 +1291,88 @@ export class OptionsView {
           value: sliderValue(shown, policy),
           disabled: locked,
           onInput: (value) => {
-            this.controller.setSpeedPreview(snapSliderSpeed(value, policy));
+            const current = this.controller.getState().policy;
+            if (!current) {
+              return;
+            }
+            this.controller.setSpeedPreview(snapSliderSpeed(value, current));
           },
           onCommit: (value) => {
+            const current = this.controller.getState().policy;
+            if (!current) {
+              return;
+            }
             this.controller.mutate({
               kind: 'value',
               field: 'speed',
-              value: snapSliderSpeed(value, policy),
+              value: snapSliderSpeed(value, current),
             });
           },
         });
     if (!fixed) {
       bindSliderKeys(slider);
     }
+    const readout = el('div', {
+      class: classes(
+        'text-center text-3xl font-semibold tabular-nums',
+        state.currentSpeedMuted && 'text-muted-foreground',
+      ),
+      attrs: { 'aria-live': 'polite' },
+      text: formatSpeed(shown),
+    });
+    const slower = button(null, {
+      variant: 'outline',
+      icon: 'minus',
+      class: 'flex-1',
+      disabled: locked || fixed || !canAdjustSpeed(shown, -1, policy),
+      attrs: { 'aria-label': t('slower') },
+      onClick: () => {
+        this.controller.adjustDisplayedSpeed(-1);
+      },
+    });
+    const reset = button(resetToSpeedLabel(state.defaultSpeed), {
+      variant: 'outline',
+      class: 'flex-1',
+      disabled: locked || resetDisabled,
+      onClick: () => {
+        this.inherit('speed');
+      },
+    });
+    const faster = button(null, {
+      variant: 'outline',
+      icon: 'plus',
+      class: 'flex-1',
+      disabled: locked || fixed || !canAdjustSpeed(shown, 1, policy),
+      attrs: { 'aria-label': t('faster') },
+      onClick: () => {
+        this.controller.adjustDisplayedSpeed(1);
+      },
+    });
+    const minLabel = el('span', { text: formatSpeed(policy.min) });
+    const maxLabel = el('span', { text: formatSpeed(policy.max) });
+    this.track((next) => {
+      const nextPolicy = next.policy;
+      const nextShown = next.currentSpeed;
+      const nextFixed = isFixedSpeedPolicy(nextPolicy);
+      readout.textContent = formatSpeed(nextShown);
+      readout.classList.toggle('text-muted-foreground', next.currentSpeedMuted);
+      slower.disabled = next.pending || nextFixed || !canAdjustSpeed(nextShown, -1, nextPolicy);
+      faster.disabled = next.pending || nextFixed || !canAdjustSpeed(nextShown, 1, nextPolicy);
+      reset.disabled = next.pending || !ownsOverride(next.selection, next.behavior.speed.source);
+      reset.textContent = resetToSpeedLabel(next.defaultSpeed);
+      minLabel.textContent = formatSpeed(nextPolicy.min);
+      maxLabel.textContent = formatSpeed(nextPolicy.max);
+      if (!nextFixed) {
+        const nextBounds = sliderBounds(nextPolicy);
+        syncOwnedRange(slider, {
+          min: nextBounds.minValue,
+          max: nextBounds.maxValue,
+          step: SPEED_SLIDER_STEP,
+          value: sliderValue(nextShown, nextPolicy),
+          disabled: next.pending,
+        });
+      }
+    });
     return el(
       'div',
       { class: 'flex flex-col gap-3' },
@@ -1129,132 +1381,58 @@ export class OptionsView {
         { class: 'flex items-center justify-between gap-3' },
         el('h2', { class: 'text-sm font-medium', text: heading }),
       ),
-      el('div', {
-        class: classes(
-          'text-center text-3xl font-semibold tabular-nums',
-          state.currentSpeedMuted && 'text-muted-foreground',
-        ),
-        attrs: { 'aria-live': 'polite' },
-        text: formatSpeed(shown),
-      }),
-      el(
-        'div',
-        { class: 'flex w-full [&>[data-slot=button]]:flex-1' },
-        button(null, {
-          variant: 'outline',
-          icon: 'minus',
-          class: 'flex-1',
-          disabled: locked || fixed || !canAdjustSpeed(shown, -1, policy),
-          attrs: { 'aria-label': t('slower') },
-          onClick: () => {
-            this.controller.adjustDisplayedSpeed(-1);
-          },
-        }),
-        button(resetToSpeedLabel(state.defaultSpeed), {
-          variant: 'outline',
-          class: 'flex-1',
-          disabled: locked || resetDisabled,
-          onClick: () => {
-            this.inherit('speed');
-          },
-        }),
-        button(null, {
-          variant: 'outline',
-          icon: 'plus',
-          class: 'flex-1',
-          disabled: locked || fixed || !canAdjustSpeed(shown, 1, policy),
-          attrs: { 'aria-label': t('faster') },
-          onClick: () => {
-            this.controller.adjustDisplayedSpeed(1);
-          },
-        }),
-      ),
+      readout,
+      el('div', { class: 'flex w-full [&>[data-slot=button]]:flex-1' }, slower, reset, faster),
       el(
         'div',
         { class: 'flex items-center gap-2 text-xs text-muted-foreground' },
-        el('span', { text: formatSpeed(policy.min) }),
+        minLabel,
         slider,
-        el('span', { text: formatSpeed(policy.max) }),
+        maxLabel,
       ),
     );
   }
 
   private overlayCard(state: ReadyState): HTMLElement {
-    const { behavior } = state;
     return card(
       t('settingsOverlay'),
       t('settingsOverlayDescription'),
       fieldSet(
         t('settingsOverlay'),
         optionsFieldGroup(
-          this.boolSwitch(state, 'overlay-visible', 'overlayVisible', state.pending),
-          this.boolSwitch(
-            state,
-            'overlay-navigation-bar',
-            'overlayNavigationBar',
-            state.overlayLocked,
-          ),
-          this.boolSwitch(state, 'overlay-seek-bar', 'overlaySeekBar', state.overlayLocked),
-          this.boolSwitch(state, 'overlay-volume-bar', 'overlayVolumeBar', state.overlayLocked),
+          this.boolSwitch(state, 'overlay-visible', 'overlayVisible', 'pending'),
+          this.boolSwitch(state, 'overlay-navigation-bar', 'overlayNavigationBar', 'overlay'),
+          this.boolSwitch(state, 'overlay-seek-bar', 'overlaySeekBar', 'overlay'),
+          this.boolSwitch(state, 'overlay-volume-bar', 'overlayVolumeBar', 'overlay'),
           this.percentSlider(state, {
+            field: 'overlayOpacity',
             label: t('overlayOpacity'),
             description: t('overlayOpacityDescription'),
             labelId: 'overlay-opacity-label',
             helpId: 'overlay-opacity-help',
             min: OVERLAY_OPACITY_MIN,
             max: OVERLAY_OPACITY_MAX,
-            value: behavior.overlayOpacity.value,
-            source: behavior.overlayOpacity.source,
-            disabled: state.overlayLocked,
+            lock: 'overlay',
             readoutClass: 'w-10',
-            onValue: (value) => {
-              this.controller.mutate({
-                kind: 'value',
-                field: 'overlayOpacity',
-                value: canonicalizeOverlayOpacity(value),
-              });
-            },
-            onReset: () => {
-              this.inherit('overlayOpacity');
-            },
+            canonicalize: canonicalizeOverlayOpacity,
           }),
           this.percentSlider(state, {
+            field: 'overlayScale',
             label: t('overlayScale'),
             description: t('overlayScaleDescription'),
             labelId: 'overlay-scale-label',
             helpId: 'overlay-scale-help',
             min: OVERLAY_SCALE_MIN,
             max: OVERLAY_SCALE_MAX,
-            value: behavior.overlayScale.value,
-            source: behavior.overlayScale.source,
-            disabled: state.overlayLocked,
+            lock: 'overlay',
             readoutClass: 'w-12',
-            onValue: (value) => {
-              this.controller.mutate({
-                kind: 'value',
-                field: 'overlayScale',
-                value: canonicalizeOverlayScale(value),
-              });
-            },
-            onReset: () => {
-              this.inherit('overlayScale');
-            },
+            canonicalize: canonicalizeOverlayScale,
           }),
           this.positionField(state),
-          this.boolSwitch(
-            state,
-            'overlay-position-button',
-            'overlayPositionButton',
-            state.overlayLocked,
-          ),
-          this.boolSwitch(
-            state,
-            'overlay-settings-button',
-            'overlaySettingsButton',
-            state.overlayLocked,
-          ),
-          this.boolSwitch(state, 'overlay-hotkey-hints', 'overlayHotkeyHints', state.overlayLocked),
-          this.boolSwitch(state, 'overlay-auto-hide', 'overlayAutoHide', state.overlayLocked),
+          this.boolSwitch(state, 'overlay-position-button', 'overlayPositionButton', 'overlay'),
+          this.boolSwitch(state, 'overlay-settings-button', 'overlaySettingsButton', 'overlay'),
+          this.boolSwitch(state, 'overlay-hotkey-hints', 'overlayHotkeyHints', 'overlay'),
+          this.boolSwitch(state, 'overlay-auto-hide', 'overlayAutoHide', 'overlay'),
           this.secondsField(state, {
             id: 'overlay-auto-hide-delay',
             name: 'overlayAutoHideDelay',
@@ -1264,60 +1442,37 @@ export class OptionsView {
             max: OVERLAY_AUTO_HIDE_DELAY_MS_MAX / 1000,
             step: 0.1,
             draft: 'delay',
-            fallback: state.delaySeconds,
-            source: behavior.overlayAutoHideDelayMs.source,
-            disabled: state.delayLocked,
             resetField: 'overlayAutoHideDelayMs',
             onCommit: () => {
               this.controller.commitDelay();
             },
           }),
-          this.boolSwitch(state, 'overlay-hover-hold', 'overlayHoverHold', state.delayLocked),
-          this.boolSwitch(state, 'button-flash', 'buttonFlash', state.pending),
-          this.boolSwitch(state, 'hotkey-flash', 'hotkeyFlash', state.pending),
+          this.boolSwitch(state, 'overlay-hover-hold', 'overlayHoverHold', 'delay'),
+          this.boolSwitch(state, 'button-flash', 'buttonFlash', 'pending'),
+          this.boolSwitch(state, 'hotkey-flash', 'hotkeyFlash', 'pending'),
           this.percentSlider(state, {
+            field: 'flashOpacity',
             label: t('flashOpacity'),
             description: t('flashOpacityDescription'),
             labelId: 'flash-opacity-label',
             helpId: 'flash-opacity-help',
             min: FLASH_OPACITY_MIN,
             max: FLASH_OPACITY_MAX,
-            value: behavior.flashOpacity.value,
-            source: behavior.flashOpacity.source,
-            disabled: state.flashLocked,
+            lock: 'flash',
             readoutClass: 'w-10',
-            onValue: (value) => {
-              this.controller.mutate({
-                kind: 'value',
-                field: 'flashOpacity',
-                value: canonicalizeFlashOpacity(value),
-              });
-            },
-            onReset: () => {
-              this.inherit('flashOpacity');
-            },
+            canonicalize: canonicalizeFlashOpacity,
           }),
           this.percentSlider(state, {
+            field: 'flashScale',
             label: t('flashScale'),
             description: t('flashScaleDescription'),
             labelId: 'flash-scale-label',
             helpId: 'flash-scale-help',
             min: FLASH_SCALE_MIN,
             max: FLASH_SCALE_MAX,
-            value: behavior.flashScale.value,
-            source: behavior.flashScale.source,
-            disabled: state.flashLocked,
+            lock: 'flash',
             readoutClass: 'w-12',
-            onValue: (value) => {
-              this.controller.mutate({
-                kind: 'value',
-                field: 'flashScale',
-                value: canonicalizeFlashScale(value),
-              });
-            },
-            onReset: () => {
-              this.inherit('flashScale');
-            },
+            canonicalize: canonicalizeFlashScale,
           }),
         ),
         this.secondsField(state, {
@@ -1329,9 +1484,6 @@ export class OptionsView {
           max: FLASH_DELAY_MS_MAX / 1000,
           step: 0.1,
           draft: 'flashDelay',
-          fallback: state.flashDelaySeconds,
-          source: behavior.flashDelayMs.source,
-          disabled: state.flashLocked,
           resetField: 'flashDelayMs',
           onCommit: () => {
             this.controller.commitFlashDelay();
@@ -1374,7 +1526,7 @@ export class OptionsView {
             state,
             'skip-scale-with-playback-rate',
             'skipScaleWithPlaybackRate',
-            state.pending,
+            'pending',
             FIELD_SPAN,
           ),
           this.decimalField(state, {
@@ -1416,10 +1568,10 @@ export class OptionsView {
             state,
             'hotkey-consume-matched-keys',
             'hotkeyConsumeMatchedKeys',
-            state.pending,
+            'pending',
             FIELD_SPAN,
           ),
-          this.boolSwitch(state, 'hotkey-repeat', 'hotkeyRepeat', state.pending, FIELD_SPAN),
+          this.boolSwitch(state, 'hotkey-repeat', 'hotkeyRepeat', 'pending', FIELD_SPAN),
           this.secondsField(state, {
             id: 'hotkey-repeat-delay',
             name: 'hotkeyRepeatDelay',
@@ -1429,30 +1581,29 @@ export class OptionsView {
             max: HOTKEY_REPEAT_DELAY_MS_MAX / 1000,
             step: 0.1,
             draft: 'hotkeyRepeatDelay',
-            fallback: state.hotkeyRepeatDelaySeconds,
-            source: state.behavior.hotkeyRepeatDelayMs.source,
-            disabled: state.hotkeyRepeatLocked,
             resetField: 'hotkeyRepeatDelayMs',
             onCommit: () => {
               this.controller.commitHotkeyRepeatDelay();
             },
           }),
-          this.sliderField({
+          this.sliderField(state, {
             label: t('hotkeyRepeatRate'),
             description: t('hotkeyRepeatRateDescription'),
             labelId: 'hotkey-repeat-rate-label',
             helpId: 'hotkey-repeat-rate-help',
             ariaLabel: t('hotkeyRepeatRate'),
-            min: HOTKEY_REPEAT_RATE_MIN,
-            max: HOTKEY_REPEAT_RATE_MAX,
-            step: 0.5,
-            value: state.behavior.hotkeyRepeatRate.value,
-            disabled: state.hotkeyRepeatLocked,
-            muted: showsInherited(state.selection, state.behavior.hotkeyRepeatRate.source),
-            readout: `${state.behavior.hotkeyRepeatRate.value}/sec`,
             readoutClass: 'w-14',
-            resetActive: ownsOverride(state.selection, state.behavior.hotkeyRepeatRate.source),
-            resetText: state.resetBadgeText,
+            live: (next) => ({
+              min: HOTKEY_REPEAT_RATE_MIN,
+              max: HOTKEY_REPEAT_RATE_MAX,
+              step: 0.5,
+              value: next.behavior.hotkeyRepeatRate.value,
+              disabled: next.hotkeyRepeatLocked,
+              muted: showsInherited(next.selection, next.behavior.hotkeyRepeatRate.source),
+              readout: `${next.behavior.hotkeyRepeatRate.value}/sec`,
+              resetActive: ownsOverride(next.selection, next.behavior.hotkeyRepeatRate.source),
+              resetText: next.resetBadgeText,
+            }),
             onReset: () => {
               this.inherit('hotkeyRepeatRate');
             },
@@ -1488,7 +1639,23 @@ export class OptionsView {
     const shadowedBy = findShadowedHotkey(state.hotkeys, action);
     const takeover = this.takeoverAction === action;
     const helpId = `hotkey-${action}-help`;
-    return el(
+    const status = el('div', {
+      attrs: { 'data-hotkey-status': action },
+    });
+    status.replaceChildren(
+      ...hotkeyStatusNodes(helpId, conflict, shadowedBy, takeover && !conflict && !shadowedBy),
+    );
+    const badge = this.resetBadge({
+      active: ownsOverride(state.selection, setting.source),
+      disabled: state.pending,
+      text: state.resetBadgeText,
+      label: resetFieldLabel(label),
+      onReset: () => {
+        this.clearRowStatus(action);
+        this.controller.mutateHotkey({ kind: 'hotkey-inherit', action });
+      },
+    });
+    const field = el(
       'div',
       {
         class: classes('flex w-full min-w-0 flex-row items-start gap-2', FIELD_SPAN),
@@ -1517,23 +1684,12 @@ export class OptionsView {
           attrs: { id: helpId, 'data-slot': 'field-description' },
           text: t(description),
         }),
-        conflict ? fieldError(`${helpId}-error`, conflict) : null,
-        !conflict && shadowedBy ? fieldWarning(hotkeyShadowedMessage(shadowedBy)) : null,
-        takeover && !conflict && !shadowedBy ? fieldWarning(t('hotkeyBrowserTookShortcut')) : null,
+        status,
       ),
       el(
         'div',
         { class: 'flex max-w-full flex-wrap-reverse items-center justify-end gap-2' },
-        this.resetBadge({
-          active: ownsOverride(state.selection, setting.source),
-          disabled: state.pending,
-          text: state.resetBadgeText,
-          label: resetFieldLabel(label),
-          onReset: () => {
-            this.clearRowStatus(action);
-            this.controller.mutateHotkey({ kind: 'hotkey-inherit', action });
-          },
-        }),
+        badge,
         this.shortcutRecorder(
           state,
           action,
@@ -1543,6 +1699,72 @@ export class OptionsView {
         ),
       ),
     );
+    this.track((next) => {
+      this.paintHotkeyRow(field, status, badge, action, next);
+    });
+    return field;
+  }
+
+  private paintHotkeyRow(
+    field: HTMLElement,
+    status: HTMLElement,
+    badge: HTMLElement,
+    action: SiteHotkeyAction,
+    state: ReadyState,
+  ): void {
+    const setting = state.hotkeys[action];
+    const conflict = this.conflictAction[action];
+    const shadowedBy = findShadowedHotkey(state.hotkeys, action);
+    const takeover = this.takeoverAction === action;
+    const helpId = `hotkey-${action}-help`;
+    flagAttr(field, 'data-disabled', state.pending);
+    flagAttr(field, 'data-invalid', Boolean(conflict));
+    flagAttr(field, 'data-warning', !conflict && Boolean(shadowedBy || takeover));
+    status.replaceChildren(
+      ...hotkeyStatusNodes(helpId, conflict, shadowedBy, takeover && !conflict && !shadowedBy),
+    );
+    paintResetBadge(badge, {
+      active: ownsOverride(state.selection, setting.source),
+      disabled: state.pending,
+      text: state.resetBadgeText,
+    });
+    const record = field.querySelector(`#hotkey-${CSS.escape(action)}`);
+    const remove = field.querySelector(`[data-hotkey-remove="${action}"]`);
+    if (record instanceof HTMLButtonElement && remove instanceof HTMLButtonElement) {
+      this.paintShortcut(
+        record,
+        remove,
+        action,
+        setting.value,
+        showsInherited(state.selection, setting.source),
+        state.pending,
+      );
+    }
+  }
+
+  private paintShortcut(
+    record: HTMLButtonElement,
+    remove: HTMLButtonElement,
+    action: SiteHotkeyAction,
+    binding: HotkeyBinding | null,
+    muted: boolean,
+    pending: boolean,
+  ): void {
+    const recording = this.recordingAction === action;
+    record.disabled = pending;
+    record.setAttribute('aria-pressed', recording ? 'true' : 'false');
+    if (recording) {
+      record.dataset.recording = 'true';
+      record.replaceChildren(document.createTextNode(t('hotkeyPressShortcut')));
+    } else {
+      delete record.dataset.recording;
+      record.replaceChildren(
+        binding
+          ? shortcutKeys(visualHotkeyParts(binding, { layoutMap: this.layoutMap }), muted)
+          : el('span', { class: 'text-muted-foreground', text: t('hotkeyNone') }),
+      );
+    }
+    remove.disabled = pending || binding == null;
   }
 
   private shortcutRecorder(
@@ -1593,7 +1815,10 @@ export class OptionsView {
       size: 'icon-sm',
       icon: 'trash-2',
       disabled: state.pending || !binding,
-      attrs: { 'aria-label': `${t('hotkeyRemove')}: ${label}` },
+      attrs: {
+        'aria-label': `${t('hotkeyRemove')}: ${label}`,
+        'data-hotkey-remove': action,
+      },
       onClick: () => {
         this.clearRowStatus(action);
         if (this.recordingAction === action) {
@@ -1802,21 +2027,25 @@ export class OptionsView {
     state: ReadyState,
     id: string,
     field: BooleanBehaviorFieldName,
-    disabled: boolean,
+    lock: FieldLock,
     className?: string,
   ): HTMLElement {
-    const setting = state.behavior[field];
-    return this.switchField({
+    return this.switchField(state, {
       id,
       name: field,
       label: t(field),
       description: t(`${field}Description` as MessageKey),
-      checked: setting.value,
-      source: setting.source,
-      disabled,
-      selection: state.selection,
-      resetText: state.resetBadgeText,
       className,
+      live: (next) => {
+        const setting = next.behavior[field];
+        return {
+          checked: setting.value,
+          disabled: fieldLocked(next, lock),
+          inherited: showsInherited(next.selection, setting.source),
+          resetActive: ownsOverride(next.selection, setting.source),
+          resetText: next.resetBadgeText,
+        };
+      },
       onChange: (selected) => {
         this.controller.mutate({ kind: 'value', field, value: selected });
       },
@@ -1826,34 +2055,41 @@ export class OptionsView {
     });
   }
 
-  private switchField(spec: {
-    id: string;
-    name: string;
-    label: string;
-    description: string;
-    checked: boolean;
-    source: SettingSource;
-    disabled: boolean;
-    selection: Selection;
-    resetText: string;
-    className?: string;
-    onChange: (checked: boolean) => void;
-    onReset: () => void;
-  }): HTMLElement {
+  private switchField(
+    state: ReadyState,
+    spec: {
+      id: string;
+      name: string;
+      label: string;
+      description: string;
+      className?: string;
+      live: (state: ReadyState) => SwitchLive;
+      onChange: (checked: boolean) => void;
+      onReset: () => void;
+    },
+  ): HTMLElement {
+    const initial = spec.live(state);
     const helpId = `${spec.id}-help`;
     const input = switchControl({
       id: spec.id,
       name: spec.name,
       describedBy: helpId,
-      checked: spec.checked,
-      disabled: spec.disabled,
+      checked: initial.checked,
+      disabled: initial.disabled,
       onChange: spec.onChange,
     });
     const shell = input.parentElement;
-    if (shell && showsInherited(spec.selection, spec.source)) {
+    if (shell instanceof HTMLElement && initial.inherited) {
       shell.classList.add('data-selected:bg-muted-foreground');
     }
-    return el(
+    const badge = this.resetBadge({
+      active: initial.resetActive,
+      disabled: initial.disabled,
+      text: initial.resetText,
+      label: resetFieldLabel(spec.label),
+      onReset: spec.onReset,
+    });
+    const field = el(
       'div',
       {
         class: classes('flex w-full min-w-0 flex-row items-start gap-2', spec.className),
@@ -1861,7 +2097,7 @@ export class OptionsView {
           role: 'group',
           'data-slot': 'field',
           'data-orientation': 'horizontal',
-          'data-disabled': spec.disabled ? 'true' : null,
+          'data-disabled': initial.disabled ? 'true' : null,
         },
       },
       el(
@@ -1884,16 +2120,22 @@ export class OptionsView {
       el(
         'div',
         { class: 'flex max-w-full flex-wrap-reverse items-center justify-end gap-2' },
-        this.resetBadge({
-          active: ownsOverride(spec.selection, spec.source),
-          disabled: spec.disabled,
-          text: spec.resetText,
-          label: resetFieldLabel(spec.label),
-          onReset: spec.onReset,
-        }),
+        badge,
         shell,
       ),
     );
+    this.track((next) => {
+      const live = spec.live(next);
+      syncSwitch(input, live.checked, live.disabled);
+      shell?.classList.toggle('data-selected:bg-muted-foreground', live.inherited);
+      flagAttr(field, 'data-disabled', live.disabled);
+      paintResetBadge(badge, {
+        active: live.resetActive,
+        disabled: live.disabled,
+        text: live.resetText,
+      });
+    });
+    return field;
   }
 
   private decimalField(
@@ -1912,11 +2154,7 @@ export class OptionsView {
       className?: string;
     },
   ): HTMLElement {
-    const setting = state.behavior[spec.draft];
-    const numeric = setting.value;
-    const shown = spec.absolute ? Math.abs(numeric) : numeric;
-    const draft = state.drafts[spec.draft];
-    return this.numberField({
+    return this.numberField(state, {
       id: spec.id,
       name: spec.name,
       label: spec.label,
@@ -1924,12 +2162,20 @@ export class OptionsView {
       min: spec.min,
       max: spec.max,
       step: spec.step,
-      value: draft ?? String(shown),
-      disabled: Boolean(spec.disabled),
-      muted: showsInherited(state.selection, setting.source, draft),
-      resetActive: ownsOverride(state.selection, setting.source),
       resetLabel: resetFieldLabel(spec.label),
       className: spec.className,
+      live: (next) => {
+        const setting = next.behavior[spec.draft];
+        const numeric = setting.value;
+        const shown = spec.absolute ? Math.abs(numeric) : numeric;
+        const draft = next.drafts[spec.draft];
+        return {
+          value: draft ?? String(shown),
+          disabled: next.pending,
+          muted: showsInherited(next.selection, setting.source, draft),
+          resetActive: ownsOverride(next.selection, setting.source),
+        };
+      },
       onDraft: (value) => {
         this.controller.updateDraft(spec.draft, value);
       },
@@ -1957,16 +2203,14 @@ export class OptionsView {
       max: number;
       step: number;
       draft: SecondsDraft;
-      fallback: string;
-      source: SettingSource;
-      disabled?: boolean;
       resetField: 'overlayAutoHideDelayMs' | 'flashDelayMs' | 'hotkeyRepeatDelayMs';
       onCommit: () => void;
       className?: string;
     },
   ): HTMLElement {
-    const draft = state.drafts[spec.draft];
-    return this.numberField({
+    const lock: FieldLock =
+      spec.draft === 'delay' ? 'delay' : spec.draft === 'flashDelay' ? 'flash' : 'hotkeyRepeat';
+    return this.numberField(state, {
       id: spec.id,
       name: spec.name,
       label: spec.label,
@@ -1974,12 +2218,24 @@ export class OptionsView {
       min: spec.min,
       max: spec.max,
       step: spec.step,
-      value: draft ?? spec.fallback,
-      disabled: Boolean(spec.disabled),
-      muted: showsInherited(state.selection, spec.source, draft),
-      resetActive: ownsOverride(state.selection, spec.source),
       resetLabel: resetFieldLabel(spec.label),
       className: spec.className,
+      live: (next) => {
+        const draft = next.drafts[spec.draft];
+        const source = next.behavior[spec.resetField].source;
+        const fallback =
+          spec.draft === 'delay'
+            ? next.delaySeconds
+            : spec.draft === 'flashDelay'
+              ? next.flashDelaySeconds
+              : next.hotkeyRepeatDelaySeconds;
+        return {
+          value: draft ?? fallback,
+          disabled: fieldLocked(next, lock),
+          muted: showsInherited(next.selection, source, draft),
+          resetActive: ownsOverride(next.selection, source),
+        };
+      },
       onDraft: (value) => {
         this.controller.updateDraft(spec.draft, value);
       },
@@ -1990,29 +2246,31 @@ export class OptionsView {
     });
   }
 
-  private numberField(spec: {
-    id: string;
-    name: string;
-    label: string;
-    description: string;
-    min: number;
-    max: number;
-    step: number;
-    value: string;
-    disabled: boolean;
-    muted: boolean;
-    resetActive: boolean;
-    resetLabel: string;
-    className?: string;
-    onDraft: (value: string) => void;
-    onCommit: () => void;
-    onReset: () => void;
-  }): HTMLElement {
+  private numberField(
+    state: ReadyState,
+    spec: {
+      id: string;
+      name: string;
+      label: string;
+      description: string;
+      min: number;
+      max: number;
+      step: number;
+      resetLabel: string;
+      className?: string;
+      live: (state: ReadyState) => NumberLive;
+      onDraft: (value: string) => void;
+      onCommit: () => void;
+      onReset: () => void;
+    },
+  ): HTMLElement {
+    const initial = spec.live(state);
     const helpId = `${spec.id}-help`;
+    const previous = { value: initial.value };
     const input = el('input', {
       class: classes(
         'min-w-0 flex-1 border-0 bg-transparent shadow-none outline-none',
-        spec.muted && 'text-muted-foreground',
+        initial.muted && 'text-muted-foreground',
       ),
       attrs: {
         id: spec.id,
@@ -2028,17 +2286,28 @@ export class OptionsView {
         'data-slot': 'input-group-control',
       },
     });
-    input.value = spec.value;
-    input.disabled = spec.disabled;
-    this.bindNumberInput(input, spec);
-    return el(
+    input.value = initial.value;
+    input.disabled = initial.disabled;
+    this.bindNumberInput(input, {
+      previous,
+      min: spec.min,
+      max: spec.max,
+      step: spec.step,
+      onDraft: spec.onDraft,
+      onCommit: spec.onCommit,
+    });
+    const resetSlot = el('span', { attrs: { 'data-number-reset': '' } });
+    if (initial.resetActive) {
+      resetSlot.append(this.numberResetButton(spec.resetLabel, initial.disabled, spec.onReset));
+    }
+    const field = el(
       'div',
       {
         class: classes('flex w-full flex-col gap-2', spec.className),
         attrs: {
           role: 'group',
           'data-slot': 'field',
-          'data-disabled': spec.disabled ? 'true' : null,
+          'data-disabled': initial.disabled ? 'true' : null,
         },
       },
       el('label', {
@@ -2054,7 +2323,7 @@ export class OptionsView {
           attrs: { 'data-slot': 'input-group' },
         },
         input,
-        this.numberReset(spec),
+        resetSlot,
       ),
       el('p', {
         class: 'text-sm text-muted-foreground',
@@ -2062,12 +2331,37 @@ export class OptionsView {
         text: spec.description,
       }),
     );
+    this.track((next) => {
+      const live = spec.live(next);
+      if (document.activeElement !== input) {
+        if (input.value !== live.value) {
+          input.value = live.value;
+        }
+        previous.value = live.value;
+      }
+      input.disabled = live.disabled;
+      input.classList.toggle('text-muted-foreground', live.muted);
+      flagAttr(field, 'data-disabled', live.disabled);
+      const existing = resetSlot.querySelector('button');
+      if (!live.resetActive) {
+        resetSlot.replaceChildren();
+        return;
+      }
+      if (!(existing instanceof HTMLButtonElement)) {
+        resetSlot.replaceChildren(
+          this.numberResetButton(spec.resetLabel, live.disabled, spec.onReset),
+        );
+        return;
+      }
+      existing.disabled = live.disabled;
+    });
+    return field;
   }
 
   private bindNumberInput(
     input: HTMLInputElement,
     spec: {
-      value: string;
+      previous: { value: string };
       min: number;
       max: number;
       step: number;
@@ -2077,7 +2371,7 @@ export class OptionsView {
   ): void {
     input.addEventListener('input', () => {
       const next = numberInputDraftAfterChange(
-        spec.value,
+        spec.previous.value,
         input.value,
         spec.min,
         spec.max,
@@ -2086,6 +2380,7 @@ export class OptionsView {
       if (next !== input.value) {
         input.value = next;
       }
+      spec.previous.value = next;
       spec.onDraft(next);
     });
     input.addEventListener('keydown', (event) => {
@@ -2097,6 +2392,7 @@ export class OptionsView {
         spec.step,
         (next) => {
           input.value = next;
+          spec.previous.value = next;
           spec.onDraft(next);
         },
         spec.onCommit,
@@ -2110,108 +2406,132 @@ export class OptionsView {
     });
   }
 
-  private numberReset(spec: {
-    resetActive: boolean;
-    disabled: boolean;
-    resetLabel: string;
-    onReset: () => void;
-  }): HTMLButtonElement | null {
-    if (!spec.resetActive) {
-      return null;
-    }
+  private numberResetButton(
+    label: string,
+    disabled: boolean,
+    onReset: () => void,
+  ): HTMLButtonElement {
     return button(null, {
       variant: 'ghost',
       size: 'icon-xs',
       icon: 'x',
-      disabled: spec.disabled,
+      disabled,
       class:
         'data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50',
-      attrs: { 'aria-label': spec.resetLabel },
-      onClick: spec.onReset,
+      attrs: { 'aria-label': label },
+      onClick: onReset,
     });
   }
 
   private percentSlider(
     state: ReadyState,
     spec: {
+      field: 'overlayOpacity' | 'overlayScale' | 'flashOpacity' | 'flashScale';
       label: string;
       description: string;
       labelId: string;
       helpId: string;
       min: number;
       max: number;
-      value: number;
-      source: SettingSource;
-      disabled: boolean;
+      lock: FieldLock;
       readoutClass: string;
-      onValue: (value: number) => void;
-      onReset: () => void;
+      canonicalize: (value: number) => number;
       className?: string;
     },
   ): HTMLElement {
-    return this.sliderField({
+    return this.sliderField(state, {
       className: spec.className,
       label: spec.label,
       description: spec.description,
       labelId: spec.labelId,
       helpId: spec.helpId,
       ariaLabel: spec.label,
-      min: spec.min,
-      max: spec.max,
-      step: 1,
-      value: spec.value,
-      disabled: spec.disabled,
-      muted: showsInherited(state.selection, spec.source),
-      readout: `${spec.value}%`,
       readoutClass: spec.readoutClass,
-      resetActive: ownsOverride(state.selection, spec.source),
-      resetText: state.resetBadgeText,
-      onReset: spec.onReset,
-      onInput: spec.onValue,
-      onCommit: spec.onValue,
+      live: (next) => {
+        const setting = next.behavior[spec.field];
+        return {
+          min: spec.min,
+          max: spec.max,
+          step: 1,
+          value: setting.value,
+          disabled: fieldLocked(next, spec.lock),
+          muted: showsInherited(next.selection, setting.source),
+          readout: `${setting.value}%`,
+          resetActive: ownsOverride(next.selection, setting.source),
+          resetText: next.resetBadgeText,
+        };
+      },
+      onReset: () => {
+        this.inherit(spec.field);
+      },
+      onInput: (value) => {
+        this.controller.mutate({
+          kind: 'value',
+          field: spec.field,
+          value: spec.canonicalize(value),
+        });
+      },
+      onCommit: (value) => {
+        this.controller.mutate({
+          kind: 'value',
+          field: spec.field,
+          value: spec.canonicalize(value),
+        });
+      },
     });
   }
 
-  private sliderField(spec: {
-    label: string;
-    description: string;
-    labelId: string;
-    helpId: string;
-    ariaLabel: string;
-    min: number;
-    max: number;
-    step: number;
-    value: number;
-    disabled: boolean;
-    muted: boolean;
-    readout: string;
-    readoutClass: string;
-    resetActive: boolean;
-    resetText: string;
-    className?: string;
-    onInput: (value: number) => void;
-    onCommit: (value: number) => void;
-    onReset: () => void;
-  }): HTMLElement {
+  private sliderField(
+    state: ReadyState,
+    spec: {
+      label: string;
+      description: string;
+      labelId: string;
+      helpId: string;
+      ariaLabel: string;
+      readoutClass: string;
+      className?: string;
+      live: (state: ReadyState) => SliderLive;
+      onInput: (value: number) => void;
+      onCommit: (value: number) => void;
+      onReset: () => void;
+    },
+  ): HTMLElement {
+    const initial = spec.live(state);
     const slider = rangeControl({
       label: spec.ariaLabel,
-      min: spec.min,
-      max: spec.max,
-      step: spec.step,
-      value: spec.value,
-      disabled: spec.disabled,
+      min: initial.min,
+      max: initial.max,
+      step: initial.step,
+      value: initial.value,
+      disabled: initial.disabled,
       onInput: spec.onInput,
       onCommit: spec.onCommit,
     });
     bindSliderKeys(slider);
-    return el(
+    const badge = this.resetBadge({
+      active: initial.resetActive,
+      disabled: initial.disabled,
+      text: initial.resetText,
+      label: resetFieldLabel(spec.label),
+      onReset: spec.onReset,
+    });
+    const readout = el('span', {
+      class: classes(
+        'shrink-0 text-right text-sm tabular-nums',
+        spec.readoutClass,
+        initial.muted && 'text-muted-foreground',
+      ),
+      text: initial.readout,
+    });
+    const field = el(
       'div',
       {
         class: classes('flex w-full flex-col gap-2', spec.className),
         attrs: {
           role: 'group',
           'data-slot': 'field',
-          'data-disabled': spec.disabled ? 'true' : null,
+          'data-disabled': initial.disabled ? 'true' : null,
         },
       },
       el(
@@ -2234,37 +2554,33 @@ export class OptionsView {
             text: spec.description,
           }),
         ),
-        this.resetBadge({
-          active: spec.resetActive,
-          disabled: spec.disabled,
-          text: spec.resetText,
-          label: resetFieldLabel(spec.label),
-          onReset: spec.onReset,
-        }),
+        badge,
       ),
-      el(
-        'div',
-        { class: 'flex items-center gap-3' },
-        slider,
-        el('span', {
-          class: classes(
-            'shrink-0 text-right text-sm tabular-nums',
-            spec.readoutClass,
-            spec.muted && 'text-muted-foreground',
-          ),
-          text: spec.readout,
-        }),
-      ),
+      el('div', { class: 'flex items-center gap-3' }, slider, readout),
     );
+    this.track((next) => {
+      const live = spec.live(next);
+      syncOwnedRange(slider, live);
+      readout.textContent = live.readout;
+      readout.className = classes(
+        'shrink-0 text-right text-sm tabular-nums',
+        spec.readoutClass,
+        live.muted && 'text-muted-foreground',
+      );
+      flagAttr(field, 'data-disabled', live.disabled);
+      paintResetBadge(badge, {
+        active: live.resetActive,
+        disabled: live.disabled,
+        text: live.resetText,
+      });
+    });
+    return field;
   }
 
   private positionField(state: ReadyState): HTMLElement {
     const source = state.behavior.overlayPosition.source;
     const inherited = showsInherited(state.selection, source);
     const locked = state.overlayLocked;
-    const selectedClass = inherited
-      ? 'data-selected:bg-muted data-selected:text-muted-foreground'
-      : 'data-selected:bg-accent';
     const radios = el('div', {
       class: 'grid grid-cols-3 gap-2',
       attrs: {
@@ -2274,6 +2590,11 @@ export class OptionsView {
         'aria-describedby': 'overlay-position-help',
       },
     });
+    const choices: Array<{
+      value: OverlayPosition;
+      input: HTMLInputElement;
+      choice: HTMLLabelElement;
+    }> = [];
     for (const option of POSITION_OPTIONS) {
       const input = el('input', {
         class: 'sr-only',
@@ -2283,7 +2604,8 @@ export class OptionsView {
           value: String(option.value),
         },
       });
-      input.checked = state.behavior.overlayPosition.value === option.value;
+      const checked = state.behavior.overlayPosition.value === option.value;
+      input.checked = checked;
       input.disabled = locked;
       const commit = (): void => {
         if (input.disabled) {
@@ -2303,11 +2625,8 @@ export class OptionsView {
       const choice = el(
         'label',
         {
-          class: classes(
-            'flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-center text-xs',
-            selectedClass,
-          ),
-          attrs: input.checked ? { 'data-selected': 'true' } : undefined,
+          class: positionChoiceClass(inherited),
+          attrs: checked ? { 'data-selected': 'true' } : undefined,
         },
         input,
         overlayPositionIcon(option.value),
@@ -2320,9 +2639,19 @@ export class OptionsView {
         input.checked = true;
         commit();
       });
+      choices.push({ value: option.value, input, choice });
       radios.append(choice);
     }
-    return el(
+    const badge = this.resetBadge({
+      active: ownsOverride(state.selection, source),
+      disabled: locked,
+      text: state.resetBadgeText,
+      label: resetFieldLabel(t('overlayPosition')),
+      onReset: () => {
+        this.inherit('overlayPosition');
+      },
+    });
+    const field = el(
       'div',
       {
         class: classes('flex w-full flex-col gap-2', FIELD_SPAN),
@@ -2352,18 +2681,29 @@ export class OptionsView {
             text: t('overlayPositionDescription'),
           }),
         ),
-        this.resetBadge({
-          active: ownsOverride(state.selection, source),
-          disabled: locked,
-          text: state.resetBadgeText,
-          label: resetFieldLabel(t('overlayPosition')),
-          onReset: () => {
-            this.inherit('overlayPosition');
-          },
-        }),
+        badge,
       ),
       radios,
     );
+    this.track((next) => {
+      const nextSource = next.behavior.overlayPosition.source;
+      const nextInherited = showsInherited(next.selection, nextSource);
+      const nextLocked = next.overlayLocked;
+      flagAttr(field, 'data-disabled', nextLocked);
+      for (const choice of choices) {
+        const selected = next.behavior.overlayPosition.value === choice.value;
+        choice.input.checked = selected;
+        choice.input.disabled = nextLocked;
+        choice.choice.className = positionChoiceClass(nextInherited);
+        flagAttr(choice.choice, 'data-selected', selected);
+      }
+      paintResetBadge(badge, {
+        active: ownsOverride(next.selection, nextSource),
+        disabled: nextLocked,
+        text: next.resetBadgeText,
+      });
+    });
+    return field;
   }
 
   private resetBadge(spec: {
@@ -2373,40 +2713,30 @@ export class OptionsView {
     label: string;
     onReset: () => void;
   }): HTMLElement {
-    const isDisabled = spec.disabled || !spec.active;
-    return el(
+    const badge = el(
       'span',
-      {
-        class: classes(
-          'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent bg-secondary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-secondary-foreground select-none',
-          !spec.active && 'invisible pointer-events-none',
-          isDisabled && 'bg-muted text-muted-foreground opacity-50',
-        ),
-        attrs: {
-          'data-slot': 'reset-badge',
-          'data-active': spec.active ? 'true' : null,
-          'data-disabled': isDisabled ? 'true' : null,
-        },
-      },
-      spec.text,
+      { attrs: { 'data-slot': 'reset-badge' } },
+      el('span', { attrs: { 'data-slot': 'reset-badge-text' }, text: spec.text }),
       el(
         'span',
-        { class: classes('inline-flex', isDisabled && 'cursor-not-allowed') },
+        { attrs: { 'data-slot': 'reset-badge-action' } },
         button(null, {
           variant: 'ghost',
           size: 'icon-xs',
           icon: 'x',
-          disabled: isDisabled,
           class: 'size-4 rounded-full disabled:opacity-100',
           attrs: { 'aria-label': spec.label },
           onClick: () => {
-            if (!isDisabled) {
-              spec.onReset();
+            if (badge.hasAttribute('data-disabled')) {
+              return;
             }
+            spec.onReset();
           },
         }),
       ),
     );
+    paintResetBadge(badge, spec);
+    return badge;
   }
 
   private inherit(field: EditableBehaviorField): void {
@@ -2428,47 +2758,64 @@ export class OptionsView {
         this.onAllSitesToggle(enabled, grant);
       },
     });
-    if (this.accessError) {
-      input.setAttribute('aria-invalid', 'true');
-    }
+    const errorSlot = el('div');
+    const field = el(
+      'div',
+      {
+        class: 'flex min-w-0 flex-row items-start gap-2',
+        attrs: {
+          role: 'group',
+          'data-slot': 'field',
+          'data-orientation': 'horizontal',
+          'data-disabled': disabled ? 'true' : null,
+          'data-invalid': this.accessError ? 'true' : null,
+        },
+      },
+      el(
+        'div',
+        {
+          class: 'flex min-w-0 flex-[1_1_12rem] flex-col gap-0.5',
+          attrs: { 'data-slot': 'field-content' },
+        },
+        el('label', {
+          class: 'text-sm font-medium',
+          attrs: { for: ALL_SITES_ID, 'data-slot': 'field-label' },
+          text: t('enableOnAllSites'),
+        }),
+        el('p', {
+          class: 'text-sm text-muted-foreground',
+          attrs: { id: ALL_SITES_HELP, 'data-slot': 'field-description' },
+          text: t('allSitesAccessSwitchDescription'),
+        }),
+        errorSlot,
+      ),
+      input.parentElement,
+    );
+    const paintAccess = (): void => {
+      const accessKnown = this.hasAllSitesAccess !== null;
+      const accessDisabled = this.accessPending || !accessKnown;
+      syncSwitch(input, this.hasAllSitesAccess === true, accessDisabled);
+      if (this.accessError) {
+        input.setAttribute('aria-invalid', 'true');
+        input.setAttribute('aria-describedby', `${ALL_SITES_HELP} ${ALL_SITES_ERROR}`);
+        errorSlot.replaceChildren(fieldError(ALL_SITES_ERROR, this.accessError));
+      } else {
+        input.removeAttribute('aria-invalid');
+        input.setAttribute('aria-describedby', ALL_SITES_HELP);
+        errorSlot.replaceChildren();
+      }
+      flagAttr(field, 'data-disabled', accessDisabled);
+      flagAttr(field, 'data-invalid', this.accessError != null);
+    };
+    paintAccess();
+    this.track(() => {
+      paintAccess();
+    });
     return card(
       t('enableOnAllSites'),
       t('enableOnAllSitesDescription'),
       infoAlert(t('allSitesAccessAlertTitle'), t('allSitesAccessAlertDescription')),
-      fieldGroup(
-        el(
-          'div',
-          {
-            class: 'flex min-w-0 flex-row items-start gap-2',
-            attrs: {
-              role: 'group',
-              'data-slot': 'field',
-              'data-orientation': 'horizontal',
-              'data-disabled': disabled ? 'true' : null,
-              'data-invalid': this.accessError ? 'true' : null,
-            },
-          },
-          el(
-            'div',
-            {
-              class: 'flex min-w-0 flex-[1_1_12rem] flex-col gap-0.5',
-              attrs: { 'data-slot': 'field-content' },
-            },
-            el('label', {
-              class: 'text-sm font-medium',
-              attrs: { for: ALL_SITES_ID, 'data-slot': 'field-label' },
-              text: t('enableOnAllSites'),
-            }),
-            el('p', {
-              class: 'text-sm text-muted-foreground',
-              attrs: { id: ALL_SITES_HELP, 'data-slot': 'field-description' },
-              text: t('allSitesAccessSwitchDescription'),
-            }),
-            this.accessError ? fieldError(ALL_SITES_ERROR, this.accessError) : null,
-          ),
-          input.parentElement,
-        ),
-      ),
+      fieldGroup(field),
     );
   }
 
@@ -2550,7 +2897,7 @@ export class OptionsView {
     const staged = this.staged;
     const attachmentState = staged?.status === 'error' ? 'error' : staged ? 'done' : 'idle';
     const ready = staged?.status === 'ready';
-    return el(
+    const cards = el(
       'div',
       { class: 'flex flex-col gap-6' },
       card(
@@ -2582,14 +2929,14 @@ export class OptionsView {
             attrs: { 'aria-label': t('importDropzone') },
             on: {
               dragover: (event) => {
-                if (state.pending) {
+                if (this.controller.getState().pending) {
                   return;
                 }
                 event.preventDefault();
               },
               drop: (event) => {
                 event.preventDefault();
-                if (!(event instanceof DragEvent) || state.pending) {
+                if (!(event instanceof DragEvent) || this.controller.getState().pending) {
                   return;
                 }
                 this.stageFile(event.dataTransfer?.files[0]);
@@ -2674,6 +3021,61 @@ export class OptionsView {
         ),
       ),
     );
+    this.track((next) => {
+      this.paintBackup(cards, next);
+    });
+    return cards;
+  }
+
+  private paintBackup(root: HTMLElement, state: ReadyState): void {
+    const staged = this.staged;
+    const attachmentState = staged?.status === 'error' ? 'error' : staged ? 'done' : 'idle';
+    const ready = staged?.status === 'ready';
+    const byText = (label: string): HTMLButtonElement | undefined =>
+      [...root.querySelectorAll('button')].find((control) => control.textContent === label);
+    const exportButton = byText(t('exportSettings'));
+    const importButton = byText(t('importSettings'));
+    const merge = byText(t('importMerge'));
+    const replace = byText(t('importReplace'));
+    if (exportButton) {
+      exportButton.disabled = state.pending;
+    }
+    if (importButton) {
+      importButton.disabled = state.pending;
+    }
+    if (merge) {
+      merge.disabled = state.pending || !ready;
+    }
+    if (replace) {
+      replace.disabled = state.pending || !ready;
+    }
+    const clear = root.querySelector('[data-slot="attachment-action"]');
+    if (clear instanceof HTMLButtonElement) {
+      clear.disabled = state.pending || staged == null;
+    }
+    const attachment = root.querySelector('[data-slot="attachment"]');
+    if (attachment instanceof HTMLElement) {
+      attachment.dataset.state = attachmentState;
+      attachment.className = classes(
+        'flex w-fit max-w-full min-w-40 items-center gap-2 rounded-xl border bg-card p-2 text-sm text-card-foreground',
+        attachmentState === 'idle' && 'border-dashed',
+        attachmentState === 'error' && 'border-destructive/30',
+      );
+    }
+    const title = root.querySelector('[data-slot="attachment-title"]');
+    if (title) {
+      title.textContent = staged?.fileName ?? t('noBackupFile');
+    }
+    const description = root.querySelector('[data-slot="attachment-description"]');
+    if (description instanceof HTMLElement) {
+      description.textContent =
+        staged?.status === 'error'
+          ? staged.error
+          : staged
+            ? `${t('backupFileType')} · ${formatBackupFileSize(staged.byteLength)}`
+            : t('backupFileType');
+      description.classList.toggle('whitespace-normal', staged?.status === 'error');
+    }
   }
 
   private confirmImport(mode: 'merge' | 'replace'): void {

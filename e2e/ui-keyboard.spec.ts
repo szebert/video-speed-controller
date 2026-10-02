@@ -46,6 +46,33 @@ test('options tabs use automatic activation and arrow keys', async ({ context, e
   await expect(options.getByRole('tabpanel', { name: 'Playback' })).toBeVisible();
 });
 
+test('dragging a default-speed slider keeps that range through the gesture', async ({
+  context,
+  extensionId,
+}) => {
+  const options = await openOptions(context, extensionId);
+  const slider = options.getByRole('slider', { name: 'Default speed', exact: true });
+  await slider.scrollIntoViewIfNeeded();
+  await slider.evaluate((element) => {
+    (globalThis as { __optionsSlider?: Element }).__optionsSlider = element;
+  });
+  const box = await slider.boundingBox();
+  if (!box) {
+    throw new Error('Default speed slider has no box');
+  }
+  const y = box.y + box.height / 2;
+  await options.mouse.move(box.x + Math.min(8, box.width / 10), y);
+  await options.mouse.down();
+  await options.mouse.move(box.x + box.width * 0.8, y, { steps: 12 });
+  await options.mouse.up();
+  const moved = await slider.evaluate((element) => ({
+    same: element === (globalThis as { __optionsSlider?: Element }).__optionsSlider,
+    value: Number((element as HTMLInputElement).value),
+  }));
+  expect(moved.same).toBe(true);
+  expect(moved.value).toBeGreaterThan(2);
+});
+
 test('a destructive confirm focuses Cancel and backdrop dismiss returns focus', async ({
   context,
   extensionId,
