@@ -60,6 +60,7 @@ test('dragging a default-speed slider keeps that range through the gesture', asy
   if (!box) {
     throw new Error('Default speed slider has no box');
   }
+  expect(box.height).toBeGreaterThanOrEqual(20);
   const y = box.y + box.height / 2;
   await options.mouse.move(box.x + Math.min(8, box.width / 10), y);
   await options.mouse.down();
@@ -71,6 +72,24 @@ test('dragging a default-speed slider keeps that range through the gesture', asy
   }));
   expect(moved.same).toBe(true);
   expect(moved.value).toBeGreaterThan(2);
+});
+
+test('clicking blank space inside a confirm dialog keeps it open', async ({
+  context,
+  extensionId,
+}) => {
+  const options = await openOptions(context, extensionId);
+  await options.getByRole('button', { name: 'Reset defaults', exact: true }).click();
+  const dialog = options.getByRole('dialog');
+  const box = await dialog.boundingBox();
+  if (!box) {
+    throw new Error('Confirm dialog has no box');
+  }
+  await options.mouse.click(box.x + box.width - 8, box.y + 8);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
+  await options.mouse.click(8, 8);
+  await expect(dialog).toBeHidden();
 });
 
 test('a destructive confirm focuses Cancel and backdrop dismiss returns focus', async ({

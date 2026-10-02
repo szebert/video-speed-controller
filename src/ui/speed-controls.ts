@@ -37,7 +37,7 @@ export function speedControls(options: {
     ? el(
         'div',
         {
-          class: 'relative flex w-full items-center opacity-50',
+          class: 'relative flex h-7 w-full items-center opacity-50',
           attrs: { 'data-slot': 'slider', 'data-disabled': 'true', 'aria-hidden': 'true' },
         },
         el(

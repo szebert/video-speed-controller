@@ -74,6 +74,7 @@ import {
   createTabs,
   fieldGroup,
   openConfirmDialog,
+  RADIO_CHOICE_CLASS,
   rangeControl,
   switchControl,
   syncRange,
@@ -370,7 +371,7 @@ function fixedSpeedTrack(): HTMLElement {
   return el(
     'div',
     {
-      class: 'relative flex w-full items-center opacity-50',
+      class: 'relative flex h-7 w-full items-center opacity-50',
       attrs: { 'data-slot': 'slider', 'data-disabled': 'true', 'aria-hidden': 'true' },
     },
     el(
@@ -450,6 +451,7 @@ function shortcutKeys(parts: readonly string[], muted: boolean): HTMLElement {
 function positionChoiceClass(inherited: boolean): string {
   return classes(
     'flex items-center justify-center gap-2 rounded-md border border-border px-2 py-2 text-center text-xs',
+    RADIO_CHOICE_CLASS,
     inherited
       ? 'data-selected:bg-muted data-selected:text-muted-foreground'
       : 'data-selected:bg-accent',
@@ -567,6 +569,7 @@ export class OptionsView {
   private toastToken = 0;
   private mountedKey = '';
   private syncers: Array<(state: ReadyState) => void> = [];
+  private menuAbort = new AbortController();
 
   constructor(
     private readonly root: HTMLElement,
@@ -613,6 +616,7 @@ export class OptionsView {
     this.toast = null;
     this.syncers = [];
     this.mountedKey = '';
+    this.menuAbort.abort();
     this.root.replaceChildren();
   }
 
@@ -667,6 +671,8 @@ export class OptionsView {
         active instanceof HTMLElement && active.id && this.root.contains(active) ? active.id : '';
       this.syncers = [];
       this.mountedKey = key;
+      this.menuAbort.abort();
+      this.menuAbort = new AbortController();
       this.rendering = true;
       this.root.replaceChildren(this.page(state));
       this.rendering = false;
@@ -780,6 +786,7 @@ export class OptionsView {
       createMenuButton({
         label: t('changeTheme'),
         icon: THEME_ICONS[theme],
+        signal: this.menuAbort.signal,
         items: () =>
           (['dark', 'light', 'system'] as const).map((key) => ({
             id: key,

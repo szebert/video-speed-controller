@@ -65,7 +65,7 @@ export function button(
 }
 
 const SWITCH_CLASS =
-  'peer relative inline-flex h-[18.4px] w-[32px] shrink-0 items-center rounded-full border border-transparent transition-all outline-none data-selected:bg-primary data-unchecked:bg-input focus-within:ring-3 focus-within:ring-ring/50 data-disabled:cursor-not-allowed data-disabled:opacity-50';
+  'peer relative inline-flex h-[18.4px] w-[32px] shrink-0 items-center rounded-full border border-transparent transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 after:content-[""] data-selected:bg-primary data-unchecked:bg-input has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 data-disabled:cursor-not-allowed data-disabled:opacity-50';
 
 export function switchControl(options: {
   id?: string;
@@ -169,14 +169,14 @@ export function rangeControl(options: {
   );
   const thumb = el('div', {
     class:
-      'pointer-events-none absolute top-1/2 size-3 -translate-y-1/2 rounded-full border border-ring bg-white',
+      'pointer-events-none absolute top-1/2 size-3 -translate-y-1/2 rounded-full border border-ring bg-white ring-ring/50',
     attrs: { 'data-slot': 'slider-thumb' },
   });
   const root = el(
     'div',
     {
       class: classes(
-        'relative flex w-full touch-none items-center select-none',
+        'relative flex h-7 w-full touch-none items-center select-none has-[input:hover]:[&_[data-slot=slider-thumb]]:ring-3 has-[input:active]:[&_[data-slot=slider-thumb]]:ring-3 has-[input:focus-visible]:[&_[data-slot=slider-thumb]]:ring-3',
         options.disabled && 'opacity-50',
       ),
       attrs: {
@@ -323,7 +323,7 @@ export function openConfirmDialog(options: {
     'dialog',
     {
       class:
-        'w-full max-w-sm rounded-xl border-0 bg-popover p-4 text-sm text-popover-foreground shadow-lg backdrop:bg-black/10',
+        'm-auto h-fit w-full max-w-sm rounded-xl border-0 bg-popover p-4 text-sm text-popover-foreground shadow-lg backdrop:bg-black/10',
       attrs: {
         'data-slot': 'dialog',
         'aria-labelledby': titleId,
@@ -338,8 +338,13 @@ export function openConfirmDialog(options: {
     }),
     el('div', { class: 'mt-4 flex justify-end gap-2' }, cancel, confirm),
   );
+  let settled = false;
   const finish = (confirmed: boolean): void => {
-    if (typeof dialog.close === 'function') {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    if (dialog.open && typeof dialog.close === 'function') {
       dialog.close();
     } else {
       dialog.removeAttribute('open');
@@ -358,11 +363,25 @@ export function openConfirmDialog(options: {
     event.preventDefault();
     finish(false);
   });
-  dialog.addEventListener('click', (event) => {
-    if (event.target === dialog) {
-      finish(false);
-    }
+  dialog.addEventListener('close', () => {
+    finish(false);
   });
+  dialog.addEventListener('click', (event) => {
+    if (event.target !== dialog) {
+      return;
+    }
+    const rect = dialog.getBoundingClientRect();
+    const inside =
+      rect.top <= event.clientY &&
+      event.clientY <= rect.bottom &&
+      rect.left <= event.clientX &&
+      event.clientX <= rect.right;
+    if (inside) {
+      return;
+    }
+    finish(false);
+  });
+  dialog.setAttribute('closedby', 'any');
   document.body.append(dialog);
   showModal(dialog);
   cancel.focus();
@@ -375,11 +394,15 @@ export type MenuItem = {
   checked?: boolean;
 };
 
+export const RADIO_CHOICE_CLASS =
+  'outline-none has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50';
+
 export function createMenuButton(options: {
   label: string;
   icon: IconName;
   items: () => MenuItem[];
   onSelect: (id: string) => void;
+  signal?: AbortSignal;
 }): HTMLDivElement {
   const trigger = button(null, {
     variant: 'ghost',
@@ -399,7 +422,31 @@ export function createMenuButton(options: {
   const root = el('div', { class: 'relative' }, trigger, menu);
   let open = false;
   let items: HTMLButtonElement[] = [];
-  const abort = new AbortController();
+  let outside: ((event: PointerEvent) => void) | null = null;
+
+  const stopOutside = (): void => {
+    if (!outside) {
+      return;
+    }
+    document.removeEventListener('pointerdown', outside);
+    outside = null;
+  };
+
+  const startOutside = (): void => {
+    if (outside) {
+      return;
+    }
+    outside = (event: PointerEvent): void => {
+      if (!open) {
+        return;
+      }
+      if (event.target instanceof Node && root.contains(event.target)) {
+        return;
+      }
+      close(false);
+    };
+    document.addEventListener('pointerdown', outside);
+  };
 
   const focusItem = (index: number): void => {
     const item = items[index];
@@ -413,6 +460,7 @@ export function createMenuButton(options: {
   };
 
   const close = (restoreFocus: boolean): void => {
+    stopOutside();
     if (!open) {
       return;
     }
@@ -456,6 +504,7 @@ export function createMenuButton(options: {
     open = true;
     menu.classList.remove('hidden');
     trigger.setAttribute('aria-expanded', 'true');
+    startOutside();
     focusItem(focus === 'first' ? 0 : items.length - 1);
   };
 
@@ -502,19 +551,10 @@ export function createMenuButton(options: {
       (document.activeElement as HTMLButtonElement | null)?.click();
     }
   });
-  document.addEventListener(
-    'pointerdown',
-    (event) => {
-      if (!open) {
-        return;
-      }
-      if (event.target instanceof Node && root.contains(event.target)) {
-        return;
-      }
-      close(false);
-    },
-    { signal: abort.signal },
-  );
+  options.signal?.addEventListener('abort', () => {
+    stopOutside();
+    open = false;
+  });
 
   return root;
 }

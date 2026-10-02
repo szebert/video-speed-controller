@@ -53,6 +53,7 @@ export class PopupView {
   private enableInput: HTMLInputElement | null = null;
   private speedRoot: HTMLElement | null = null;
   private mode: 'loading' | 'unavailable' | 'ready' = 'loading';
+  private shellAbort = new AbortController();
 
   constructor(
     private readonly root: HTMLElement,
@@ -69,6 +70,7 @@ export class PopupView {
   destroy(): void {
     this.unsubscribePopup?.();
     this.unsubscribeTheme?.();
+    this.shellAbort.abort();
     this.abort.abort();
     this.root.replaceChildren();
   }
@@ -87,6 +89,8 @@ export class PopupView {
     const nextMode = !state.ready ? 'loading' : !state.view?.supported ? 'unavailable' : 'ready';
     if (nextMode !== this.mode || this.root.childElementCount === 0) {
       this.mode = nextMode;
+      this.shellAbort.abort();
+      this.shellAbort = new AbortController();
       this.root.replaceChildren(this.shell(state));
       return;
     }
@@ -207,6 +211,7 @@ export class PopupView {
           createMenuButton({
             label: t('changeTheme'),
             icon: THEME_ICONS[theme],
+            signal: this.shellAbort.signal,
             items: () =>
               (['dark', 'light', 'system'] as const).map((key) => ({
                 id: key,
