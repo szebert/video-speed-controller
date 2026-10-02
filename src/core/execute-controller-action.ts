@@ -13,12 +13,14 @@ import {
   type MediaLocalAction,
 } from './controller-action';
 import {
+  adjustMediaVolume,
   effectiveSkipSeconds,
   formatSkipSeconds,
   jumpToEnd,
   jumpToStart,
   seekBy,
   seekToPercent,
+  toggleMediaMute,
   togglePlayback,
 } from './media-navigation';
 import type { MediaRegistry, TransportHoldOwner } from './media-registry';
@@ -41,8 +43,10 @@ export type ControllerActionContext = {
   hold?: TransportHoldOwner;
 };
 
-/** Localized text for the navigation flash. */
-type NavigationFeedback = { label: string; detail?: string; hold?: true };
+const VOLUME_STEP_PERCENT = 10;
+
+/** Localized text for the media-local flash. */
+type MediaLocalFeedback = { label: string; detail?: string; hold?: true };
 
 export async function executeControllerAction(
   action: ControllerAction,
@@ -106,7 +110,7 @@ function executeMediaLocalAction(action: MediaLocalAction, context: ControllerAc
     return;
   }
   const payload = {
-    kind: 'navigation' as const,
+    kind: 'media' as const,
     label: feedback.label,
     ...(feedback.detail !== undefined ? { detail: feedback.detail } : {}),
     action,
@@ -125,7 +129,7 @@ function runMediaLocalAction(
   video: HTMLVideoElement,
   registry: MediaRegistry,
   hold: TransportHoldOwner | undefined,
-): NavigationFeedback | null {
+): MediaLocalFeedback | null {
   if (action === 'rewind') {
     return runRewind(phase, video, registry, hold);
   }
@@ -156,6 +160,19 @@ function runMediaLocalAction(
     case 'skipBack':
     case 'skipForward':
       return runSkip(action, video, registry);
+    case 'toggleMute':
+      if (!toggleMediaMute(video)) {
+        return null;
+      }
+      return { label: t(video.muted ? 'volumeMute' : 'volumeUnmute') };
+    case 'decreaseVolume':
+    case 'increaseVolume': {
+      const percent = adjustMediaVolume(
+        video,
+        action === 'increaseVolume' ? VOLUME_STEP_PERCENT : -VOLUME_STEP_PERCENT,
+      );
+      return percent === null ? null : { label: `${percent}%` };
+    }
   }
 }
 
@@ -163,7 +180,7 @@ function runSkip(
   action: 'skipBack' | 'skipForward',
   video: HTMLVideoElement,
   registry: MediaRegistry,
-): NavigationFeedback | null {
+): MediaLocalFeedback | null {
   const behavior = registry.behavior;
   if (!behavior) {
     return null;
@@ -189,7 +206,7 @@ function runFastForward(
   video: HTMLVideoElement,
   registry: MediaRegistry,
   hold: TransportHoldOwner | undefined,
-): NavigationFeedback | null {
+): MediaLocalFeedback | null {
   if (!hold) {
     return null;
   }
@@ -217,7 +234,7 @@ function runRewind(
   video: HTMLVideoElement,
   registry: MediaRegistry,
   hold: TransportHoldOwner | undefined,
-): NavigationFeedback | null {
+): MediaLocalFeedback | null {
   if (!hold) {
     return null;
   }

@@ -1131,7 +1131,7 @@ describe('VideoOverlay', () => {
     overlay.setControlled(true);
     overlay.showHotkeyFlash(
       {
-        kind: 'navigation',
+        kind: 'media',
         label: 'Fast forward',
         detail: '3.00×',
         binding: BUILT_IN_HOTKEYS.increaseSpeed,
@@ -1176,7 +1176,7 @@ describe('VideoOverlay', () => {
     overlay.setControlled(true);
     overlay.showHotkeyFlash(
       {
-        kind: 'navigation',
+        kind: 'media',
         label: 'Fast forward',
         detail: '3.00×',
         binding: BUILT_IN_HOTKEYS.increaseSpeed,

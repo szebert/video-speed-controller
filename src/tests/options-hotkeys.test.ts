@@ -324,12 +324,14 @@ describe('Hotkeys settings card', () => {
     expect(onMutate).toHaveBeenCalledWith({ kind: 'hotkey-inherit', action: 'increaseSpeed' });
   });
 
-  it('lists the navigation actions unbound after the speed actions', async () => {
+  it('lists every hotkey row: speed, navigation, volume, then percent jumps', async () => {
     await renderCard(vi.fn());
     expect(
-      [...container.querySelectorAll('[data-slot="field-label"]')]
-        .map((node) => node.textContent)
-        .slice(-20),
+      [...container.querySelectorAll('[data-hotkey-status]')].map(
+        (status) =>
+          status.closest('[data-slot="field"]')?.querySelector('[data-slot="field-label"]')
+            ?.textContent,
+      ),
     ).toEqual([
       'Decrease speed',
       'Increase speed',
@@ -342,6 +344,9 @@ describe('Hotkeys settings card', () => {
       'Skip forward',
       'Fast forward',
       'Jump to end',
+      'Toggle mute',
+      'Decrease volume',
+      'Increase volume',
       'Jump to 10%',
       'Jump to 20%',
       'Jump to 30%',
@@ -358,7 +363,14 @@ describe('Hotkeys settings card', () => {
     expect(container.querySelector('#hotkey-jumpTo90Percent-help')?.textContent).toBe(
       'Seek the video to 90% in its seekable range.',
     );
-    for (const label of ['Jump to start', 'Skip back', 'Fast forward']) {
+    for (const label of [
+      'Jump to start',
+      'Skip back',
+      'Fast forward',
+      'Toggle mute',
+      'Decrease volume',
+      'Increase volume',
+    ]) {
       expect(
         container.querySelector(`[aria-label="Record shortcut: ${label}"]`)?.textContent,
       ).toContain('None');

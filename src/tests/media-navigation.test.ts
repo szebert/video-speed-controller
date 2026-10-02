@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  adjustMediaVolume,
   effectiveSkipSeconds,
   formatSkipSeconds,
   jumpToEnd,
@@ -11,6 +12,7 @@ import {
   seekBy,
   seekTo,
   seekToPercent,
+  toggleMediaMute,
   togglePlayback,
 } from '../core/media-navigation';
 
@@ -255,6 +257,83 @@ describe('media navigation', () => {
     const pause = vi.spyOn(playing, 'pause').mockImplementation(() => undefined);
     expect(togglePlayback(playing)).toBe('pause');
     expect(pause).toHaveBeenCalledTimes(1);
+  });
+
+  it('steps volume by whole points from the rounded displayed percent', () => {
+    const video = stubVideo({});
+    video.volume = 0.33;
+    expect(adjustMediaVolume(video, 10)).toBe(43);
+    expect(video.volume).toBe(0.43);
+
+    video.volume = 0.33;
+    expect(adjustMediaVolume(video, -10)).toBe(23);
+    expect(video.volume).toBe(0.23);
+
+    video.volume = 0.334;
+    expect(adjustMediaVolume(video, 10)).toBe(43);
+    expect(video.volume).toBe(0.43);
+  });
+
+  it('clamps a volume step to 0 and 100', () => {
+    const video = stubVideo({});
+    video.volume = 0.95;
+    expect(adjustMediaVolume(video, 10)).toBe(100);
+    expect(video.volume).toBe(1);
+
+    video.volume = 0.04;
+    expect(adjustMediaVolume(video, -10)).toBe(0);
+    expect(video.volume).toBe(0);
+  });
+
+  it('unmutes on a positive volume step, even when the clamp keeps the level', () => {
+    const video = stubVideo({});
+    video.volume = 1;
+    video.muted = true;
+    expect(adjustMediaVolume(video, 10)).toBe(100);
+    expect(video.volume).toBe(1);
+    expect(video.muted).toBe(false);
+
+    video.volume = 0.5;
+    video.muted = true;
+    expect(adjustMediaVolume(video, -10)).toBe(40);
+    expect(video.muted).toBe(false);
+  });
+
+  it('keeps a muted video muted when a volume step lands on 0', () => {
+    const video = stubVideo({});
+    video.volume = 0;
+    video.muted = true;
+    expect(adjustMediaVolume(video, -10)).toBe(0);
+    expect(video.volume).toBe(0);
+    expect(video.muted).toBe(true);
+  });
+
+  it('rejects a non-integer volume delta and a detached video without writing', () => {
+    const video = stubVideo({});
+    video.volume = 0.5;
+    for (const delta of [2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(adjustMediaVolume(video, delta)).toBeNull();
+      expect(video.volume).toBe(0.5);
+    }
+
+    video.remove();
+    expect(adjustMediaVolume(video, 10)).toBeNull();
+    expect(video.volume).toBe(0.5);
+  });
+
+  it('toggles mute both ways without changing volume', () => {
+    const video = stubVideo({});
+    video.volume = 0.6;
+    expect(toggleMediaMute(video)).toBe(true);
+    expect(video.muted).toBe(true);
+    expect(video.volume).toBe(0.6);
+    expect(toggleMediaMute(video)).toBe(true);
+    expect(video.muted).toBe(false);
+    expect(video.volume).toBe(0.6);
+
+    video.remove();
+    expect(toggleMediaMute(video)).toBe(false);
+    expect(video.muted).toBe(false);
   });
 
   it('formats a skip distance from its magnitude', () => {

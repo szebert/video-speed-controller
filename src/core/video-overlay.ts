@@ -49,7 +49,7 @@ export type HotkeyFlashPayload =
       action?: TabSpeedAction;
     }
   | {
-      kind: 'navigation';
+      kind: 'media';
       label: string;
       detail?: string;
       binding?: HotkeyBinding | null;
@@ -74,7 +74,7 @@ function styleExtensionHost(host: HTMLElement): void {
 }
 
 function flashLabel(payload: HotkeyFlashPayload): string {
-  if (payload.kind === 'navigation') {
+  if (payload.kind === 'media') {
     return payload.detail ? `${payload.label} ${payload.detail}` : payload.label;
   }
   const speed = formatSpeed(payload.targetSpeed);

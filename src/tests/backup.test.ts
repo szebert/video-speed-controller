@@ -433,6 +433,26 @@ describe('backup format', () => {
     }
   });
 
+  it('round-trips volume hotkey bindings and explicit unbinds', () => {
+    const backup: LogicalBackup = {
+      formatVersion: 1,
+      global: {
+        hotkeys: {
+          toggleMute: { code: 'KeyM', ctrl: false, alt: false, shift: false, meta: false },
+          decreaseVolume: { code: 'ArrowDown', ctrl: false, alt: false, shift: true, meta: false },
+          increaseVolume: { code: 'ArrowUp', ctrl: false, alt: false, shift: true, meta: false },
+        },
+      },
+      sites: {
+        'youtube.com': {
+          hotkeys: { toggleMute: null },
+        },
+      },
+    };
+    const text = serializeBackup(backup);
+    expect(parseBackupText(text)).toEqual({ status: 'ready', backup });
+  });
+
   it('round-trips navigation hotkey bindings and explicit unbinds', () => {
     const backup: LogicalBackup = {
       formatVersion: 1,

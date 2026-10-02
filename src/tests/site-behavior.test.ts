@@ -359,7 +359,14 @@ describe('site behavior resolution', () => {
   });
 
   it('repeats speed and skip actions only when enabled; Reset never repeats', () => {
-    for (const action of ['increaseSpeed', 'decreaseSpeed', 'skipBack', 'skipForward'] as const) {
+    for (const action of [
+      'increaseSpeed',
+      'decreaseSpeed',
+      'skipBack',
+      'skipForward',
+      'decreaseVolume',
+      'increaseVolume',
+    ] as const) {
       expect(hotkeyActionMode(action, false)).toBe('once');
       expect(hotkeyActionMode(action, true)).toBe('repeat');
     }
@@ -369,6 +376,7 @@ describe('site behavior resolution', () => {
       'jumpToStart',
       'jumpToEnd',
       'playPause',
+      'toggleMute',
     ] as const) {
       expect(hotkeyActionMode(action, false)).toBe('once');
       expect(hotkeyActionMode(action, true)).toBe('once');

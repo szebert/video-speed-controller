@@ -849,7 +849,7 @@ describe('media registry', () => {
     const secondFlash = vi.spyOn(registry.getOverlay(second)!, 'showHotkeyFlash');
 
     registry.flashHotkeyActionOn(first, {
-      kind: 'navigation',
+      kind: 'media',
       label: 'Skip forward',
       detail: '10s',
       binding: BUILT_IN_HOTKEYS.increaseSpeed,

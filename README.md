@@ -32,8 +32,9 @@ OS Video Speed Controller (OS VSC) is a toolbar popup and a per-video overlay. Y
 **Hotkeys**
 
 - Page shortcuts for speed, every navigation action, and jumps to 10%–90% of the seekable range. Jump to start and jump to end stay separate actions
+- Volume shortcuts for one video: toggle mute, and volume up or down by 10%. A volume step above 0% also unmutes
 - Global defaults with per-site overrides
-- Optional hold-to-repeat for step and skip keys. Fast forward and rewind always hold
+- Optional hold-to-repeat for speed step, skip, and volume step keys. Fast forward and rewind always hold
 - Optional flash when a control or hotkey is used; held actions stay visible until release
 
 **Settings**

@@ -118,6 +118,24 @@ export function setMediaVolume(video: HTMLVideoElement, level: number): boolean 
   }
 }
 
+/**
+ * Steps volume by whole percentage points from the rounded percent the overlay
+ * shows, clamped to 0..100. Writes even when the clamp leaves the level
+ * unchanged, so a positive result still clears mute. Returns the applied
+ * percent, or null for a non-integer delta or a failed write.
+ */
+export function adjustMediaVolume(video: HTMLVideoElement, deltaPercent: number): number | null {
+  if (!isLiveMedia(video) || !Number.isInteger(deltaPercent)) {
+    return null;
+  }
+  const current = Math.round(video.volume * 100);
+  if (!Number.isFinite(current)) {
+    return null;
+  }
+  const next = Math.min(100, Math.max(0, current + deltaPercent));
+  return setMediaVolume(video, next / 100) ? next : null;
+}
+
 /** Toggles `muted` and leaves `volume` unchanged. */
 export function toggleMediaMute(video: HTMLVideoElement): boolean {
   if (!isLiveMedia(video)) {

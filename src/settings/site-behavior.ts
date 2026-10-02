@@ -207,6 +207,9 @@ export type SiteHotkeyAction =
   | 'skipForward'
   | 'fastForward'
   | 'jumpToEnd'
+  | 'toggleMute'
+  | 'decreaseVolume'
+  | 'increaseVolume'
   | 'jumpTo10Percent'
   | 'jumpTo20Percent'
   | 'jumpTo30Percent'
@@ -229,6 +232,9 @@ export const SITE_HOTKEY_ACTIONS = [
   'skipForward',
   'fastForward',
   'jumpToEnd',
+  'toggleMute',
+  'decreaseVolume',
+  'increaseVolume',
   'jumpTo10Percent',
   'jumpTo20Percent',
   'jumpTo30Percent',
@@ -245,6 +251,8 @@ export const USER_REPEATABLE_ACTIONS = new Set<SiteHotkeyAction>([
   'decreaseSpeed',
   'skipBack',
   'skipForward',
+  'decreaseVolume',
+  'increaseVolume',
 ]);
 
 /** Press-and-hold sessions. Independent of the optional hold-to-repeat toggle. */

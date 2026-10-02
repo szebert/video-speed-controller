@@ -281,6 +281,83 @@ describe('executeControllerAction', () => {
     expect(flashText()).toBe('Pause');
   });
 
+  it('toggles mute and flashes the action just performed', async () => {
+    video.volume = 0.6;
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('toggleMute', { resolveRegistry: () => registry, source });
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(video.muted).toBe(true);
+    expect(video.volume).toBe(0.6);
+    expect(flashText()).toBe('Mute');
+
+    await executeControllerAction('toggleMute', { resolveRegistry: () => registry, source });
+    expect(video.muted).toBe(false);
+    expect(video.volume).toBe(0.6);
+    expect(flashText()).toBe('Unmute');
+  });
+
+  it('steps volume locally and flashes the applied percent', async () => {
+    video.volume = 0.5;
+    video.muted = true;
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('increaseVolume', { resolveRegistry: () => registry, source });
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(video.volume).toBe(0.6);
+    expect(video.muted).toBe(false);
+    expect(flashText()).toBe('60%');
+
+    await executeControllerAction('decreaseVolume', { resolveRegistry: () => registry, source });
+    expect(video.volume).toBe(0.5);
+    expect(flashText()).toBe('50%');
+  });
+
+  it('changes only the selected video', async () => {
+    const other = document.createElement('video');
+    other.getBoundingClientRect = video.getBoundingClientRect;
+    document.body.append(other);
+    registry.ensureController(other);
+    video.volume = 0.5;
+    other.volume = 0.5;
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('decreaseVolume', { resolveRegistry: () => registry, source });
+    await executeControllerAction('toggleMute', { resolveRegistry: () => registry, source });
+    expect(video.volume).toBe(0.4);
+    expect(video.muted).toBe(true);
+    expect(other.volume).toBe(0.5);
+    expect(other.muted).toBe(false);
+  });
+
+  it('does not flash a volume action whose write fails or whose video is detached', async () => {
+    Object.defineProperty(video, 'volume', {
+      configurable: true,
+      get: () => 0.5,
+      set: () => {
+        throw new DOMException('blocked', 'NotSupportedError');
+      },
+    });
+    Object.defineProperty(video, 'muted', {
+      configurable: true,
+      get: () => false,
+      set: () => {
+        throw new DOMException('blocked', 'NotSupportedError');
+      },
+    });
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    for (const action of ['increaseVolume', 'decreaseVolume', 'toggleMute'] as const) {
+      await executeControllerAction(action, { resolveRegistry: () => registry, source });
+    }
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+
+    const detached = document.createElement('video');
+    detached.volume = 0.5;
+    await executeControllerAction('increaseVolume', {
+      resolveRegistry: () => registry,
+      source: { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video: detached },
+    });
+    expect(detached.volume).toBe(0.5);
+    expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
+  });
+
   it('holds rewind between start and end without a negative playbackRate', async () => {
     seekable(video, { currentTime: 30, duration: 120, paused: false });
     registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false, rewindSpeed: -2 }));

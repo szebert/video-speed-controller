@@ -179,6 +179,9 @@ const ACTION_LABEL: Record<Exclude<SiteHotkeyAction, JumpPercentAction>, Message
   skipForward: 'hotkeySkipForward',
   fastForward: 'hotkeyFastForward',
   jumpToEnd: 'hotkeyJumpToEnd',
+  toggleMute: 'hotkeyToggleMute',
+  decreaseVolume: 'hotkeyDecreaseVolume',
+  increaseVolume: 'hotkeyIncreaseVolume',
 };
 
 const HOTKEY_ROWS: readonly { action: SiteHotkeyAction; description: MessageKey }[] = [
@@ -193,6 +196,9 @@ const HOTKEY_ROWS: readonly { action: SiteHotkeyAction; description: MessageKey 
   { action: 'skipForward', description: 'hotkeySkipForwardDescription' },
   { action: 'fastForward', description: 'hotkeyFastForwardDescription' },
   { action: 'jumpToEnd', description: 'hotkeyJumpToEndDescription' },
+  { action: 'toggleMute', description: 'hotkeyToggleMuteDescription' },
+  { action: 'decreaseVolume', description: 'hotkeyDecreaseVolumeDescription' },
+  { action: 'increaseVolume', description: 'hotkeyIncreaseVolumeDescription' },
   ...JUMP_PERCENT_ACTIONS.map((action) => ({
     action,
     description: 'hotkeyJumpToPercentDescription' as const,

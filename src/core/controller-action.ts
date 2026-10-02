@@ -49,10 +49,19 @@ export type JumpPercentAction = keyof typeof JUMP_PERCENT_BY_ACTION;
 
 export const JUMP_PERCENT_ACTIONS = Object.keys(JUMP_PERCENT_BY_ACTION) as JumpPercentAction[];
 
-/** Every action that runs against one video and never reaches the background. */
-export type MediaLocalAction = MediaNavigationAction | JumpPercentAction;
+/** Hotkey-only volume actions. The overlay volume bar has its own controls. */
+export const MEDIA_VOLUME_ACTIONS = ['toggleMute', 'decreaseVolume', 'increaseVolume'] as const;
 
-export const MEDIA_LOCAL_ACTIONS = [...MEDIA_NAVIGATION_ACTIONS, ...JUMP_PERCENT_ACTIONS] as const;
+export type MediaVolumeAction = (typeof MEDIA_VOLUME_ACTIONS)[number];
+
+/** Every action that runs against one video and never reaches the background. */
+export type MediaLocalAction = MediaNavigationAction | JumpPercentAction | MediaVolumeAction;
+
+export const MEDIA_LOCAL_ACTIONS = [
+  ...MEDIA_NAVIGATION_ACTIONS,
+  ...MEDIA_VOLUME_ACTIONS,
+  ...JUMP_PERCENT_ACTIONS,
+] as const;
 
 true satisfies Equal<ControllerAction, TabSpeedAction | MediaLocalAction>;
 
@@ -83,6 +92,10 @@ export function isJumpPercentAction(value: unknown): value is JumpPercentAction 
   return typeof value === 'string' && Object.hasOwn(JUMP_PERCENT_BY_ACTION, value);
 }
 
+export function isMediaVolumeAction(value: unknown): value is MediaVolumeAction {
+  return typeof value === 'string' && (MEDIA_VOLUME_ACTIONS as readonly string[]).includes(value);
+}
+
 export function isMediaLocalAction(value: unknown): value is MediaLocalAction {
-  return isMediaNavigationAction(value) || isJumpPercentAction(value);
+  return isMediaNavigationAction(value) || isJumpPercentAction(value) || isMediaVolumeAction(value);
 }
