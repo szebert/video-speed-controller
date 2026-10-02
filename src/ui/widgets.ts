@@ -64,6 +64,51 @@ export function button(
   return node;
 }
 
+export function paintButton(
+  node: HTMLButtonElement,
+  options: {
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+    class?: string;
+    icon?: IconName;
+    disabled?: boolean;
+    current?: boolean;
+    pressed?: boolean;
+    label?: string;
+  },
+): void {
+  node.className = classes(
+    BUTTON_BASE,
+    BUTTON_VARIANT[options.variant ?? 'default'],
+    BUTTON_SIZE[options.size ?? 'default'],
+    options.class,
+  );
+  node.dataset.variant = options.variant ?? 'default';
+  node.disabled = Boolean(options.disabled);
+  if (options.current != null) {
+    if (options.current) {
+      node.setAttribute('aria-current', 'page');
+    } else {
+      node.removeAttribute('aria-current');
+    }
+  }
+  if (options.pressed != null) {
+    node.setAttribute('aria-pressed', options.pressed ? 'true' : 'false');
+  }
+  if (options.label != null) {
+    node.setAttribute('aria-label', options.label);
+  }
+  if (options.icon) {
+    const next = icon(options.icon);
+    const existing = node.querySelector('svg');
+    if (existing) {
+      existing.replaceWith(next);
+    } else {
+      node.prepend(next);
+    }
+  }
+}
+
 const SWITCH_CLASS =
   'peer relative inline-flex h-[18.4px] w-[32px] shrink-0 items-center rounded-full border border-transparent transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 after:content-[""] data-selected:bg-primary data-unchecked:bg-input has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 data-disabled:cursor-not-allowed data-disabled:opacity-50';
 

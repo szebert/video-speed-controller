@@ -70,6 +70,7 @@ import { icon } from '@/ui/icons';
 import type { ThemeController } from '@/ui/theme-controller';
 import {
   button,
+  paintButton,
   createMenuButton,
   createTabs,
   fieldGroup,
@@ -567,8 +568,12 @@ export class OptionsView {
   private accessError: string | null = null;
   private toast: HTMLElement | null = null;
   private toastToken = 0;
-  private mountedKey = '';
-  private syncers: Array<(state: ReadyState) => void> = [];
+  private shellMounted = '';
+  private paneMounted = '';
+  private lastScrolledSite = '';
+  private paneSyncers: Array<(state: ReadyState) => void> = [];
+  private sidebarSync: ((state: ReadyState) => void) | null = null;
+  private mainEl: HTMLElement | null = null;
   private menuAbort = new AbortController();
 
   constructor(
@@ -614,8 +619,11 @@ export class OptionsView {
     this.accessGeneration += 1;
     this.toast?.remove();
     this.toast = null;
-    this.syncers = [];
-    this.mountedKey = '';
+    this.paneSyncers = [];
+    this.sidebarSync = null;
+    this.mainEl = null;
+    this.shellMounted = '';
+    this.paneMounted = '';
     this.menuAbort.abort();
     this.root.replaceChildren();
   }
@@ -627,8 +635,11 @@ export class OptionsView {
     label: string;
     onReset: () => void;
   }): void {
-    this.syncers = [];
-    this.mountedKey = '';
+    this.paneSyncers = [];
+    this.sidebarSync = null;
+    this.mainEl = null;
+    this.shellMounted = '';
+    this.paneMounted = '';
     this.root.replaceChildren(
       this.resetBadge({
         active: spec.active,
@@ -643,8 +654,11 @@ export class OptionsView {
   /** Mounts only the hotkeys card so shortcut tests can drive it without the page shell. */
   mountHotkeysFixture(state: ReadyState): void {
     this.stopRecordingListeners();
-    this.syncers = [];
-    this.mountedKey = '';
+    this.paneSyncers = [];
+    this.sidebarSync = null;
+    this.mainEl = null;
+    this.shellMounted = '';
+    this.paneMounted = '';
     this.root.replaceChildren(this.hotkeysCard(state));
   }
 
@@ -664,13 +678,15 @@ export class OptionsView {
     }
     const state = this.controller.getState();
     this.notePane(state.selection);
-    const key = this.mountKey(state);
-    if (this.mountedKey !== key || this.root.childElementCount === 0) {
+    const shell = this.shellKey(state);
+    if (this.shellMounted !== shell || this.root.childElementCount === 0) {
       const active = document.activeElement;
       const activeId =
         active instanceof HTMLElement && active.id && this.root.contains(active) ? active.id : '';
-      this.syncers = [];
-      this.mountedKey = key;
+      this.paneSyncers = [];
+      this.sidebarSync = null;
+      this.shellMounted = shell;
+      this.paneMounted = isReady(state) ? this.paneKey(state) : '';
       this.menuAbort.abort();
       this.menuAbort = new AbortController();
       this.rendering = true;
@@ -682,32 +698,72 @@ export class OptionsView {
           next.focus({ preventScroll: true });
         }
       }
+      this.lastScrolledSite = state.selection.kind === 'site' ? state.selection.hostname : '';
       this.scrollSelectedSite(state);
     } else if (isReady(state)) {
-      for (const sync of this.syncers) {
+      const pane = this.paneKey(state);
+      if (this.paneMounted !== pane) {
+        this.paneMounted = pane;
+        this.replacePane(state);
+      }
+      for (const sync of this.paneSyncers) {
         sync(state);
       }
+      this.sidebarSync?.(state);
       this.syncThemeIcon();
     }
     this.syncToast(state);
     this.syncRecording();
   }
 
-  private mountKey(state: OptionsSnapshotState): string {
+  private shellKey(state: OptionsSnapshotState): string {
     if (!isReady(state)) {
       return state.error ? `error:${state.error}` : 'loading';
     }
+    return 'ready';
+  }
+
+  private paneKey(state: ReadyState): string {
     const selection =
       state.selection.kind === 'site' ? `site:${state.selection.hostname}` : state.selection.kind;
-    const sites = sortCustomSites(state.customSites, this.sort)
-      .map((site) => site.hostname)
-      .join('\n');
     const fixed = isFixedSpeedPolicy(state.policy) ? 'fixed' : 'range';
-    return `${selection}|${this.sort.mode}:${this.sort.direction}|${sites}|${fixed}`;
+    return `${selection}|${fixed}`;
   }
 
   private track(sync: (state: ReadyState) => void): void {
-    this.syncers.push(sync);
+    this.paneSyncers.push(sync);
+  }
+
+  private replacePane(state: ReadyState): void {
+    const main = this.mainEl;
+    if (!main) {
+      return;
+    }
+    const active = document.activeElement;
+    const activeId =
+      active instanceof HTMLElement && active.id && main.contains(active) ? active.id : '';
+    this.paneSyncers = [];
+    this.rendering = true;
+    main.replaceChildren(this.paneContent(state));
+    this.rendering = false;
+    if (active instanceof HTMLElement && active.isConnected && !main.contains(active)) {
+      active.focus({ preventScroll: true });
+      return;
+    }
+    if (activeId) {
+      const next = main.querySelector(`#${CSS.escape(activeId)}`);
+      if (next instanceof HTMLElement) {
+        next.focus({ preventScroll: true });
+      }
+    }
+  }
+
+  private paneContent(state: ReadyState): HTMLElement {
+    return el(
+      'div',
+      { class: 'flex w-full flex-col gap-6' },
+      state.selection.kind === 'settings' ? this.settingsPane(state) : this.behaviorPane(state),
+    );
   }
 
   private syncThemeIcon(): void {
@@ -734,6 +790,8 @@ export class OptionsView {
 
   private page(state: OptionsSnapshotState): HTMLElement {
     if (!isReady(state)) {
+      this.mainEl = null;
+      this.sidebarSync = null;
       return el(
         'div',
         { class: 'mx-auto flex max-w-xl flex-col gap-4 p-6' },
@@ -746,13 +804,8 @@ export class OptionsView {
       class:
         'min-h-0 min-w-0 w-full max-w-md overflow-x-hidden overflow-y-auto overscroll-none p-6 md:min-w-md md:shrink-0 lg:min-w-0 lg:w-full lg:max-w-4xl lg:shrink',
     });
-    main.append(
-      el(
-        'div',
-        { class: 'flex w-full flex-col gap-6' },
-        state.selection.kind === 'settings' ? this.settingsPane(state) : this.behaviorPane(state),
-      ),
-    );
+    this.mainEl = main;
+    main.append(this.paneContent(state));
     return el(
       'div',
       { class: 'flex h-full w-full justify-center overflow-hidden overscroll-none' },
@@ -832,37 +885,56 @@ export class OptionsView {
       this.sort.mode === 'recent' && this.sort.direction === 'oldest'
         ? t('settingsSortRecentOldest')
         : t('settingsSortRecentNewest');
-    const list =
-      sites.length === 0
-        ? el('p', {
-            class: 'px-2 text-xs text-muted-foreground',
-            text: t('settingsNoSites'),
-          })
-        : el(
-            'ul',
-            { class: 'flex flex-col gap-1' },
-            ...sites.map((site) => {
-              const selected =
-                state.selection.kind === 'site' && state.selection.hostname === site.hostname;
-              return el(
-                'li',
-                {},
-                button(site.hostname, {
-                  size: 'sm',
-                  variant: selected ? 'default' : 'ghost',
-                  class: 'w-full justify-start',
-                  disabled: state.pending,
-                  attrs: {
-                    'aria-current': selected ? 'page' : null,
-                    title: formatActivity(site.lastUsedAt),
-                  },
-                  onClick: () => {
-                    void this.controller.selectSite(site.hostname);
-                  },
-                }),
-              );
-            }),
-          );
+    const settingsNav = this.paneButton(t('settingsTitle'), 'settings', state, {
+      kind: 'settings',
+    });
+    const defaultsNav = this.paneButton(t('settingsDefaults'), 'globe', state, { kind: 'global' });
+    const nameSort = button(null, {
+      size: 'icon-xs',
+      variant: this.sort.mode === 'name' ? 'default' : 'outline',
+      icon:
+        this.sort.mode === 'name' && this.sort.direction === 'desc'
+          ? 'arrow-up-z-a'
+          : 'arrow-down-a-z',
+      disabled: state.pending,
+      attrs: {
+        'aria-label': nameLabel,
+        'aria-pressed': this.sort.mode === 'name' ? 'true' : 'false',
+      },
+      onClick: () => {
+        this.cycleSort('name');
+      },
+    });
+    const recentSort = button(null, {
+      size: 'icon-xs',
+      variant: this.sort.mode === 'recent' ? 'default' : 'outline',
+      icon:
+        this.sort.mode === 'recent' && this.sort.direction === 'oldest'
+          ? 'clock-arrow-up'
+          : 'clock-arrow-down',
+      disabled: state.pending,
+      attrs: {
+        'aria-label': recentLabel,
+        'aria-pressed': this.sort.mode === 'recent' ? 'true' : 'false',
+      },
+      onClick: () => {
+        this.cycleSort('recent');
+      },
+    });
+    const emptySites = el('p', {
+      class: 'px-2 text-xs text-muted-foreground',
+      text: t('settingsNoSites'),
+    });
+    const siteList = el('ul', { class: 'flex flex-col gap-1' });
+    const siteRegion = el(
+      'div',
+      {
+        class:
+          'max-h-[min(12rem,40svh)] min-h-0 overflow-y-auto overscroll-y-contain md:max-h-none md:flex-1',
+        attrs: { role: 'region', 'aria-labelledby': SITES_HEADING_ID },
+      },
+      sites.length === 0 ? emptySites : siteList,
+    );
     const aside = el(
       'aside',
       {
@@ -875,12 +947,7 @@ export class OptionsView {
           class: 'flex min-h-0 flex-col gap-3 p-3 md:flex-1',
           attrs: { 'aria-label': t('settingsTitle') },
         },
-        el(
-          'div',
-          { class: 'flex shrink-0 flex-col gap-1.5' },
-          this.paneButton(t('settingsTitle'), 'settings', state, { kind: 'settings' }),
-          this.paneButton(t('settingsDefaults'), 'globe', state, { kind: 'global' }),
-        ),
+        el('div', { class: 'flex shrink-0 flex-col gap-1.5' }, settingsNav, defaultsNav),
         separator(),
         el(
           'div',
@@ -903,67 +970,160 @@ export class OptionsView {
                 class: 'flex w-fit',
                 attrs: { role: 'group', 'aria-label': t('settingsSortSites') },
               },
-              button(null, {
-                size: 'icon-xs',
-                variant: this.sort.mode === 'name' ? 'default' : 'outline',
-                icon:
-                  this.sort.mode === 'name' && this.sort.direction === 'desc'
-                    ? 'arrow-up-z-a'
-                    : 'arrow-down-a-z',
-                disabled: state.pending,
-                attrs: {
-                  'aria-label': nameLabel,
-                  'aria-pressed': this.sort.mode === 'name' ? 'true' : 'false',
-                },
-                onClick: () => {
-                  this.cycleSort('name');
-                },
-              }),
-              button(null, {
-                size: 'icon-xs',
-                variant: this.sort.mode === 'recent' ? 'default' : 'outline',
-                icon:
-                  this.sort.mode === 'recent' && this.sort.direction === 'oldest'
-                    ? 'clock-arrow-up'
-                    : 'clock-arrow-down',
-                disabled: state.pending,
-                attrs: {
-                  'aria-label': recentLabel,
-                  'aria-pressed': this.sort.mode === 'recent' ? 'true' : 'false',
-                },
-                onClick: () => {
-                  this.cycleSort('recent');
-                },
-              }),
+              nameSort,
+              recentSort,
             ),
           ),
-          el(
-            'div',
-            {
-              class:
-                'max-h-[min(12rem,40svh)] min-h-0 overflow-y-auto overscroll-y-contain md:max-h-none md:flex-1',
-              attrs: { role: 'region', 'aria-labelledby': SITES_HEADING_ID },
-            },
-            list,
-          ),
+          siteRegion,
         ),
       ),
     );
-    this.track((next) => {
-      for (const control of aside.querySelectorAll('button')) {
-        control.disabled = next.pending;
+    this.syncSiteList(siteRegion, siteList, emptySites, state);
+    this.sidebarSync = (next) => {
+      this.paintNavButton(
+        settingsNav,
+        next.selection.kind === 'settings',
+        next.pending && document.activeElement !== settingsNav,
+      );
+      this.paintNavButton(
+        defaultsNav,
+        next.selection.kind === 'global',
+        next.pending && document.activeElement !== defaultsNav,
+      );
+      this.paintSortButton(nameSort, 'name', next.pending && document.activeElement !== nameSort);
+      this.paintSortButton(
+        recentSort,
+        'recent',
+        next.pending && document.activeElement !== recentSort,
+      );
+      this.syncSiteList(siteRegion, siteList, emptySites, next);
+      const hostname = next.selection.kind === 'site' ? next.selection.hostname : '';
+      if (hostname !== this.lastScrolledSite) {
+        this.lastScrolledSite = hostname;
+        this.scrollSelectedSite(next);
       }
-      for (const site of sortCustomSites(next.customSites, this.sort)) {
-        const control = [...aside.querySelectorAll('button')].find(
-          (candidate) => candidate.textContent === site.hostname,
-        );
-        const title = formatActivity(site.lastUsedAt);
-        if (control && title) {
-          control.title = title;
-        }
-      }
-    });
+    };
     return aside;
+  }
+
+  private paintNavButton(node: HTMLButtonElement, selected: boolean, pending: boolean): void {
+    paintButton(node, {
+      variant: selected ? 'default' : 'outline',
+      size: 'default',
+      class: 'justify-start',
+      disabled: pending,
+      current: selected,
+    });
+  }
+
+  private paintSortButton(
+    node: HTMLButtonElement,
+    mode: SiteListSort['mode'],
+    pending: boolean,
+  ): void {
+    const active = this.sort.mode === mode;
+    const nameDesc = this.sort.mode === 'name' && this.sort.direction === 'desc';
+    const recentOldest = this.sort.mode === 'recent' && this.sort.direction === 'oldest';
+    paintButton(node, {
+      variant: active ? 'default' : 'outline',
+      size: 'icon-xs',
+      icon:
+        mode === 'name'
+          ? nameDesc
+            ? 'arrow-up-z-a'
+            : 'arrow-down-a-z'
+          : recentOldest
+            ? 'clock-arrow-up'
+            : 'clock-arrow-down',
+      disabled: pending,
+      pressed: active,
+      label:
+        mode === 'name'
+          ? nameDesc
+            ? t('settingsSortNameDesc')
+            : t('settingsSortNameAsc')
+          : recentOldest
+            ? t('settingsSortRecentOldest')
+            : t('settingsSortRecentNewest'),
+    });
+  }
+
+  private syncSiteList(
+    region: HTMLElement,
+    list: HTMLUListElement,
+    empty: HTMLElement,
+    state: ReadyState,
+  ): void {
+    const sites = sortCustomSites(state.customSites, this.sort);
+    if (sites.length === 0) {
+      region.replaceChildren(empty);
+      return;
+    }
+    if (list.parentElement !== region) {
+      region.replaceChildren(list);
+    }
+    const existing = new Map<string, HTMLLIElement>();
+    for (const child of list.children) {
+      if (!(child instanceof HTMLLIElement)) {
+        continue;
+      }
+      const control = child.querySelector('button');
+      const hostname = control?.textContent ?? '';
+      if (hostname) {
+        existing.set(hostname, child);
+      }
+    }
+    const seen = new Set<string>();
+    for (const site of sites) {
+      seen.add(site.hostname);
+      let item = existing.get(site.hostname);
+      if (!item) {
+        item = this.siteRow(site.hostname);
+        existing.set(site.hostname, item);
+      }
+      list.append(item);
+      const control = item.querySelector('button');
+      if (!(control instanceof HTMLButtonElement)) {
+        continue;
+      }
+      const selected =
+        state.selection.kind === 'site' && state.selection.hostname === site.hostname;
+      paintButton(control, {
+        variant: selected ? 'default' : 'ghost',
+        size: 'sm',
+        class: 'w-full justify-start',
+        disabled: state.pending && document.activeElement !== control,
+        current: selected,
+      });
+      const title = formatActivity(site.lastUsedAt);
+      if (title) {
+        control.title = title;
+      } else {
+        control.removeAttribute('title');
+      }
+    }
+    for (const [hostname, item] of existing) {
+      if (!seen.has(hostname)) {
+        item.remove();
+      }
+    }
+  }
+
+  private siteRow(hostname: string): HTMLLIElement {
+    let control: HTMLButtonElement | null = null;
+    control = button(hostname, {
+      size: 'sm',
+      variant: 'ghost',
+      class: 'w-full justify-start',
+      onClick: () => {
+        void this.controller.selectSite(hostname).then(() => {
+          if (control?.isConnected) {
+            control.focus({ preventScroll: true });
+          }
+        });
+      },
+    });
+    return el('li', {}, control);
   }
 
   private paneButton(

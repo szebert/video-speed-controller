@@ -436,6 +436,40 @@ describe('Options page', () => {
     ).toBe('true');
   });
 
+  it('keeps keyboard focus on the sort control and the selected site row', async () => {
+    sendMessage.mockImplementation(
+      loadReply(snapshot(), [{ hostname: 'www.youtube.com', lastUsedAt: 5 }]),
+    );
+    await renderApp();
+    const sort = container.querySelector('[aria-label="Sort by name, A to Z"]');
+    expect(sort).toBeInstanceOf(HTMLButtonElement);
+    if (!(sort instanceof HTMLButtonElement)) {
+      return;
+    }
+    sort.focus();
+    await act(async () => {
+      sort.click();
+    });
+    expect(document.activeElement).toBe(sort);
+    expect(sort.getAttribute('aria-pressed')).toBe('true');
+
+    const site = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'www.youtube.com',
+    );
+    expect(site).toBeInstanceOf(HTMLButtonElement);
+    if (!(site instanceof HTMLButtonElement)) {
+      return;
+    }
+    site.focus();
+    await act(async () => {
+      site.click();
+    });
+    expect(document.activeElement).toBe(site);
+    expect(site.isConnected).toBe(true);
+    expect(site.getAttribute('aria-current')).toBe('page');
+    expect(container.querySelector('h2')?.textContent).toBe('www.youtube.com');
+  });
+
   it('keeps a long custom-site list in the Sites region', async () => {
     const customSites = siteSummaries(
       Array.from({ length: 40 }, (_, index) => `site-${index}.example`),
@@ -2931,6 +2965,64 @@ describe('Options page', () => {
     expect(sendMessage.mock.calls.map((call) => call[0]?.type)).toEqual(['SET_BEHAVIOR_SETTING']);
     expect(container.textContent).toContain('example.com');
     expect(container.textContent).not.toContain('No site settings yet.');
+  });
+
+  it('keeps the dragged slider mounted when the first site override is created', async () => {
+    let releaseSlider!: (value: unknown) => void;
+    sendMessage.mockImplementation((message: { type?: string; hostname?: string }) => {
+      if (message.type === 'GET_CUSTOM_SITES') {
+        return Promise.resolve({ ok: true, customSites: [] });
+      }
+      if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+        return Promise.resolve(getOk(snapshot('example.com')));
+      }
+      return new Promise((resolve) => {
+        releaseSlider = resolve;
+      });
+    });
+    await renderApp('chrome-extension://extid/options.html?site=example.com');
+    expect(container.textContent).toContain('No site settings yet.');
+    await selectTab('Overlay');
+    const input = container.querySelector(
+      '[data-slot="slider"][aria-label="Opacity"] input[type="range"]',
+    );
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    input.focus();
+    await act(async () => {
+      input.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, buttons: 1 }),
+      );
+      input.value = '40';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(input.isConnected).toBe(true);
+    await act(async () => {
+      releaseSlider({
+        ok: true,
+        state: snapshot('example.com'),
+        siteMembership: { hostname: 'example.com', customized: true, lastUsedAt: 1 },
+        reappliedTabs: 0,
+        reapplyFailures: 0,
+      });
+    });
+    expect(
+      container.querySelector('[data-slot="slider"][aria-label="Opacity"] input[type="range"]'),
+    ).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(listedSiteHostnames()).toEqual(['example.com']);
+    await act(async () => {
+      input.value = '80';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 }));
+    });
+    expect(
+      container.querySelector('[data-slot="slider"][aria-label="Opacity"] input[type="range"]'),
+    ).toBe(input);
+    expect(Number(input.value)).toBe(80);
+    expect(document.activeElement).toBe(input);
   });
 
   it('recovers pane and sidebar after a failed site persist', async () => {
