@@ -154,6 +154,14 @@ function shouldWalk(file) {
   return WALK_EXTENSIONS.has(ext);
 }
 
+const VENDORED_PACKAGES = [
+  {
+    file: 'src/ui/lucide-icons.ts',
+    name: 'lucide-react@1.47.0',
+    license: 'ISC',
+  },
+];
+
 function collectShippedPackages() {
   const seenFiles = new Set();
   const packages = new Map();
@@ -211,10 +219,21 @@ function collectShippedPackages() {
     }
   }
 
-  return packages;
+  return { packages, files: seenFiles };
+}
+
+function addVendoredPackages(packages, shippedFiles) {
+  for (const vendored of VENDORED_PACKAGES) {
+    const file = realpathSync(join(root, vendored.file));
+    if (shippedFiles.has(file)) {
+      packages.set(vendored.name, vendored.license);
+    }
+  }
 }
 
 export function renderThirdPartyNotices() {
+  const { packages, files } = collectShippedPackages();
+  addVendoredPackages(packages, files);
   const lines = [
     'THIRD-PARTY NOTICES',
     '',
@@ -222,7 +241,7 @@ export function renderThirdPartyNotices() {
     'Open Source Video Speed Controller extension. Project code is licensed',
     'under GPL-3.0-only.',
     '',
-    ...[...collectShippedPackages().entries()]
+    ...[...packages.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([name, license]) => `- ${name}: ${license}`),
     '',

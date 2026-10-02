@@ -35,7 +35,7 @@ describe('third-party notices', () => {
   });
 
   it('lists runtime packages that ship in the extension', () => {
-    expect(names).toEqual(expect.arrayContaining(['@wxt-dev/i18n', 'wxt', 'zod']));
+    expect(names).toEqual(expect.arrayContaining(['@wxt-dev/i18n', 'lucide-react', 'wxt', 'zod']));
   });
 
   it('omits toolchain packages that do not ship', () => {
@@ -50,7 +50,6 @@ describe('third-party notices', () => {
         'class-variance-authority',
         'cn',
         'eslint',
-        'lucide-react',
         'prettier',
         'react',
         'react-aria-components',
