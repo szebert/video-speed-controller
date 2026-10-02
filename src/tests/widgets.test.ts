@@ -57,6 +57,121 @@ describe('shared widgets', () => {
     }
     expect(root.querySelector('[role="tablist"]')?.className).toContain('h-8');
     expect(root.querySelector('[role="tablist"]')?.className).toContain('min-w-0');
+    expect(root.getAttribute('data-orientation')).toBe('horizontal');
+    expect(root.querySelector('[role="tablist"]')?.getAttribute('aria-orientation')).toBe(
+      'horizontal',
+    );
+  });
+
+  it('stacks tabs vertically when the horizontal labels do not fit', async () => {
+    const observers: Array<{
+      callback: ResizeObserverCallback;
+      disconnect: ReturnType<typeof vi.fn>;
+    }> = [];
+    const originalObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      readonly disconnect = vi.fn();
+      constructor(readonly callback: ResizeObserverCallback) {
+        observers.push(this);
+      }
+      observe(): void {}
+      unobserve(): void {}
+    } as unknown as typeof ResizeObserver;
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.getAttribute('data-tab-measure') === 'horizontal') {
+        return rect({ top: 0, left: 0, width: 480, height: 32 });
+      }
+      return originalRect.call(this);
+    });
+    let available = 240;
+    try {
+      const root = createTabs({
+        label: 'Settings',
+        tabs: [
+          { id: 'playback', label: 'Playback', panel: document.createElement('div') },
+          { id: 'overlay', label: 'Overlay', panel: document.createElement('div') },
+          { id: 'navigation', label: 'Navigation', panel: document.createElement('div') },
+          { id: 'hotkeys', label: 'Hotkeys', panel: document.createElement('div') },
+        ],
+      });
+      document.body.append(root);
+      Object.defineProperty(root, 'clientWidth', {
+        configurable: true,
+        get: () => available,
+      });
+      const list = root.querySelector('[role="tablist"]');
+      expect(list).toBeInstanceOf(HTMLElement);
+      if (!(list instanceof HTMLElement)) {
+        return;
+      }
+      expect(root.className).toContain('flex-col');
+      expect(root.className).not.toContain('data-[orientation=vertical]:flex-row');
+      expect(list.className).toContain('w-full');
+      expect(list.className).toContain('group-data-[orientation=vertical]/tabs:flex-col');
+      expect(list.className).toContain('group-data-[orientation=vertical]/tabs:h-fit');
+      expect(root.querySelector('[role="tab"]')?.className).toContain(
+        'group-data-[orientation=vertical]/tabs:w-full',
+      );
+      expect(root.querySelector('[role="tab"]')?.className).toContain(
+        'group-data-[orientation=vertical]/tabs:justify-start',
+      );
+      expect(
+        root.querySelector('[data-slot="tabs-content"]')?.parentElement?.className,
+      ).not.toContain('flex-1');
+
+      await Promise.resolve();
+      expect(root.getAttribute('data-orientation')).toBe('vertical');
+      expect(list.getAttribute('aria-orientation')).toBe('vertical');
+      expect(document.querySelector('[data-tab-measure]')).toBeNull();
+
+      const press = (key: string): void => {
+        list.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      };
+      press('ArrowRight');
+      expect(root.querySelector('#tab-playback')?.getAttribute('aria-selected')).toBe('true');
+      press('ArrowDown');
+      expect(root.querySelector('#tab-overlay')?.getAttribute('aria-selected')).toBe('true');
+      expect(root.querySelector('#panel-overlay')?.hasAttribute('hidden')).toBe(false);
+      press('ArrowUp');
+      expect(root.querySelector('#tab-playback')?.getAttribute('aria-selected')).toBe('true');
+
+      available = 800;
+      observers[0]?.callback([], observers[0] as unknown as ResizeObserver);
+      expect(root.getAttribute('data-orientation')).toBe('horizontal');
+      expect(list.getAttribute('aria-orientation')).toBe('horizontal');
+      press('ArrowDown');
+      expect(root.querySelector('#tab-playback')?.getAttribute('aria-selected')).toBe('true');
+      press('ArrowRight');
+      expect(root.querySelector('#tab-overlay')?.getAttribute('aria-selected')).toBe('true');
+    } finally {
+      globalThis.ResizeObserver = originalObserver;
+    }
+  });
+
+  it('stops watching tab width when its signal aborts', () => {
+    const disconnect = vi.fn();
+    const originalObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      disconnect = disconnect;
+      observe(): void {}
+      unobserve(): void {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const signal = new AbortController();
+      createTabs({
+        label: 'Settings',
+        signal: signal.signal,
+        tabs: [{ id: 'playback', label: 'Playback', panel: document.createElement('div') }],
+      });
+      expect(disconnect).not.toHaveBeenCalled();
+      signal.abort();
+      expect(disconnect).toHaveBeenCalledOnce();
+    } finally {
+      globalThis.ResizeObserver = originalObserver;
+    }
   });
 
   it('joins related buttons into one segmented group', () => {

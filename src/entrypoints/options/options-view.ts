@@ -514,6 +514,7 @@ export class OptionsView {
   private sidebarSync: ((state: ReadyState) => void) | null = null;
   private mainEl: HTMLElement | null = null;
   private menuAbort = new AbortController();
+  private paneAbort = new AbortController();
 
   constructor(
     private readonly root: HTMLElement,
@@ -564,6 +565,7 @@ export class OptionsView {
     this.shellMounted = '';
     this.paneMounted = '';
     this.menuAbort.abort();
+    this.paneAbort.abort();
     this.root.replaceChildren();
   }
 
@@ -698,6 +700,8 @@ export class OptionsView {
   }
 
   private paneContent(state: ReadyState): HTMLElement {
+    this.paneAbort.abort();
+    this.paneAbort = new AbortController();
     return el(
       'div',
       { class: 'flex w-full flex-col gap-6' },
@@ -1220,6 +1224,7 @@ export class OptionsView {
     const tabs = createTabs({
       label: state.selection.kind === 'site' ? t('settingsSite') : t('settingsDefaults'),
       initialId: this.activeTab,
+      signal: this.paneAbort.signal,
       tabs: [
         {
           id: 'playback',
