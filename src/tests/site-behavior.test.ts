@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
+import { JUMP_PERCENT_ACTIONS } from '../core/controller-action';
 import {
   DEFAULT_SPEED_POLICY,
   SPEED_MAX_SETTING_MAX,
@@ -369,6 +370,10 @@ describe('site behavior resolution', () => {
       'jumpToEnd',
       'playPause',
     ] as const) {
+      expect(hotkeyActionMode(action, false)).toBe('once');
+      expect(hotkeyActionMode(action, true)).toBe('once');
+    }
+    for (const action of JUMP_PERCENT_ACTIONS) {
       expect(hotkeyActionMode(action, false)).toBe('once');
       expect(hotkeyActionMode(action, true)).toBe('once');
     }

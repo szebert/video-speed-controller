@@ -126,6 +126,15 @@ export function emptyEffectiveHotkeys(): EffectiveHotkeyMap {
     skipForward: null,
     fastForward: null,
     jumpToEnd: null,
+    jumpTo10Percent: null,
+    jumpTo20Percent: null,
+    jumpTo30Percent: null,
+    jumpTo40Percent: null,
+    jumpTo50Percent: null,
+    jumpTo60Percent: null,
+    jumpTo70Percent: null,
+    jumpTo80Percent: null,
+    jumpTo90Percent: null,
   };
 }
 

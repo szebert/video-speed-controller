@@ -183,6 +183,22 @@ export function jumpToEnd(video: HTMLVideoElement): boolean {
   return writeCurrentTime(video, end);
 }
 
+/**
+ * Seeks to `percent` of the usable range, inclusive 0..100.
+ * A zero-width range (`end <= start`) and an unusable timeline return false.
+ * Disjoint `seekable` ranges use the same bounding window as `seekableRange()`.
+ */
+export function seekToPercent(video: HTMLVideoElement, percent: number): boolean {
+  if (!isLiveMedia(video) || !Number.isFinite(percent) || percent < 0 || percent > 100) {
+    return false;
+  }
+  const range = seekableRange(video);
+  if (!range || range.end <= range.start) {
+    return false;
+  }
+  return writeCurrentTime(video, range.start + (range.end - range.start) * (percent / 100));
+}
+
 /** Starts playback, swallowing the autoplay rejection browsers may produce. */
 export function safePlay(video: HTMLVideoElement): Promise<void> {
   if (!isLiveMedia(video)) {

@@ -206,7 +206,16 @@ export type SiteHotkeyAction =
   | 'playPause'
   | 'skipForward'
   | 'fastForward'
-  | 'jumpToEnd';
+  | 'jumpToEnd'
+  | 'jumpTo10Percent'
+  | 'jumpTo20Percent'
+  | 'jumpTo30Percent'
+  | 'jumpTo40Percent'
+  | 'jumpTo50Percent'
+  | 'jumpTo60Percent'
+  | 'jumpTo70Percent'
+  | 'jumpTo80Percent'
+  | 'jumpTo90Percent';
 
 export const SITE_HOTKEY_ACTIONS = [
   'increaseSpeed',
@@ -220,6 +229,15 @@ export const SITE_HOTKEY_ACTIONS = [
   'skipForward',
   'fastForward',
   'jumpToEnd',
+  'jumpTo10Percent',
+  'jumpTo20Percent',
+  'jumpTo30Percent',
+  'jumpTo40Percent',
+  'jumpTo50Percent',
+  'jumpTo60Percent',
+  'jumpTo70Percent',
+  'jumpTo80Percent',
+  'jumpTo90Percent',
 ] as const satisfies readonly SiteHotkeyAction[];
 
 export const USER_REPEATABLE_ACTIONS = new Set<SiteHotkeyAction>([

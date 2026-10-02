@@ -67,6 +67,15 @@ export const EffectiveHotkeyMapSchema = z.object({
   skipForward: z.union([HotkeyBindingSchema, z.null()]),
   fastForward: z.union([HotkeyBindingSchema, z.null()]),
   jumpToEnd: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo10Percent: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo20Percent: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo30Percent: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo40Percent: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo50Percent: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo60Percent: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo70Percent: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo80Percent: z.union([HotkeyBindingSchema, z.null()]),
+  jumpTo90Percent: z.union([HotkeyBindingSchema, z.null()]),
 });
 
 true satisfies Equal<z.infer<typeof EffectiveHotkeyMapSchema>, EffectiveHotkeyMap>;

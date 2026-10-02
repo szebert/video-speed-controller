@@ -14,7 +14,7 @@ import {
   hotkeyRepeatIntervalMs,
   type SiteHotkeyAction,
 } from '../settings/site-behavior';
-import { isMediaNavigationAction, type ControllerActionPhase } from './controller-action';
+import { isMediaLocalAction, type ControllerActionPhase } from './controller-action';
 import { executeControllerAction } from './execute-controller-action';
 import type { MediaRegistry, TransportHoldOwner } from './media-registry';
 
@@ -125,8 +125,8 @@ export class HotkeyListener {
       return;
     }
     const mode = hotkeyActionMode(action, this.policy.enabled);
-    const video = isMediaNavigationAction(action) ? this.resolveTarget() : null;
-    if (isMediaNavigationAction(action) && !isLiveMedia(video)) {
+    const video = isMediaLocalAction(action) ? this.resolveTarget() : null;
+    if (isMediaLocalAction(action) && !isLiveMedia(video)) {
       return;
     }
     if (this.consumeMatchedKeys) {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
-import { MEDIA_NAVIGATION_ACTIONS } from '../core/controller-action';
+import { MEDIA_LOCAL_ACTIONS } from '../core/controller-action';
 import { parseBackgroundToContent } from '../protocol/content/background-content';
 import { CONTENT_TO_BACKGROUND } from '../protocol/content/content-background';
 import { parseBackgroundInbound } from '../protocol/schemas/background-inbound';
@@ -247,7 +247,7 @@ describe('parseBackgroundInbound', () => {
         true,
       );
     }
-    for (const action of MEDIA_NAVIGATION_ACTIONS) {
+    for (const action of MEDIA_LOCAL_ACTIONS) {
       expect(
         accepted({
           type: 'SET_HOTKEY_SETTING',

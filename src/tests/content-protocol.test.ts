@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   isTabSpeedAction,
-  MEDIA_NAVIGATION_ACTIONS,
+  MEDIA_LOCAL_ACTIONS,
   TAB_SPEED_ACTIONS,
 } from '../core/controller-action';
 import {
@@ -55,8 +55,8 @@ describe('content Mini protocol', () => {
         action: 'seekForward',
       }).success,
     ).toBe(false);
-    // Media-local navigation stays out of the tab-wide speed RPC.
-    for (const action of MEDIA_NAVIGATION_ACTIONS) {
+    // Media-local actions stay out of the tab-wide speed RPC.
+    for (const action of MEDIA_LOCAL_ACTIONS) {
       expect(isTabSpeedAction(action)).toBe(false);
       expect(
         CONTENT_TO_BACKGROUND.DISPATCH_TAB_ACTION.request.safeParse({

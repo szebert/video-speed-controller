@@ -4,11 +4,13 @@ import { t } from '../i18n/t';
 import { contentFailureMessage, sendContentRequest } from '../protocol/content/client';
 import type { HotkeyBinding } from '../settings/hotkey-binding';
 import {
-  isMediaNavigationAction,
+  isJumpPercentAction,
+  isMediaLocalAction,
   isTabSpeedAction,
+  JUMP_PERCENT_BY_ACTION,
   type ControllerAction,
   type ControllerActionPhase,
-  type MediaNavigationAction,
+  type MediaLocalAction,
 } from './controller-action';
 import {
   effectiveSkipSeconds,
@@ -16,6 +18,7 @@ import {
   jumpToEnd,
   jumpToStart,
   seekBy,
+  seekToPercent,
   togglePlayback,
 } from './media-navigation';
 import type { MediaRegistry, TransportHoldOwner } from './media-registry';
@@ -45,8 +48,8 @@ export async function executeControllerAction(
   action: ControllerAction,
   context: ControllerActionContext,
 ): Promise<void> {
-  if (isMediaNavigationAction(action)) {
-    executeMediaNavigation(action, context);
+  if (isMediaLocalAction(action)) {
+    executeMediaLocalAction(action, context);
     return;
   }
   if (!isTabSpeedAction(action)) {
@@ -87,10 +90,7 @@ export async function executeControllerAction(
 
 // Media-local: stays inside this frame and touches exactly one video. These
 // actions must never reach DISPATCH_TAB_ACTION, which is the tab-wide speed RPC.
-function executeMediaNavigation(
-  action: MediaNavigationAction,
-  context: ControllerActionContext,
-): void {
+function executeMediaLocalAction(action: MediaLocalAction, context: ControllerActionContext): void {
   const video = context.source.video;
   if (!video) {
     return;
@@ -101,7 +101,7 @@ function executeMediaNavigation(
     return;
   }
   const registry = context.resolveRegistry();
-  const feedback = runMediaNavigation(action, phase, video, registry, context.hold);
+  const feedback = runMediaLocalAction(action, phase, video, registry, context.hold);
   if (!feedback) {
     return;
   }
@@ -119,8 +119,8 @@ function executeMediaNavigation(
   registry.flashButtonActionOn(video, payload, options);
 }
 
-function runMediaNavigation(
-  action: MediaNavigationAction,
+function runMediaLocalAction(
+  action: MediaLocalAction,
   phase: ControllerActionPhase,
   video: HTMLVideoElement,
   registry: MediaRegistry,
@@ -134,6 +134,12 @@ function runMediaNavigation(
   }
   if (phase !== 'press') {
     return null;
+  }
+  if (isJumpPercentAction(action)) {
+    const percent = JUMP_PERCENT_BY_ACTION[action];
+    return seekToPercent(video, percent)
+      ? { label: t('navJumpToPercent', [String(percent)]) }
+      : null;
   }
   switch (action) {
     case 'jumpToStart':

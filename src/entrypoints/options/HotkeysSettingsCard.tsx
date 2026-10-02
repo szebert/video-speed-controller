@@ -15,6 +15,12 @@ import {
   FieldSet,
 } from '@/components/ui/field';
 import { Slider } from '@/components/ui/slider';
+import {
+  isJumpPercentAction,
+  JUMP_PERCENT_ACTIONS,
+  JUMP_PERCENT_BY_ACTION,
+  type JumpPercentAction,
+} from '../../core/controller-action';
 import { readKeyboardLayoutMap } from '../../core/hotkey-format';
 import { t, type MessageKey } from '@/i18n/t';
 import { cn } from 'cn';
@@ -50,69 +56,61 @@ import { ShortcutRecorder } from './ShortcutRecorder';
 
 type HotkeyRow = {
   action: SiteHotkeyAction;
-  label: MessageKey;
   description: MessageKey;
 };
 
 const HOTKEY_ROWS: readonly HotkeyRow[] = [
   {
     action: 'decreaseSpeed',
-    label: 'hotkeyDecreaseSpeed',
     description: 'hotkeyDecreaseSpeedDescription',
   },
   {
     action: 'increaseSpeed',
-    label: 'hotkeyIncreaseSpeed',
     description: 'hotkeyIncreaseSpeedDescription',
   },
   {
     action: 'resetSpeed',
-    label: 'hotkeyResetSpeed',
     description: 'hotkeyResetSpeedDescription',
   },
   {
     action: 'resetSpeedToOne',
-    label: 'hotkeyResetSpeedToOne',
     description: 'hotkeyResetSpeedToOneDescription',
   },
   {
     action: 'jumpToStart',
-    label: 'hotkeyJumpToStart',
     description: 'hotkeyJumpToStartDescription',
   },
   {
     action: 'rewind',
-    label: 'hotkeyRewind',
     description: 'hotkeyRewindDescription',
   },
   {
     action: 'skipBack',
-    label: 'hotkeySkipBack',
     description: 'hotkeySkipBackDescription',
   },
   {
     action: 'playPause',
-    label: 'hotkeyPlayPause',
     description: 'hotkeyPlayPauseDescription',
   },
   {
     action: 'skipForward',
-    label: 'hotkeySkipForward',
     description: 'hotkeySkipForwardDescription',
   },
   {
     action: 'fastForward',
-    label: 'hotkeyFastForward',
     description: 'hotkeyFastForwardDescription',
   },
   {
     action: 'jumpToEnd',
-    label: 'hotkeyJumpToEnd',
     description: 'hotkeyJumpToEndDescription',
   },
+  ...JUMP_PERCENT_ACTIONS.map((action): HotkeyRow => ({
+    action,
+    description: 'hotkeyJumpToPercentDescription',
+  })),
 ];
 
-const ACTION_LABEL: Record<SiteHotkeyAction, MessageKey> = {
+const ACTION_LABEL: Record<Exclude<SiteHotkeyAction, JumpPercentAction>, MessageKey> = {
   decreaseSpeed: 'hotkeyDecreaseSpeed',
   increaseSpeed: 'hotkeyIncreaseSpeed',
   resetSpeed: 'hotkeyResetSpeed',
@@ -126,12 +124,19 @@ const ACTION_LABEL: Record<SiteHotkeyAction, MessageKey> = {
   jumpToEnd: 'hotkeyJumpToEnd',
 };
 
+function hotkeyActionLabel(action: SiteHotkeyAction): string {
+  if (isJumpPercentAction(action)) {
+    return t('hotkeyJumpToPercent', [String(JUMP_PERCENT_BY_ACTION[action])]);
+  }
+  return t(ACTION_LABEL[action]);
+}
+
 export function hotkeyConflictMessage(action: SiteHotkeyAction): string {
-  return `${t('hotkeyAlreadyUsed')} ${t(ACTION_LABEL[action])}.`;
+  return `${t('hotkeyAlreadyUsed')} ${hotkeyActionLabel(action)}.`;
 }
 
 export function hotkeyShadowedMessage(action: SiteHotkeyAction): string {
-  return `${t('hotkeyShadowed')} ${t(ACTION_LABEL[action])}.`;
+  return `${t('hotkeyShadowed')} ${hotkeyActionLabel(action)}.`;
 }
 
 export function HotkeysSettingsCard({
@@ -321,7 +326,7 @@ export function HotkeysSettingsCard({
             </Field>
             {HOTKEY_ROWS.map((row) => {
               const setting = hotkeys[row.action];
-              const label = t(row.label);
+              const label = hotkeyActionLabel(row.action);
               const inherited = showsInherited(selection, setting.source);
               const conflict = conflictAction[row.action];
               const shadowedBy = findShadowedHotkey(hotkeys, row.action);

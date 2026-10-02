@@ -316,7 +316,7 @@ describe('Hotkeys settings card', () => {
     expect(
       [...container.querySelectorAll('[data-slot="field-label"]')]
         .map((node) => node.textContent)
-        .slice(-11),
+        .slice(-20),
     ).toEqual([
       'Decrease speed',
       'Increase speed',
@@ -329,6 +329,15 @@ describe('Hotkeys settings card', () => {
       'Skip forward',
       'Fast forward',
       'Jump to end',
+      'Jump to 10%',
+      'Jump to 20%',
+      'Jump to 30%',
+      'Jump to 40%',
+      'Jump to 50%',
+      'Jump to 60%',
+      'Jump to 70%',
+      'Jump to 80%',
+      'Jump to 90%',
     ]);
     for (const label of ['Jump to start', 'Skip back', 'Fast forward']) {
       expect(

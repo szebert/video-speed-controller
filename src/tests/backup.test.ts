@@ -441,6 +441,7 @@ describe('backup format', () => {
           skipBack: { code: 'KeyJ', ctrl: false, alt: false, shift: false, meta: false },
           skipForward: { code: 'KeyK', ctrl: false, alt: false, shift: false, meta: false },
           fastForward: { code: 'KeyL', ctrl: false, alt: false, shift: false, meta: false },
+          jumpTo50Percent: { code: 'Digit5', ctrl: false, alt: false, shift: false, meta: false },
         },
       },
       sites: {

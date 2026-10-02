@@ -133,6 +133,15 @@ const BackupV1HotkeysSchema = z.strictObject({
   skipForward: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   fastForward: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   jumpToEnd: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo10Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo20Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo30Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo40Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo50Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo60Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo70Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo80Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  jumpTo90Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
 }) satisfies z.ZodType<LogicalHotkeyValues>;
 
 const BackupV1ScopeSchema = BackupV1FieldSchema.extend({

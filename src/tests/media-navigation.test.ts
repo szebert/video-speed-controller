@@ -10,6 +10,7 @@ import {
   seekableRange,
   seekBy,
   seekTo,
+  seekToPercent,
   togglePlayback,
 } from '../core/media-navigation';
 
@@ -130,6 +131,57 @@ describe('media navigation', () => {
     const plain = stubVideo({ currentTime: 5, duration: 60 });
     expect(jumpToEnd(plain)).toBe(true);
     expect(plain.currentTime).toBe(60);
+  });
+
+  it('seeks to an inclusive percent of the usable range', () => {
+    const video = stubVideo({ currentTime: 10, duration: 200 });
+    expect(seekToPercent(video, 50)).toBe(true);
+    expect(video.currentTime).toBe(100);
+    expect(seekToPercent(video, 0)).toBe(true);
+    expect(video.currentTime).toBe(0);
+    expect(seekToPercent(video, 100)).toBe(true);
+    expect(video.currentTime).toBe(200);
+
+    const dvr = stubVideo({
+      currentTime: 40,
+      duration: 120,
+      seekable: [{ start: 30, end: 90 }],
+    });
+    expect(seekToPercent(dvr, 10)).toBe(true);
+    expect(dvr.currentTime).toBe(36);
+
+    const live = stubVideo({
+      currentTime: 500,
+      duration: Number.POSITIVE_INFINITY,
+      seekable: [{ start: 400, end: 900 }],
+    });
+    expect(seekToPercent(live, 50)).toBe(true);
+    expect(live.currentTime).toBe(650);
+  });
+
+  it('rejects a percent jump with no span or an out-of-range percent', () => {
+    const zeroWidth = stubVideo({
+      currentTime: 10,
+      duration: 10,
+      seekable: [{ start: 10, end: 10 }],
+    });
+    expect(seekToPercent(zeroWidth, 50)).toBe(false);
+    expect(zeroWidth.currentTime).toBe(10);
+
+    const video = stubVideo({ currentTime: 10, duration: 60 });
+    for (const percent of [Number.NaN, Number.POSITIVE_INFINITY, -1, 101]) {
+      expect(seekToPercent(video, percent)).toBe(false);
+      expect(video.currentTime).toBe(10);
+    }
+
+    const unknown = stubVideo({ currentTime: 4 });
+    expect(seekToPercent(unknown, 50)).toBe(false);
+    expect(unknown.currentTime).toBe(4);
+
+    const detached = stubVideo({ currentTime: 10, duration: 60 });
+    detached.remove();
+    expect(seekToPercent(detached, 50)).toBe(false);
+    expect(detached.currentTime).toBe(10);
   });
 
   it('seeks to an absolute time on a finite connected timeline', () => {

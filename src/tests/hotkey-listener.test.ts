@@ -559,14 +559,35 @@ describe('HotkeyListener', () => {
     }
   });
 
-  it('does not consume a navigation key when the registry cannot resolve a target', () => {
+  it('does not consume a media-local key when the registry cannot resolve a target', () => {
     vi.spyOn(registry, 'resolveHotkeyTarget').mockReturnValue(null);
-    listener.setHotkeys(navigationMap());
-    const event = keydown('KeyK');
-    window.dispatchEvent(event);
-    expect(event.defaultPrevented).toBe(false);
+    listener.setHotkeys({
+      ...navigationMap(),
+      jumpTo50Percent: binding('Digit5'),
+    });
+    for (const code of ['KeyK', 'Digit5']) {
+      const event = keydown(code);
+      window.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
     expect(executeMock).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('dispatches a percent jump against the video resolved on keydown', () => {
+    const target = document.createElement('video');
+    document.body.append(target);
+    vi.spyOn(registry, 'resolveHotkeyTarget').mockReturnValue(target);
+    listener.setHotkeys({
+      ...builtInEffectiveHotkeys(),
+      jumpTo50Percent: binding('Digit5'),
+    });
+    window.dispatchEvent(keydown('Digit5'));
+    expect(executeMock).toHaveBeenCalledTimes(1);
+    const [action, context] = executeMock.mock.calls[0] ?? [];
+    expect(action).toBe('jumpTo50Percent');
+    expect(context?.phase).toBe('press');
+    expect(context?.source).toMatchObject({ kind: 'hotkey', video: target });
   });
 
   it('cancels a locked repeat when the target disconnects', async () => {

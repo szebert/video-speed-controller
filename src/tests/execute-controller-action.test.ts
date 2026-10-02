@@ -230,6 +230,45 @@ describe('executeControllerAction', () => {
     expect(live.currentTime).toBe(500);
   });
 
+  it('jumps to a percent of the seekable window, including a live DVR range', async () => {
+    seekable(video, { currentTime: 10, duration: 200 });
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('jumpTo50Percent', { resolveRegistry: () => registry, source });
+    expect(video.currentTime).toBe(100);
+    expect(flashText()).toBe('Jump to 50%');
+
+    const live = document.createElement('video');
+    live.getBoundingClientRect = video.getBoundingClientRect;
+    document.body.append(live);
+    registry.ensureController(live);
+    let currentTime = 500;
+    Object.defineProperty(live, 'currentTime', {
+      configurable: true,
+      get: () => currentTime,
+      set: (value: number) => {
+        currentTime = value;
+      },
+    });
+    Object.defineProperty(live, 'duration', {
+      configurable: true,
+      get: () => Number.POSITIVE_INFINITY,
+    });
+    Object.defineProperty(live, 'seekable', {
+      configurable: true,
+      get: () => ({
+        length: 1,
+        start: () => 400,
+        end: () => 900,
+      }),
+    });
+    await executeControllerAction('jumpTo50Percent', {
+      resolveRegistry: () => registry,
+      source: { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video: live },
+    });
+    expect(live.currentTime).toBe(650);
+    expect(flashText()).toBe('Jump to 50%');
+  });
+
   it('toggles playback and reports the direction it went', async () => {
     seekable(video, { currentTime: 10, duration: 120, paused: true });
     const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;

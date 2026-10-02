@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
+import { JUMP_PERCENT_ACTIONS } from '../core/controller-action';
 import {
   BUILT_IN_HOTKEYS,
   builtInEffectiveHotkeys,
@@ -97,6 +98,7 @@ describe('hotkey bindings', () => {
       'skipForward',
       'jumpToEnd',
       'fastForward',
+      ...JUMP_PERCENT_ACTIONS,
     ] as const;
     for (const map of [emptyEffectiveHotkeys(), builtInEffectiveHotkeys()]) {
       expect(Object.keys(map).sort()).toEqual([...SITE_HOTKEY_ACTIONS].sort());

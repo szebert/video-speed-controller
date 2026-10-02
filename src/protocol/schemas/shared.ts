@@ -152,6 +152,15 @@ export const ResolvedHotkeyMapSchema = z.object({
   skipForward: ResolvedHotkeyBindingSchema,
   fastForward: ResolvedHotkeyBindingSchema,
   jumpToEnd: ResolvedHotkeyBindingSchema,
+  jumpTo10Percent: ResolvedHotkeyBindingSchema,
+  jumpTo20Percent: ResolvedHotkeyBindingSchema,
+  jumpTo30Percent: ResolvedHotkeyBindingSchema,
+  jumpTo40Percent: ResolvedHotkeyBindingSchema,
+  jumpTo50Percent: ResolvedHotkeyBindingSchema,
+  jumpTo60Percent: ResolvedHotkeyBindingSchema,
+  jumpTo70Percent: ResolvedHotkeyBindingSchema,
+  jumpTo80Percent: ResolvedHotkeyBindingSchema,
+  jumpTo90Percent: ResolvedHotkeyBindingSchema,
 }) satisfies z.ZodType<ResolvedHotkeyMap>;
 
 true satisfies Equal<z.infer<typeof ResolvedHotkeyMapSchema>, ResolvedHotkeyMap>;

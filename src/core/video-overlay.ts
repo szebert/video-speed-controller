@@ -20,7 +20,7 @@ import {
 } from '../settings/site-behavior';
 import type { EffectiveHotkeyMap, HotkeyBinding } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
-import type { MediaNavigationAction, TabSpeedAction } from './controller-action';
+import type { MediaLocalAction, TabSpeedAction } from './controller-action';
 import { canonicalizeSpeed, formatSpeed, formatSpeedDelta } from './speed';
 
 export const OVERLAY_HOST_TAG = 'osvsc-overlay';
@@ -38,7 +38,7 @@ export function isExtensionHost(node: Node): boolean {
 
 export type FlashOrigin = 'hotkey' | 'button';
 
-// Tab-wide speed flash keeps its own shape. Media-local navigation carries
+// Tab-wide speed flash keeps its own shape. Media-local actions carry
 // already-localized text so this module stays free of action-specific copy.
 export type HotkeyFlashPayload =
   | {
@@ -53,7 +53,7 @@ export type HotkeyFlashPayload =
       label: string;
       detail?: string;
       binding?: HotkeyBinding | null;
-      action?: MediaNavigationAction;
+      action?: MediaLocalAction;
     };
 
 /** Hold-to-transport flashes stay up until `releaseHeldHotkeyFlash`. */
