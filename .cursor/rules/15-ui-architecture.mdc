@@ -1,0 +1,86 @@
+---
+description: Vanilla TypeScript UI architecture and accessibility invariants.
+globs: src/components/**, src/entrypoints/options/**, src/entrypoints/popup/**, src/overlay/**, src/styles/**, e2e/**
+alwaysApply: false
+---
+
+# UI Architecture
+
+## Runtime stack
+
+- UI code uses vanilla TypeScript, standard DOM APIs, HTML, and CSS.
+- Do not introduce React, React DOM, JSX/TSX, React Aria, shadcn,
+  or another UI framework/runtime unless explicitly approved.
+- Prefer browser/platform capabilities over dependencies when they
+  satisfy the requirement cleanly.
+- Tailwind may be used for styling; it does not define component behavior.
+
+## Accessibility
+
+UI refactors must preserve or improve accessibility parity.
+
+Preserve:
+
+- semantic HTML
+- accessible names and descriptions
+- keyboard interaction
+- logical focus order
+- focus management
+- visible focus indication
+- ARIA roles, states, and properties where required
+- dynamic accessibility state such as expanded, selected, pressed,
+  checked, disabled, and current values
+- screen-reader-visible status/error information
+- existing aria-keyshortcuts behavior where applicable
+
+Prefer native HTML controls and semantics over ARIA.
+
+Do not recreate native controls with generic elements when a native
+element provides the required behavior.
+
+For custom composite widgets, follow the applicable WAI-ARIA/APG
+interaction pattern, including its keyboard and focus behavior.
+ARIA attributes alone do not make a custom control accessible.
+
+## DOM lifecycle
+
+- Keep application/domain state separate from DOM rendering.
+- A view owns the DOM nodes and listeners it creates.
+- Long-lived listeners must have deterministic cleanup.
+- Prefer AbortController/AbortSignal for grouped listener cleanup.
+- Teardown must remove listeners, transient document-level handlers,
+  observers, and owned DOM.
+- Update existing DOM in place when practical rather than replacing
+  interactive subtrees unnecessarily.
+- Do not destroy or move keyboard focus as a side effect of an
+  unrelated state update.
+
+## Existing reference implementation
+
+`src/overlay/overlay-view.ts` is the repository's existing vanilla-DOM
+reference pattern:
+
+- typed DOM elements
+- native button/range controls
+- explicit accessible names
+- dynamic ARIA state
+- AbortController-based listener ownership
+- update methods
+- deterministic destroy/cleanup
+
+Popup/options implementations should follow the same architectural
+principles where appropriate, without mechanically copying overlay-specific
+behavior.
+
+## Verification
+
+For interactive UI changes, test behavior rather than implementation details.
+
+Where applicable verify:
+
+- mouse/pointer interaction
+- keyboard interaction
+- focus movement/retention
+- accessible role/name/state
+- disabled behavior
+- dynamic ARIA state

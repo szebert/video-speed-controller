@@ -72,3 +72,6 @@ tests, and established implementation decisions.
   generic recommendations from external skills or tools.
 - Skills provide guidance and workflows; they do not redefine product behavior
   or architecture.
+- The extension UI architecture is vanilla TypeScript + standard DOM APIs.
+  Do not introduce a UI framework/runtime without explicit approval.
+- UI refactors must preserve or improve accessibility parity.
