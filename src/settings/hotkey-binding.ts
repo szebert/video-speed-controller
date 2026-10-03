@@ -40,7 +40,7 @@ const REJECTED_HOTKEY_CODES = new Set([
   'OSRight',
 ]);
 
-/** Actions that ship with a keyboard shortcut. Navigation actions do not. */
+/** Actions that ship with a built-in keyboard shortcut. */
 type BuiltInHotkeyAction = 'decreaseSpeed' | 'increaseSpeed' | 'resetSpeed';
 
 // Speed-only on purpose. Every SiteHotkeyAction resolves through

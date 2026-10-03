@@ -149,7 +149,7 @@ export class MediaRegistry {
     }
   }
 
-  /** Media-local feedback: navigation actions only touch their own video. */
+  /** Media-local hotkey feedback: only the targeted video flashes. */
   flashHotkeyActionOn(
     video: HTMLVideoElement,
     payload: HotkeyFlashPayload,
