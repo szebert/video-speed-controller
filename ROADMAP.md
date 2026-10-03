@@ -15,7 +15,6 @@ what ships today. Implementation work is tracked in
 
 - Fullscreen and Picture-in-Picture
 - Caption toggle and track selection when the video supports it
-- Loop and A-B loop
 - Optional video information panel
 
 ## Exploring

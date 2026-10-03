@@ -440,14 +440,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
+  gap: 4px;
+  flex: 0 0 auto;
+  min-width: 20px;
+  width: auto;
   height: 16px;
-  padding: 0;
+  padding: 0 2px;
 }
 
 .volume-mute svg {
   width: 14px;
   height: 14px;
+  flex-shrink: 0;
 }
 
 .volume-track-wrap {
@@ -576,6 +580,92 @@
   background: var(--foreground);
   opacity: var(--seek-thumb-opacity);
   transition: opacity 0.08s ease;
+}
+
+.controls-loop {
+  gap: 0;
+}
+
+.loop-mark,
+.loop-jump,
+.loop-clear,
+.loop-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  padding-inline: 6px;
+}
+
+.loop-letter {
+  pointer-events: none;
+}
+
+.loop-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 14px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: var(--kbd);
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.loop-clear {
+  position: relative;
+  padding-inline: 6px;
+}
+
+.loop-clear[hidden],
+.loop-jump[hidden] {
+  display: none;
+}
+
+.loop-jump {
+  gap: 1px;
+  padding-inline: 4px;
+}
+
+.loop-clear-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+}
+
+.loop-clear .loop-slash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.loop-jump svg,
+.loop-toggle svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+.loop-jump svg {
+  width: 0.85em;
+  height: 0.8em;
+}
+
+.loop-toggle[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .controls-seek[data-disabled] .seek-readout,

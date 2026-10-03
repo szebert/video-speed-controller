@@ -3,7 +3,7 @@
 import type { OverlayActions } from '../overlay/types';
 import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
-import type { TransportHoldOwner } from './controller-action';
+import type { MediaLoopAction, TransportHoldOwner } from './controller-action';
 import { MediaController, type TransportSession } from './media-controller';
 import {
   isExtensionHost,
@@ -125,6 +125,16 @@ export class MediaRegistry {
 
   getOverlay(video: HTMLVideoElement): VideoOverlay | undefined {
     return this.entries.get(video)?.overlay;
+  }
+
+  runLoopAction(
+    video: HTMLVideoElement,
+    action: MediaLoopAction,
+  ): { label: string; detail?: string } | null {
+    if (this.destroyed || !video.isConnected) {
+      return null;
+    }
+    return this.entries.get(video)?.overlay.runLoopAction(action) ?? null;
   }
 
   get size(): number {

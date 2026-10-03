@@ -2,10 +2,20 @@
 
 import { OverlayView } from '../overlay/overlay-view';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
-import type { OverlayActions, OverlaySeekPhase, OverlayVolumeState } from '../overlay/types';
+import type {
+  LoopMark,
+  OverlayActions,
+  OverlaySeekPhase,
+  OverlayVolumeState,
+} from '../overlay/types';
+import { t, type MessageKey } from '../i18n/t';
+import { resolveLoopSpan } from './media-loop';
+import { safePlay, seekableRange, writeCurrentTime } from './media-navigation';
 import {
   bufferedStructureKey,
   clampDisplayedCurrentTime,
+  formatMarkTime,
+  formatTimelineReadout,
   readVideoTimeline,
   usableDuration,
 } from './media-time';
@@ -20,7 +30,8 @@ import {
 } from '../settings/site-behavior';
 import type { EffectiveHotkeyMap, HotkeyBinding } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
-import type { MediaLocalAction, TabSpeedAction } from './controller-action';
+import type { MediaLocalAction, MediaLoopAction, TabSpeedAction } from './controller-action';
+import { isMediaLoopAction } from './controller-action';
 import { canonicalizeSpeed, formatSpeed, formatSpeedDelta } from './speed';
 
 export const OVERLAY_HOST_TAG = 'osvsc-overlay';
@@ -60,6 +71,13 @@ export type HotkeyFlashPayload =
 export type HotkeyFlashShowOptions = {
   hold?: boolean;
 };
+
+type LoopActionFeedback = { label: string; detail?: string };
+
+const LOOP_MARK_LABELS = {
+  a: { mark: 'markA', clear: 'clearMarkA', jump: 'jumpToA' },
+  b: { mark: 'markB', clear: 'clearMarkB', jump: 'jumpToB' },
+} as const satisfies Record<LoopMark, { mark: MessageKey; clear: MessageKey; jump: MessageKey }>;
 
 function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('all', 'initial', 'important');
@@ -124,6 +142,13 @@ export class VideoOverlay {
   private lastStructureKey = '';
   private lastBufferCheckAt = 0;
   private knownDuration: number | null = null;
+  private markA: number | null = null;
+  private markB: number | null = null;
+  private loopEnabled = false;
+  /** Page `video.loop` captured on off → on. Null means this overlay does not own it. */
+  private savedPageLoop: boolean | null = null;
+  private loopRaf: number | null = null;
+  private loopEnforcing = false;
   private readonly abort = new AbortController();
 
   constructor(
@@ -150,8 +175,19 @@ export class VideoOverlay {
       },
       onMediaAction: (action, phase, hold) => {
         this.restartAutoHide();
-        // Hold buttons pass a per-gesture owner. Press actions have none.
-        this.actions.mediaAction?.(action, phase, this.video, hold ?? this);
+        if (this.actions.mediaAction) {
+          this.actions.mediaAction(action, phase, this.video, hold ?? this);
+          return;
+        }
+        // No content-script action host: perform loop actions locally so the
+        // overlay still works. Production always supplies mediaAction, which
+        // runs the action once and flashes.
+        if (phase === 'press' && isMediaLoopAction(action)) {
+          const feedback = this.runLoopAction(action);
+          if (feedback) {
+            this.flashMedia(feedback.label, feedback.detail);
+          }
+        }
       },
       onSetPosition: (position) => {
         this.restartAutoHide();
@@ -173,9 +209,6 @@ export class VideoOverlay {
       onVolume: (level) => {
         this.handleVolume(level);
       },
-      onToggleMute: () => {
-        this.handleToggleMute();
-      },
       onVolumeDragEnd: () => {
         this.applyVolumeSnapshot();
       },
@@ -184,19 +217,45 @@ export class VideoOverlay {
     document.documentElement.append(this.host);
 
     const signal = this.abort.signal;
-    const onPlaybackChange = (): void => {
-      this.syncView();
-    };
-    for (const type of ['play', 'pause', 'ended'] as const) {
-      video.addEventListener(type, onPlaybackChange, { signal });
-    }
-    video.addEventListener('timeupdate', () => this.onTimeUpdate(), { signal });
+    video.addEventListener(
+      'play',
+      () => {
+        this.syncLoopEngine();
+        this.syncView();
+      },
+      { signal },
+    );
+    video.addEventListener(
+      'pause',
+      () => {
+        this.cancelLoopRaf();
+        this.syncView();
+      },
+      { signal },
+    );
+    video.addEventListener(
+      'ended',
+      () => {
+        this.onLoopEnded();
+        this.syncView();
+      },
+      { signal },
+    );
+    video.addEventListener(
+      'timeupdate',
+      () => {
+        this.syncLoopEngine();
+        this.onTimeUpdate();
+      },
+      { signal },
+    );
     for (const type of ['seeking', 'seeked', 'pause', 'ended'] as const) {
       video.addEventListener(type, () => this.onTimelinePositionEvent(), { signal });
     }
     for (const type of ['loadedmetadata', 'durationchange', 'progress', 'emptied'] as const) {
       video.addEventListener(type, () => this.onTimelineStructureEvent(), { signal });
     }
+    video.addEventListener('emptied', () => this.resetLoopForNewMedia(), { signal });
     video.addEventListener('volumechange', () => this.onVolumeChange(), { signal });
   }
 
@@ -220,6 +279,7 @@ export class VideoOverlay {
     this.syncView();
     this.reconcileSeekUi(previous, behavior);
     this.reconcileVolumeUi(previous);
+    this.reconcileLoop();
     // Transform is grid-only: apply even when auto-hide has already hidden the
     // host, so a later position APPLY is not stuck on the previous anchor.
     this.applyPositionTransform();
@@ -240,11 +300,13 @@ export class VideoOverlay {
       this.autoHideExpired = false;
       this.invalidateFlash();
       this.syncView();
+      this.reconcileLoop();
       this.requestLayout();
       return;
     }
     this.restartAutoHide();
     this.syncView();
+    this.reconcileLoop();
     if (!wasOwned && this.seekUiUsable()) {
       this.applyFullSnapshot();
     }
@@ -348,6 +410,7 @@ export class VideoOverlay {
   }
 
   destroy(): void {
+    this.releaseLoopOwnership();
     this.cancelPendingSeek();
     this.timelineStructureDirty = false;
     this.abort.abort();
@@ -408,6 +471,7 @@ export class VideoOverlay {
       return;
     }
     this.restartAutoHide();
+    this.flashMedia(formatTimelineReadout(seconds, usableDuration(this.video.duration)));
     if (phase === 'commit') {
       this.flushSeek(seconds);
       return;
@@ -565,17 +629,233 @@ export class VideoOverlay {
     }
     this.restartAutoHide();
     const applied = this.actions.setVolume?.(level, this.video) ?? false;
+    if (applied !== false) {
+      const shown = Math.min(1, Math.max(0, level));
+      this.flashMedia(t('volumeLevel'), `${Math.round(shown * 100)}%`);
+    }
     if (!applied && !this.view.isVolumeScrubbing) {
       this.applyVolumeSnapshot();
     }
   }
 
-  private handleToggleMute(): void {
-    if (!this.volumeUiUsable()) {
+  private loopUsable(): boolean {
+    return (
+      this.controlled &&
+      this.behavior?.overlayVisible === true &&
+      this.behavior?.overlayLoopBar === true
+    );
+  }
+
+  private pushLoopState(): void {
+    this.view.updateLoop({
+      markA: this.markA,
+      markB: this.markB,
+      enabled: this.loopEnabled,
+    });
+  }
+
+  private reconcileLoop(): void {
+    if (!this.loopUsable()) {
+      if (this.loopEnabled || this.savedPageLoop != null) {
+        this.releaseLoopOwnership();
+      }
+      this.pushLoopState();
       return;
     }
+    this.pushLoopState();
+    if (this.loopEnabled) {
+      this.syncLoopEngine();
+    }
+  }
+
+  runLoopAction(action: MediaLoopAction): LoopActionFeedback | null {
+    if (action === 'toggleLoop') {
+      return this.toggleLoop();
+    }
+    const mark: LoopMark = action.endsWith('A') ? 'a' : 'b';
+    if (action.startsWith('clear')) {
+      return this.writeLoopMark(mark, null);
+    }
+    if (action.startsWith('jump')) {
+      return this.jumpToLoopMark(mark);
+    }
+    return this.writeLoopMark(mark, this.video.currentTime);
+  }
+
+  private loopMarkValue(mark: LoopMark): number | null {
+    return mark === 'a' ? this.markA : this.markB;
+  }
+
+  private storeLoopMark(mark: LoopMark, time: number | null): void {
+    if (mark === 'a') {
+      this.markA = time;
+      return;
+    }
+    this.markB = time;
+  }
+
+  private writeLoopMark(mark: LoopMark, time: number | null): LoopActionFeedback | null {
+    if (!this.loopUsable()) {
+      return null;
+    }
+    if (time != null && (!Number.isFinite(time) || time < 0)) {
+      return null;
+    }
     this.restartAutoHide();
-    this.actions.toggleMute?.(this.video);
+    this.storeLoopMark(mark, time);
+    this.pushLoopState();
+    if (this.loopEnabled) {
+      this.syncLoopEngine();
+    }
+    const label = t(LOOP_MARK_LABELS[mark][time == null ? 'clear' : 'mark']);
+    return time == null ? { label } : { label, detail: formatMarkTime(time) };
+  }
+
+  private jumpToLoopMark(mark: LoopMark): LoopActionFeedback | null {
+    if (!this.loopUsable()) {
+      return null;
+    }
+    const target = this.loopMarkValue(mark);
+    if (target == null) {
+      return null;
+    }
+    this.restartAutoHide();
+    if (!writeCurrentTime(this.video, target)) {
+      return null;
+    }
+    return { label: t(LOOP_MARK_LABELS[mark].jump), detail: formatMarkTime(target) };
+  }
+
+  private toggleLoop(): LoopActionFeedback | null {
+    if (!this.loopUsable()) {
+      return null;
+    }
+    this.restartAutoHide();
+    if (this.loopEnabled) {
+      this.releaseLoopOwnership();
+    } else {
+      this.acquireLoop();
+    }
+    this.pushLoopState();
+    return { label: t(this.loopEnabled ? 'loopOn' : 'loopOff') };
+  }
+
+  private flashMedia(label: string, detail?: string): void {
+    this.showButtonFlash({
+      kind: 'media',
+      label,
+      ...(detail !== undefined ? { detail } : {}),
+    });
+  }
+
+  private acquireLoop(): void {
+    if (this.savedPageLoop == null) {
+      this.savedPageLoop = this.video.loop;
+    }
+    this.loopEnabled = true;
+    this.syncLoopEngine();
+  }
+
+  private releaseLoopOwnership(): void {
+    this.cancelLoopRaf();
+    if (this.savedPageLoop != null) {
+      this.writeLoop(this.savedPageLoop);
+      this.savedPageLoop = null;
+    }
+    this.loopEnabled = false;
+  }
+
+  private resetLoopForNewMedia(): void {
+    this.releaseLoopOwnership();
+    this.markA = null;
+    this.markB = null;
+    this.pushLoopState();
+  }
+
+  private writeLoop(value: boolean): void {
+    if (this.video.loop === value) {
+      return;
+    }
+    try {
+      this.video.loop = value;
+    } catch {
+      // Detached or sourceless media.
+    }
+  }
+
+  /**
+   * Applies the current span. Re-reads the seekable window every pass.
+   * Never calls play(). A paused video may be seeked back into the span.
+   */
+  private syncLoopEngine(): void {
+    if (this.loopEnforcing) {
+      return;
+    }
+    if (!this.loopEnabled || this.savedPageLoop == null) {
+      this.cancelLoopRaf();
+      return;
+    }
+    this.loopEnforcing = true;
+    try {
+      const span = resolveLoopSpan(seekableRange(this.video), this.markA, this.markB);
+      if (span?.mode === 'native') {
+        this.writeLoop(true);
+        this.cancelLoopRaf();
+        return;
+      }
+      this.writeLoop(false);
+      if (span == null) {
+        this.cancelLoopRaf();
+        return;
+      }
+      const current = this.video.currentTime;
+      if (Number.isFinite(current) && (current < span.start || current >= span.end)) {
+        writeCurrentTime(this.video, span.start);
+      }
+      if (this.video.paused) {
+        this.cancelLoopRaf();
+        return;
+      }
+      this.ensureLoopRaf();
+    } finally {
+      this.loopEnforcing = false;
+    }
+  }
+
+  private onLoopEnded(): void {
+    if (!this.loopEnabled || this.savedPageLoop == null) {
+      return;
+    }
+    const span = resolveLoopSpan(seekableRange(this.video), this.markA, this.markB);
+    if (span?.mode !== 'custom') {
+      return;
+    }
+    if (!writeCurrentTime(this.video, span.start)) {
+      return;
+    }
+    void safePlay(this.video);
+  }
+
+  private ensureLoopRaf(): void {
+    if (this.loopRaf != null || this.video.paused) {
+      return;
+    }
+    const view = this.video.ownerDocument.defaultView;
+    if (!view) {
+      return;
+    }
+    this.loopRaf = view.requestAnimationFrame(() => {
+      this.loopRaf = null;
+      this.syncLoopEngine();
+    });
+  }
+
+  private cancelLoopRaf(): void {
+    if (this.loopRaf == null) {
+      return;
+    }
+    this.video.ownerDocument.defaultView?.cancelAnimationFrame(this.loopRaf);
+    this.loopRaf = null;
   }
 
   private reconcileVolumeUi(previous: AppliedTabBehavior | null): void {

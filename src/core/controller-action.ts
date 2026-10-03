@@ -54,12 +54,27 @@ export const MEDIA_VOLUME_ACTIONS = ['toggleMute', 'decreaseVolume', 'increaseVo
 
 export type MediaVolumeAction = (typeof MEDIA_VOLUME_ACTIONS)[number];
 
+/** Mark, clear, jump, and loop. Unbound until the user chooses a shortcut. */
+export const MEDIA_LOOP_ACTIONS = [
+  'markA',
+  'clearMarkA',
+  'jumpToA',
+  'markB',
+  'clearMarkB',
+  'jumpToB',
+  'toggleLoop',
+] as const;
+
+export type MediaLoopAction = (typeof MEDIA_LOOP_ACTIONS)[number];
+
 /** Every action that runs against one video and never reaches the background. */
-export type MediaLocalAction = MediaNavigationAction | JumpPercentAction | MediaVolumeAction;
+export type MediaLocalAction =
+  MediaNavigationAction | JumpPercentAction | MediaVolumeAction | MediaLoopAction;
 
 export const MEDIA_LOCAL_ACTIONS = [
   ...MEDIA_NAVIGATION_ACTIONS,
   ...MEDIA_VOLUME_ACTIONS,
+  ...MEDIA_LOOP_ACTIONS,
   ...JUMP_PERCENT_ACTIONS,
 ] as const;
 
@@ -96,6 +111,15 @@ export function isMediaVolumeAction(value: unknown): value is MediaVolumeAction 
   return typeof value === 'string' && (MEDIA_VOLUME_ACTIONS as readonly string[]).includes(value);
 }
 
+export function isMediaLoopAction(value: unknown): value is MediaLoopAction {
+  return typeof value === 'string' && (MEDIA_LOOP_ACTIONS as readonly string[]).includes(value);
+}
+
 export function isMediaLocalAction(value: unknown): value is MediaLocalAction {
-  return isMediaNavigationAction(value) || isJumpPercentAction(value) || isMediaVolumeAction(value);
+  return (
+    isMediaNavigationAction(value) ||
+    isJumpPercentAction(value) ||
+    isMediaVolumeAction(value) ||
+    isMediaLoopAction(value)
+  );
 }

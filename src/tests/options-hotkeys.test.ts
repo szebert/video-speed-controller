@@ -324,7 +324,7 @@ describe('Hotkeys settings card', () => {
     expect(onMutate).toHaveBeenCalledWith({ kind: 'hotkey-inherit', action: 'increaseSpeed' });
   });
 
-  it('lists every hotkey row: speed, navigation, volume, then percent jumps', async () => {
+  it('lists every hotkey row: speed, navigation, volume, loop, then percent jumps', async () => {
     await renderCard(vi.fn());
     expect(
       [...container.querySelectorAll('[data-hotkey-status]')].map(
@@ -347,6 +347,13 @@ describe('Hotkeys settings card', () => {
       'Toggle mute',
       'Decrease volume',
       'Increase volume',
+      'Mark A',
+      'Clear mark A',
+      'Jump to A',
+      'Mark B',
+      'Clear mark B',
+      'Jump to B',
+      'Loop',
       'Jump to 10%',
       'Jump to 20%',
       'Jump to 30%',
@@ -370,6 +377,9 @@ describe('Hotkeys settings card', () => {
       'Toggle mute',
       'Decrease volume',
       'Increase volume',
+      'Mark A',
+      'Jump to A',
+      'Loop',
     ]) {
       expect(
         container.querySelector(`[aria-label="Record shortcut: ${label}"]`)?.textContent,

@@ -11,7 +11,7 @@ import { destroyEngine, getActiveEngine, startEngine } from '../core/video-speed
 import { parseBackgroundToContent } from '../protocol/content/background-content';
 import { contentFailureMessage, sendContentRequest } from '../protocol/content/client';
 import type { ContentToBackgroundRequest } from '../protocol/content/content-background';
-import { seekTo, setMediaVolume, toggleMediaMute } from '../core/media-navigation';
+import { seekTo, setMediaVolume } from '../core/media-navigation';
 import type { OverlayActions } from '../overlay/types';
 
 async function sendOverlayIntent(
@@ -88,9 +88,6 @@ const overlayActions: OverlayActions = {
   },
   setVolume(level, video) {
     return setMediaVolume(video, level);
-  },
-  toggleMute(video) {
-    return toggleMediaMute(video);
   },
 };
 

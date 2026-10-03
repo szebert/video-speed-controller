@@ -25,6 +25,7 @@ OS Video Speed Controller (OS VSC) is a toolbar popup and a per-video overlay. Y
 - Optional navigation bar: jump to start or end, play / pause, skip back or forward, hold-to-fast-forward, and hold-to-rewind
 - Optional seek bar: current time, duration, played progress, and buffered ranges
 - Optional volume bar: percent ticks, the current level, and a mute button
+- Optional extras bar: mark A and B, jump back to either mark, and loop. With no marks, loop uses the video element's own loop. With marks, playback stays inside the marked span for that video
 - Configurable skip distances, with optional scaling by the current playback rate
 - Fast forward holds a temporary rate and restores the previous one on release
 - Rewind seeks backward while held. Chrome cannot play video in reverse, so there is no reverse audio
@@ -33,6 +34,7 @@ OS Video Speed Controller (OS VSC) is a toolbar popup and a per-video overlay. Y
 
 - Page shortcuts for speed, every navigation action, and jumps to 10%–90% of the seekable range. Jump to start and jump to end stay separate actions
 - Volume shortcuts for one video: toggle mute, and volume up or down by 10%. A volume step above 0% also unmutes
+- Loop shortcuts for one video, unset until you choose them: mark A, clear A, jump to A, mark B, clear B, jump to B, and toggle loop
 - Global defaults with per-site overrides
 - Optional hold-to-repeat for speed step, skip, and volume step keys. Fast forward and rewind always hold
 - Optional flash when a control or hotkey is used; held actions stay visible until release

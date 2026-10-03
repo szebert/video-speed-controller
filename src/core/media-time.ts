@@ -31,6 +31,24 @@ export function formatMediaTime(seconds: number | null): string {
   return `${minutes}:${pad2(remainder)}`;
 }
 
+/** Mark badge clock, with a truncated tenth of a second (`0:05.3`, `12:12:12.5`). */
+export function formatMarkTime(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) {
+    return '--:--.-';
+  }
+  const totalTenths = Math.floor(seconds * 10 + 1e-6);
+  const tenths = totalTenths % 10;
+  const total = Math.floor(totalTenths / 10);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainder = total % 60;
+  const fraction = `.${tenths}`;
+  if (hours > 0) {
+    return `${hours}:${pad2(minutes)}:${pad2(remainder)}${fraction}`;
+  }
+  return `${minutes}:${pad2(remainder)}${fraction}`;
+}
+
 export function formatTimelineReadout(currentTime: number, duration: number | null): string {
   const shown = Number.isFinite(currentTime)
     ? formatMediaTime(clampDisplayedCurrentTime(currentTime, duration))

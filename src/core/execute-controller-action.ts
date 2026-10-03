@@ -6,6 +6,7 @@ import type { HotkeyBinding } from '../settings/hotkey-binding';
 import {
   isJumpPercentAction,
   isMediaLocalAction,
+  isMediaLoopAction,
   isTabSpeedAction,
   JUMP_PERCENT_BY_ACTION,
   type ControllerAction,
@@ -44,6 +45,16 @@ export type ControllerActionContext = {
 };
 
 const VOLUME_STEP_PERCENT = 10;
+
+function formatVolumePercent(level: number): string {
+  const percent = Math.round(level * 100);
+  return `${Number.isFinite(percent) ? percent : 0}%`;
+}
+
+function formatVolumeDelta(deltaPercent: number): string {
+  const sign = deltaPercent < 0 ? '−' : '+';
+  return `(${sign}${Math.abs(deltaPercent)}%)`;
+}
 
 /** Localized text for the media-local flash. */
 type MediaLocalFeedback = { label: string; detail?: string; hold?: true };
@@ -139,6 +150,9 @@ function runMediaLocalAction(
   if (phase !== 'press') {
     return null;
   }
+  if (isMediaLoopAction(action)) {
+    return registry.runLoopAction(video, action);
+  }
   if (isJumpPercentAction(action)) {
     const percent = JUMP_PERCENT_BY_ACTION[action];
     return seekToPercent(video, percent)
@@ -164,14 +178,23 @@ function runMediaLocalAction(
       if (!toggleMediaMute(video)) {
         return null;
       }
-      return { label: t(video.muted ? 'volumeMute' : 'volumeUnmute') };
+      return video.muted
+        ? { label: t('volumeMute') }
+        : { label: t('volumeUnmute'), detail: formatVolumePercent(video.volume) };
     case 'decreaseVolume':
     case 'increaseVolume': {
+      const before = Math.round(video.volume * 100);
       const percent = adjustMediaVolume(
         video,
         action === 'increaseVolume' ? VOLUME_STEP_PERCENT : -VOLUME_STEP_PERCENT,
       );
-      return percent === null ? null : { label: `${percent}%` };
+      if (percent === null || !Number.isFinite(before)) {
+        return null;
+      }
+      return {
+        label: `${t('volumeLevel')} ${percent}%`,
+        detail: formatVolumeDelta(percent - before),
+      };
     }
   }
 }

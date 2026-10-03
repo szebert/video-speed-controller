@@ -37,6 +37,8 @@ describe('behavior field registry', () => {
     expect(BEHAVIOR_FIELDS.overlaySeekBar.category).toBe('overlay');
     expect(BEHAVIOR_FIELDS.overlayVolumeBar.category).toBe('overlay');
     expect(BEHAVIOR_FIELDS.overlayVolumeBar.default).toBe(false);
+    expect(BEHAVIOR_FIELDS.overlayLoopBar.category).toBe('overlay');
+    expect(BEHAVIOR_FIELDS.overlayLoopBar.default).toBe(false);
     expect(new Set(Object.values(BEHAVIOR_FIELDS).map((field) => field.category))).toEqual(
       new Set(['playback', 'overlay', 'hotkeys']),
     );

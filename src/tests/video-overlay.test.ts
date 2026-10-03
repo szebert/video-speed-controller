@@ -1037,6 +1037,42 @@ describe('VideoOverlay', () => {
     expect(overlay.speedReadout?.querySelector('.hotkey-hint')).toBeNull();
   });
 
+  it('shows shortcut hints for seek, volume, and loop controls when those keys are bound', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    const binding = { ctrl: false, alt: false, shift: false, meta: false };
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlaySeekBar: true,
+        overlayVolumeBar: true,
+        overlayLoopBar: true,
+        overlayHotkeyHints: true,
+      }),
+      {
+        ...builtInEffectiveHotkeys(),
+        markA: { ...binding, code: 'KeyA' },
+        toggleLoop: { ...binding, code: 'KeyL' },
+        toggleMute: { ...binding, code: 'KeyM' },
+        decreaseVolume: { ...binding, code: 'ArrowDown' },
+        increaseVolume: { ...binding, code: 'ArrowUp' },
+        jumpTo50Percent: { ...binding, code: 'Digit5' },
+      },
+    );
+    overlay.setControlled(true);
+    overlay.layout();
+    const root = overlay.host.shadowRoot;
+    expect(root?.querySelector('.loop-mark')?.querySelector('.hotkey-hint')?.textContent).toBe('A');
+    expect(root?.querySelector('.loop-toggle')?.getAttribute('aria-keyshortcuts')).toBe('L');
+    expect(root?.querySelector('.volume-mute')?.querySelector('.hotkey-hint')?.textContent).toBe(
+      'M',
+    );
+    expect(root?.querySelector('.volume-mute svg')).toBeTruthy();
+    expect(root?.querySelector('.loop-clear-mark .loop-slash')).toBeTruthy();
+    expect(root?.querySelector('.seek-readout .hotkey-hint')).toBeNull();
+    expect(root?.querySelector('.volume-readout .hotkey-hint')).toBeNull();
+  });
+
   it('shows a replaceable flash between top-center and center', () => {
     vi.useFakeTimers();
     const video = sizedVideo({ left: 10, top: 20, width: 200, height: 100 });
@@ -1871,6 +1907,11 @@ describe('VideoOverlay', () => {
     expect(seek).toHaveBeenCalledWith(30, video);
     expect(video.paused).toBe(true);
     expect(seekReadout(overlay)).toBe('0:30 / 1:00');
+    expect(
+      document
+        .querySelector(HOTKEY_FLASH_HOST_TAG)
+        ?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent,
+    ).toBe('0:30 / 1:00');
   });
 
   it('coalesces input seeks and commits once per pointer gesture', () => {
@@ -2429,11 +2470,7 @@ describe('VideoOverlay', () => {
   it('toggles mute without changing volume and unmutes only the owned video from the slider', () => {
     const other = sizedVideo();
     other.volume = 1;
-    const toggleMute = vi.fn((video: HTMLVideoElement) => {
-      video.muted = !video.muted;
-      video.dispatchEvent(new Event('volumechange'));
-      return true;
-    });
+    const toggleMute = vi.fn();
     const setVolume = vi.fn((level: number, video: HTMLVideoElement) => {
       video.volume = level;
       if (level > 0) {
@@ -2445,7 +2482,13 @@ describe('VideoOverlay', () => {
     video.volume = 0.8;
     const overlay = new VideoOverlay(video, () => overlay.layout(), {
       adjustSpeed() {},
-      toggleMute,
+      mediaAction(action, _phase, target) {
+        if (action === 'toggleMute') {
+          toggleMute();
+          target.muted = !target.muted;
+          target.dispatchEvent(new Event('volumechange'));
+        }
+      },
       setVolume,
     });
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayVolumeBar: true }));
@@ -2466,6 +2509,11 @@ describe('VideoOverlay', () => {
     expect(setVolume).toHaveBeenCalledWith(0.4, video);
     expect(video.muted).toBe(false);
     expect(other.volume).toBe(1);
+    expect(
+      document
+        .querySelector(HOTKEY_FLASH_HOST_TAG)
+        ?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent,
+    ).toBe('Volume 40%');
   });
 
   it('ends a volume drag outside the range once without another write', () => {
@@ -2569,7 +2617,485 @@ describe('VideoOverlay', () => {
     expect(hits()).toBe(0);
     expect(overlay.host.shadowRoot?.querySelector('.controls-volume')).toBeNull();
   });
+
+  it('places the loop row after whichever optional rows are already showing', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+    overlay.setControlled(true);
+    overlay.layout();
+    expect(rowClasses(overlay)).toEqual(['controls', 'controls controls-loop']);
+    expect(loopControlLabels(overlay)).toEqual([
+      'Mark A',
+      'Clear mark A',
+      'Jump to A',
+      'Mark B',
+      'Clear mark B',
+      'Jump to B',
+      'Loop',
+    ]);
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')).toBeNull();
+    expect(loopClearButton(overlay, 'a').hidden).toBe(true);
+    expect(loopJumpButton(overlay, 'a').hidden).toBe(true);
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
+    expect(loopToggle(overlay).querySelectorAll('path')).toHaveLength(5);
+
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: false,
+        overlayLoopBar: true,
+        overlayVolumeBar: true,
+        overlaySeekBar: true,
+        overlayNavigationBar: true,
+      }),
+    );
+    expect(rowClasses(overlay)).toEqual([
+      'controls',
+      'controls controls-nav',
+      'controls controls-seek',
+      'controls controls-volume',
+      'controls controls-loop',
+    ]);
+  });
+
+  it('shows a mark on the button, replaces it, and clears it without seeking', () => {
+    const media = loopMedia({ currentTime: 65 });
+    const overlay = controlledLoop(media.video);
+    loopMarkButton(overlay, 'a').click();
+    expect(loopMarkButton(overlay, 'a').getAttribute('aria-label')).toBe('Mark A, 1:05.0');
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')?.textContent).toBe('1:05.0');
+    expect(loopClearButton(overlay, 'a').hidden).toBe(false);
+    expect(loopClearButton(overlay, 'a').textContent).toContain('A');
+    expect(loopClearButton(overlay, 'a').querySelector('.loop-slash')).toBeTruthy();
+    expect(loopJumpButton(overlay, 'a').hidden).toBe(false);
+    expect(loopClearButton(overlay, 'a').hidden).toBe(false);
+
+    media.setCurrentTime(90);
+    loopMarkButton(overlay, 'a').click();
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')?.textContent).toBe('1:30.0');
+    expect(media.video.currentTime).toBe(90);
+
+    const clear = loopClearButton(overlay, 'a');
+    clear.focus();
+    clear.click();
+    expect(overlay.host.shadowRoot?.activeElement).toBe(loopMarkButton(overlay, 'a'));
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')).toBeNull();
+    expect(loopJumpButton(overlay, 'a').hidden).toBe(true);
+    expect(clear.hidden).toBe(true);
+    expect(media.loopWrites).toEqual([]);
+  });
+
+  it('flashes extras-row buttons when button flash is on', () => {
+    const media = loopMedia({ currentTime: 65 });
+    const overlay = controlledLoop(media.video);
+    const flashText = (): string =>
+      document
+        .querySelector(HOTKEY_FLASH_HOST_TAG)
+        ?.shadowRoot?.querySelector('.hotkey-flash-label')?.textContent ?? '';
+
+    loopMarkButton(overlay, 'a').click();
+    expect(flashText()).toBe('Mark A 1:05.0');
+    loopJumpButton(overlay, 'a').click();
+    expect(flashText()).toBe('Jump to A 1:05.0');
+    loopToggle(overlay).click();
+    expect(flashText()).toBe('Loop on');
+    loopToggle(overlay).click();
+    expect(flashText()).toBe('Loop off');
+    loopClearButton(overlay, 'a').click();
+    expect(flashText()).toBe('Clear mark A');
+
+    const quiet = controlledLoop(loopMedia({ currentTime: 4 }).video);
+    quiet.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true, buttonFlash: false }),
+    );
+    loopMarkButton(quiet, 'a').click();
+    expect(document.querySelectorAll(HOTKEY_FLASH_HOST_TAG)).toHaveLength(1);
+  });
+
+  it('jumps to the stored mark and leaves that mark unchanged', () => {
+    const media = loopMedia({ currentTime: 10 });
+    const overlay = controlledLoop(media.video);
+    loopMarkButton(overlay, 'b').click();
+    media.setCurrentTime(40);
+    loopJumpButton(overlay, 'b').click();
+    expect(media.video.currentTime).toBe(10);
+    expect(loopMarkButton(overlay, 'b').querySelector('.loop-badge')?.textContent).toBe('0:10.0');
+    expect(media.play).not.toHaveBeenCalled();
+  });
+
+  it('does not write video.loop when marks change while looping is off', () => {
+    const media = loopMedia({ loop: true, currentTime: 8 });
+    const overlay = controlledLoop(media.video);
+    loopMarkButton(overlay, 'a').click();
+    loopClearButton(overlay, 'a').click();
+    expect(media.loopWrites).toEqual([]);
+    expect(media.video.loop).toBe(true);
+  });
+
+  it('restores the page loop value when Loop is turned off', () => {
+    const media = loopMedia({ loop: true, currentTime: 5, duration: 30 });
+    const overlay = controlledLoop(media.video);
+    loopToggle(overlay).click();
+    expect(media.video.loop).toBe(true);
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('true');
+    expect(loopToggle(overlay).querySelectorAll('path')).toHaveLength(4);
+    loopMarkButton(overlay, 'a').click();
+    expect(media.video.loop).toBe(false);
+    loopToggle(overlay).click();
+    expect(media.video.loop).toBe(true);
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')?.textContent).toBe('0:05.0');
+  });
+
+  it('keeps the original page loop value across native and custom modes', () => {
+    const media = loopMedia({ loop: false, currentTime: 5, duration: 30 });
+    const overlay = controlledLoop(media.video);
+    loopToggle(overlay).click();
+    expect(media.video.loop).toBe(true);
+    loopMarkButton(overlay, 'a').click();
+    expect(media.video.loop).toBe(false);
+    loopClearButton(overlay, 'a').click();
+    expect(media.video.loop).toBe(true);
+    loopToggle(overlay).click();
+    expect(media.video.loop).toBe(false);
+    expect(media.loopWrites).toEqual([true, false, true, false]);
+  });
+
+  it('stops the loop and keeps marks when the video is no longer controlled', () => {
+    const media = loopMedia({ loop: true, currentTime: 8, duration: 30 });
+    const overlay = controlledLoop(media.video);
+    loopToggle(overlay).click();
+    loopMarkButton(overlay, 'a').click();
+    expect(media.video.loop).toBe(false);
+    overlay.setControlled(false);
+    expect(media.video.loop).toBe(true);
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')?.textContent).toBe('0:08.0');
+    overlay.setControlled(true);
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
+    expect(media.video.loop).toBe(true);
+  });
+
+  it('stops the loop when the overlay or the loop row is turned off, and keeps marks', () => {
+    const media = loopMedia({ loop: false, currentTime: 9, duration: 30 });
+    const overlay = controlledLoop(media.video);
+    loopToggle(overlay).click();
+    loopMarkButton(overlay, 'b').click();
+    expect(media.video.loop).toBe(false);
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true, overlayVisible: false }),
+    );
+    expect(media.video.loop).toBe(false);
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
+    expect(loopMarkButton(overlay, 'b').querySelector('.loop-badge')?.textContent).toBe('0:09.0');
+
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+    loopToggle(overlay).click();
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('true');
+    expect(media.video.loop).toBe(false);
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: false }));
+    expect(overlay.host.shadowRoot?.querySelector('.controls-loop')).toBeNull();
+    expect(media.video.loop).toBe(false);
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+    expect(loopMarkButton(overlay, 'b').querySelector('.loop-badge')?.textContent).toBe('0:09.0');
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('keeps looping while the overlay is only auto-hidden', () => {
+    vi.useFakeTimers();
+    const media = loopMedia({ loop: false, duration: 30 });
+    const overlay = new VideoOverlay(media.video, () => overlay.layout());
+    overlay.setBehavior(
+      tabBehavior(1, { overlayAutoHide: true, overlayAutoHideDelayMs: 200, overlayLoopBar: true }),
+    );
+    overlay.setControlled(true);
+    overlay.layout();
+    loopToggle(overlay).click();
+    expect(media.video.loop).toBe(true);
+    vi.advanceTimersByTime(200);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    expect(media.video.loop).toBe(true);
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('clears marks and loop ownership when the media element is emptied', () => {
+    const media = loopMedia({ loop: true, currentTime: 14, duration: 30 });
+    const overlay = controlledLoop(media.video);
+    loopToggle(overlay).click();
+    loopMarkButton(overlay, 'a').click();
+    loopMarkButton(overlay, 'b').click();
+    expect(media.video.loop).toBe(false);
+    media.video.dispatchEvent(new Event('emptied'));
+    expect(media.video.loop).toBe(true);
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')).toBeNull();
+    expect(loopMarkButton(overlay, 'b').querySelector('.loop-badge')).toBeNull();
+    expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('seeks a paused custom loop back into the span without playing', () => {
+    const media = loopMedia({ currentTime: 5, duration: 30, paused: true });
+    const overlay = controlledLoop(media.video);
+    media.setCurrentTime(1);
+    loopMarkButton(overlay, 'a').click();
+    media.setCurrentTime(3);
+    loopMarkButton(overlay, 'b').click();
+    media.setCurrentTime(5);
+    loopToggle(overlay).click();
+    expect(media.video.currentTime).toBe(1);
+    expect(media.play).not.toHaveBeenCalled();
+    expect(media.video.loop).toBe(false);
+  });
+
+  it('wraps from timeupdate when no animation frame is running', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    const media = loopMedia({ currentTime: 2, duration: 30, paused: false });
+    const overlay = controlledLoop(media.video);
+    media.setCurrentTime(1);
+    loopMarkButton(overlay, 'a').click();
+    media.setCurrentTime(3);
+    loopMarkButton(overlay, 'b').click();
+    media.setCurrentTime(2);
+    loopToggle(overlay).click();
+    media.setCurrentTime(5);
+    media.video.dispatchEvent(new Event('timeupdate'));
+    expect(media.video.currentTime).toBe(1);
+    expect(media.play).not.toHaveBeenCalled();
+  });
+
+  it('schedules one animation frame and cancels it on pause', () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const cancelFrame = vi
+      .spyOn(window, 'cancelAnimationFrame')
+      .mockImplementation(() => undefined);
+    const media = loopMedia({ currentTime: 2, duration: 30, paused: false });
+    const overlay = controlledLoop(media.video);
+    media.setCurrentTime(1);
+    loopMarkButton(overlay, 'a').click();
+    media.setCurrentTime(4);
+    loopMarkButton(overlay, 'b').click();
+    media.setCurrentTime(2);
+    loopToggle(overlay).click();
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+    media.video.dispatchEvent(new Event('play'));
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+    frames[0]?.(0);
+    expect(requestFrame).toHaveBeenCalledTimes(2);
+    media.setPaused(true);
+    media.video.dispatchEvent(new Event('pause'));
+    expect(cancelFrame).toHaveBeenCalled();
+    media.setPaused(false);
+    media.video.dispatchEvent(new Event('play'));
+    expect(requestFrame).toHaveBeenCalledTimes(3);
+  });
+
+  it('restarts at the span start when playback ends', () => {
+    const media = loopMedia({ currentTime: 2, duration: 10, paused: true });
+    const overlay = controlledLoop(media.video);
+    media.setCurrentTime(1);
+    loopMarkButton(overlay, 'a').click();
+    loopToggle(overlay).click();
+    media.setCurrentTime(10);
+    media.video.dispatchEvent(new Event('ended'));
+    expect(media.video.currentTime).toBe(1);
+    expect(media.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not restart playback when ended fires during native loop', () => {
+    const media = loopMedia({ duration: 10, paused: true });
+    const overlay = controlledLoop(media.video);
+    loopToggle(overlay).click();
+    expect(media.video.loop).toBe(true);
+    media.video.dispatchEvent(new Event('ended'));
+    expect(media.play).not.toHaveBeenCalled();
+  });
+
+  it('follows a moved DVR window without rewriting the stored mark', () => {
+    const media = loopMedia({
+      currentTime: 12,
+      duration: 40,
+      seekable: { start: 0, end: 30 },
+    });
+    const overlay = controlledLoop(media.video);
+    loopMarkButton(overlay, 'a').click();
+    media.setCurrentTime(20);
+    loopMarkButton(overlay, 'b').click();
+    media.setCurrentTime(25);
+    loopToggle(overlay).click();
+    expect(media.video.currentTime).toBe(12);
+    media.setSeekable({ start: 18, end: 30 });
+    media.setCurrentTime(25);
+    media.video.dispatchEvent(new Event('timeupdate'));
+    expect(media.video.currentTime).toBe(18);
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')?.textContent).toBe('0:12.0');
+    expect(loopMarkButton(overlay, 'b').querySelector('.loop-badge')?.textContent).toBe('0:20.0');
+  });
+
+  it('cancels the animation frame when a DVR window leaves the marks, and starts it when the window returns', () => {
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    const cancelFrame = vi
+      .spyOn(window, 'cancelAnimationFrame')
+      .mockImplementation(() => undefined);
+    const media = loopMedia({
+      currentTime: 15,
+      duration: 40,
+      paused: false,
+      seekable: { start: 0, end: 1 },
+    });
+    const overlay = controlledLoop(media.video);
+    media.setCurrentTime(12);
+    loopMarkButton(overlay, 'a').click();
+    media.setCurrentTime(20);
+    loopMarkButton(overlay, 'b').click();
+    media.setCurrentTime(15);
+    loopToggle(overlay).click();
+    expect(requestFrame).not.toHaveBeenCalled();
+    expect(media.video.loop).toBe(false);
+    media.setSeekable({ start: 0, end: 30 });
+    media.video.dispatchEvent(new Event('timeupdate'));
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+    media.setSeekable({ start: 0, end: 1 });
+    media.video.dispatchEvent(new Event('timeupdate'));
+    expect(cancelFrame).toHaveBeenCalled();
+    expect(media.video.loop).toBe(false);
+    expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')?.textContent).toBe('0:12.0');
+  });
+
+  it('keeps marks and the loop toggle separate for each video', () => {
+    const first = loopMedia({ currentTime: 12, duration: 30 });
+    const second = loopMedia({ currentTime: 3, duration: 30 });
+    const firstOverlay = controlledLoop(first.video);
+    const secondOverlay = controlledLoop(second.video);
+    loopMarkButton(firstOverlay, 'a').click();
+    loopToggle(firstOverlay).click();
+    expect(loopMarkButton(firstOverlay, 'a').querySelector('.loop-badge')?.textContent).toBe(
+      '0:12.0',
+    );
+    expect(loopToggle(firstOverlay).getAttribute('aria-pressed')).toBe('true');
+    expect(loopMarkButton(secondOverlay, 'a').querySelector('.loop-badge')).toBeNull();
+    expect(loopToggle(secondOverlay).getAttribute('aria-pressed')).toBe('false');
+    expect(second.video.loop).toBe(false);
+  });
 });
+
+function loopMedia(options?: {
+  currentTime?: number;
+  duration?: number;
+  paused?: boolean;
+  loop?: boolean;
+  seekable?: { start: number; end: number } | null;
+}): {
+  video: HTMLVideoElement;
+  play: ReturnType<typeof vi.fn>;
+  loopWrites: boolean[];
+  setCurrentTime: (value: number) => void;
+  setPaused: (value: boolean) => void;
+  setSeekable: (range: { start: number; end: number } | null) => void;
+} {
+  const video = sizedVideo();
+  let currentTime = options?.currentTime ?? 0;
+  let paused = options?.paused ?? true;
+  let loop = options?.loop ?? false;
+  let seekable = options?.seekable ?? null;
+  const loopWrites: boolean[] = [];
+  const play = vi.fn(() => Promise.resolve());
+  Object.defineProperty(video, 'currentTime', {
+    configurable: true,
+    get: () => currentTime,
+    set: (value: number) => {
+      currentTime = value;
+    },
+  });
+  Object.defineProperty(video, 'duration', {
+    configurable: true,
+    get: () => options?.duration ?? 60,
+  });
+  Object.defineProperty(video, 'paused', {
+    configurable: true,
+    get: () => paused,
+  });
+  Object.defineProperty(video, 'loop', {
+    configurable: true,
+    get: () => loop,
+    set: (value: boolean) => {
+      loopWrites.push(value);
+      loop = value;
+    },
+  });
+  Object.defineProperty(video, 'seekable', {
+    configurable: true,
+    get: () =>
+      seekable == null
+        ? { length: 0, start: () => 0, end: () => 0 }
+        : { length: 1, start: () => seekable?.start ?? 0, end: () => seekable?.end ?? 0 },
+  });
+  video.play = play as typeof video.play;
+  return {
+    video,
+    play,
+    loopWrites,
+    setCurrentTime(value: number) {
+      currentTime = value;
+    },
+    setPaused(value: boolean) {
+      paused = value;
+    },
+    setSeekable(range: { start: number; end: number } | null) {
+      seekable = range;
+    },
+  };
+}
+
+function controlledLoop(video: HTMLVideoElement): VideoOverlay {
+  const overlay = new VideoOverlay(video, () => overlay.layout());
+  overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+  overlay.setControlled(true);
+  return overlay;
+}
+
+function loopControlLabels(overlay: VideoOverlay): string[] {
+  return [...(overlay.host.shadowRoot?.querySelectorAll('.controls-loop button') ?? [])].map(
+    (button) => button.getAttribute('aria-label') ?? '',
+  );
+}
+
+function loopMarkButton(overlay: VideoOverlay, mark: 'a' | 'b'): HTMLButtonElement {
+  const button = overlay.host.shadowRoot?.querySelectorAll('.loop-mark')[mark === 'a' ? 0 : 1];
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`Missing mark ${mark}`);
+  }
+  return button;
+}
+
+function loopClearButton(overlay: VideoOverlay, mark: 'a' | 'b'): HTMLButtonElement {
+  const button = overlay.host.shadowRoot?.querySelectorAll('.loop-clear')[mark === 'a' ? 0 : 1];
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`Missing clear ${mark}`);
+  }
+  return button;
+}
+
+function loopJumpButton(overlay: VideoOverlay, mark: 'a' | 'b'): HTMLButtonElement {
+  const button = overlay.host.shadowRoot?.querySelectorAll('.loop-jump')[mark === 'a' ? 0 : 1];
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`Missing jump ${mark}`);
+  }
+  return button;
+}
+
+function loopToggle(overlay: VideoOverlay): HTMLButtonElement {
+  const button = overlay.host.shadowRoot?.querySelector('.loop-toggle');
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error('Missing loop toggle');
+  }
+  return button;
+}
 
 function timelineVideo(options: {
   currentTime?: number;

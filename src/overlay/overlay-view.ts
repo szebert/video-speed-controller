@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
-import type { MediaNavigationAction, TransportHoldOwner } from '../core/controller-action';
+import {
+  MEDIA_LOOP_ACTIONS,
+  type MediaLoopAction,
+  type MediaNavigationAction,
+  type TransportHoldOwner,
+} from '../core/controller-action';
 import { ariaKeyshortcutsFromBinding, visualHotkeyParts } from '../core/hotkey-format';
 import { canAdjustSpeed, canonicalizeSpeed, formatSpeed } from '../core/speed';
 import {
   bufferedStructureKey,
   clampDisplayedCurrentTime,
+  formatMarkTime,
   formatMediaTime,
   mediaTimeReserve,
 } from '../core/media-time';
@@ -20,6 +26,9 @@ import {
 } from '../settings/site-behavior';
 import {
   volumeIconKind,
+  type LoopMark,
+  type OverlayButtonAction,
+  type OverlayLoopState,
   type OverlayTimelineState,
   type OverlayViewCallbacks,
   type OverlayVolumeState,
@@ -82,6 +91,9 @@ export class OverlayView {
   private volumeLevel: HTMLDivElement | null = null;
   private volumeMute: HTMLButtonElement | null = null;
   private volumeReadout: HTMLSpanElement | null = null;
+  private loopBar: HTMLDivElement | null = null;
+  private loopListeners: AbortController | null = null;
+  private readonly loopButtons = new Map<MediaLoopAction, HTMLButtonElement>();
   private scrubbing = false;
   private volumeScrubbing = false;
   private volumePointerId: number | null = null;
@@ -269,6 +281,10 @@ export class OverlayView {
     this.volumeLevel = null;
     this.volumeMute = null;
     this.volumeReadout = null;
+    this.loopListeners?.abort();
+    this.loopListeners = null;
+    this.loopBar = null;
+    this.loopButtons.clear();
     this.element.remove();
   }
 
@@ -302,6 +318,23 @@ export class OverlayView {
     return button;
   }
 
+  private bindPress(
+    button: HTMLButtonElement,
+    action: OverlayButtonAction,
+    signal: AbortSignal,
+  ): void {
+    button.addEventListener(
+      'click',
+      (event) => {
+        if (!button.disabled && !button.hidden) {
+          this.callbacks.onMediaAction(action, 'press');
+        }
+        blurAfterPointerClick(event);
+      },
+      { signal },
+    );
+  }
+
   private syncChrome(): void {
     const state = this.state;
     if (!state) {
@@ -318,13 +351,9 @@ export class OverlayView {
       canonicalizeSpeed(behavior.targetSpeed) === canonicalizeSpeed(behavior.defaultSpeed);
     this.slower.disabled = !canAdjustSpeed(behavior.targetSpeed, -1, policy);
     this.faster.disabled = !canAdjustSpeed(behavior.targetSpeed, 1, policy);
-    syncHotkeyHint(this.slower, state.hotkeys?.decreaseSpeed ?? null, behavior.overlayHotkeyHints);
-    syncHotkeyHint(this.faster, state.hotkeys?.increaseSpeed ?? null, behavior.overlayHotkeyHints);
-    syncHotkeyHint(
-      this.speedReadout,
-      state.hotkeys?.resetSpeed ?? null,
-      behavior.overlayHotkeyHints,
-    );
+    syncHotkeyHints(this.slower, [state.hotkeys?.decreaseSpeed], behavior.overlayHotkeyHints);
+    syncHotkeyHints(this.faster, [state.hotkeys?.increaseSpeed], behavior.overlayHotkeyHints);
+    syncHotkeyHints(this.speedReadout, [state.hotkeys?.resetSpeed], behavior.overlayHotkeyHints);
 
     if (behavior.overlayPositionButton) {
       if (!this.move.isConnected) {
@@ -346,6 +375,7 @@ export class OverlayView {
     this.syncNavigation(state);
     this.syncSeek(state);
     this.syncVolume(state);
+    this.syncLoop(state);
 
     if (this.pickerOpen && state.visible && behavior.overlayPositionButton) {
       this.renderPicker();
@@ -374,7 +404,7 @@ export class OverlayView {
         );
       }
       const binding = button.disabled ? null : (state.hotkeys?.[action] ?? null);
-      syncHotkeyHint(button, binding, behavior.overlayHotkeyHints);
+      syncHotkeyHints(button, [binding], behavior.overlayHotkeyHints);
     }
   }
 
@@ -401,6 +431,31 @@ export class OverlayView {
     this.navigationButtons = buttons;
     this.bar.after(bar);
     return buttons;
+  }
+
+  private syncVolumeHints(state: OverlayViewState | null): void {
+    if (!state || !this.volumeMute) {
+      return;
+    }
+    syncHotkeyHints(
+      this.volumeMute,
+      [state.hotkeys?.toggleMute],
+      state.behavior.overlayHotkeyHints,
+    );
+  }
+
+  private syncLoopHints(): void {
+    const state = this.state;
+    if (!state) {
+      return;
+    }
+    for (const action of MEDIA_LOOP_ACTIONS) {
+      const button = this.loopButtons.get(action);
+      if (!button) {
+        continue;
+      }
+      syncHotkeyHints(button, [state.hotkeys?.[action]], state.behavior.overlayHotkeyHints);
+    }
   }
 
   private syncSeek(state: OverlayViewState): void {
@@ -575,6 +630,7 @@ export class OverlayView {
       return;
     }
     this.ensureVolumeBar();
+    this.syncVolumeHints(state);
   }
 
   private ensureVolumeBar(): HTMLDivElement {
@@ -643,7 +699,7 @@ export class OverlayView {
     mute.addEventListener(
       'click',
       (event) => {
-        this.callbacks.onToggleMute();
+        this.callbacks.onMediaAction('toggleMute', 'press');
         blurAfterPointerClick(event);
       },
       { signal },
@@ -712,6 +768,116 @@ export class OverlayView {
     this.volumeReadout = null;
   }
 
+  private syncLoop(state: OverlayViewState): void {
+    if (!state.behavior.overlayLoopBar) {
+      this.removeLoopBar();
+      return;
+    }
+    this.ensureLoopBar();
+  }
+
+  private ensureLoopBar(): HTMLDivElement {
+    if (this.loopBar?.isConnected) {
+      return this.loopBar;
+    }
+    const bar = this.document.createElement('div');
+    bar.className = 'controls controls-loop';
+    bar.setAttribute('role', 'group');
+
+    this.loopListeners = this.openRowListeners(this.loopListeners);
+    const signal = this.loopListeners.signal;
+    for (const action of MEDIA_LOOP_ACTIONS) {
+      bar.append(this.createLoopButton(action, signal));
+    }
+
+    this.loopBar = bar;
+    const anchor = this.volumeBar?.isConnected
+      ? this.volumeBar
+      : this.seekBar?.isConnected
+        ? this.seekBar
+        : this.navigationBar?.isConnected
+          ? this.navigationBar
+          : this.bar;
+    anchor.after(bar);
+    return bar;
+  }
+
+  private createLoopButton(action: MediaLoopAction, signal: AbortSignal): HTMLButtonElement {
+    const side = loopSide(action);
+    const button = this.createChromeButton(
+      `control ${loopControlClass(action)}`,
+      t(action === 'toggleLoop' ? 'loop' : action),
+    );
+    this.bindPress(button, action, signal);
+    if (action.startsWith('clear') || action.startsWith('jump')) {
+      button.hidden = true;
+    }
+    if (action === 'toggleLoop') {
+      button.setAttribute('aria-pressed', 'false');
+      button.append(createLoopIcon(this.document, false));
+    } else if (side && action.startsWith('clear')) {
+      const markIcon = this.document.createElement('span');
+      markIcon.className = 'loop-clear-mark';
+      markIcon.append(createLoopLetter(this.document, side), createLetterSlash(this.document));
+      button.append(markIcon);
+    } else if (side && action.startsWith('jump')) {
+      button.append(createJumpArrow(this.document), createLoopLetter(this.document, side));
+    } else if (side) {
+      button.append(createLoopLetter(this.document, side));
+    }
+    this.loopButtons.set(action, button);
+    return button;
+  }
+
+  private removeLoopBar(): void {
+    if (!this.loopBar) {
+      return;
+    }
+    this.loopListeners?.abort();
+    this.loopListeners = null;
+    this.loopBar.remove();
+    this.loopBar = null;
+    this.loopButtons.clear();
+  }
+
+  updateLoop(state: OverlayLoopState): void {
+    if (!this.loopBar?.isConnected || !this.state?.behavior.overlayLoopBar) {
+      return;
+    }
+    this.paintLoopMark('a', state.markA);
+    this.paintLoopMark('b', state.markB);
+    const toggle = this.loopButtons.get('toggleLoop');
+    if (!toggle) {
+      return;
+    }
+    toggle.setAttribute('aria-pressed', state.enabled ? 'true' : 'false');
+    toggle.replaceChildren(createLoopIcon(this.document, state.enabled));
+    this.syncLoopHints();
+  }
+
+  private paintLoopMark(mark: LoopMark, seconds: number | null): void {
+    const button = this.loopButtons.get(mark === 'a' ? 'markA' : 'markB');
+    const clear = this.loopButtons.get(mark === 'a' ? 'clearMarkA' : 'clearMarkB');
+    const jump = this.loopButtons.get(mark === 'a' ? 'jumpToA' : 'jumpToB');
+    if (!button || !clear || !jump) {
+      return;
+    }
+    const name = t(mark === 'a' ? 'markA' : 'markB');
+    const shown = seconds == null ? null : formatMarkTime(seconds);
+    button.setAttribute('aria-label', shown == null ? name : `${name}, ${shown}`);
+    button.replaceChildren(createLoopLetter(this.document, mark));
+    if (shown != null) {
+      const badge = this.document.createElement('span');
+      badge.className = 'loop-badge';
+      badge.setAttribute('aria-hidden', 'true');
+      badge.textContent = shown;
+      button.append(badge);
+    }
+    const hideActions = seconds == null;
+    hideLoopAction(clear, hideActions, button);
+    hideLoopAction(jump, hideActions, button);
+  }
+
   updateVolume(state: OverlayVolumeState): void {
     if (!this.volumeBar || !this.state?.behavior.overlayVolumeBar || this.volumeScrubbing) {
       return;
@@ -750,6 +916,7 @@ export class OverlayView {
     mute.setAttribute('aria-label', t(muted ? 'volumeUnmute' : 'volumeMute'));
     mute.dataset.volumeIcon = kind;
     mute.replaceChildren(createVolumeIcon(this.document, kind));
+    this.syncVolumeHints(this.state);
   }
 
   private finishVolumeDrag(): void {
@@ -937,16 +1104,7 @@ export class OverlayView {
     signal: AbortSignal,
   ): HTMLButtonElement {
     const button = this.createChromeButton('control control-nav', label);
-    button.addEventListener(
-      'click',
-      (event) => {
-        if (!button.disabled) {
-          this.callbacks.onMediaAction(action, 'press');
-        }
-        blurAfterPointerClick(event);
-      },
-      { signal },
-    );
+    this.bindPress(button, action, signal);
     return button;
   }
 
@@ -1165,25 +1323,35 @@ function createAdjustIcon(document: Document, direction: -1 | 1): SVGSVGElement 
   return svg;
 }
 
-function syncHotkeyHint(
-  button: HTMLButtonElement,
-  binding: HotkeyBinding | null,
+function syncHotkeyHints(
+  element: HTMLElement,
+  bindings: readonly (HotkeyBinding | null | undefined)[],
   showHint: boolean,
 ): void {
-  button.querySelector('.hotkey-hint')?.remove();
-  if (!binding) {
-    button.removeAttribute('aria-keyshortcuts');
+  for (const node of [...element.children]) {
+    if (node.classList.contains('hotkey-hint')) {
+      node.remove();
+    }
+  }
+  const active = bindings.filter((binding): binding is HotkeyBinding => binding != null);
+  if (active.length === 0) {
+    element.removeAttribute('aria-keyshortcuts');
     return;
   }
-  button.setAttribute('aria-keyshortcuts', ariaKeyshortcutsFromBinding(binding));
+  element.setAttribute(
+    'aria-keyshortcuts',
+    active.map((binding) => ariaKeyshortcutsFromBinding(binding)).join(' '),
+  );
   if (!showHint) {
     return;
   }
-  const hint = button.ownerDocument.createElement('kbd');
-  hint.className = 'hotkey-hint';
-  hint.setAttribute('aria-hidden', 'true');
-  hint.textContent = visualHotkeyParts(binding).join('\u2009');
-  button.append(hint);
+  for (const binding of active) {
+    const hint = element.ownerDocument.createElement('kbd');
+    hint.className = 'hotkey-hint';
+    hint.setAttribute('aria-hidden', 'true');
+    hint.textContent = visualHotkeyParts(binding).join('\u2009');
+    element.append(hint);
+  }
 }
 
 function isActivationKey(event: KeyboardEvent): boolean {
@@ -1277,6 +1445,78 @@ function createNavigationIcon(document: Document, action: MediaNavigationAction)
         ['path', { d: 'M19 5v14' }],
       ]);
   }
+}
+
+function loopSide(action: MediaLoopAction): LoopMark | null {
+  if (action === 'toggleLoop') {
+    return null;
+  }
+  return action.endsWith('A') ? 'a' : 'b';
+}
+
+function loopControlClass(action: MediaLoopAction): string {
+  if (action === 'toggleLoop') {
+    return 'loop-toggle';
+  }
+  if (action.startsWith('clear')) {
+    return 'loop-clear';
+  }
+  if (action.startsWith('jump')) {
+    return 'loop-jump';
+  }
+  return 'loop-mark';
+}
+
+function createLoopLetter(document: Document, mark: LoopMark): HTMLSpanElement {
+  const letter = document.createElement('span');
+  letter.className = 'loop-letter';
+  letter.setAttribute('aria-hidden', 'true');
+  letter.textContent = mark === 'a' ? 'A' : 'B';
+  return letter;
+}
+
+function createLetterSlash(document: Document): SVGSVGElement {
+  const slash = createSvg(document, [['path', { d: 'M3 3 21 21' }]]);
+  slash.classList.add('loop-slash');
+  slash.setAttribute('stroke-width', '5');
+  return slash;
+}
+
+function hideLoopAction(
+  control: HTMLButtonElement,
+  hide: boolean,
+  fallback: HTMLButtonElement,
+): void {
+  if (!control.hidden && hide) {
+    const root = control.getRootNode();
+    if (root instanceof ShadowRoot && root.activeElement === control) {
+      fallback.focus();
+    }
+  }
+  control.hidden = hide;
+}
+
+function createJumpArrow(document: Document): SVGSVGElement {
+  const arrow = createSvg(document, [
+    ['path', { d: 'M5 7v2a5 5 0 0 0 5 5h4' }],
+    ['path', { d: 'M12 11 16 14 12 17' }],
+  ]);
+  arrow.setAttribute('viewBox', '3 5 15 14');
+  arrow.setAttribute('stroke-width', '3.5');
+  return arrow;
+}
+
+function createLoopIcon(document: Document, enabled: boolean): SVGSVGElement {
+  const children: Array<readonly [string, Record<string, string>]> = [
+    ['path', { d: 'm17 2 4 4-4 4' }],
+    ['path', { d: 'M3 11v-1a4 4 0 0 1 4-4h14' }],
+    ['path', { d: 'm7 22-4-4 4-4' }],
+    ['path', { d: 'M21 13v1a4 4 0 0 1-4 4H3' }],
+  ];
+  if (!enabled) {
+    children.push(['path', { d: 'M4 4 20 20' }]);
+  }
+  return createSvg(document, children);
 }
 
 function createVolumeIcon(document: Document, kind: VolumeIconKind): SVGSVGElement {

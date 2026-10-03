@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bufferedStructureKey,
   clampDisplayedCurrentTime,
+  formatMarkTime,
   formatMediaTime,
   formatTimelineReadout,
   mediaTimeReserve,
@@ -54,6 +55,12 @@ describe('media time', () => {
     expect(formatMediaTime(763)).toBe('12:43');
     expect(formatMediaTime(3723)).toBe('1:02:03');
     expect(formatMediaTime(null)).toBe('--:--');
+    expect(formatMarkTime(0)).toBe('0:00.0');
+    expect(formatMarkTime(12.5)).toBe('0:12.5');
+    expect(formatMarkTime(12.59)).toBe('0:12.5');
+    expect(formatMarkTime(43932.5)).toBe('12:12:12.5');
+    expect(formatMarkTime(3723.4)).toBe('1:02:03.4');
+    expect(formatMarkTime(null)).toBe('--:--.-');
     expect(formatTimelineReadout(763, 2901)).toBe('12:43 / 48:21');
     expect(formatTimelineReadout(763, null)).toBe('12:43 / --:--');
   });

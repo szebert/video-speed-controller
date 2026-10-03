@@ -210,6 +210,13 @@ export type SiteHotkeyAction =
   | 'toggleMute'
   | 'decreaseVolume'
   | 'increaseVolume'
+  | 'markA'
+  | 'clearMarkA'
+  | 'jumpToA'
+  | 'markB'
+  | 'clearMarkB'
+  | 'jumpToB'
+  | 'toggleLoop'
   | 'jumpTo10Percent'
   | 'jumpTo20Percent'
   | 'jumpTo30Percent'
@@ -235,6 +242,13 @@ export const SITE_HOTKEY_ACTIONS = [
   'toggleMute',
   'decreaseVolume',
   'increaseVolume',
+  'markA',
+  'clearMarkA',
+  'jumpToA',
+  'markB',
+  'clearMarkB',
+  'jumpToB',
+  'toggleLoop',
   'jumpTo10Percent',
   'jumpTo20Percent',
   'jumpTo30Percent',
@@ -1269,6 +1283,7 @@ export function canonicalizeBehaviorSettingChange(
     case 'overlayNavigationBar':
     case 'overlaySeekBar':
     case 'overlayVolumeBar':
+    case 'overlayLoopBar':
     case 'overlayHotkeyHints':
     case 'overlayAutoHide':
     case 'overlayHoverHold':

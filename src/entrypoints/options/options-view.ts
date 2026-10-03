@@ -182,6 +182,13 @@ const ACTION_LABEL: Record<Exclude<SiteHotkeyAction, JumpPercentAction>, Message
   toggleMute: 'hotkeyToggleMute',
   decreaseVolume: 'hotkeyDecreaseVolume',
   increaseVolume: 'hotkeyIncreaseVolume',
+  markA: 'hotkeyMarkA',
+  clearMarkA: 'hotkeyClearMarkA',
+  jumpToA: 'hotkeyJumpToA',
+  markB: 'hotkeyMarkB',
+  clearMarkB: 'hotkeyClearMarkB',
+  jumpToB: 'hotkeyJumpToB',
+  toggleLoop: 'hotkeyToggleLoop',
 };
 
 const HOTKEY_ROWS: readonly { action: SiteHotkeyAction; description: MessageKey }[] = [
@@ -199,6 +206,13 @@ const HOTKEY_ROWS: readonly { action: SiteHotkeyAction; description: MessageKey 
   { action: 'toggleMute', description: 'hotkeyToggleMuteDescription' },
   { action: 'decreaseVolume', description: 'hotkeyDecreaseVolumeDescription' },
   { action: 'increaseVolume', description: 'hotkeyIncreaseVolumeDescription' },
+  { action: 'markA', description: 'hotkeyMarkADescription' },
+  { action: 'clearMarkA', description: 'hotkeyClearMarkADescription' },
+  { action: 'jumpToA', description: 'hotkeyJumpToADescription' },
+  { action: 'markB', description: 'hotkeyMarkBDescription' },
+  { action: 'clearMarkB', description: 'hotkeyClearMarkBDescription' },
+  { action: 'jumpToB', description: 'hotkeyJumpToBDescription' },
+  { action: 'toggleLoop', description: 'hotkeyToggleLoopDescription' },
   ...JUMP_PERCENT_ACTIONS.map((action) => ({
     action,
     description: 'hotkeyJumpToPercentDescription' as const,
@@ -1521,6 +1535,7 @@ export class OptionsView {
           this.boolSwitch(state, 'overlay-navigation-bar', 'overlayNavigationBar', 'overlay'),
           this.boolSwitch(state, 'overlay-seek-bar', 'overlaySeekBar', 'overlay'),
           this.boolSwitch(state, 'overlay-volume-bar', 'overlayVolumeBar', 'overlay'),
+          this.boolSwitch(state, 'overlay-loop-bar', 'overlayLoopBar', 'overlay'),
           this.percentSlider(state, {
             field: 'overlayOpacity',
             label: t('overlayOpacity'),

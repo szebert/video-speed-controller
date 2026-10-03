@@ -3,6 +3,7 @@
 import type { AppliedTabBehavior } from '../core/applied-tab-behavior';
 import type {
   ControllerActionPhase,
+  MediaLoopAction,
   MediaNavigationAction,
   TransportHoldOwner,
 } from '../core/controller-action';
@@ -24,6 +25,14 @@ export type OverlayVolumeState = {
   muted: boolean;
 };
 
+export type LoopMark = 'a' | 'b';
+
+export type OverlayLoopState = {
+  markA: number | null;
+  markB: number | null;
+  enabled: boolean;
+};
+
 export type VolumeIconKind = 'muted' | 'silent' | 'low' | 'high';
 
 export function volumeIconKind(volume: number, muted: boolean): VolumeIconKind {
@@ -39,12 +48,15 @@ export function volumeIconKind(volume: number, muted: boolean): VolumeIconKind {
   return 'high';
 }
 
+/** Buttons that dispatch one media action. Sliders stay on their own callbacks. */
+export type OverlayButtonAction = MediaNavigationAction | MediaLoopAction | 'toggleMute';
+
 export type OverlayActions = {
   adjustSpeed(direction: -1 | 1, video: HTMLVideoElement): void;
   resetSpeed?(video: HTMLVideoElement): void;
-  /** One callback for every navigation button, rather than seven methods. */
+  /** One callback for every press or hold button, rather than one method per button. */
   mediaAction?(
-    action: MediaNavigationAction,
+    action: OverlayButtonAction,
     phase: ControllerActionPhase,
     video: HTMLVideoElement,
     hold: TransportHoldOwner,
@@ -53,14 +65,13 @@ export type OverlayActions = {
   openSettings?(): void;
   seek?(seconds: number, video: HTMLVideoElement): boolean;
   setVolume?(level: number, video: HTMLVideoElement): boolean;
-  toggleMute?(video: HTMLVideoElement): boolean;
 };
 
 export type OverlayViewCallbacks = {
   onAdjust(direction: -1 | 1): void;
   onReset(): void;
   onMediaAction(
-    action: MediaNavigationAction,
+    action: OverlayButtonAction,
     phase: ControllerActionPhase,
     hold?: TransportHoldOwner,
   ): void;
@@ -70,7 +81,6 @@ export type OverlayViewCallbacks = {
   onSeek(seconds: number, phase: OverlaySeekPhase): void;
   onSeekCancel(): void;
   onVolume(level: number): void;
-  onToggleMute(): void;
   onVolumeDragEnd(): void;
 };
 

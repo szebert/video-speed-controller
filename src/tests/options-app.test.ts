@@ -1546,6 +1546,22 @@ describe('Options page', () => {
     });
   });
 
+  it('sends overlayLoopBar true from the Show extras bar switch', async () => {
+    sendMessage.mockImplementation(loadReply(snapshot()));
+    await renderApp();
+    await selectTab('Overlay');
+    const loopSwitch = container.querySelector('#overlay-loop-bar');
+    expect(loopSwitch).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      click(loopSwitch);
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'SET_BEHAVIOR_SETTING',
+      scope: { kind: 'global' },
+      change: { kind: 'value', field: 'overlayLoopBar', value: true },
+    });
+  });
+
   it('persists independent skip distances and a fast-forward speed', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();

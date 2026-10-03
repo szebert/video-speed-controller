@@ -377,6 +377,13 @@ describe('site behavior resolution', () => {
       'jumpToEnd',
       'playPause',
       'toggleMute',
+      'markA',
+      'clearMarkA',
+      'jumpToA',
+      'markB',
+      'clearMarkB',
+      'jumpToB',
+      'toggleLoop',
     ] as const) {
       expect(hotkeyActionMode(action, false)).toBe('once');
       expect(hotkeyActionMode(action, true)).toBe('once');
@@ -392,6 +399,7 @@ describe('site behavior resolution', () => {
     expect(resolved.overlayNavigationBar).toEqual({ value: false, source: 'built-in' });
     expect(resolved.overlaySeekBar).toEqual({ value: false, source: 'built-in' });
     expect(resolved.overlayVolumeBar).toEqual({ value: false, source: 'built-in' });
+    expect(resolved.overlayLoopBar).toEqual({ value: false, source: 'built-in' });
     expect(resolved.skipBackSeconds).toEqual({ value: 5, source: 'built-in' });
     expect(resolved.skipForwardSeconds).toEqual({ value: 10, source: 'built-in' });
     expect(resolved.skipScaleWithPlaybackRate).toEqual({ value: false, source: 'built-in' });
@@ -1232,6 +1240,13 @@ describe('behavior setting changes', () => {
         value: true,
       }),
     ).toEqual({ kind: 'value', field: 'overlayVolumeBar', value: true });
+    expect(
+      canonicalizeBehaviorSettingChange({
+        kind: 'value',
+        field: 'overlayLoopBar',
+        value: true,
+      }),
+    ).toEqual({ kind: 'value', field: 'overlayLoopBar', value: true });
     expect(
       canonicalizeBehaviorSettingChange({
         kind: 'value',

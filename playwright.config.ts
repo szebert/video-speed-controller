@@ -25,7 +25,7 @@ export default defineConfig({
     {
       name: 'extension',
       testMatch:
-        /(?:popup|options|overlay-stacking|rewind|seek|volume|hotkey-consume|ui-keyboard)\.spec\.ts/,
+        /(?:popup|options|overlay-stacking|rewind|seek|volume|loop|hotkey-consume|ui-keyboard)\.spec\.ts/,
       use: {
         baseURL: 'http://127.0.0.1:4173',
         channel: 'chromium',

@@ -293,7 +293,7 @@ describe('executeControllerAction', () => {
     await executeControllerAction('toggleMute', { resolveRegistry: () => registry, source });
     expect(video.muted).toBe(false);
     expect(video.volume).toBe(0.6);
-    expect(flashText()).toBe('Unmute');
+    expect(flashText()).toBe('Unmute 60%');
   });
 
   it('steps volume locally and flashes the applied percent', async () => {
@@ -304,11 +304,38 @@ describe('executeControllerAction', () => {
     expect(sendMessage).not.toHaveBeenCalled();
     expect(video.volume).toBe(0.6);
     expect(video.muted).toBe(false);
-    expect(flashText()).toBe('60%');
+    expect(flashText()).toBe('Volume 60% (+10%)');
 
     await executeControllerAction('decreaseVolume', { resolveRegistry: () => registry, source });
     expect(video.volume).toBe(0.5);
-    expect(flashText()).toBe('50%');
+    expect(flashText()).toBe('Volume 50% (−10%)');
+  });
+
+  it('runs unbound loop hotkeys on one video and flashes them', async () => {
+    seekable(video, { currentTime: 65, duration: 120, paused: true });
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+    const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
+    await executeControllerAction('markA', { resolveRegistry: () => registry, source });
+    expect(flashText()).toBe('Mark A 1:05.0');
+    video.currentTime = 10;
+    await executeControllerAction('jumpToA', { resolveRegistry: () => registry, source });
+    expect(video.currentTime).toBe(65);
+    expect(flashText()).toBe('Jump to A 1:05.0');
+    await executeControllerAction('markB', { resolveRegistry: () => registry, source });
+    expect(flashText()).toBe('Mark B 1:05.0');
+    await executeControllerAction('toggleLoop', { resolveRegistry: () => registry, source });
+    expect(flashText()).toBe('Loop on');
+    await executeControllerAction('clearMarkA', { resolveRegistry: () => registry, source });
+    expect(flashText()).toBe('Clear mark A');
+    await executeControllerAction('clearMarkB', { resolveRegistry: () => registry, source });
+    expect(flashText()).toBe('Clear mark B');
+    await executeControllerAction('toggleLoop', { resolveRegistry: () => registry, source });
+    expect(flashText()).toBe('Loop off');
+    const parked = video.currentTime;
+    document.querySelector(HOTKEY_FLASH_HOST_TAG)?.remove();
+    await executeControllerAction('jumpToB', { resolveRegistry: () => registry, source });
+    expect(video.currentTime).toBe(parked);
+    expect(flashText()).toBeUndefined();
   });
 
   it('changes only the selected video', async () => {
