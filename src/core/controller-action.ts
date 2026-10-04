@@ -6,7 +6,7 @@ import type { Equal } from '../types/equal';
 /** Actions that can have a stored binding. */
 export type { SiteHotkeyAction };
 
-/** Actions content can execute: tab-wide speed plus one-video actions. */
+/** Actions content can execute: settings, tab-wide speed, and one-video actions. */
 export type ControllerAction = SiteHotkeyAction;
 
 export const TAB_SPEED_ACTIONS = [
@@ -78,7 +78,7 @@ export const MEDIA_LOCAL_ACTIONS = [
   ...JUMP_PERCENT_ACTIONS,
 ] as const;
 
-true satisfies Equal<ControllerAction, TabSpeedAction | MediaLocalAction>;
+true satisfies Equal<ControllerAction, 'openSettings' | TabSpeedAction | MediaLocalAction>;
 
 /** Press-and-hold phase. One-shot and repeat dispatches always use `press`. */
 export type ControllerActionPhase = 'press' | 'start' | 'end';

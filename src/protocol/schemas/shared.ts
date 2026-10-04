@@ -142,6 +142,7 @@ true satisfies Equal<DomainHotkeySettingChange, z.infer<typeof HotkeySettingChan
 const ResolvedHotkeyBindingSchema = resolvedSettingSchema(z.union([HotkeyBindingSchema, z.null()]));
 
 export const ResolvedHotkeyMapSchema = z.object({
+  openSettings: ResolvedHotkeyBindingSchema,
   increaseSpeed: ResolvedHotkeyBindingSchema,
   decreaseSpeed: ResolvedHotkeyBindingSchema,
   resetSpeed: ResolvedHotkeyBindingSchema,

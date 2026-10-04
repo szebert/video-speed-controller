@@ -168,6 +168,7 @@ type SwitchLive = {
 };
 
 const ACTION_LABEL: Record<Exclude<SiteHotkeyAction, JumpPercentAction>, MessageKey> = {
+  openSettings: 'openSettings',
   decreaseSpeed: 'hotkeyDecreaseSpeed',
   increaseSpeed: 'hotkeyIncreaseSpeed',
   resetSpeed: 'hotkeyResetSpeed',
@@ -217,6 +218,7 @@ const HOTKEY_ROWS: readonly { action: SiteHotkeyAction; description: MessageKey 
     action,
     description: 'hotkeyJumpToPercentDescription' as const,
   })),
+  { action: 'openSettings', description: 'hotkeyOpenSettingsDescription' },
 ];
 
 function themeLabel(key: ThemePreference): string {

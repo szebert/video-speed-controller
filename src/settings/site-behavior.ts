@@ -196,6 +196,7 @@ export function overlayPositionFromGrid(row: GridIndex, column: GridIndex): Over
 }
 
 export type SiteHotkeyAction =
+  | 'openSettings'
   | 'increaseSpeed'
   | 'decreaseSpeed'
   | 'resetSpeed'
@@ -228,6 +229,7 @@ export type SiteHotkeyAction =
   | 'jumpTo90Percent';
 
 export const SITE_HOTKEY_ACTIONS = [
+  'openSettings',
   'increaseSpeed',
   'decreaseSpeed',
   'resetSpeed',

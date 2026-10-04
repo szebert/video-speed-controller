@@ -136,6 +136,28 @@ describe('HotkeyListener', () => {
     });
   });
 
+  it('opens settings once per press when assigned, including without a video', async () => {
+    listener.setHotkeys(builtInEffectiveHotkeys());
+    const unbound = keydown('KeyO');
+    window.dispatchEvent(unbound);
+    expect(unbound.defaultPrevented).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    document.querySelector('video')?.remove();
+    listener.setHotkeys({ ...builtInEffectiveHotkeys(), openSettings: binding('KeyO') });
+    enableRepeat();
+    const assigned = keydown('KeyO');
+    window.dispatchEvent(assigned);
+    window.dispatchEvent(keydown('KeyO', { repeat: true }));
+    await vi.runAllTimersAsync();
+    expect(assigned.defaultPrevented).toBe(true);
+    expect(sendMessage).toHaveBeenCalledExactlyOnceWith({ type: 'OPEN_OPTIONS_PAGE' });
+
+    window.dispatchEvent(keyup('KeyO'));
+    window.dispatchEvent(keydown('KeyO'));
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+  });
+
   it('fires the first repeat after the delay, not delay plus interval', async () => {
     listener.setHotkeys(builtInEffectiveHotkeys());
     enableRepeat(500, 15);

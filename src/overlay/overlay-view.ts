@@ -354,6 +354,7 @@ export class OverlayView {
     syncHotkeyHints(this.slower, [state.hotkeys?.decreaseSpeed], behavior.overlayHotkeyHints);
     syncHotkeyHints(this.faster, [state.hotkeys?.increaseSpeed], behavior.overlayHotkeyHints);
     syncHotkeyHints(this.speedReadout, [state.hotkeys?.resetSpeed], behavior.overlayHotkeyHints);
+    syncHotkeyHints(this.settings, [state.hotkeys?.openSettings], behavior.overlayHotkeyHints);
 
     if (behavior.overlayPositionButton) {
       if (!this.move.isConnected) {

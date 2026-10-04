@@ -115,6 +115,7 @@ export function hotkeyBindingsEqual(
 // builtInEffectiveHotkeys() without a runtime import cycle.
 export function emptyEffectiveHotkeys(): EffectiveHotkeyMap {
   return {
+    openSettings: null,
     decreaseSpeed: null,
     increaseSpeed: null,
     resetSpeed: null,

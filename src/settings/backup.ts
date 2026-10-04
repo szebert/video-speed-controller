@@ -123,6 +123,7 @@ const BackupV1HotkeyBindingSchema = z.strictObject({
 }) satisfies z.ZodType<HotkeyBinding>;
 
 const BackupV1HotkeysSchema = z.strictObject({
+  openSettings: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   increaseSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   decreaseSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   resetSpeed: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),

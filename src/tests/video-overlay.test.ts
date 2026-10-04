@@ -785,6 +785,48 @@ describe('VideoOverlay', () => {
     expect(openSettings).toHaveBeenCalledTimes(1);
   });
 
+  it('updates the settings shortcut hint only while a binding is assigned', () => {
+    const video = sizedVideo();
+    const overlay = new VideoOverlay(video, () => overlay.layout());
+    const behavior = tabBehavior(1, { overlayAutoHide: false });
+    const hotkeys = builtInEffectiveHotkeys();
+    overlay.setBehavior(behavior, hotkeys);
+    overlay.setControlled(true);
+    overlay.layout();
+    const settings = overlay.host.shadowRoot?.querySelector('[aria-label="Open settings"]');
+    expect(settings).toBeInstanceOf(HTMLButtonElement);
+    expect(settings?.querySelector('kbd')).toBeNull();
+    expect(settings?.hasAttribute('aria-keyshortcuts')).toBe(false);
+
+    const assigned = {
+      ...hotkeys,
+      openSettings: { code: 'KeyO', ctrl: true, alt: false, shift: true, meta: false },
+    };
+    overlay.setBehavior(behavior, assigned);
+    overlay.layout();
+    expect(settings?.querySelectorAll('kbd.hotkey-hint')).toHaveLength(1);
+    expect(settings?.querySelector('kbd')?.textContent).toBe('Ctrl\u2009Shift\u2009O');
+    expect(settings?.getAttribute('aria-keyshortcuts')).toBe('Control+Shift+O');
+
+    overlay.setBehavior({ ...behavior, overlayHotkeyHints: false }, assigned);
+    overlay.layout();
+    expect(settings?.querySelector('kbd')).toBeNull();
+    expect(settings?.getAttribute('aria-keyshortcuts')).toBe('Control+Shift+O');
+
+    overlay.setBehavior(behavior, {
+      ...assigned,
+      openSettings: { ...assigned.openSettings, code: 'KeyP' },
+    });
+    overlay.layout();
+    expect(settings?.querySelectorAll('kbd.hotkey-hint')).toHaveLength(1);
+    expect(settings?.querySelector('kbd')?.textContent).toBe('Ctrl\u2009Shift\u2009P');
+
+    overlay.setBehavior(behavior, hotkeys);
+    overlay.layout();
+    expect(settings?.querySelector('kbd')).toBeNull();
+    expect(settings?.hasAttribute('aria-keyshortcuts')).toBe(false);
+  });
+
   it('disables plus at max speed and minus at min speed', () => {
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());

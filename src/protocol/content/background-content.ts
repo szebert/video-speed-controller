@@ -57,6 +57,7 @@ const HotkeyBindingSchema = z.object({
 });
 
 export const EffectiveHotkeyMapSchema = z.object({
+  openSettings: z.union([HotkeyBindingSchema, z.null()]),
   increaseSpeed: z.union([HotkeyBindingSchema, z.null()]),
   decreaseSpeed: z.union([HotkeyBindingSchema, z.null()]),
   resetSpeed: z.union([HotkeyBindingSchema, z.null()]),

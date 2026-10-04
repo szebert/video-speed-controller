@@ -20,6 +20,7 @@
   "rememberLastSpeedDescription": "When on, new tabs and reloads start at the last used current speed. When off, they start at Default speed.",
   "enabledOnThisSite": "Enabled on this site",
   "openSettings": "Open settings",
+  "hotkeyOpenSettingsDescription": "Open settings for the current site.",
   "changeTheme": "Change theme",
   "themeDark": "Dark",
   "themeLight": "Light",

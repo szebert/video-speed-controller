@@ -102,6 +102,7 @@ describe('hotkey bindings', () => {
     ] as const;
     for (const map of [emptyEffectiveHotkeys(), builtInEffectiveHotkeys()]) {
       expect(Object.keys(map).sort()).toEqual([...SITE_HOTKEY_ACTIONS].sort());
+      expect(map.openSettings).toBeNull();
       for (const action of navigationActions) {
         expect(map[action]).toBeNull();
       }

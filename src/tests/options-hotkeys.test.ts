@@ -157,6 +157,24 @@ describe('Hotkeys settings card', () => {
     expect(container.textContent).toContain(hotkeyConflictMessage('increaseSpeed'));
   });
 
+  it('offers an unassigned settings shortcut and records a binding', async () => {
+    const onMutate = vi.fn();
+    await renderCard(onMutate);
+    const button = container.querySelector('[aria-label="Record shortcut: Open settings"]');
+    expect(button).toBeInstanceOf(HTMLButtonElement);
+    expect(button?.textContent).toBe('None');
+    await act(() => (button as HTMLButtonElement).click());
+    await flush();
+    await act(() => {
+      window.dispatchEvent(keydown('KeyO', { key: 'o', ctrlKey: true }));
+    });
+    expect(onMutate).toHaveBeenCalledWith({
+      kind: 'hotkey-value',
+      action: 'openSettings',
+      value: { code: 'KeyO', ctrl: true, alt: false, shift: false, meta: false },
+    });
+  });
+
   it('records, cancels, and unbinds without assigning the activating Enter', async () => {
     const onMutate = vi.fn();
     await renderCard(onMutate);
@@ -324,7 +342,7 @@ describe('Hotkeys settings card', () => {
     expect(onMutate).toHaveBeenCalledWith({ kind: 'hotkey-inherit', action: 'increaseSpeed' });
   });
 
-  it('lists every hotkey row: speed, navigation, volume, loop, then percent jumps', async () => {
+  it('lists every hotkey row: speed, navigation, volume, loop, percent jumps, then settings', async () => {
     await renderCard(vi.fn());
     expect(
       [...container.querySelectorAll('[data-hotkey-status]')].map(
@@ -363,6 +381,7 @@ describe('Hotkeys settings card', () => {
       'Jump to 70%',
       'Jump to 80%',
       'Jump to 90%',
+      'Open settings',
     ]);
     expect(container.querySelector('#hotkey-jumpTo10Percent-help')?.textContent).toBe(
       'Seek the video to 10% in its seekable range.',

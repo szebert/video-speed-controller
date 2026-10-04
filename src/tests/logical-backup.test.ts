@@ -81,6 +81,20 @@ describe('logical backup import/export', () => {
     });
   });
 
+  it('imports and exports global and per-site settings shortcuts', async () => {
+    const deps = pair();
+    const binding = { code: 'KeyO', ctrl: true, alt: false, shift: false, meta: false };
+    const backup = {
+      formatVersion: 1,
+      global: { hotkeys: { openSettings: binding } },
+      sites: { 'www.youtube.com': { hotkeys: { openSettings: null } } },
+      theme: 'dark',
+    };
+    const result = await importLogicalSettings(backupText(backup), 'merge', deps);
+    expect(result.skippedRecordCount).toBe(0);
+    expect(await exportLogicalBackup(deps)).toEqual(backup);
+  });
+
   it('merges present fields and keeps omitted sites', async () => {
     const deps = pair(50);
     await persistSiteSpeed(YOUTUBE, 1.5, deps);

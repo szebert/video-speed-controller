@@ -67,10 +67,18 @@ export async function executeControllerAction(
     executeMediaLocalAction(action, context);
     return;
   }
-  if (!isTabSpeedAction(action)) {
-    return;
-  }
   try {
+    if (action === 'openSettings') {
+      const response = await sendContentRequest({ type: 'OPEN_OPTIONS_PAGE' });
+      const failure = response ? contentFailureMessage(response) : 'Invalid response';
+      if (failure) {
+        console.warn('OPEN_OPTIONS_PAGE failed', failure);
+      }
+      return;
+    }
+    if (!isTabSpeedAction(action)) {
+      return;
+    }
     const response = await sendContentRequest({ type: 'DISPATCH_TAB_ACTION', action });
     if (!response) {
       console.warn('DISPATCH_TAB_ACTION failed', 'Invalid response');
@@ -98,7 +106,10 @@ export async function executeControllerAction(
     }
     registry.flashButtonAction(payload);
   } catch (error) {
-    console.warn('DISPATCH_TAB_ACTION failed', error);
+    console.warn(
+      `${action === 'openSettings' ? 'OPEN_OPTIONS_PAGE' : 'DISPATCH_TAB_ACTION'} failed`,
+      error,
+    );
     throw error;
   }
 }

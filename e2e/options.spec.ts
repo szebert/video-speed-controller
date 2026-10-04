@@ -15,6 +15,47 @@ import {
 
 test.describe.configure({ mode: 'serial' });
 
+test('an optional settings hotkey shows on the overlay and opens current-site settings', async ({
+  context,
+  extensionId,
+  site,
+  openExtensionPopup,
+}) => {
+  await openExtensionPopup();
+  const gear = site.locator('osvsc-overlay').first().getByRole('button', { name: 'Open settings' });
+  await expect(gear).toBeAttached();
+  await expect(gear.locator('kbd')).toHaveCount(0);
+
+  const options = await openOptions(context, extensionId);
+  await selectOptionsTab(options, 'Hotkeys');
+  const recorder = options.getByRole('button', {
+    name: 'Record shortcut: Open settings',
+    exact: true,
+  });
+  await expect(recorder).toHaveText('None');
+  await recorder.click();
+  await expect(recorder).toHaveAttribute('data-recording', 'true');
+  await options.keyboard.press('o');
+  await expect(gear.locator('kbd')).toHaveText('O');
+  await expect(gear).toHaveAttribute('aria-keyshortcuts', 'O');
+  await options.close();
+
+  await site.bringToFront();
+  const opened = context.waitForEvent('page');
+  await site.keyboard.press('o');
+  const siteOptions = await opened;
+  await expect(siteOptions).toHaveURL(
+    `chrome-extension://${extensionId}/options.html?site=127.0.0.1`,
+  );
+  await expect(siteOptions.getByRole('heading', { name: '127.0.0.1', exact: true })).toBeVisible();
+  await selectOptionsTab(siteOptions, 'Hotkeys');
+  await siteOptions
+    .getByRole('button', { name: 'Remove shortcut: Open settings', exact: true })
+    .click();
+  await expect(gear.locator('kbd')).toHaveCount(0);
+  await expect(gear).not.toHaveAttribute('aria-keyshortcuts');
+});
+
 async function overlayBadgeTexts(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     [...document.querySelectorAll('osvsc-overlay')].map(

@@ -15,8 +15,6 @@ Longer:
 
 Open Source Video Speed Controller (OS VSC) lets you speed up or slow down HTML5 video from the Chrome toolbar. Access is off by default. You enable one site at a time from the popup, or all sites from Settings. Per-site speed intent may follow Chrome Sync. The source is on GitHub under GPLv3. There are no accounts, analytics, or servers.
 
-Do not use bare “Video Speed Controller” as the listing name.
-
 ## Permission justifications
 
 - **storage** — Save the user’s per-site playback-speed preference.
