@@ -190,6 +190,7 @@ const ACTION_LABEL: Record<Exclude<SiteHotkeyAction, JumpPercentAction>, Message
   clearMarkB: 'hotkeyClearMarkB',
   jumpToB: 'hotkeyJumpToB',
   toggleLoop: 'hotkeyToggleLoop',
+  toggleFullscreen: 'hotkeyToggleFullscreen',
 };
 
 const HOTKEY_ROWS: readonly { action: SiteHotkeyAction; description: MessageKey }[] = [
@@ -214,6 +215,7 @@ const HOTKEY_ROWS: readonly { action: SiteHotkeyAction; description: MessageKey 
   { action: 'clearMarkB', description: 'hotkeyClearMarkBDescription' },
   { action: 'jumpToB', description: 'hotkeyJumpToBDescription' },
   { action: 'toggleLoop', description: 'hotkeyToggleLoopDescription' },
+  { action: 'toggleFullscreen', description: 'hotkeyToggleFullscreenDescription' },
   ...JUMP_PERCENT_ACTIONS.map((action) => ({
     action,
     description: 'hotkeyJumpToPercentDescription' as const,

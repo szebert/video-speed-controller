@@ -79,6 +79,7 @@ export const EffectiveHotkeyMapSchema = z.object({
   clearMarkB: z.union([HotkeyBindingSchema, z.null()]),
   jumpToB: z.union([HotkeyBindingSchema, z.null()]),
   toggleLoop: z.union([HotkeyBindingSchema, z.null()]),
+  toggleFullscreen: z.union([HotkeyBindingSchema, z.null()]),
   jumpTo10Percent: z.union([HotkeyBindingSchema, z.null()]),
   jumpTo20Percent: z.union([HotkeyBindingSchema, z.null()]),
   jumpTo30Percent: z.union([HotkeyBindingSchema, z.null()]),

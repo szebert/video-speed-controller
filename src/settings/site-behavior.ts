@@ -218,6 +218,7 @@ export type SiteHotkeyAction =
   | 'clearMarkB'
   | 'jumpToB'
   | 'toggleLoop'
+  | 'toggleFullscreen'
   | 'jumpTo10Percent'
   | 'jumpTo20Percent'
   | 'jumpTo30Percent'
@@ -251,6 +252,7 @@ export const SITE_HOTKEY_ACTIONS = [
   'clearMarkB',
   'jumpToB',
   'toggleLoop',
+  'toggleFullscreen',
   'jumpTo10Percent',
   'jumpTo20Percent',
   'jumpTo30Percent',

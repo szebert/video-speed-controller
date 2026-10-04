@@ -69,12 +69,17 @@ export type MediaLoopAction = (typeof MEDIA_LOOP_ACTIONS)[number];
 
 /** Every action that runs against one video and never reaches the background. */
 export type MediaLocalAction =
-  MediaNavigationAction | JumpPercentAction | MediaVolumeAction | MediaLoopAction;
+  | MediaNavigationAction
+  | JumpPercentAction
+  | MediaVolumeAction
+  | MediaLoopAction
+  | 'toggleFullscreen';
 
 export const MEDIA_LOCAL_ACTIONS = [
   ...MEDIA_NAVIGATION_ACTIONS,
   ...MEDIA_VOLUME_ACTIONS,
   ...MEDIA_LOOP_ACTIONS,
+  'toggleFullscreen',
   ...JUMP_PERCENT_ACTIONS,
 ] as const;
 
@@ -120,6 +125,7 @@ export function isMediaLocalAction(value: unknown): value is MediaLocalAction {
     isMediaNavigationAction(value) ||
     isJumpPercentAction(value) ||
     isMediaVolumeAction(value) ||
-    isMediaLoopAction(value)
+    isMediaLoopAction(value) ||
+    value === 'toggleFullscreen'
   );
 }

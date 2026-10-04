@@ -10,6 +10,11 @@ import type {
 } from '../overlay/types';
 import { t, type MessageKey } from '../i18n/t';
 import { resolveLoopSpan } from './media-loop';
+import {
+  canToggleVideoFullscreen,
+  isNativeVideoFullscreen,
+  isVideoFullscreen,
+} from './media-fullscreen';
 import { safePlay, seekableRange, writeCurrentTime } from './media-navigation';
 import {
   bufferedStructureKey,
@@ -86,9 +91,28 @@ function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('z-index', OVERLAY_Z_INDEX, 'important');
   host.style.setProperty('margin', '0', 'important');
   host.style.setProperty('padding', '0', 'important');
+  host.style.setProperty('inset', 'auto', 'important');
   host.style.setProperty('box-sizing', 'border-box', 'important');
   host.style.setProperty('user-select', 'none', 'important');
   host.style.setProperty('visibility', 'hidden', 'important');
+}
+
+/** Fullscreen flash feedback is noninteractive and can sit above the native video. */
+function syncFullscreenFlash(host: HTMLElement, active: boolean): void {
+  if (!host.isConnected || typeof host.showPopover !== 'function') {
+    return;
+  }
+  if (active) {
+    host.setAttribute('popover', 'manual');
+    if (!host.matches(':popover-open')) {
+      host.showPopover();
+    }
+  } else if (host.hasAttribute('popover')) {
+    if (host.matches(':popover-open')) {
+      host.hidePopover();
+    }
+    host.removeAttribute('popover');
+  }
 }
 
 function flashLabel(payload: HotkeyFlashPayload): string {
@@ -257,6 +281,16 @@ export class VideoOverlay {
     }
     video.addEventListener('emptied', () => this.resetLoopForNewMedia(), { signal });
     video.addEventListener('volumechange', () => this.onVolumeChange(), { signal });
+    for (const type of ['fullscreenchange', 'fullscreenerror'] as const) {
+      document.addEventListener(
+        type,
+        () => {
+          this.syncView();
+          this.requestLayout();
+        },
+        { signal },
+      );
+    }
   }
 
   get speedReadout(): HTMLButtonElement | null {
@@ -440,11 +474,23 @@ export class VideoOverlay {
       visible,
       paused: this.video.paused,
       hotkeys: this.hotkeys,
+      fullscreen: {
+        available: canToggleVideoFullscreen(this.video),
+        active: isVideoFullscreen(this.video),
+      },
     });
   }
 
   private evaluateVisibility(measureRect: () => DOMRect): DOMRect | null {
     if (this.isCheapHidden()) {
+      return null;
+    }
+    if (this.video.ownerDocument.fullscreenElement && !isVideoFullscreen(this.video)) {
+      return null;
+    }
+    // Native video fullscreen makes sibling controls noninteractive in Chromium.
+    // The hotkey and native video controls still exit; keep our flash in the top layer.
+    if (isNativeVideoFullscreen(this.video)) {
       return null;
     }
     const rect = measureRect();
@@ -1076,6 +1122,7 @@ export class VideoOverlay {
     if (!this.flashHost) {
       return;
     }
+    syncFullscreenFlash(this.flashHost, isVideoFullscreen(this.video));
     const rect = this.evaluateFlashRect(measureRect);
     this.flashHost.style.setProperty('visibility', rect ? 'visible' : 'hidden', 'important');
     if (!rect) {
@@ -1093,7 +1140,8 @@ export class VideoOverlay {
       !this.controlled ||
       !this.flashOriginEnabled(this.behavior, this.flashOrigin) ||
       !this.flashHost ||
-      !this.video.isConnected
+      !this.video.isConnected ||
+      (this.video.ownerDocument.fullscreenElement != null && !isVideoFullscreen(this.video))
     ) {
       return null;
     }

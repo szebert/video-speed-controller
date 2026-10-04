@@ -137,6 +137,7 @@ export function emptyEffectiveHotkeys(): EffectiveHotkeyMap {
     clearMarkB: null,
     jumpToB: null,
     toggleLoop: null,
+    toggleFullscreen: null,
     jumpTo10Percent: null,
     jumpTo20Percent: null,
     jumpTo30Percent: null,

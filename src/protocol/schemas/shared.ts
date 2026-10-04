@@ -164,6 +164,7 @@ export const ResolvedHotkeyMapSchema = z.object({
   clearMarkB: ResolvedHotkeyBindingSchema,
   jumpToB: ResolvedHotkeyBindingSchema,
   toggleLoop: ResolvedHotkeyBindingSchema,
+  toggleFullscreen: ResolvedHotkeyBindingSchema,
   jumpTo10Percent: ResolvedHotkeyBindingSchema,
   jumpTo20Percent: ResolvedHotkeyBindingSchema,
   jumpTo30Percent: ResolvedHotkeyBindingSchema,

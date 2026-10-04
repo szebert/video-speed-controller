@@ -49,7 +49,8 @@ export function volumeIconKind(volume: number, muted: boolean): VolumeIconKind {
 }
 
 /** Buttons that dispatch one media action. Sliders stay on their own callbacks. */
-export type OverlayButtonAction = MediaNavigationAction | MediaLoopAction | 'toggleMute';
+export type OverlayButtonAction =
+  MediaNavigationAction | MediaLoopAction | 'toggleMute' | 'toggleFullscreen';
 
 export type OverlayActions = {
   adjustSpeed(direction: -1 | 1, video: HTMLVideoElement): void;
@@ -88,5 +89,6 @@ export type OverlayViewState = {
   behavior: AppliedTabBehavior;
   visible: boolean;
   paused: boolean;
+  fullscreen?: { available: boolean; active: boolean };
   hotkeys?: EffectiveHotkeyMap | null;
 };

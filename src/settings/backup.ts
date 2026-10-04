@@ -145,6 +145,7 @@ const BackupV1HotkeysSchema = z.strictObject({
   clearMarkB: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   jumpToB: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   toggleLoop: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
+  toggleFullscreen: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   jumpTo10Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   jumpTo20Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),
   jumpTo30Percent: z.union([BackupV1HotkeyBindingSchema, z.null()]).optional(),

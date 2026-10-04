@@ -25,6 +25,7 @@ import {
   togglePlayback,
 } from './media-navigation';
 import type { MediaRegistry, TransportHoldOwner } from './media-registry';
+import { toggleVideoFullscreen } from './media-fullscreen';
 import { formatSpeed } from './speed';
 
 export type ControllerActionSource =
@@ -64,7 +65,7 @@ export async function executeControllerAction(
   context: ControllerActionContext,
 ): Promise<void> {
   if (isMediaLocalAction(action)) {
-    executeMediaLocalAction(action, context);
+    await executeMediaLocalAction(action, context);
     return;
   }
   try {
@@ -116,7 +117,10 @@ export async function executeControllerAction(
 
 // Media-local: stays inside this frame and touches exactly one video. These
 // actions must never reach DISPATCH_TAB_ACTION, which is the tab-wide speed RPC.
-function executeMediaLocalAction(action: MediaLocalAction, context: ControllerActionContext): void {
+async function executeMediaLocalAction(
+  action: MediaLocalAction,
+  context: ControllerActionContext,
+): Promise<void> {
   const video = context.source.video;
   if (!video) {
     return;
@@ -127,7 +131,12 @@ function executeMediaLocalAction(action: MediaLocalAction, context: ControllerAc
     return;
   }
   const registry = context.resolveRegistry();
-  const feedback = runMediaLocalAction(action, phase, video, registry, context.hold);
+  const feedback =
+    action === 'toggleFullscreen'
+      ? phase === 'press'
+        ? await runFullscreen(video)
+        : null
+      : runMediaLocalAction(action, phase, video, registry, context.hold);
   if (!feedback) {
     return;
   }
@@ -145,8 +154,24 @@ function executeMediaLocalAction(action: MediaLocalAction, context: ControllerAc
   registry.flashButtonActionOn(video, payload, options);
 }
 
+async function runFullscreen(video: HTMLVideoElement): Promise<MediaLocalFeedback | null> {
+  const result = await toggleVideoFullscreen(video);
+  switch (result) {
+    case 'entered':
+      return { label: t('fullscreenOn') };
+    case 'exited':
+      return { label: t('fullscreenOff') };
+    case 'unavailable':
+      return { label: t('fullscreenUnavailable') };
+    case 'failed':
+      return { label: t('fullscreenFailed') };
+    case null:
+      return null;
+  }
+}
+
 function runMediaLocalAction(
-  action: MediaLocalAction,
+  action: Exclude<MediaLocalAction, 'toggleFullscreen'>,
   phase: ControllerActionPhase,
   video: HTMLVideoElement,
   registry: MediaRegistry,

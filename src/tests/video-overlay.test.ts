@@ -2675,6 +2675,7 @@ describe('VideoOverlay', () => {
       'Clear mark B',
       'Jump to B',
       'Loop',
+      'Fullscreen on',
     ]);
     expect(loopMarkButton(overlay, 'a').querySelector('.loop-badge')).toBeNull();
     expect(loopClearButton(overlay, 'a').hidden).toBe(true);

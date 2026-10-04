@@ -94,6 +94,7 @@ export class OverlayView {
   private loopBar: HTMLDivElement | null = null;
   private loopListeners: AbortController | null = null;
   private readonly loopButtons = new Map<MediaLoopAction, HTMLButtonElement>();
+  private fullscreenButton: HTMLButtonElement | null = null;
   private scrubbing = false;
   private volumeScrubbing = false;
   private volumePointerId: number | null = null;
@@ -285,6 +286,7 @@ export class OverlayView {
     this.loopListeners = null;
     this.loopBar = null;
     this.loopButtons.clear();
+    this.fullscreenButton = null;
     this.element.remove();
   }
 
@@ -775,6 +777,7 @@ export class OverlayView {
       return;
     }
     this.ensureLoopBar();
+    this.syncFullscreen(state);
   }
 
   private ensureLoopBar(): HTMLDivElement {
@@ -790,6 +793,13 @@ export class OverlayView {
     for (const action of MEDIA_LOOP_ACTIONS) {
       bar.append(this.createLoopButton(action, signal));
     }
+    const fullscreen = this.createChromeButton(
+      'control control-icon fullscreen-toggle',
+      t('fullscreenOn'),
+    );
+    this.bindPress(fullscreen, 'toggleFullscreen', signal);
+    this.fullscreenButton = fullscreen;
+    bar.append(fullscreen);
 
     this.loopBar = bar;
     const anchor = this.volumeBar?.isConnected
@@ -839,6 +849,20 @@ export class OverlayView {
     this.loopBar.remove();
     this.loopBar = null;
     this.loopButtons.clear();
+    this.fullscreenButton = null;
+  }
+
+  private syncFullscreen(state: OverlayViewState): void {
+    const button = this.fullscreenButton;
+    if (!button) {
+      return;
+    }
+    const { available = false, active = false } = state.fullscreen ?? {};
+    button.disabled = !available;
+    button.setAttribute('aria-label', t(active ? 'fullscreenOff' : 'fullscreenOn'));
+    button.setAttribute('aria-pressed', String(active));
+    button.replaceChildren(createFullscreenIcon(this.document, active));
+    syncHotkeyHints(button, [state.hotkeys?.toggleFullscreen], state.behavior.overlayHotkeyHints);
   }
 
   updateLoop(state: OverlayLoopState): void {
@@ -1534,6 +1558,19 @@ function createVolumeIcon(document: Document, kind: VolumeIconKind): SVGSVGEleme
     children.push(['path', { d: 'm22 9-6 6' }], ['path', { d: 'm16 9 6 6' }]);
   }
   return createSvg(document, children);
+}
+
+function createFullscreenIcon(document: Document, active: boolean): SVGSVGElement {
+  return createSvg(document, [
+    [
+      'path',
+      {
+        d: active
+          ? 'M8 3v5H3 M16 3v5h5 M3 16h5v5 M21 16h-5v5'
+          : 'M8 3H3v5 M16 3h5v5 M3 16v5h5 M21 16v5h-5',
+      },
+    ],
+  ]);
 }
 
 function createSettingsIcon(document: Document): SVGSVGElement {

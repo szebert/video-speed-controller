@@ -372,6 +372,7 @@ describe('Hotkeys settings card', () => {
       'Clear mark B',
       'Jump to B',
       'Loop',
+      'Fullscreen',
       'Jump to 10%',
       'Jump to 20%',
       'Jump to 30%',
@@ -399,6 +400,7 @@ describe('Hotkeys settings card', () => {
       'Mark A',
       'Jump to A',
       'Loop',
+      'Fullscreen',
     ]) {
       expect(
         container.querySelector(`[aria-label="Record shortcut: ${label}"]`)?.textContent,
