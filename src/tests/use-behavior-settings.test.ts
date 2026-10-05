@@ -15,6 +15,21 @@ function snapshot(): BehaviorSettingsSnapshot {
   };
 }
 
+function siteSnapshot(hostname: string): BehaviorSettingsSnapshot {
+  const base = snapshot();
+  return {
+    ...base,
+    site: {
+      hostname,
+      behavior: { ...base.global },
+      hotkeys: base.globalHotkeys,
+      speedOverrideKind: 'missing',
+      defaultSpeedOverrideKind: 'missing',
+      seedTarget: base.global.speed.value,
+    },
+  };
+}
+
 function getOk(state: BehaviorSettingsSnapshot): GetBehaviorSettingsResponse {
   return { ok: true, state };
 }
@@ -112,5 +127,57 @@ describe('OptionsController first write', () => {
         },
       });
     });
+  });
+
+  it('does not send a queued site edit after that site is deleted', async () => {
+    const site = siteSnapshot('example.com');
+    const gate = deferred<void>();
+    sendMessage.mockImplementation(
+      async (message: { type?: string; change?: { field?: string } }) => {
+        if (message.type === 'GET_CUSTOM_SITES') {
+          return { ok: true, customSites: [] };
+        }
+        if (message.type === 'GET_BEHAVIOR_SETTINGS') {
+          return getOk(site);
+        }
+        if (message.type === 'SET_BEHAVIOR_SETTING' && message.change?.field === 'speed') {
+          await gate.promise;
+        }
+        return {
+          ok: true,
+          state: snapshot(),
+          reappliedTabs: 0,
+          reapplyFailures: 0,
+        };
+      },
+    );
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: new URL('chrome-extension://extid/options.html?site=example.com'),
+    });
+    controller = new OptionsController();
+    controller.start();
+    await vi.waitFor(() => {
+      expect(controller?.getState().ready).toBe(true);
+    });
+    controller.mutate({ kind: 'value', field: 'speed', value: 1.5 });
+    await vi.waitFor(() => {
+      expect(sendMessage.mock.calls.some((call) => call[0]?.type === 'SET_BEHAVIOR_SETTING')).toBe(
+        true,
+      );
+    });
+    controller.mutate({ kind: 'value', field: 'overlayVisible', value: false });
+    const deleting = controller.deleteSite('example.com');
+    gate.resolve();
+    await deleting;
+    expect(
+      sendMessage.mock.calls.some(
+        (call) =>
+          call[0]?.type === 'SET_BEHAVIOR_SETTING' && call[0]?.change?.field === 'overlayVisible',
+      ),
+    ).toBe(false);
+    expect(sendMessage.mock.calls.some((call) => call[0]?.type === 'DELETE_SITE_SETTINGS')).toBe(
+      true,
+    );
   });
 });

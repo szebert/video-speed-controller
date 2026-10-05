@@ -60,6 +60,8 @@ export function createSettingsWriteCoalescer<TChange>(deps: {
   enqueue: (scope: SettingsWriteScope, change: TChange) => void;
   flush: () => Promise<void>;
   isBusy: () => boolean;
+  dropScope: (scope: SettingsWriteScope) => void;
+  discard: () => void;
 } {
   const delayMs = deps.delayMs ?? SETTINGS_WRITE_COALESCE_MS;
   const schedule = deps.setTimeoutFn ?? setTimeout;
@@ -150,7 +152,28 @@ export function createSettingsWriteCoalescer<TChange>(deps: {
     }, delayMs);
   }
 
+  function dropPending(match: (scope: SettingsWriteScope) => boolean): void {
+    for (const [key, item] of [...pending.entries()]) {
+      if (match(item.scope)) {
+        pending.delete(key);
+      }
+    }
+    if (pending.size === 0) {
+      trailingTimer = clearTimer(trailingTimer);
+    }
+  }
+
   return {
+    dropScope(scope: SettingsWriteScope) {
+      const id = settingsWriteScopeId(scope);
+      dropPending((itemScope) => settingsWriteScopeId(itemScope) === id);
+    },
+    discard() {
+      trailingTimer = clearTimer(trailingTimer);
+      quietTimer = clearTimer(quietTimer);
+      pending.clear();
+      quiet = true;
+    },
     enqueue(scope, change) {
       pending.set(pendingKey(scope, deps.key(change)), { scope, change });
       if (inFlight) {

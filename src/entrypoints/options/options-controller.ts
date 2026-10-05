@@ -144,6 +144,8 @@ export class OptionsController {
     key: (change) => change.action,
     send: (batch) => this.sendHotkeyBatch(batch),
   });
+  /** Bumped when a site is deleted so a write queued before the delete cannot land after it. */
+  private readonly siteEpoch = new Map<string, number>();
   private readonly onVisibility = (): void => {
     if (document.visibilityState === 'hidden') {
       void flushSettingsWriteQueues(this.coalescer, this.hotkeyCoalescer);
@@ -178,6 +180,8 @@ export class OptionsController {
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('pagehide', this.onPageHide);
     this.listeners.clear();
+    this.coalescer.discard();
+    this.hotkeyCoalescer.discard();
   }
 
   subscribe(listener: Listener): () => void {
@@ -409,6 +413,9 @@ export class OptionsController {
   }
 
   async deleteSite(hostname: string): Promise<void> {
+    this.siteEpoch.set(hostname, (this.siteEpoch.get(hostname) ?? 0) + 1);
+    this.coalescer.dropScope({ kind: 'site', hostname });
+    this.hotkeyCoalescer.dropScope({ kind: 'site', hostname });
     await this.runDestructive(async () => {
       try {
         const response = await sendOptionsRequest(
@@ -737,8 +744,16 @@ export class OptionsController {
     }
   }
 
+  private scopeEpoch(scope: SettingsWriteScope): number {
+    return scope.kind === 'site' ? (this.siteEpoch.get(scope.hostname) ?? 0) : 0;
+  }
+
   private async sendBehaviorBatch(batch: SettingsWriteBatch): Promise<void> {
+    const epoch = this.scopeEpoch(batch.scope);
     await this.mutationLane.enqueue(async () => {
+      if (!this.started || this.scopeEpoch(batch.scope) !== epoch) {
+        return;
+      }
       const membership = batch.scope.kind === 'site';
       const payload =
         batch.changes.length === 1
@@ -754,6 +769,9 @@ export class OptionsController {
             };
       try {
         const response = await sendOptionsRequest(this.withSnapshotHostname(payload));
+        if (!this.started || this.scopeEpoch(batch.scope) !== epoch) {
+          return;
+        }
         if (
           !this.applyResponse(response, { sentChanges: batch.changes }) ||
           response?.ok === false
@@ -770,6 +788,9 @@ export class OptionsController {
           await this.recover('sidebar');
         }
       } catch {
+        if (!this.started || this.scopeEpoch(batch.scope) !== epoch) {
+          return;
+        }
         this.reportError(t('settingsSaveError'));
         await this.recover(membership ? 'pane-and-sidebar' : 'pane');
         this.optimistic = omitMatchingOptimisticChanges(this.optimistic, batch.changes);
@@ -780,7 +801,11 @@ export class OptionsController {
   }
 
   private async sendHotkeyBatch(batch: SettingsWriteBatch<HotkeySettingChange>): Promise<void> {
+    const epoch = this.scopeEpoch(batch.scope);
     await this.mutationLane.enqueue(async () => {
+      if (!this.started || this.scopeEpoch(batch.scope) !== epoch) {
+        return;
+      }
       const membership = batch.scope.kind === 'site';
       const payload =
         batch.changes.length === 1
@@ -796,6 +821,9 @@ export class OptionsController {
             };
       try {
         const response = await sendOptionsRequest(this.withSnapshotHostname(payload));
+        if (!this.started || this.scopeEpoch(batch.scope) !== epoch) {
+          return;
+        }
         if (
           !this.applyResponse(response, { sentHotkeys: batch.changes }) ||
           response?.ok === false
@@ -815,6 +843,9 @@ export class OptionsController {
           await this.recover('sidebar');
         }
       } catch {
+        if (!this.started || this.scopeEpoch(batch.scope) !== epoch) {
+          return;
+        }
         this.reportError(t('settingsSaveError'));
         await this.recover(membership ? 'pane-and-sidebar' : 'pane');
         let nextHotkeys = this.optimisticHotkeys;

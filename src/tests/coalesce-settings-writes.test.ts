@@ -252,6 +252,41 @@ describe('settings write coalescer', () => {
     expect(settingsWriteQueuesBusy(firstQueue, secondQueue)).toBe(false);
   });
 
+  it('drops a scope that is still waiting out the quiet period', async () => {
+    const sent: SettingsWriteBatch[] = [];
+    const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
+      send: async (batch) => {
+        sent.push(batch);
+      },
+    });
+    const site = { kind: 'site' as const, hostname: 'example.com' };
+    coalescer.enqueue(site, speed(1.25));
+    await Promise.resolve();
+    await Promise.resolve();
+    coalescer.enqueue(site, overlay(false));
+    coalescer.dropScope(site);
+    await vi.advanceTimersByTimeAsync(SETTINGS_WRITE_COALESCE_MS);
+    expect(sent).toEqual([{ scope: site, changes: [speed(1.25)] }]);
+  });
+
+  it('discard drops a quiet-period change and does not send it later', async () => {
+    const sent: SettingsWriteBatch[] = [];
+    const coalescer = createSettingsWriteCoalescer({
+      key: fieldKey,
+      send: async (batch) => {
+        sent.push(batch);
+      },
+    });
+    coalescer.enqueue({ kind: 'global' }, speed(1.25));
+    await Promise.resolve();
+    await Promise.resolve();
+    coalescer.enqueue({ kind: 'global' }, speed(1.5));
+    coalescer.discard();
+    await vi.advanceTimersByTimeAsync(SETTINGS_WRITE_COALESCE_MS);
+    expect(sent).toEqual([{ scope: { kind: 'global' }, changes: [speed(1.25)] }]);
+  });
+
   it('runs mutation work one at a time', async () => {
     const lane = createSerialMutationLane();
     const first = deferred<void>();
