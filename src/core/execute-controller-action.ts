@@ -105,7 +105,7 @@ export async function executeControllerAction(
       registry.flashHotkeyAction({ ...payload, binding: context.source.binding });
       return;
     }
-    registry.flashButtonAction(payload);
+    registry.flashControlAction(payload);
   } catch (error) {
     console.warn(
       `${action === 'openSettings' ? 'OPEN_OPTIONS_PAGE' : 'DISPATCH_TAB_ACTION'} failed`,
@@ -151,7 +151,7 @@ async function executeMediaLocalAction(
     registry.flashHotkeyActionOn(video, { ...payload, binding: context.source.binding }, options);
     return;
   }
-  registry.flashButtonActionOn(video, payload, options);
+  registry.flashControlActionOn(video, payload, options);
 }
 
 async function runFullscreen(video: HTMLVideoElement): Promise<MediaLocalFeedback | null> {

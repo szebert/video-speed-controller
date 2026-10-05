@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
-import {
-  MEDIA_LOOP_ACTIONS,
-  type MediaLoopAction,
-  type MediaNavigationAction,
-  type TransportHoldOwner,
+import type {
+  MediaLoopAction,
+  MediaNavigationAction,
+  TransportHoldOwner,
 } from '../core/controller-action';
 import { ariaKeyshortcutsFromBinding, visualHotkeyParts } from '../core/hotkey-format';
 import { canAdjustSpeed, canonicalizeSpeed, formatSpeed } from '../core/speed';
@@ -60,6 +59,21 @@ const NAVIGATION_BUTTONS = [
   { action: 'fastForward', label: 'navFastForward' },
   { action: 'jumpToEnd', label: 'navJumpToEnd' },
 ] as const satisfies readonly { action: MediaNavigationAction; label: MessageKey }[];
+
+type LoopRowControl = { action: MediaLoopAction; label: MessageKey } & (
+  { kind: 'mark' | 'clear' | 'jump'; side: LoopMark } | { kind: 'toggle'; side: null }
+);
+
+/** Visual composition is independent of the controller/hotkey action registry. */
+const LOOP_ROW_ACTIONS = [
+  { action: 'markA', label: 'markA', kind: 'mark', side: 'a' },
+  { action: 'clearMarkA', label: 'clearMarkA', kind: 'clear', side: 'a' },
+  { action: 'jumpToA', label: 'jumpToA', kind: 'jump', side: 'a' },
+  { action: 'markB', label: 'markB', kind: 'mark', side: 'b' },
+  { action: 'clearMarkB', label: 'clearMarkB', kind: 'clear', side: 'b' },
+  { action: 'jumpToB', label: 'jumpToB', kind: 'jump', side: 'b' },
+  { action: 'toggleLoop', label: 'loop', kind: 'toggle', side: null },
+] as const satisfies readonly LoopRowControl[];
 
 export class OverlayView {
   readonly element: HTMLDivElement;
@@ -452,7 +466,7 @@ export class OverlayView {
     if (!state) {
       return;
     }
-    for (const action of MEDIA_LOOP_ACTIONS) {
+    for (const { action } of LOOP_ROW_ACTIONS) {
       const button = this.loopButtons.get(action);
       if (!button) {
         continue;
@@ -790,8 +804,8 @@ export class OverlayView {
 
     this.loopListeners = this.openRowListeners(this.loopListeners);
     const signal = this.loopListeners.signal;
-    for (const action of MEDIA_LOOP_ACTIONS) {
-      bar.append(this.createLoopButton(action, signal));
+    for (const control of LOOP_ROW_ACTIONS) {
+      bar.append(this.createLoopButton(control, signal));
     }
     const fullscreen = this.createChromeButton(
       'control control-icon fullscreen-toggle',
@@ -813,27 +827,24 @@ export class OverlayView {
     return bar;
   }
 
-  private createLoopButton(action: MediaLoopAction, signal: AbortSignal): HTMLButtonElement {
-    const side = loopSide(action);
-    const button = this.createChromeButton(
-      `control ${loopControlClass(action)}`,
-      t(action === 'toggleLoop' ? 'loop' : action),
-    );
+  private createLoopButton(control: LoopRowControl, signal: AbortSignal): HTMLButtonElement {
+    const { action, kind, side, label } = control;
+    const button = this.createChromeButton(`control loop-${kind}`, t(label));
     this.bindPress(button, action, signal);
-    if (action.startsWith('clear') || action.startsWith('jump')) {
+    if (kind === 'clear' || kind === 'jump') {
       button.hidden = true;
     }
-    if (action === 'toggleLoop') {
+    if (kind === 'toggle') {
       button.setAttribute('aria-pressed', 'false');
       button.append(createLoopIcon(this.document, false));
-    } else if (side && action.startsWith('clear')) {
+    } else if (kind === 'clear') {
       const markIcon = this.document.createElement('span');
       markIcon.className = 'loop-clear-mark';
       markIcon.append(createLoopLetter(this.document, side), createLetterSlash(this.document));
       button.append(markIcon);
-    } else if (side && action.startsWith('jump')) {
+    } else if (kind === 'jump') {
       button.append(createJumpArrow(this.document), createLoopLetter(this.document, side));
-    } else if (side) {
+    } else {
       button.append(createLoopLetter(this.document, side));
     }
     this.loopButtons.set(action, button);
@@ -1470,26 +1481,6 @@ function createNavigationIcon(document: Document, action: MediaNavigationAction)
         ['path', { d: 'M19 5v14' }],
       ]);
   }
-}
-
-function loopSide(action: MediaLoopAction): LoopMark | null {
-  if (action === 'toggleLoop') {
-    return null;
-  }
-  return action.endsWith('A') ? 'a' : 'b';
-}
-
-function loopControlClass(action: MediaLoopAction): string {
-  if (action === 'toggleLoop') {
-    return 'loop-toggle';
-  }
-  if (action.startsWith('clear')) {
-    return 'loop-clear';
-  }
-  if (action.startsWith('jump')) {
-    return 'loop-jump';
-  }
-  return 'loop-mark';
 }
 
 function createLoopLetter(document: Document, mark: LoopMark): HTMLSpanElement {

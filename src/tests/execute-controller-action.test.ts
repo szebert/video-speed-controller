@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MEDIA_LOOP_ACTIONS } from '../core/controller-action';
 import { executeControllerAction } from '../core/execute-controller-action';
 import { MediaRegistry } from '../core/media-registry';
 import { destroyEngine, getActiveEngine, startEngine } from '../core/video-speed-engine';
-import { HOTKEY_FLASH_HOST_TAG } from '../core/video-overlay';
+import { HOTKEY_FLASH_HOST_TAG, OVERLAY_HOST_TAG } from '../core/video-overlay';
 import { BUILT_IN_HOTKEYS } from '../settings/hotkey-binding';
 import { tabBehavior } from './tab-behavior-fixture';
 
@@ -337,6 +338,45 @@ describe('executeControllerAction', () => {
     expect(video.currentTime).toBe(parked);
     expect(flashText()).toBeUndefined();
   });
+
+  it.each(MEDIA_LOOP_ACTIONS)(
+    'keeps an auto-hidden overlay hidden after the %s hotkey',
+    async (action) => {
+      vi.useFakeTimers();
+      registry.destroy();
+      registry = new MediaRegistry(document);
+      seekable(video, { currentTime: 5, duration: 30, paused: true });
+      registry.setBehavior(
+        tabBehavior(1, {
+          overlayAutoHide: true,
+          overlayAutoHideDelayMs: 200,
+          overlayLoopBar: true,
+        }),
+      );
+      registry.ensureController(video);
+      registry.runLoopAction(video, 'markA');
+      video.currentTime = 10;
+      registry.runLoopAction(video, 'markB');
+      video.currentTime = 7;
+      const overlayHost = document.querySelector<HTMLElement>(OVERLAY_HOST_TAG);
+      vi.advanceTimersByTime(50);
+      expect(overlayHost?.style.visibility).toBe('visible');
+      vi.advanceTimersByTime(200);
+      expect(overlayHost?.style.visibility).toBe('hidden');
+
+      await executeControllerAction(action, {
+        resolveRegistry: () => registry,
+        source: { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video },
+      });
+      vi.advanceTimersByTime(20);
+
+      expect(overlayHost?.style.visibility).toBe('hidden');
+      expect(flashText()).toBeTruthy();
+      expect(document.querySelector<HTMLElement>(HOTKEY_FLASH_HOST_TAG)?.style.visibility).toBe(
+        'visible',
+      );
+    },
+  );
 
   it('changes only the selected video', async () => {
     const other = document.createElement('video');

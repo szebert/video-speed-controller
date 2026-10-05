@@ -52,7 +52,7 @@ export function isExtensionHost(node: Node): boolean {
   );
 }
 
-export type FlashOrigin = 'hotkey' | 'button';
+export type FlashOrigin = 'hotkey' | 'control';
 
 // Tab-wide speed flash keeps its own shape. Media-local actions carry
 // already-localized text so this module stays free of action-specific copy.
@@ -354,8 +354,8 @@ export class VideoOverlay {
     this.presentFlash(payload, 'hotkey', options);
   }
 
-  showButtonFlash(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
-    this.presentFlash(payload, 'button', options);
+  showControlFlash(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
+    this.presentFlash(payload, 'control', options);
   }
 
   /** Starts the auto-hide delay only for a flash that is currently held. */
@@ -715,17 +715,26 @@ export class VideoOverlay {
   }
 
   runLoopAction(action: MediaLoopAction): LoopActionFeedback | null {
-    if (action === 'toggleLoop') {
-      return this.toggleLoop();
+    switch (action) {
+      case 'markA':
+        return this.writeLoopMark('a', this.video.currentTime);
+      case 'clearMarkA':
+        return this.writeLoopMark('a', null);
+      case 'jumpToA':
+        return this.jumpToLoopMark('a');
+      case 'markB':
+        return this.writeLoopMark('b', this.video.currentTime);
+      case 'clearMarkB':
+        return this.writeLoopMark('b', null);
+      case 'jumpToB':
+        return this.jumpToLoopMark('b');
+      case 'toggleLoop':
+        return this.toggleLoop();
+      default: {
+        const unexpected: never = action;
+        throw new Error(`Unknown loop action: ${unexpected}`);
+      }
     }
-    const mark: LoopMark = action.endsWith('A') ? 'a' : 'b';
-    if (action.startsWith('clear')) {
-      return this.writeLoopMark(mark, null);
-    }
-    if (action.startsWith('jump')) {
-      return this.jumpToLoopMark(mark);
-    }
-    return this.writeLoopMark(mark, this.video.currentTime);
   }
 
   private loopMarkValue(mark: LoopMark): number | null {
@@ -747,7 +756,6 @@ export class VideoOverlay {
     if (time != null && (!Number.isFinite(time) || time < 0)) {
       return null;
     }
-    this.restartAutoHide();
     this.storeLoopMark(mark, time);
     this.pushLoopState();
     if (this.loopEnabled) {
@@ -765,7 +773,6 @@ export class VideoOverlay {
     if (target == null) {
       return null;
     }
-    this.restartAutoHide();
     if (!writeCurrentTime(this.video, target)) {
       return null;
     }
@@ -776,7 +783,6 @@ export class VideoOverlay {
     if (!this.loopUsable()) {
       return null;
     }
-    this.restartAutoHide();
     if (this.loopEnabled) {
       this.releaseLoopOwnership();
     } else {
@@ -787,7 +793,7 @@ export class VideoOverlay {
   }
 
   private flashMedia(label: string, detail?: string): void {
-    this.showButtonFlash({
+    this.showControlFlash({
       kind: 'media',
       label,
       ...(detail !== undefined ? { detail } : {}),
@@ -993,7 +999,7 @@ export class VideoOverlay {
     if (origin === 'hotkey') {
       return behavior.hotkeyFlash;
     }
-    if (origin === 'button') {
+    if (origin === 'control') {
       return behavior.buttonFlash;
     }
     return false;

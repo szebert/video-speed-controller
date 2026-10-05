@@ -10,7 +10,7 @@ import {
   test,
 } from './extension';
 
-test('loop bar marks a timestamp, jumps, and loops between A and B', async ({
+test('loop bar marks, jumps, and wraps A/B playback through timeupdate and animation frames', async ({
   context,
   extensionId,
   serviceWorker,
@@ -124,4 +124,27 @@ test('loop bar marks a timestamp, jumps, and loops between A and B', async ({
       site.locator('#v1').evaluate((video) => (video as HTMLVideoElement).currentTime),
     )
     .toBeCloseTo(markA, 1);
+
+  const frameState = await site.locator('#v1').evaluate(async (node, beyondB) => {
+    const video = node as HTMLVideoElement;
+    // Keep the event fallback from masking a broken production RAF loop.
+    const suppressTimeUpdate = (event: Event): void => event.stopImmediatePropagation();
+    video.addEventListener('timeupdate', suppressTimeUpdate, { capture: true });
+    try {
+      await video.play();
+      video.currentTime = beyondB;
+      const beforeFrame = video.currentTime;
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+      return { beforeFrame, currentTime: video.currentTime, paused: video.paused };
+    } finally {
+      video.pause();
+      video.removeEventListener('timeupdate', suppressTimeUpdate, { capture: true });
+    }
+  }, duration * 0.8);
+  expect(frameState.beforeFrame).toBeGreaterThan(markB);
+  expect(frameState.paused).toBe(false);
+  expect(frameState.currentTime).toBeGreaterThanOrEqual(markA - 0.01);
+  expect(frameState.currentTime).toBeLessThan(markA + 0.25);
 });

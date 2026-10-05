@@ -1426,12 +1426,12 @@ describe('VideoOverlay', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
   });
 
-  it('shows a button flash only when that toggle is on', () => {
+  it('shows a control flash only when that toggle is on', () => {
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, buttonFlash: false }));
     overlay.setControlled(true);
-    overlay.showButtonFlash({
+    overlay.showControlFlash({
       kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
@@ -1439,7 +1439,7 @@ describe('VideoOverlay', () => {
     expect(document.querySelector(HOTKEY_FLASH_HOST_TAG)).toBeNull();
 
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, buttonFlash: true }));
-    overlay.showButtonFlash({
+    overlay.showControlFlash({
       kind: 'speed',
       previousTargetSpeed: 1,
       targetSpeed: 1.25,
@@ -2842,6 +2842,35 @@ describe('VideoOverlay', () => {
     overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
     expect(loopMarkButton(overlay, 'b').querySelector('.loop-badge')?.textContent).toBe('0:09.0');
     expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('restarts auto-hide once when an extras-row button is clicked', () => {
+    vi.useFakeTimers();
+    const media = loopMedia({ currentTime: 5 });
+    const overlay = new VideoOverlay(media.video, () => overlay.layout());
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayAutoHide: true,
+        overlayAutoHideDelayMs: 200,
+        overlayLoopBar: true,
+        buttonFlash: false,
+      }),
+    );
+    overlay.setControlled(true);
+    overlay.layout();
+    vi.advanceTimersByTime(100);
+    const startTimer = vi.spyOn(globalThis, 'setTimeout');
+
+    loopMarkButton(overlay, 'a').click();
+
+    expect(startTimer).toHaveBeenCalledTimes(1);
+    expect(startTimer).toHaveBeenCalledWith(expect.any(Function), 200);
+    vi.advanceTimersByTime(100);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('visible');
+    vi.advanceTimersByTime(100);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
   });
 
   it('keeps looping while the overlay is only auto-hidden', () => {

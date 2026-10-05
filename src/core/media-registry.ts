@@ -171,18 +171,18 @@ export class MediaRegistry {
     this.entries.get(video)?.overlay.showHotkeyFlash(payload, options);
   }
 
-  /** Tab-wide feedback from overlay speed buttons. */
-  flashButtonAction(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
+  /** Tab-wide feedback from overlay speed controls. */
+  flashControlAction(payload: HotkeyFlashPayload, options?: HotkeyFlashShowOptions): void {
     if (this.destroyed || !this.currentBehavior?.buttonFlash) {
       return;
     }
     for (const entry of this.entries.values()) {
-      entry.overlay.showButtonFlash(payload, options);
+      entry.overlay.showControlFlash(payload, options);
     }
   }
 
-  /** Media-local feedback from overlay navigation buttons. */
-  flashButtonActionOn(
+  /** Media-local feedback from overlay controls. */
+  flashControlActionOn(
     video: HTMLVideoElement,
     payload: HotkeyFlashPayload,
     options?: HotkeyFlashShowOptions,
@@ -190,7 +190,7 @@ export class MediaRegistry {
     if (this.destroyed || !this.currentBehavior?.buttonFlash) {
       return;
     }
-    this.entries.get(video)?.overlay.showButtonFlash(payload, options);
+    this.entries.get(video)?.overlay.showControlFlash(payload, options);
   }
 
   /**

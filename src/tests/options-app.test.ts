@@ -1939,7 +1939,7 @@ describe('Options page', () => {
     });
   });
 
-  it('sends buttonFlash false from the Show button flash switch', async () => {
+  it('sends buttonFlash false from the Show control flash switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     await selectTab('Overlay');
@@ -2048,7 +2048,7 @@ describe('Options page', () => {
     expect((flashSize as HTMLInputElement).disabled).toBe(true);
   });
 
-  it('keeps flash delay enabled when only Show button flash is on', async () => {
+  it('keeps flash delay enabled when only Show control flash is on', async () => {
     const hidden = snapshot();
     hidden.global.hotkeyFlash = { value: false, source: 'global' };
     hidden.global.buttonFlash = { value: true, source: 'global' };
