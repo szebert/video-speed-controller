@@ -688,7 +688,7 @@ export class VideoOverlay {
     return (
       this.controlled &&
       this.behavior?.overlayVisible === true &&
-      this.behavior?.overlayLoopBar === true
+      this.behavior?.overlayExtrasBar === true
     );
   }
 

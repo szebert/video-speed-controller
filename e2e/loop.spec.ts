@@ -10,7 +10,7 @@ import {
   test,
 } from './extension';
 
-test('loop bar marks, jumps, and wraps A/B playback through timeupdate and animation frames', async ({
+test('extras bar marks, jumps, and wraps A/B playback through timeupdate and animation frames', async ({
   context,
   extensionId,
   serviceWorker,
@@ -30,7 +30,7 @@ test('loop bar marks, jumps, and wraps A/B playback through timeupdate and anima
 
   const overlay = site.locator('osvsc-overlay').first();
   await site.locator('#v1').hover();
-  await expect(overlay.locator('.controls-loop')).toBeVisible();
+  await expect(overlay.locator('.controls-extras')).toBeVisible();
 
   await expect
     .poll(async () =>

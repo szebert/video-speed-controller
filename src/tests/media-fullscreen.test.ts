@@ -78,7 +78,7 @@ describe('video fullscreen', () => {
       },
     });
     registry.setBehavior(
-      tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true, overlayHotkeyHints: true }),
+      tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true, overlayHotkeyHints: true }),
       {
         ...builtInEffectiveHotkeys(),
         toggleFullscreen: binding,

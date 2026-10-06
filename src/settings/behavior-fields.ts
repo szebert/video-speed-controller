@@ -108,7 +108,7 @@ export const BEHAVIOR_FIELDS = {
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },
   },
-  overlayLoopBar: {
+  overlayExtrasBar: {
     default: false,
     category: 'overlay',
     reapply: { global: 'preserve-target', site: 'preserve-target' },

@@ -105,8 +105,8 @@ export class OverlayView {
   private volumeLevel: HTMLDivElement | null = null;
   private volumeMute: HTMLButtonElement | null = null;
   private volumeReadout: HTMLSpanElement | null = null;
-  private loopBar: HTMLDivElement | null = null;
-  private loopListeners: AbortController | null = null;
+  private extrasBar: HTMLDivElement | null = null;
+  private extrasListeners: AbortController | null = null;
   private readonly loopButtons = new Map<MediaLoopAction, HTMLButtonElement>();
   private fullscreenButton: HTMLButtonElement | null = null;
   private scrubbing = false;
@@ -296,9 +296,9 @@ export class OverlayView {
     this.volumeLevel = null;
     this.volumeMute = null;
     this.volumeReadout = null;
-    this.loopListeners?.abort();
-    this.loopListeners = null;
-    this.loopBar = null;
+    this.extrasListeners?.abort();
+    this.extrasListeners = null;
+    this.extrasBar = null;
     this.loopButtons.clear();
     this.fullscreenButton = null;
     this.element.remove();
@@ -392,7 +392,7 @@ export class OverlayView {
     this.syncNavigation(state);
     this.syncSeek(state);
     this.syncVolume(state);
-    this.syncLoop(state);
+    this.syncExtras(state);
 
     if (this.pickerOpen && state.visible && behavior.overlayPositionButton) {
       this.renderPicker();
@@ -785,25 +785,25 @@ export class OverlayView {
     this.volumeReadout = null;
   }
 
-  private syncLoop(state: OverlayViewState): void {
-    if (!state.behavior.overlayLoopBar) {
-      this.removeLoopBar();
+  private syncExtras(state: OverlayViewState): void {
+    if (!state.behavior.overlayExtrasBar) {
+      this.removeExtrasBar();
       return;
     }
-    this.ensureLoopBar();
+    this.ensureExtrasBar();
     this.syncFullscreen(state);
   }
 
-  private ensureLoopBar(): HTMLDivElement {
-    if (this.loopBar?.isConnected) {
-      return this.loopBar;
+  private ensureExtrasBar(): HTMLDivElement {
+    if (this.extrasBar?.isConnected) {
+      return this.extrasBar;
     }
     const bar = this.document.createElement('div');
-    bar.className = 'controls controls-loop';
+    bar.className = 'controls controls-extras';
     bar.setAttribute('role', 'group');
 
-    this.loopListeners = this.openRowListeners(this.loopListeners);
-    const signal = this.loopListeners.signal;
+    this.extrasListeners = this.openRowListeners(this.extrasListeners);
+    const signal = this.extrasListeners.signal;
     for (const control of LOOP_ROW_ACTIONS) {
       bar.append(this.createLoopButton(control, signal));
     }
@@ -815,7 +815,7 @@ export class OverlayView {
     this.fullscreenButton = fullscreen;
     bar.append(fullscreen);
 
-    this.loopBar = bar;
+    this.extrasBar = bar;
     const anchor = this.volumeBar?.isConnected
       ? this.volumeBar
       : this.seekBar?.isConnected
@@ -851,14 +851,14 @@ export class OverlayView {
     return button;
   }
 
-  private removeLoopBar(): void {
-    if (!this.loopBar) {
+  private removeExtrasBar(): void {
+    if (!this.extrasBar) {
       return;
     }
-    this.loopListeners?.abort();
-    this.loopListeners = null;
-    this.loopBar.remove();
-    this.loopBar = null;
+    this.extrasListeners?.abort();
+    this.extrasListeners = null;
+    this.extrasBar.remove();
+    this.extrasBar = null;
     this.loopButtons.clear();
     this.fullscreenButton = null;
   }
@@ -877,7 +877,7 @@ export class OverlayView {
   }
 
   updateLoop(state: OverlayLoopState): void {
-    if (!this.loopBar?.isConnected || !this.state?.behavior.overlayLoopBar) {
+    if (!this.extrasBar?.isConnected || !this.state?.behavior.overlayExtrasBar) {
       return;
     }
     this.paintLoopMark('a', state.markA);

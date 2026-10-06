@@ -314,7 +314,7 @@ describe('executeControllerAction', () => {
 
   it('runs unbound loop hotkeys on one video and flashes them', async () => {
     seekable(video, { currentTime: 65, duration: 120, paused: true });
-    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+    registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true }));
     const source = { kind: 'hotkey', binding: BUILT_IN_HOTKEYS.increaseSpeed, video } as const;
     await executeControllerAction('markA', { resolveRegistry: () => registry, source });
     expect(flashText()).toBe('Mark A 1:05.0');
@@ -350,7 +350,7 @@ describe('executeControllerAction', () => {
         tabBehavior(1, {
           overlayAutoHide: true,
           overlayAutoHideDelayMs: 200,
-          overlayLoopBar: true,
+          overlayExtrasBar: true,
         }),
       );
       registry.ensureController(video);

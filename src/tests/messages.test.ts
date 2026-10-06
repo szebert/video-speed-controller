@@ -242,7 +242,7 @@ describe('parseBackgroundInbound', () => {
       { kind: 'value', field: 'overlayNavigationBar', value: true },
       { kind: 'value', field: 'overlaySeekBar', value: true },
       { kind: 'value', field: 'overlayVolumeBar', value: true },
-      { kind: 'value', field: 'overlayLoopBar', value: true },
+      { kind: 'value', field: 'overlayExtrasBar', value: true },
     ]) {
       expect(accepted({ type: 'SET_BEHAVIOR_SETTING', scope: { kind: 'global' }, change })).toBe(
         true,

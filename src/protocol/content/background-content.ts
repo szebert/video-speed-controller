@@ -28,7 +28,7 @@ export const AppliedTabBehaviorSchema = z.object({
   overlayNavigationBar: z.boolean(),
   overlaySeekBar: z.boolean(),
   overlayVolumeBar: z.boolean(),
-  overlayLoopBar: z.boolean(),
+  overlayExtrasBar: z.boolean(),
   overlayHotkeyHints: z.boolean(),
   overlayAutoHide: z.boolean(),
   overlayHoverHold: z.boolean(),

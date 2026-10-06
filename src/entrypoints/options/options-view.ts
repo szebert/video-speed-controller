@@ -1539,7 +1539,7 @@ export class OptionsView {
           this.boolSwitch(state, 'overlay-navigation-bar', 'overlayNavigationBar', 'overlay'),
           this.boolSwitch(state, 'overlay-seek-bar', 'overlaySeekBar', 'overlay'),
           this.boolSwitch(state, 'overlay-volume-bar', 'overlayVolumeBar', 'overlay'),
-          this.boolSwitch(state, 'overlay-loop-bar', 'overlayLoopBar', 'overlay'),
+          this.boolSwitch(state, 'overlay-extras-bar', 'overlayExtrasBar', 'overlay'),
           this.percentSlider(state, {
             field: 'overlayOpacity',
             label: t('overlayOpacity'),

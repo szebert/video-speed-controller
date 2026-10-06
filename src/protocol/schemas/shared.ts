@@ -93,7 +93,7 @@ export const EditableResolvedBehaviorSchema = z.object({
   overlayNavigationBar: resolvedSettingSchema(z.boolean()),
   overlaySeekBar: resolvedSettingSchema(z.boolean()),
   overlayVolumeBar: resolvedSettingSchema(z.boolean()),
-  overlayLoopBar: resolvedSettingSchema(z.boolean()),
+  overlayExtrasBar: resolvedSettingSchema(z.boolean()),
   overlayHotkeyHints: resolvedSettingSchema(z.boolean()),
   overlayAutoHide: resolvedSettingSchema(z.boolean()),
   overlayHoverHold: resolvedSettingSchema(z.boolean()),

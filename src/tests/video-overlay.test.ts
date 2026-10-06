@@ -1088,7 +1088,7 @@ describe('VideoOverlay', () => {
         overlayAutoHide: false,
         overlaySeekBar: true,
         overlayVolumeBar: true,
-        overlayLoopBar: true,
+        overlayExtrasBar: true,
         overlayHotkeyHints: true,
       }),
       {
@@ -2660,13 +2660,13 @@ describe('VideoOverlay', () => {
     expect(overlay.host.shadowRoot?.querySelector('.controls-volume')).toBeNull();
   });
 
-  it('places the loop row after whichever optional rows are already showing', () => {
+  it('places the extras row after whichever optional rows are already showing', () => {
     const video = sizedVideo();
     const overlay = new VideoOverlay(video, () => overlay.layout());
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true }));
     overlay.setControlled(true);
     overlay.layout();
-    expect(rowClasses(overlay)).toEqual(['controls', 'controls controls-loop']);
+    expect(rowClasses(overlay)).toEqual(['controls', 'controls controls-extras']);
     expect(loopControlLabels(overlay)).toEqual([
       'Mark A',
       'Clear mark A',
@@ -2686,7 +2686,7 @@ describe('VideoOverlay', () => {
     overlay.setBehavior(
       tabBehavior(1, {
         overlayAutoHide: false,
-        overlayLoopBar: true,
+        overlayExtrasBar: true,
         overlayVolumeBar: true,
         overlaySeekBar: true,
         overlayNavigationBar: true,
@@ -2697,7 +2697,7 @@ describe('VideoOverlay', () => {
       'controls controls-nav',
       'controls controls-seek',
       'controls controls-volume',
-      'controls controls-loop',
+      'controls controls-extras',
     ]);
   });
 
@@ -2749,7 +2749,7 @@ describe('VideoOverlay', () => {
 
     const quiet = controlledLoop(loopMedia({ currentTime: 4 }).video);
     quiet.setBehavior(
-      tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true, buttonFlash: false }),
+      tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true, buttonFlash: false }),
     );
     loopMarkButton(quiet, 'a').click();
     expect(document.querySelectorAll(HOTKEY_FLASH_HOST_TAG)).toHaveLength(1);
@@ -2826,20 +2826,20 @@ describe('VideoOverlay', () => {
     loopMarkButton(overlay, 'b').click();
     expect(media.video.loop).toBe(false);
     overlay.setBehavior(
-      tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true, overlayVisible: false }),
+      tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true, overlayVisible: false }),
     );
     expect(media.video.loop).toBe(false);
     expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
     expect(loopMarkButton(overlay, 'b').querySelector('.loop-badge')?.textContent).toBe('0:09.0');
 
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true }));
     loopToggle(overlay).click();
     expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('true');
     expect(media.video.loop).toBe(false);
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: false }));
-    expect(overlay.host.shadowRoot?.querySelector('.controls-loop')).toBeNull();
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: false }));
+    expect(overlay.host.shadowRoot?.querySelector('.controls-extras')).toBeNull();
     expect(media.video.loop).toBe(false);
-    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+    overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true }));
     expect(loopMarkButton(overlay, 'b').querySelector('.loop-badge')?.textContent).toBe('0:09.0');
     expect(loopToggle(overlay).getAttribute('aria-pressed')).toBe('false');
   });
@@ -2852,7 +2852,7 @@ describe('VideoOverlay', () => {
       tabBehavior(1, {
         overlayAutoHide: true,
         overlayAutoHideDelayMs: 200,
-        overlayLoopBar: true,
+        overlayExtrasBar: true,
         buttonFlash: false,
       }),
     );
@@ -2878,7 +2878,11 @@ describe('VideoOverlay', () => {
     const media = loopMedia({ loop: false, duration: 30 });
     const overlay = new VideoOverlay(media.video, () => overlay.layout());
     overlay.setBehavior(
-      tabBehavior(1, { overlayAutoHide: true, overlayAutoHideDelayMs: 200, overlayLoopBar: true }),
+      tabBehavior(1, {
+        overlayAutoHide: true,
+        overlayAutoHideDelayMs: 200,
+        overlayExtrasBar: true,
+      }),
     );
     overlay.setControlled(true);
     overlay.layout();
@@ -3126,13 +3130,13 @@ function loopMedia(options?: {
 
 function controlledLoop(video: HTMLVideoElement): VideoOverlay {
   const overlay = new VideoOverlay(video, () => overlay.layout());
-  overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayLoopBar: true }));
+  overlay.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true }));
   overlay.setControlled(true);
   return overlay;
 }
 
 function loopControlLabels(overlay: VideoOverlay): string[] {
-  return [...(overlay.host.shadowRoot?.querySelectorAll('.controls-loop button') ?? [])].map(
+  return [...(overlay.host.shadowRoot?.querySelectorAll('.controls-extras button') ?? [])].map(
     (button) => button.getAttribute('aria-label') ?? '',
   );
 }

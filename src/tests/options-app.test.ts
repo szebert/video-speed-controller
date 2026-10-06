@@ -1546,19 +1546,19 @@ describe('Options page', () => {
     });
   });
 
-  it('sends overlayLoopBar true from the Show extras bar switch', async () => {
+  it('sends overlayExtrasBar true from the Show extras bar switch', async () => {
     sendMessage.mockImplementation(loadReply(snapshot()));
     await renderApp();
     await selectTab('Overlay');
-    const loopSwitch = container.querySelector('#overlay-loop-bar');
-    expect(loopSwitch).toBeInstanceOf(HTMLInputElement);
+    const extrasSwitch = container.querySelector('#overlay-extras-bar');
+    expect(extrasSwitch).toBeInstanceOf(HTMLInputElement);
     await act(async () => {
-      click(loopSwitch);
+      click(extrasSwitch);
     });
     expect(sendMessage).toHaveBeenCalledWith({
       type: 'SET_BEHAVIOR_SETTING',
       scope: { kind: 'global' },
-      change: { kind: 'value', field: 'overlayLoopBar', value: true },
+      change: { kind: 'value', field: 'overlayExtrasBar', value: true },
     });
   });
 
