@@ -1,3 +1,5 @@
+# Translator
+
 The **Translator API** allows developers to perform client-side text translation using built-in AI models in Chrome and Edge. This approach eliminates the need for cloud-based translation services for ephemeral content, reducing costs and improving privacy by keeping data on the user's device.
 
 
@@ -163,7 +165,7 @@ The API supports a wide range of BCP 47 language codes: Here are the languages s
 
 ## Fallback Strategy
 
-Translator has limited availability.
+Browser support for Translator: Limited availability.
 Supported by: Chrome 138 (Jun 2025) and Edge 148 (May 2026).
 Unsupported in: Firefox and Safari.
 
