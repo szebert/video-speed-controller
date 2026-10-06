@@ -12,12 +12,11 @@ type OverlayStackSample = {
   pageStackTopId: string | null;
 };
 
-type FullscreenHosting = {
-  fullscreenId: string | null;
-  overlayHostCount: number;
-  overlayInsideFullscreen: boolean;
-  overlayIsInteractiveTarget: boolean;
-  hitId: string | null;
+type WrapperFullscreenOverlay = {
+  hostedCount: number;
+  shadowHitIsControl: boolean;
+  pageHitIsOverlay: boolean;
+  pageHit: string | null;
 };
 
 async function overlayBadgeTexts(page: Page): Promise<string[]> {
@@ -265,7 +264,44 @@ test('transparent click-capture is a hit-test false positive above the video', a
   expect(sample.occluderAboveVideoAfterIgnoringOsvsc).toBe(true);
 });
 
-test('wrapper fullscreen is a hosting question, not an occlusion input', async ({
+async function sampleWrapperFullscreenOverlay(page: Page): Promise<WrapperFullscreenOverlay> {
+  return page.evaluate(() => {
+    const wrapper = document.getElementById('fullscreen-wrapper');
+    if (!(wrapper instanceof HTMLElement)) {
+      throw new Error('Missing fullscreen wrapper');
+    }
+    const hosted = [...wrapper.querySelectorAll('osvsc-overlay')].filter(
+      (node): node is HTMLElement => node instanceof HTMLElement,
+    );
+    const host = hosted[0];
+    if (!host?.shadowRoot) {
+      return {
+        hostedCount: hosted.length,
+        shadowHitIsControl: false,
+        pageHitIsOverlay: false,
+        pageHit: null,
+      };
+    }
+    const control = host.shadowRoot.querySelector('[aria-label="Faster"]');
+    if (!(control instanceof HTMLElement)) {
+      throw new Error('Missing Faster control on the fullscreen overlay');
+    }
+    const box = control.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height / 2;
+    const shadowHit = host.shadowRoot.elementFromPoint(x, y);
+    const pageHit = document.elementFromPoint(x, y);
+    return {
+      hostedCount: hosted.length,
+      shadowHitIsControl:
+        shadowHit === control || (shadowHit instanceof Node && control.contains(shadowHit)),
+      pageHitIsOverlay: pageHit === host,
+      pageHit: pageHit instanceof Element ? pageHit.id || pageHit.localName : null,
+    };
+  });
+}
+
+test('wrapper fullscreen keeps the overlay clickable above the player', async ({
   context,
   extensionId,
   serviceWorker,
@@ -283,28 +319,31 @@ test('wrapper fullscreen is a hosting question, not an occlusion input', async (
     )
     .toEqual({ fullscreenId: 'fullscreen-wrapper', error: null });
 
-  const hosting = await site.evaluate((): FullscreenHosting => {
-    const wrapper = document.getElementById('fullscreen-wrapper');
-    const video = document.getElementById('video-fullscreen');
-    if (!(wrapper instanceof HTMLElement) || !(video instanceof HTMLVideoElement)) {
-      throw new Error('Missing wrapper-fullscreen fixture nodes');
-    }
-    const hosts = [...document.querySelectorAll('osvsc-overlay')];
-    const rect = video.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + 20;
-    const hit = document.elementFromPoint(x, y);
-    return {
-      fullscreenId: document.fullscreenElement?.id ?? null,
-      overlayHostCount: hosts.length,
-      overlayInsideFullscreen: hosts.some((host) => wrapper.contains(host)),
-      overlayIsInteractiveTarget: hit instanceof Element && hit.closest('osvsc-overlay') != null,
-      hitId: hit instanceof Element ? hit.id || hit.tagName.toLowerCase() : null,
-    };
-  });
+  const box = await site.locator('#video-fullscreen').boundingBox();
+  if (!box) {
+    throw new Error('Missing video-fullscreen bounds');
+  }
+  await site.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect
+    .poll(() => sampleWrapperFullscreenOverlay(site))
+    .toEqual({
+      hostedCount: 1,
+      shadowHitIsControl: true,
+      pageHitIsOverlay: true,
+      pageHit: 'osvsc-overlay',
+    });
 
-  expect(hosting.fullscreenId).toBe('fullscreen-wrapper');
-  expect(hosting.overlayHostCount).toBe(OVERLAY_COUNT);
-  expect(hosting.overlayInsideFullscreen).toBe(false);
-  expect(hosting.overlayIsInteractiveTarget).toBe(false);
+  await site.locator('#fullscreen-wrapper osvsc-overlay').locator('[aria-label="Faster"]').click();
+  await expect
+    .poll(() =>
+      site
+        .locator('#video-fullscreen')
+        .evaluate((video) => (video as HTMLVideoElement).playbackRate),
+    )
+    .toBe(1.25);
+
+  await site.evaluate(() => document.exitFullscreen());
+  await expect.poll(() => site.evaluate(() => document.fullscreenElement)).toBeNull();
+  await expect.poll(() => site.locator('#fullscreen-wrapper osvsc-overlay').count()).toBe(0);
+  await expect.poll(() => site.locator('osvsc-overlay').count()).toBe(OVERLAY_COUNT);
 });

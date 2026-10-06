@@ -10,20 +10,25 @@ function fullscreenElement(video: HTMLVideoElement): Element | null {
   );
 }
 
-export function isVideoFullscreen(video: HTMLVideoElement): boolean {
+/** The fullscreen element that contains `video`, including a player wrapper. */
+export function containingFullscreenElement(video: HTMLVideoElement): Element | null {
   const fullscreen = fullscreenElement(video);
   if (!fullscreen) {
-    return false;
+    return null;
   }
   // Include fullscreen player wrappers and cross shadow boundaries.
   let node: Node | null = video;
   while (node) {
     if (node === fullscreen) {
-      return true;
+      return fullscreen;
     }
     node = node.parentNode ?? (node instanceof ShadowRoot ? node.host : null);
   }
-  return false;
+  return null;
+}
+
+export function isVideoFullscreen(video: HTMLVideoElement): boolean {
+  return containingFullscreenElement(video) != null;
 }
 
 export function isNativeVideoFullscreen(video: HTMLVideoElement): boolean {

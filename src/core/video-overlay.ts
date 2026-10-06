@@ -12,6 +12,7 @@ import { t, type MessageKey } from '../i18n/t';
 import { resolveLoopSpan } from './media-loop';
 import {
   canToggleVideoFullscreen,
+  containingFullscreenElement,
   isNativeVideoFullscreen,
   isVideoFullscreen,
 } from './media-fullscreen';
@@ -97,22 +98,49 @@ function styleExtensionHost(host: HTMLElement): void {
   host.style.setProperty('visibility', 'hidden', 'important');
 }
 
-/** Fullscreen flash feedback is noninteractive and can sit above the native video. */
-function syncFullscreenFlash(host: HTMLElement, active: boolean): void {
+/**
+ * Promotes noninteractive flash feedback into the top layer while `active`.
+ * A manual popover still loses hit testing to a fullscreen player, so the
+ * interactive overlay is reparented into that element instead.
+ */
+function syncManualPopover(host: HTMLElement, active: boolean): void {
   if (!host.isConnected || typeof host.showPopover !== 'function') {
     return;
   }
-  if (active) {
-    host.setAttribute('popover', 'manual');
-    if (!host.matches(':popover-open')) {
-      host.showPopover();
+  try {
+    if (active) {
+      host.setAttribute('popover', 'manual');
+      if (!host.matches(':popover-open')) {
+        host.showPopover();
+      }
+      return;
     }
-  } else if (host.hasAttribute('popover')) {
+    if (!host.hasAttribute('popover')) {
+      return;
+    }
     if (host.matches(':popover-open')) {
       host.hidePopover();
     }
     host.removeAttribute('popover');
+  } catch {
+    host.removeAttribute('popover');
   }
+}
+
+/**
+ * A fullscreen player wrapper is the top layer. Descendants paint inside it;
+ * a sibling popover does not receive hits. Park the overlay in that wrapper,
+ * and move it back to the document when fullscreen ends or the video itself
+ * is the fullscreen element.
+ */
+function placeOverlayHost(host: HTMLElement, video: HTMLVideoElement): void {
+  const fullscreen = containingFullscreenElement(video);
+  const parent =
+    fullscreen && fullscreen !== video ? fullscreen : video.ownerDocument.documentElement;
+  if (!parent || host.parentNode === parent) {
+    return;
+  }
+  parent.append(host);
 }
 
 function flashLabel(payload: HotkeyFlashPayload): string {
@@ -387,6 +415,7 @@ export class VideoOverlay {
   }
 
   layout(measureRect: () => DOMRect = () => this.video.getBoundingClientRect()): void {
+    placeOverlayHost(this.host, this.video);
     let cached: DOMRect | undefined;
     const measure = (): DOMRect => {
       cached ??= measureRect();
@@ -488,8 +517,8 @@ export class VideoOverlay {
     if (this.video.ownerDocument.fullscreenElement && !isVideoFullscreen(this.video)) {
       return null;
     }
-    // Native video fullscreen makes sibling controls noninteractive in Chromium.
-    // The hotkey and native video controls still exit; keep our flash in the top layer.
+    // Native <video> fullscreen uses the browser's own controls. Wrapper
+    // fullscreen still shows this overlay; layout parents it inside that element.
     if (isNativeVideoFullscreen(this.video)) {
       return null;
     }
@@ -1128,7 +1157,8 @@ export class VideoOverlay {
     if (!this.flashHost) {
       return;
     }
-    syncFullscreenFlash(this.flashHost, isVideoFullscreen(this.video));
+    // Flash stays above native video fullscreen; the overlay itself does not.
+    syncManualPopover(this.flashHost, isVideoFullscreen(this.video));
     const rect = this.evaluateFlashRect(measureRect);
     this.flashHost.style.setProperty('visibility', rect ? 'visible' : 'hidden', 'important');
     if (!rect) {

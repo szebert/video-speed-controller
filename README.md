@@ -36,7 +36,7 @@ OS Video Speed Controller (OS VSC) is a toolbar popup and a per-video overlay. Y
 - Volume shortcuts for one video: toggle mute, and volume up or down by 10%. A volume step above 0% also unmutes
 - Loop shortcuts for one video, unset until you choose them: mark A, clear A, jump to A, mark B, clear B, jump to B, and toggle loop
 - Configurable fullscreen shortcut for one video, unset until you choose it. The button is disabled when the browser or page blocks fullscreen; unavailable or failed requests show flash feedback
-- Native video fullscreen uses the configured shortcut or the video's native controls to exit; the extension controls return after exit
+- Native video fullscreen hides the extension controls; exit with the shortcut or the video's own controls. A fullscreen player wrapper keeps the overlay on top of the player
 - Global defaults with per-site overrides
 - Optional hold-to-repeat for speed step, skip, and volume step keys. Fast forward and rewind always hold
 - Optional flash when a control or hotkey is used; held actions stay visible until release

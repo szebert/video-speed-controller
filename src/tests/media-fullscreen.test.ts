@@ -183,7 +183,55 @@ describe('video fullscreen', () => {
     expect(flashText()).toBe('Could not change fullscreen for this video');
   });
 
-  it('tracks native fullscreen changes and wrapper fullscreen without targeting another video', async () => {
+  it('parents the overlay inside a fullscreen wrapper and hides native video fullscreen', () => {
+    const wrapper = document.createElement('div');
+    document.body.append(wrapper);
+    wrapper.append(video);
+    const other = document.createElement('video');
+    other.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        right: 640,
+        bottom: 360,
+        width: 640,
+        height: 360,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return {};
+        },
+      }) as DOMRect;
+    document.body.append(other);
+    registry.ensureController(other);
+
+    const host = registry.getOverlay(video)!.host;
+    const otherHost = registry.getOverlay(other)!.host;
+
+    fullscreen = wrapper;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    registry.getOverlay(video)!.layout();
+    registry.getOverlay(other)!.layout();
+    expect(host.style.visibility).toBe('visible');
+    expect(host.parentElement).toBe(wrapper);
+    expect(host.hasAttribute('popover')).toBe(false);
+    expect(otherHost.parentElement).toBe(document.documentElement);
+    expect(otherHost.style.visibility).toBe('hidden');
+
+    fullscreen = video;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    registry.getOverlay(video)!.layout();
+    expect(host.style.visibility).toBe('hidden');
+    expect(host.parentElement).toBe(document.documentElement);
+
+    fullscreen = null;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    registry.getOverlay(video)!.layout();
+    expect(host.parentElement).toBe(document.documentElement);
+    expect(host.style.visibility).toBe('visible');
+  });
+
+  it('updates the fullscreen button for wrapper fullscreen and for a different fullscreen video', async () => {
     const wrapper = document.createElement('div');
     document.body.append(wrapper);
     wrapper.append(video);
