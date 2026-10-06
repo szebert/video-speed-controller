@@ -5,6 +5,7 @@ import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 import type { MediaLoopAction, TransportHoldOwner } from './controller-action';
 import { MediaController, type TransportSession } from './media-controller';
+import { isVideoFullscreen } from './media-fullscreen';
 import {
   isExtensionHost,
   VideoOverlay,
@@ -254,6 +255,10 @@ export class MediaRegistry {
     if (this.destroyed || this.entries.size === 0) {
       return null;
     }
+    const fullscreen = this.fullscreenHotkeyTarget();
+    if (fullscreen) {
+      return fullscreen;
+    }
     const pictureInPicture = this.document.pictureInPictureElement;
     if (pictureInPicture instanceof HTMLVideoElement && this.entries.has(pictureInPicture)) {
       return pictureInPicture;
@@ -275,6 +280,26 @@ export class MediaRegistry {
       return only ?? null;
     }
     return null;
+  }
+
+  /**
+   * The fullscreen subtree wins over PiP, focus, and playback elsewhere.
+   * Videos inside it keep the usual order: focused, then playing, then largest.
+   */
+  private fullscreenHotkeyTarget(): HTMLVideoElement | null {
+    const focused = composedActiveElement(this.document);
+    if (
+      focused instanceof HTMLVideoElement &&
+      this.entries.has(focused) &&
+      focused.isConnected &&
+      isVideoFullscreen(focused)
+    ) {
+      return focused;
+    }
+    return (
+      this.largestVideo((video) => isVideoFullscreen(video) && !video.paused && !video.ended) ??
+      this.largestVideo((video) => isVideoFullscreen(video))
+    );
   }
 
   private largestVideo(accept: (video: HTMLVideoElement) => boolean): HTMLVideoElement | null {

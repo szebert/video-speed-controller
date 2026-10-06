@@ -86,6 +86,21 @@ function setVideoRect(
     }) as DOMRect;
 }
 
+function withFullscreenElement(element: Element): () => void {
+  const previous = Object.getOwnPropertyDescriptor(document, 'fullscreenElement');
+  Object.defineProperty(document, 'fullscreenElement', {
+    configurable: true,
+    get: () => element,
+  });
+  return () => {
+    if (previous) {
+      Object.defineProperty(document, 'fullscreenElement', previous);
+    } else {
+      Reflect.deleteProperty(document, 'fullscreenElement');
+    }
+  };
+}
+
 function video(
   box: { left: number; top: number; width: number; height: number } = {
     left: 0,
@@ -915,6 +930,98 @@ describe('media registry', () => {
     registry.setBehavior(tabBehavior(1));
     registry.start();
     expect(registry.resolveHotkeyTarget()).toBe(playing);
+  });
+
+  it('prefers a paused fullscreen video over picture-in-picture and playback elsewhere', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const wrapper = document.createElement('div');
+    const pausedFullscreen = video({ left: 0, top: 0, width: 320, height: 180 });
+    const playing = video({ left: 0, top: 0, width: 640, height: 360 });
+    Object.defineProperty(playing, 'paused', { configurable: true, value: false });
+    wrapper.append(pausedFullscreen);
+    document.body.append(wrapper, playing);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+
+    const restoreFullscreen = withFullscreenElement(wrapper);
+    const previousPip = Object.getOwnPropertyDescriptor(document, 'pictureInPictureElement');
+    Object.defineProperty(document, 'pictureInPictureElement', {
+      configurable: true,
+      value: playing,
+    });
+    try {
+      expect(registry.resolveHotkeyTarget()).toBe(pausedFullscreen);
+    } finally {
+      restoreFullscreen();
+      if (previousPip) {
+        Object.defineProperty(document, 'pictureInPictureElement', previousPip);
+      } else {
+        Reflect.deleteProperty(document, 'pictureInPictureElement');
+      }
+    }
+    expect(registry.resolveHotkeyTarget()).toBe(playing);
+  });
+
+  it('ranks videos inside a fullscreen wrapper by focus, then playback, then size', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const wrapper = document.createElement('div');
+    const pausedLarge = video({ left: 0, top: 0, width: 480, height: 270 });
+    const playingSmall = video({ left: 0, top: 0, width: 160, height: 90 });
+    const background = video({ left: 0, top: 0, width: 800, height: 450 });
+    pausedLarge.tabIndex = 0;
+    playingSmall.tabIndex = 0;
+    background.tabIndex = 0;
+    Object.defineProperty(playingSmall, 'paused', { configurable: true, value: false });
+    Object.defineProperty(background, 'paused', { configurable: true, value: false });
+    wrapper.append(pausedLarge, playingSmall);
+    document.body.append(wrapper, background);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+
+    const restoreFullscreen = withFullscreenElement(wrapper);
+    try {
+      expect(registry.resolveHotkeyTarget()).toBe(playingSmall);
+      pausedLarge.focus();
+      expect(registry.resolveHotkeyTarget()).toBe(pausedLarge);
+      background.focus();
+      Object.defineProperty(playingSmall, 'paused', { configurable: true, value: true });
+      expect(registry.resolveHotkeyTarget()).toBe(pausedLarge);
+    } finally {
+      restoreFullscreen();
+    }
+  });
+
+  it('prefers a paused fullscreen video inside an open shadow root', () => {
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const host = document.createElement('div');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const shadowVideo = video({ left: 0, top: 0, width: 200, height: 120 });
+    const playing = video({ left: 0, top: 0, width: 640, height: 360 });
+    Object.defineProperty(playing, 'paused', { configurable: true, value: false });
+    shadow.append(shadowVideo);
+    document.body.append(host, playing);
+    registry.setBehavior(tabBehavior(1));
+    registry.start();
+
+    const previousShadow = Object.getOwnPropertyDescriptor(shadow, 'fullscreenElement');
+    Object.defineProperty(shadow, 'fullscreenElement', {
+      configurable: true,
+      value: shadowVideo,
+    });
+    const restoreFullscreen = withFullscreenElement(host);
+    try {
+      expect(registry.resolveHotkeyTarget()).toBe(shadowVideo);
+    } finally {
+      restoreFullscreen();
+      if (previousShadow) {
+        Object.defineProperty(shadow, 'fullscreenElement', previousShadow);
+      } else {
+        Reflect.deleteProperty(shadow, 'fullscreenElement');
+      }
+    }
   });
 
   it('prefers an on-screen paused video over a larger off-screen playing one', () => {
