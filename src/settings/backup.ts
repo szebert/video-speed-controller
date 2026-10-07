@@ -2,12 +2,19 @@
 
 import { z } from 'zod';
 import type { Equal } from '../types/equal';
-import { EDITABLE_BEHAVIOR_FIELDS, type EditableBehaviorField } from './behavior-fields';
+import { isRecord, listIncludes } from '../types/narrow';
+import {
+  EDITABLE_BEHAVIOR_FIELDS,
+  NUMBER_BEHAVIOR_FIELDS,
+  type EditableBehaviorField,
+} from './behavior-fields';
 import { normalizeSiteHostname } from './site-hostname';
 import { isHotkeyBinding } from './hotkey-binding';
 import {
   canonicalizeBehaviorSettingChange,
   canonicalizeHotkeySettingChange,
+  isBooleanBehaviorField,
+  isOverlayPosition,
   SITE_HOTKEY_ACTIONS,
   type BehaviorFieldValue,
   type BehaviorOverrides,
@@ -193,11 +200,27 @@ export function assertCompleteBackup(
   }
 }
 
+function behaviorValueChange(
+  field: EditableBehaviorField,
+  value: unknown,
+): BehaviorSettingChange | null {
+  if (typeof value === 'boolean' && isBooleanBehaviorField(field)) {
+    return canonicalizeBehaviorSettingChange({ kind: 'value', field, value });
+  }
+  if (field === 'overlayPosition' && typeof value === 'number' && isOverlayPosition(value)) {
+    return canonicalizeBehaviorSettingChange({ kind: 'value', field, value });
+  }
+  if (typeof value === 'number' && listIncludes(NUMBER_BEHAVIOR_FIELDS, field)) {
+    return canonicalizeBehaviorSettingChange({ kind: 'value', field, value });
+  }
+  return null;
+}
+
 function detectFormatVersion(value: unknown): number | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return null;
   }
-  const formatVersion = (value as { formatVersion?: unknown }).formatVersion;
+  const formatVersion = value.formatVersion;
   if (
     typeof formatVersion === 'number' &&
     Number.isSafeInteger(formatVersion) &&
@@ -246,11 +269,7 @@ function canonicalizeLogicalFields(raw: LogicalFieldValues): LogicalFieldValues 
     if (!Object.prototype.hasOwnProperty.call(raw, field) || raw[field] === undefined) {
       continue;
     }
-    const change = canonicalizeBehaviorSettingChange({
-      kind: 'value',
-      field,
-      value: raw[field],
-    } as BehaviorSettingChange);
+    const change = behaviorValueChange(field, raw[field]);
     if (!change || change.kind !== 'value') {
       return null;
     }
@@ -357,11 +376,7 @@ export function logicalFieldChanges(values: LogicalFieldValues): BehaviorSetting
     if (!Object.prototype.hasOwnProperty.call(values, field) || values[field] === undefined) {
       continue;
     }
-    const change = canonicalizeBehaviorSettingChange({
-      kind: 'value',
-      field,
-      value: values[field],
-    } as BehaviorSettingChange);
+    const change = behaviorValueChange(field, values[field]);
     if (change) {
       changes.push(change);
     }
@@ -503,7 +518,7 @@ export function parseBackupText(text: string): BackupParseResult {
   }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text) as unknown;
+    parsed = JSON.parse(text);
   } catch {
     return invalid();
   }

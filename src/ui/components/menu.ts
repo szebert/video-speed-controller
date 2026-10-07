@@ -145,7 +145,8 @@ export function createMenuButton(options: {
     }
   });
   menu.addEventListener('keydown', (event) => {
-    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    const active = document.activeElement;
+    const index = active instanceof HTMLButtonElement ? items.indexOf(active) : -1;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       focusItem((index + 1) % items.length);
@@ -165,7 +166,9 @@ export function createMenuButton(options: {
       close(false);
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      (document.activeElement as HTMLButtonElement | null)?.click();
+      if (document.activeElement instanceof HTMLButtonElement) {
+        document.activeElement.click();
+      }
     }
   });
   options.signal?.addEventListener('abort', () => {

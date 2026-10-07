@@ -13,6 +13,7 @@
  * must never be rewritten as V1.
  */
 
+import { isRecord } from '../types/narrow';
 import { parseReadyGlobalBehaviorSettings, parseReadySiteSettings } from './behavior-schema';
 import {
   toSyncEligibleSiteRecord,
@@ -50,10 +51,10 @@ export {
 };
 
 export function detectVersion(value: unknown): number | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return null;
   }
-  const schemaVersion = (value as { schemaVersion?: unknown }).schemaVersion;
+  const schemaVersion = value.schemaVersion;
   if (
     typeof schemaVersion === 'number' &&
     Number.isSafeInteger(schemaVersion) &&

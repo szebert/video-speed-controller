@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 /** Find the fullscreen element without losing a video inside shadow DOM to retargeting. */
+function isFullscreenRoot(node: Node): node is Document | ShadowRoot {
+  return node instanceof Document || node instanceof ShadowRoot;
+}
+
 function fullscreenElement(video: HTMLVideoElement): Element | null {
   const root = video.getRootNode();
   return (
-    ('fullscreenElement' in root ? (root as Document | ShadowRoot).fullscreenElement : null) ??
+    (isFullscreenRoot(root) ? root.fullscreenElement : null) ??
     video.ownerDocument.fullscreenElement ??
     null
   );

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { isRecord } from '../types/narrow';
+
 export type OpaqueFields = {
   record: Record<string, unknown>;
   overrides: Record<string, unknown>;
@@ -40,14 +42,13 @@ export function extrasForDestination(
 }
 
 function canonicalizeJson(value: unknown): unknown {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return value;
   }
-  const record = value as Record<string, unknown>;
   return Object.fromEntries(
-    Object.keys(record)
+    Object.keys(value)
       .sort()
-      .map((key) => [key, canonicalizeJson(record[key])]),
+      .map((key) => [key, canonicalizeJson(value[key])]),
   );
 }
 

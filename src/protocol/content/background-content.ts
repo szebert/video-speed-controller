@@ -4,6 +4,7 @@ import * as z from 'zod/mini';
 import type { AppliedTabBehavior } from '../../core/applied-tab-behavior';
 import type { EffectiveHotkeyMap } from '../../settings/hotkey-binding';
 import type { Equal } from '../../types/equal';
+import { isRecord } from '../../types/narrow';
 import { OverlayPositionSchema } from './content-background';
 
 // APPLY wire (Mini). Extra keys strip. Session storage uses the handwritten
@@ -109,10 +110,10 @@ export type ReconcileAccessRequest = z.infer<typeof ReconcileAccessRequestSchema
 export type BackgroundToContentRequest = ApplyTabBehaviorRequest | ReconcileAccessRequest;
 
 export function parseBackgroundToContent(value: unknown): BackgroundToContentRequest | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return null;
   }
-  const type = (value as { type?: unknown }).type;
+  const type = value.type;
   if (type === 'APPLY_TAB_BEHAVIOR') {
     const parsed = ApplyTabBehaviorRequestSchema.safeParse(value);
     return parsed.success ? parsed.data : null;

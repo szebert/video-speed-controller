@@ -20,6 +20,7 @@ import type { HotkeyBinding } from '../settings/hotkey-binding';
 import {
   canonicalizeOverlayOpacity,
   HOLD_ACTIONS,
+  OVERLAY_POSITION,
   overlayPositionToGrid,
   type OverlayPosition,
 } from '../settings/site-behavior';
@@ -35,17 +36,17 @@ import {
   type VolumeIconKind,
 } from './types';
 
-const POSITION_LABELS = [
-  'positionTopLeft',
-  'positionTopCenter',
-  'positionTopRight',
-  'positionCenterLeft',
-  'positionCenter',
-  'positionCenterRight',
-  'positionBottomLeft',
-  'positionBottomCenter',
-  'positionBottomRight',
-] as const satisfies readonly MessageKey[];
+const POSITION_CELLS = [
+  { position: OVERLAY_POSITION.TOP_LEFT, label: 'positionTopLeft' },
+  { position: OVERLAY_POSITION.TOP_CENTER, label: 'positionTopCenter' },
+  { position: OVERLAY_POSITION.TOP_RIGHT, label: 'positionTopRight' },
+  { position: OVERLAY_POSITION.CENTER_LEFT, label: 'positionCenterLeft' },
+  { position: OVERLAY_POSITION.CENTER, label: 'positionCenter' },
+  { position: OVERLAY_POSITION.CENTER_RIGHT, label: 'positionCenterRight' },
+  { position: OVERLAY_POSITION.BOTTOM_LEFT, label: 'positionBottomLeft' },
+  { position: OVERLAY_POSITION.BOTTOM_CENTER, label: 'positionBottomCenter' },
+  { position: OVERLAY_POSITION.BOTTOM_RIGHT, label: 'positionBottomRight' },
+] as const satisfies readonly { position: OverlayPosition; label: MessageKey }[];
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -1287,8 +1288,7 @@ export class OverlayView {
       this.picker.className = 'position-picker';
       this.picker.setAttribute('role', 'group');
       this.picker.setAttribute('aria-label', t('overlayPosition'));
-      for (const [index, labelKey] of POSITION_LABELS.entries()) {
-        const position = index as OverlayPosition;
+      for (const { position, label: labelKey } of POSITION_CELLS) {
         const cell = this.document.createElement('button');
         cell.type = 'button';
         cell.className = 'position-cell';

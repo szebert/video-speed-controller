@@ -51,11 +51,26 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function isMappedEvent<K extends keyof HTMLElementEventMap>(
+  type: K,
+  event: Event,
+): event is HTMLElementEventMap[K] {
+  return event.type === type;
+}
+
 export function listen<K extends keyof HTMLElementEventMap>(
   node: EventTarget,
   type: K,
   listener: (event: HTMLElementEventMap[K]) => void,
   signal?: AbortSignal,
 ): void {
-  node.addEventListener(type, listener as EventListener, { signal });
+  node.addEventListener(
+    type,
+    (event) => {
+      if (isMappedEvent(type, event)) {
+        listener(event);
+      }
+    },
+    { signal },
+  );
 }

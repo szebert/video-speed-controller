@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { isRecord } from '../types/narrow';
 import { THEME_KEY } from './site-behavior';
 import { defaultSyncStore, type DurableSettingsStore } from '../storage/durable-store';
 import { enqueueStorageMutation, THEME_LOCK } from '../storage/storage-mutation-queue';
@@ -34,21 +35,20 @@ function isThemePreference(value: unknown): value is ThemePreference {
 export function parseReadyThemeRecord(
   value: unknown,
 ): { record: ThemeRecordV1; extras: OpaqueFields } | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return null;
   }
-  const raw = value as Record<string, unknown>;
-  if (raw.schemaVersion !== 1) {
+  if (value.schemaVersion !== 1) {
     return null;
   }
   const record: ThemeRecordV1 = { schemaVersion: 1 };
-  if (isThemePreference(raw.preference)) {
-    record.preference = raw.preference;
+  if (isThemePreference(value.preference)) {
+    record.preference = value.preference;
   }
   return {
     record,
     extras: {
-      record: pickUnknownKeys(raw, ['schemaVersion', 'preference']),
+      record: pickUnknownKeys(value, ['schemaVersion', 'preference']),
       overrides: {},
     },
   };

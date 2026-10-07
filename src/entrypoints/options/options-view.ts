@@ -2167,7 +2167,7 @@ export class OptionsView {
       id,
       name: field,
       label: t(field),
-      description: t(`${field}Description` as MessageKey),
+      description: t(`${field}Description`),
       className,
       live: (next) => {
         const setting = next.behavior[field];

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { narrowed } from '../types/narrow';
 import {
   OPTIONS_TO_BACKGROUND,
   type OptionsToBackgroundRequest,
@@ -24,14 +25,28 @@ export async function sendOptionsRequest<T extends OptionsToBackgroundRequest>(
   request: T,
 ): Promise<OptionsResponse<T> | undefined> {
   const raw: unknown = await chrome.runtime.sendMessage(request);
-  const parsed = OPTIONS_TO_BACKGROUND[request.type].response.safeParse(raw);
-  return parsed.success ? (parsed.data as OptionsResponse<T>) : undefined;
+  const schema = OPTIONS_TO_BACKGROUND[request.type].response;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return undefined;
+  }
+  return narrowed(
+    parsed.data,
+    (value): value is OptionsResponse<T> => schema.safeParse(value).success,
+  );
 }
 
 export async function sendPopupRequest<T extends PopupToBackgroundRequest>(
   request: T,
 ): Promise<PopupResponse<T> | undefined> {
   const raw: unknown = await chrome.runtime.sendMessage(request);
-  const parsed = POPUP_TO_BACKGROUND[request.type].response.safeParse(raw);
-  return parsed.success ? (parsed.data as PopupResponse<T>) : undefined;
+  const schema = POPUP_TO_BACKGROUND[request.type].response;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return undefined;
+  }
+  return narrowed(
+    parsed.data,
+    (value): value is PopupResponse<T> => schema.safeParse(value).success,
+  );
 }

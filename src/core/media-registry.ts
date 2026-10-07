@@ -22,7 +22,7 @@ type RegistryEntry = {
 };
 
 function isVideoElement(node: Node): node is HTMLVideoElement {
-  return node.nodeType === 1 && (node as Element).localName === 'video';
+  return node instanceof HTMLVideoElement;
 }
 
 function pointHitsRect(x: number, y: number, rect: DOMRect): boolean {

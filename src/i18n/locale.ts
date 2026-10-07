@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { listIncludes } from '../types/narrow';
+
 export const SUPPORTED_LOCALES = ['en'] as const;
 export const DEFAULT_LOCALE = 'en';
 
@@ -8,16 +10,14 @@ export type LocaleDirection = 'ltr' | 'rtl';
 
 const RTL_LOCALES = new Set<string>();
 
+function supportedLocale(value: string): SupportedLocale | null {
+  return listIncludes(SUPPORTED_LOCALES, value) ? value : null;
+}
+
 export function resolveLocale(uiLanguage = readUILanguage()): SupportedLocale {
   const normalized = uiLanguage.trim().toLowerCase();
-  if ((SUPPORTED_LOCALES as readonly string[]).includes(normalized)) {
-    return normalized as SupportedLocale;
-  }
   const prefix = normalized.split('-')[0] ?? '';
-  if ((SUPPORTED_LOCALES as readonly string[]).includes(prefix)) {
-    return prefix as SupportedLocale;
-  }
-  return DEFAULT_LOCALE;
+  return supportedLocale(normalized) ?? supportedLocale(prefix) ?? DEFAULT_LOCALE;
 }
 
 export function localeDirection(locale: string): LocaleDirection {

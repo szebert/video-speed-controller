@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { LogicalValueSchema } from '../settings/behavior-schema';
 import { cannotSafelyDestroy } from '../settings/destroy-policy';
 import type { SettingsParseResult } from '../settings/migrate';
+import { isRecord } from '../types/narrow';
 import { parseSchemaVersionedControl, type ControlMetadataParse } from './control-metadata';
 
 export const SITE_GENERATION_KEY = 'meta:site-generation';
@@ -43,13 +44,13 @@ export function parseSiteGenerationRecord(
 }
 
 export function parseSiteRecordGeneration(raw: unknown): ParsedGeneration {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+  if (!isRecord(raw)) {
     return { status: 'legacy', value: 0 };
   }
   if (!Object.prototype.hasOwnProperty.call(raw, 'generation')) {
     return { status: 'legacy', value: 0 };
   }
-  const generation = LogicalValueSchema.safeParse((raw as { generation: unknown }).generation);
+  const generation = LogicalValueSchema.safeParse(raw.generation);
   return generation.success ? { status: 'valid', value: generation.data } : { status: 'unknown' };
 }
 

@@ -15,8 +15,9 @@ function isEngineProbeResult(value: unknown): value is EngineProbeResult[] {
 }
 
 function probeActiveEngine(): boolean {
+  const engine: unknown = Reflect.get(globalThis, '__OSVSC_ENGINE__');
   return (
-    (globalThis as { __OSVSC_ENGINE__?: { active?: boolean } }).__OSVSC_ENGINE__?.active === true
+    typeof engine === 'object' && engine !== null && 'active' in engine && engine.active === true
   );
 }
 

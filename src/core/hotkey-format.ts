@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { HotkeyBinding } from '../settings/hotkey-binding';
+import { isRecord } from '../types/narrow';
 
 const CODE_FALLBACKS: Record<string, string> = {
   BracketLeft: '[',
@@ -83,9 +84,13 @@ export function ariaKeyshortcutsFromBinding(binding: HotkeyBinding): string {
   return parts.join('+');
 }
 
+function isKeyboardLayoutNavigator(value: unknown): value is KeyboardLayoutNavigator {
+  return isRecord(value) && typeof value.getLayoutMap === 'function';
+}
+
 export async function readKeyboardLayoutMap(): Promise<ReadonlyMap<string, string> | undefined> {
-  const keyboard = (navigator as Navigator & { keyboard?: KeyboardLayoutNavigator }).keyboard;
-  if (!keyboard || typeof keyboard.getLayoutMap !== 'function') {
+  const keyboard: unknown = Reflect.get(navigator, 'keyboard');
+  if (!isKeyboardLayoutNavigator(keyboard)) {
     return undefined;
   }
   try {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { Equal } from '../types/equal';
+import { isRecord } from '../types/narrow';
 import {
   BEHAVIOR_FIELDS,
   EDITABLE_BEHAVIOR_FIELDS,
@@ -155,13 +156,12 @@ function isAppliedFieldValue(key: keyof AppliedTabBehavior, value: unknown): boo
 // AppliedTabBehaviorSchema: that schema is Mini, strips extra keys, and this
 // file cannot import Zod.
 export function isAppliedTabBehavior(value: unknown): value is AppliedTabBehavior {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return false;
   }
-  const record = value as Record<string, unknown>;
-  const keys = Object.keys(record);
+  const keys = Object.keys(value);
   return (
     keys.length === APPLIED_TAB_BEHAVIOR_KEYS.length &&
-    APPLIED_TAB_BEHAVIOR_KEYS.every((key) => key in record && isAppliedFieldValue(key, record[key]))
+    APPLIED_TAB_BEHAVIOR_KEYS.every((key) => key in value && isAppliedFieldValue(key, value[key]))
   );
 }

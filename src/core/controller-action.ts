@@ -2,6 +2,7 @@
 
 import { isSiteHotkeyAction, type SiteHotkeyAction } from '../settings/site-behavior';
 import type { Equal } from '../types/equal';
+import { keysOf, listIncludes } from '../types/narrow';
 
 /** Actions that can have a stored binding. */
 export type { SiteHotkeyAction };
@@ -47,7 +48,7 @@ export const JUMP_PERCENT_BY_ACTION = {
 
 export type JumpPercentAction = keyof typeof JUMP_PERCENT_BY_ACTION;
 
-export const JUMP_PERCENT_ACTIONS = Object.keys(JUMP_PERCENT_BY_ACTION) as JumpPercentAction[];
+export const JUMP_PERCENT_ACTIONS = keysOf(JUMP_PERCENT_BY_ACTION);
 
 /** Hotkey-only volume actions. The overlay volume bar has its own controls. */
 export const MEDIA_VOLUME_ACTIONS = ['toggleMute', 'decreaseVolume', 'increaseVolume'] as const;
@@ -99,13 +100,11 @@ export function isControllerAction(value: unknown): value is ControllerAction {
 }
 
 export function isTabSpeedAction(value: unknown): value is TabSpeedAction {
-  return typeof value === 'string' && (TAB_SPEED_ACTIONS as readonly string[]).includes(value);
+  return typeof value === 'string' && listIncludes(TAB_SPEED_ACTIONS, value);
 }
 
 export function isMediaNavigationAction(value: unknown): value is MediaNavigationAction {
-  return (
-    typeof value === 'string' && (MEDIA_NAVIGATION_ACTIONS as readonly string[]).includes(value)
-  );
+  return typeof value === 'string' && listIncludes(MEDIA_NAVIGATION_ACTIONS, value);
 }
 
 export function isJumpPercentAction(value: unknown): value is JumpPercentAction {
@@ -113,11 +112,11 @@ export function isJumpPercentAction(value: unknown): value is JumpPercentAction 
 }
 
 export function isMediaVolumeAction(value: unknown): value is MediaVolumeAction {
-  return typeof value === 'string' && (MEDIA_VOLUME_ACTIONS as readonly string[]).includes(value);
+  return typeof value === 'string' && listIncludes(MEDIA_VOLUME_ACTIONS, value);
 }
 
 export function isMediaLoopAction(value: unknown): value is MediaLoopAction {
-  return typeof value === 'string' && (MEDIA_LOOP_ACTIONS as readonly string[]).includes(value);
+  return typeof value === 'string' && listIncludes(MEDIA_LOOP_ACTIONS, value);
 }
 
 export function isMediaLocalAction(value: unknown): value is MediaLocalAction {

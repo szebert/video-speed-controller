@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import type { Equal } from '../types/equal';
+import { isRecord } from '../types/narrow';
 import { hasOpaqueContent, pickUnknownKeys, type OpaqueFields } from './opaque-fields';
 import { BEHAVIOR_FIELDS, type BehaviorField } from './behavior-fields';
 import { isLogicalValue } from './logical-value';
@@ -112,16 +113,15 @@ export function parseBehaviorOverrideMap(value: unknown): {
   overrides: BehaviorOverrides;
   extras: Record<string, unknown>;
 } | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return null;
   }
-  const raw = value as Record<string, unknown>;
   const overrides: BehaviorOverrides = {};
   const extras: Record<string, unknown> = {};
 
-  for (const [key, field] of Object.entries(raw)) {
+  for (const [key, field] of Object.entries(value)) {
     if (key === 'hotkeys') {
-      if (!field || typeof field !== 'object' || Array.isArray(field)) {
+      if (!isRecord(field)) {
         continue;
       }
       const parsedHotkeys = parseHotkeyOverrideMap(field);
@@ -150,15 +150,14 @@ function isHotkeyOverrideValue(value: unknown): value is HotkeyBinding | null {
   return value === null || isHotkeyBinding(value);
 }
 
-function parseHotkeyOverrideMap(value: object): {
+function parseHotkeyOverrideMap(value: Record<string, unknown>): {
   overrides?: NonNullable<BehaviorOverrides['hotkeys']>;
   extras?: Record<string, unknown>;
 } {
-  const raw = value as Record<string, unknown>;
   const overrides: NonNullable<BehaviorOverrides['hotkeys']> = {};
   const extras: Record<string, unknown> = {};
   let hasKnown = false;
-  for (const [action, field] of Object.entries(raw)) {
+  for (const [action, field] of Object.entries(value)) {
     if (!isSiteHotkeyAction(action)) {
       extras[action] = field;
       continue;
@@ -181,35 +180,34 @@ export function parseBehaviorOverrides(value: unknown): BehaviorOverrides | null
 export function parseReadySiteSettings(
   value: unknown,
 ): { record: SiteSettingsV1; extras: OpaqueFields } | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return null;
   }
-  const raw = value as Record<string, unknown>;
-  if (!hasRequiredKeys(raw, SITE_REQUIRED_KEYS) || raw.schemaVersion !== 1) {
+  if (!hasRequiredKeys(value, SITE_REQUIRED_KEYS) || value.schemaVersion !== 1) {
     return null;
   }
-  if (!isFiniteTimestamp(raw.lastUsedAt)) {
+  if (!isFiniteTimestamp(value.lastUsedAt)) {
     return null;
   }
-  const parsedOverrides = parseBehaviorOverrideMap(raw.overrides);
+  const parsedOverrides = parseBehaviorOverrideMap(value.overrides);
   if (!parsedOverrides) {
     return null;
   }
   const extras: OpaqueFields = {
-    record: pickUnknownKeys(raw, SITE_ENVELOPE_KEYS),
+    record: pickUnknownKeys(value, SITE_ENVELOPE_KEYS),
     overrides: parsedOverrides.extras,
   };
   const record: SiteSettingsV1 = {
     schemaVersion: 1,
     overrides: parsedOverrides.overrides,
-    lastUsedAt: raw.lastUsedAt,
+    lastUsedAt: value.lastUsedAt,
   };
-  if (Object.prototype.hasOwnProperty.call(raw, 'generation')) {
-    const generation = LogicalValueSchema.safeParse(raw.generation);
+  if (Object.prototype.hasOwnProperty.call(value, 'generation')) {
+    const generation = LogicalValueSchema.safeParse(value.generation);
     if (generation.success) {
       record.generation = generation.data;
     } else {
-      extras.record.generation = raw.generation;
+      extras.record.generation = value.generation;
     }
   }
   if (!hasSemanticOverrides(parsedOverrides.overrides) && !hasOpaqueContent(extras)) {
@@ -225,21 +223,20 @@ export function parseSiteSettings(value: unknown): SiteSettingsV1 | null {
 export function parseReadyGlobalBehaviorSettings(
   value: unknown,
 ): { record: GlobalBehaviorSettingsV1; extras: OpaqueFields } | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return null;
   }
-  const raw = value as Record<string, unknown>;
-  if (!hasRequiredKeys(raw, GLOBAL_ENVELOPE_KEYS) || raw.schemaVersion !== 1) {
+  if (!hasRequiredKeys(value, GLOBAL_ENVELOPE_KEYS) || value.schemaVersion !== 1) {
     return null;
   }
-  const parsedOverrides = parseBehaviorOverrideMap(raw.overrides);
+  const parsedOverrides = parseBehaviorOverrideMap(value.overrides);
   if (!parsedOverrides) {
     return null;
   }
   return {
     record: { schemaVersion: 1, overrides: parsedOverrides.overrides },
     extras: {
-      record: pickUnknownKeys(raw, GLOBAL_ENVELOPE_KEYS),
+      record: pickUnknownKeys(value, GLOBAL_ENVELOPE_KEYS),
       overrides: parsedOverrides.extras,
     },
   };

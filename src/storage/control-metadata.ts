@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import { isRecord } from '../types/narrow';
+
 export type ControlMetadataParse<T> =
   | { status: 'absent' }
   | { status: 'valid'; value: T }
@@ -13,18 +15,17 @@ export function parseSchemaVersionedControl<T>(
   if (raw === undefined) {
     return { status: 'absent' };
   }
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+  if (!isRecord(raw)) {
     return { status: 'corrupt' };
   }
-  const record = raw as Record<string, unknown>;
-  const version = record.schemaVersion;
+  const version = raw.schemaVersion;
   if (typeof version === 'number' && Number.isSafeInteger(version) && version > 1) {
     return { status: 'unsupported' };
   }
   if (version !== 1) {
     return { status: 'corrupt' };
   }
-  const value = parseV1(record);
+  const value = parseV1(raw);
   if (!value) {
     return { status: 'corrupt' };
   }

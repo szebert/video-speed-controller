@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { SiteHotkeyAction } from './site-behavior';
+import { isRecord } from '../types/narrow';
 
 export type HotkeyBinding = {
   code: string;
@@ -74,20 +75,23 @@ export function isAssignableHotkeyCode(code: unknown): code is string {
   return typeof code === 'string' && code.length > 0 && !REJECTED_HOTKEY_CODES.has(code);
 }
 
+function isEffectiveAction(map: EffectiveHotkeyMap, key: string): key is SiteHotkeyAction {
+  return Object.hasOwn(map, key);
+}
+
 export function isHotkeyBinding(value: unknown): value is HotkeyBinding {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return false;
   }
-  const record = value as Record<string, unknown>;
-  const keys = Object.keys(record);
+  const keys = Object.keys(value);
   return (
     keys.length === HOTKEY_BINDING_KEYS.length &&
-    HOTKEY_BINDING_KEYS.every((key) => key in record) &&
-    isAssignableHotkeyCode(record.code) &&
-    typeof record.ctrl === 'boolean' &&
-    typeof record.alt === 'boolean' &&
-    typeof record.shift === 'boolean' &&
-    typeof record.meta === 'boolean'
+    HOTKEY_BINDING_KEYS.every((key) => key in value) &&
+    isAssignableHotkeyCode(value.code) &&
+    typeof value.ctrl === 'boolean' &&
+    typeof value.alt === 'boolean' &&
+    typeof value.shift === 'boolean' &&
+    typeof value.meta === 'boolean'
   );
 }
 
@@ -164,7 +168,10 @@ export function findHotkeyConflict(
   action: SiteHotkeyAction,
   binding: HotkeyBinding,
 ): SiteHotkeyAction | null {
-  for (const other of Object.keys(map) as SiteHotkeyAction[]) {
+  for (const other of Object.keys(map)) {
+    if (!isEffectiveAction(map, other)) {
+      continue;
+    }
     if (other === action) {
       continue;
     }
@@ -178,7 +185,10 @@ export function findHotkeyConflict(
 
 export function findHotkeyMapConflict(map: EffectiveHotkeyMap): SiteHotkeyAction | null {
   const seen: { action: SiteHotkeyAction; binding: HotkeyBinding }[] = [];
-  for (const action of Object.keys(map) as SiteHotkeyAction[]) {
+  for (const action of Object.keys(map)) {
+    if (!isEffectiveAction(map, action)) {
+      continue;
+    }
     const binding = map[action];
     if (!binding) {
       continue;
@@ -201,7 +211,10 @@ export function matchHotkeyAction(
     return null;
   }
   let match: SiteHotkeyAction | null = null;
-  for (const action of Object.keys(map) as SiteHotkeyAction[]) {
+  for (const action of Object.keys(map)) {
+    if (!isEffectiveAction(map, action)) {
+      continue;
+    }
     const binding = map[action];
     if (!binding || !hotkeyBindingMatches(binding, event)) {
       continue;

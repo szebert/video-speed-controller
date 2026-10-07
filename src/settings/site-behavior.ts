@@ -16,6 +16,7 @@ import {
   type SpeedPolicy,
 } from '../core/speed';
 import type { Equal } from '../types/equal';
+import { completeRecord, isRecord, listIncludes } from '../types/narrow';
 import {
   BEHAVIOR_FIELDS,
   BOOLEAN_BEHAVIOR_FIELDS,
@@ -181,18 +182,33 @@ export type OverlayPosition = (typeof OVERLAY_POSITION)[keyof typeof OVERLAY_POS
 
 export type GridIndex = 0 | 1 | 2;
 
+const GRID_BY_POSITION = [
+  { row: 0, column: 0 },
+  { row: 0, column: 1 },
+  { row: 0, column: 2 },
+  { row: 1, column: 0 },
+  { row: 1, column: 1 },
+  { row: 1, column: 2 },
+  { row: 2, column: 0 },
+  { row: 2, column: 1 },
+  { row: 2, column: 2 },
+] as const satisfies readonly { row: GridIndex; column: GridIndex }[];
+
+const POSITION_BY_GRID = [
+  [OVERLAY_POSITION.TOP_LEFT, OVERLAY_POSITION.TOP_CENTER, OVERLAY_POSITION.TOP_RIGHT],
+  [OVERLAY_POSITION.CENTER_LEFT, OVERLAY_POSITION.CENTER, OVERLAY_POSITION.CENTER_RIGHT],
+  [OVERLAY_POSITION.BOTTOM_LEFT, OVERLAY_POSITION.BOTTOM_CENTER, OVERLAY_POSITION.BOTTOM_RIGHT],
+] as const satisfies readonly (readonly OverlayPosition[])[];
+
 export function overlayPositionToGrid(position: OverlayPosition): {
   row: GridIndex;
   column: GridIndex;
 } {
-  return {
-    row: Math.floor(position / 3) as GridIndex,
-    column: (position % 3) as GridIndex,
-  };
+  return GRID_BY_POSITION[position];
 }
 
 export function overlayPositionFromGrid(row: GridIndex, column: GridIndex): OverlayPosition {
-  return (row * 3 + column) as OverlayPosition;
+  return POSITION_BY_GRID[row][column];
 }
 
 export type SiteHotkeyAction =
@@ -343,21 +359,28 @@ export type ResolvedSiteBehavior = {
   hotkeys: ResolvedHotkeyMap;
 };
 
-export const BUILT_IN_SITE_BEHAVIOR = {
-  // Every action, including the unbound navigation actions. Do not hand-build
-  // a speed-only map: missing keys resolve to undefined instead of null.
-  hotkeys: builtInEffectiveHotkeys(),
-  ...Object.fromEntries(
-    EDITABLE_BEHAVIOR_FIELDS.map((field) => [field, BEHAVIOR_FIELDS[field].default]),
-  ),
-} as SiteBehavior;
+const SITE_BEHAVIOR_KEYS = ['hotkeys', ...EDITABLE_BEHAVIOR_FIELDS] as const;
+
+function builtInSiteBehavior(): SiteBehavior {
+  const behavior: Record<string, unknown> = {
+    // Every action, including the unbound navigation actions. Do not hand-build
+    // a speed-only map: missing keys resolve to undefined instead of null.
+    hotkeys: builtInEffectiveHotkeys(),
+  };
+  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
+    behavior[field] = BEHAVIOR_FIELDS[field].default;
+  }
+  return completeRecord<SiteBehavior>(behavior, SITE_BEHAVIOR_KEYS);
+}
+
+export const BUILT_IN_SITE_BEHAVIOR = builtInSiteBehavior();
 
 export function isOverlayPosition(value: unknown): value is OverlayPosition {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 8;
 }
 
 export function isSiteHotkeyAction(value: unknown): value is SiteHotkeyAction {
-  return typeof value === 'string' && (SITE_HOTKEY_ACTIONS as readonly string[]).includes(value);
+  return typeof value === 'string' && listIncludes(SITE_HOTKEY_ACTIONS, value);
 }
 
 export function isFiniteTimestamp(value: unknown): value is number {
@@ -373,20 +396,19 @@ export function isOverride<T>(
   value: unknown,
   isValue: (candidate: unknown) => candidate is T,
 ): value is Override<T> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return false;
   }
-  const record = value as { kind?: unknown; value?: unknown; updatedAt?: unknown };
-  if (!isLogicalValue(record.updatedAt)) {
+  if (!isLogicalValue(value.updatedAt)) {
     return false;
   }
-  if (record.kind === 'inherit') {
-    return hasExactKeys(record, ['kind', 'updatedAt']);
+  if (value.kind === 'inherit') {
+    return hasExactKeys(value, ['kind', 'updatedAt']);
   }
   return (
-    record.kind === 'value' &&
-    hasExactKeys(record, ['kind', 'value', 'updatedAt']) &&
-    isValue(record.value)
+    value.kind === 'value' &&
+    hasExactKeys(value, ['kind', 'value', 'updatedAt']) &&
+    isValue(value.value)
   );
 }
 
@@ -517,16 +539,65 @@ export function mergeOverrideField<T>(
   return syncField;
 }
 
+type FieldOverrideMap = {
+  [K in BehaviorField]?: Override<BehaviorFieldValue<K>>;
+};
+
+type FieldValueMap = {
+  [K in BehaviorField]: BehaviorFieldValue<K>;
+};
+
+function fieldOverride<K extends BehaviorField>(
+  overrides: BehaviorOverrides,
+  field: K,
+): Override<BehaviorFieldValue<K>> | undefined {
+  const fields: FieldOverrideMap = overrides;
+  return fields[field];
+}
+
+function builtInField<K extends BehaviorField>(field: K): BehaviorFieldValue<K> {
+  const values: FieldValueMap = BUILT_IN_SITE_BEHAVIOR;
+  return values[field];
+}
+
+function mergeBehaviorField<K extends BehaviorField>(
+  field: K,
+  syncOverrides: BehaviorOverrides,
+  localOverrides: BehaviorOverrides,
+): Override<BehaviorFieldValue<K>> | undefined {
+  return mergeOverrideField(
+    fieldOverride(syncOverrides, field),
+    fieldOverride(localOverrides, field),
+  );
+}
+
+function resolveBehaviorField<K extends BehaviorField>(
+  field: K,
+  globalOverrides: BehaviorOverrides,
+  siteOverrides: BehaviorOverrides,
+): ResolvedSetting<BehaviorFieldValue<K>> {
+  return resolveOverride(
+    builtInField(field),
+    fieldOverride(globalOverrides, field),
+    fieldOverride(siteOverrides, field),
+  );
+}
+
+function storedFieldsEqual<K extends BehaviorField>(
+  field: K,
+  left: BehaviorOverrides,
+  right: BehaviorOverrides,
+): boolean {
+  return fieldsEqual(fieldOverride(left, field), fieldOverride(right, field));
+}
+
 export function mergeBehaviorOverrides(
   syncOverrides: BehaviorOverrides,
   localOverrides: BehaviorOverrides,
 ): BehaviorOverrides {
   const merged: BehaviorOverrides = {};
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    const next = mergeOverrideField<SiteBehavior[typeof field]>(
-      syncOverrides[field] as Override<SiteBehavior[typeof field]> | undefined,
-      localOverrides[field] as Override<SiteBehavior[typeof field]> | undefined,
-    );
+    const next = mergeBehaviorField(field, syncOverrides, localOverrides);
     if (next) {
       Object.assign(merged, { [field]: next });
     }
@@ -641,18 +712,13 @@ export function resolveSiteBehavior(
   siteOverrides: BehaviorOverrides = {},
   policy?: SpeedPolicy,
 ): ResolvedSiteBehavior {
-  const resolved = {
+  const draft: Record<string, unknown> = {
     hotkeys: resolvedHotkeysFrom(globalOverrides, siteOverrides),
-  } as ResolvedSiteBehavior;
+  };
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    Object.assign(resolved, {
-      [field]: resolveOverride(
-        BUILT_IN_SITE_BEHAVIOR[field],
-        globalOverrides[field] as Override<SiteBehavior[typeof field]> | undefined,
-        siteOverrides[field] as Override<SiteBehavior[typeof field]> | undefined,
-      ),
-    });
+    draft[field] = resolveBehaviorField(field, globalOverrides, siteOverrides);
   }
+  const resolved = completeRecord<ResolvedSiteBehavior>(draft, SITE_BEHAVIOR_KEYS);
   resolved.speedMin = clampResolvedSpeedMin(resolved.speedMin);
   resolved.speedMax = clampResolvedSpeedMax(resolved.speedMax);
   resolved.decreaseSpeedStep = clampResolvedSpeedStep(resolved.decreaseSpeedStep);
@@ -839,18 +905,18 @@ export function hotkeyChangesWouldConflict(
 }
 
 export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavior {
-  const effective = { hotkeys: toEffectiveHotkeys(resolved) } as SiteBehavior;
+  const effective: Record<string, unknown> = { hotkeys: toEffectiveHotkeys(resolved) };
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    Object.assign(effective, { [field]: resolved[field].value });
+    effective[field] = resolved[field].value;
   }
-  return effective;
+  return completeRecord<SiteBehavior>(effective, SITE_BEHAVIOR_KEYS);
 }
 
 function resolvedHotkeysFrom(
   globalOverrides: BehaviorOverrides,
   siteOverrides: BehaviorOverrides,
 ): ResolvedHotkeyMap {
-  const hotkeys = {} as ResolvedHotkeyMap;
+  const hotkeys: Record<string, unknown> = {};
   for (const action of SITE_HOTKEY_ACTIONS) {
     hotkeys[action] = resolveOverride(
       BUILT_IN_SITE_BEHAVIOR.hotkeys[action],
@@ -858,17 +924,12 @@ function resolvedHotkeysFrom(
       siteOverrides.hotkeys?.[action],
     );
   }
-  return hotkeys;
+  return completeRecord<ResolvedHotkeyMap>(hotkeys, SITE_HOTKEY_ACTIONS);
 }
 
 export function behaviorOverridesEqual(left: BehaviorOverrides, right: BehaviorOverrides): boolean {
   return (
-    EDITABLE_BEHAVIOR_FIELDS.every((field) =>
-      fieldsEqual(
-        left[field] as Override<unknown> | undefined,
-        right[field] as Override<unknown> | undefined,
-      ),
-    ) &&
+    EDITABLE_BEHAVIOR_FIELDS.every((field) => storedFieldsEqual(field, left, right)) &&
     SITE_HOTKEY_ACTIONS.every((action) =>
       fieldsEqual(left.hotkeys?.[action], right.hotkeys?.[action]),
     )
@@ -892,7 +953,7 @@ export { BOOLEAN_BEHAVIOR_FIELDS, EDITABLE_BEHAVIOR_FIELDS };
 export function isBooleanBehaviorField(
   field: EditableBehaviorField,
 ): field is BooleanBehaviorField {
-  return (BOOLEAN_BEHAVIOR_FIELDS as readonly string[]).includes(field);
+  return listIncludes(BOOLEAN_BEHAVIOR_FIELDS, field);
 }
 
 export type EditableResolvedBehavior = Pick<ResolvedSiteBehavior, EditableBehaviorField>;
@@ -912,9 +973,7 @@ export function hasValueOverrides(overrides: BehaviorOverrides): boolean {
 }
 
 export function isEditableBehaviorField(value: unknown): value is EditableBehaviorField {
-  return (
-    typeof value === 'string' && (EDITABLE_BEHAVIOR_FIELDS as readonly string[]).includes(value)
-  );
+  return typeof value === 'string' && listIncludes(EDITABLE_BEHAVIOR_FIELDS, value);
 }
 
 export function speedPolicyFromResolved(
@@ -989,11 +1048,11 @@ export function resolveAppliedSpeed(
 export function toEditableResolvedBehavior(
   resolved: ResolvedSiteBehavior,
 ): EditableResolvedBehavior {
-  const editable = {} as EditableResolvedBehavior;
+  const editable: Record<string, unknown> = {};
   for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    Object.assign(editable, { [field]: resolved[field] });
+    editable[field] = resolved[field];
   }
-  return editable;
+  return completeRecord<EditableResolvedBehavior>(editable, EDITABLE_BEHAVIOR_FIELDS);
 }
 
 export function tombstoneExistingSiteSettings(

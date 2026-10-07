@@ -2,6 +2,7 @@
 
 import { DEFAULT_SPEED_POLICY } from '../core/speed';
 import type { Equal } from '../types/equal';
+import { keysOf, nonEmpty } from '../types/narrow';
 
 export type ReapplyMode = 'none' | 'preserve-target' | 'revalidate-target' | 'resolve-target';
 
@@ -193,10 +194,7 @@ export const BEHAVIOR_FIELDS = {
 export type BehaviorField = keyof typeof BEHAVIOR_FIELDS;
 export type EditableBehaviorField = BehaviorField;
 
-export const EDITABLE_BEHAVIOR_FIELDS = Object.keys(BEHAVIOR_FIELDS) as [
-  BehaviorField,
-  ...BehaviorField[],
-];
+export const EDITABLE_BEHAVIOR_FIELDS = nonEmpty(keysOf(BEHAVIOR_FIELDS));
 
 export type BooleanBehaviorField = {
   [K in BehaviorField]: (typeof BEHAVIOR_FIELDS)[K]['default'] extends boolean ? K : never;
@@ -210,14 +208,18 @@ export type NumberBehaviorField = {
     : never;
 }[BehaviorField];
 
-export const BOOLEAN_BEHAVIOR_FIELDS = EDITABLE_BEHAVIOR_FIELDS.filter(
-  (field): field is BooleanBehaviorField => typeof BEHAVIOR_FIELDS[field].default === 'boolean',
-) as [BooleanBehaviorField, ...BooleanBehaviorField[]];
+export const BOOLEAN_BEHAVIOR_FIELDS = nonEmpty(
+  EDITABLE_BEHAVIOR_FIELDS.filter(
+    (field): field is BooleanBehaviorField => typeof BEHAVIOR_FIELDS[field].default === 'boolean',
+  ),
+);
 
-export const NUMBER_BEHAVIOR_FIELDS = EDITABLE_BEHAVIOR_FIELDS.filter(
-  (field): field is NumberBehaviorField =>
-    field !== 'overlayPosition' && typeof BEHAVIOR_FIELDS[field].default === 'number',
-) as [NumberBehaviorField, ...NumberBehaviorField[]];
+export const NUMBER_BEHAVIOR_FIELDS = nonEmpty(
+  EDITABLE_BEHAVIOR_FIELDS.filter(
+    (field): field is NumberBehaviorField =>
+      field !== 'overlayPosition' && typeof BEHAVIOR_FIELDS[field].default === 'number',
+  ),
+);
 
 // Inherit covers every field. This proves each field also has a writable value
 // kind. A string/enum/object default fails compile until the model is extended.

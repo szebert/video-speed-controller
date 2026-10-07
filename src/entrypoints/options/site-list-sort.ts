@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import type { SiteMembershipUpdate } from '../../protocol/schemas/shared';
 import type { CustomSiteSummary } from '../../settings/site-summary';
+import { isRecord } from '../../types/narrow';
 
 export const SITE_LIST_SORT_STORAGE_KEY = 'osvsc:site-list-sort';
 
@@ -98,18 +99,16 @@ export function nextSiteListSort(current: SiteListSort, mode: SiteListSort['mode
 }
 
 export function parseSiteListSort(value: unknown): SiteListSort {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return DEFAULT_SITE_LIST_SORT;
   }
-  const record = value as { mode?: unknown; direction?: unknown };
-  if (record.mode === 'name' && (record.direction === 'asc' || record.direction === 'desc')) {
-    return { mode: 'name', direction: record.direction };
+  const mode = value.mode;
+  const direction = value.direction;
+  if (mode === 'name' && (direction === 'asc' || direction === 'desc')) {
+    return { mode, direction };
   }
-  if (
-    record.mode === 'recent' &&
-    (record.direction === 'newest' || record.direction === 'oldest')
-  ) {
-    return { mode: 'recent', direction: record.direction };
+  if (mode === 'recent' && (direction === 'newest' || direction === 'oldest')) {
+    return { mode, direction };
   }
   return DEFAULT_SITE_LIST_SORT;
 }
@@ -125,7 +124,7 @@ export function readStoredSiteListSort(
     if (!raw) {
       return DEFAULT_SITE_LIST_SORT;
     }
-    return parseSiteListSort(JSON.parse(raw) as unknown);
+    return parseSiteListSort(JSON.parse(raw));
   } catch {
     return DEFAULT_SITE_LIST_SORT;
   }
