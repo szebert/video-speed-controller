@@ -116,6 +116,17 @@ function isForbiddenContentPackage(specifier: string): boolean {
 const CONTENT_GRAPH = walkFrom(CONTENT_ENTRY);
 
 describe('content import isolation', () => {
+  it('keeps hotkey identity independent of behavior and binding models', () => {
+    const identityGraph = walkFrom(join(SRC, 'settings/hotkey-actions.ts'));
+    const files = [...identityGraph.keys()].map(srcPath);
+    expect(files).not.toContain('settings/site-behavior.ts');
+    expect(files).not.toContain('settings/hotkey-binding.ts');
+    const bindingImports = moduleSpecifiers(
+      readFileSync(join(SRC, 'settings/hotkey-binding.ts'), 'utf8'),
+    );
+    expect(bindingImports).not.toContain('./site-behavior');
+  });
+
   it('walks every file reachable from content.ts', () => {
     const files = [...CONTENT_GRAPH.keys()].map(srcPath);
     expect(files).toContain('access/site-access.ts');

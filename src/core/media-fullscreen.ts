@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-/** Find the fullscreen element without losing a video inside shadow DOM to retargeting. */
-function isFullscreenRoot(node: Node): node is Document | ShadowRoot {
-  return node instanceof Document || node instanceof ShadowRoot;
-}
+import { isDocument, isShadowRoot } from '../dom/guards';
 
+/** Find the fullscreen element without losing a video inside shadow DOM to retargeting. */
 function fullscreenElement(video: HTMLVideoElement): Element | null {
   const root = video.getRootNode();
   return (
-    (isFullscreenRoot(root) ? root.fullscreenElement : null) ??
+    (isDocument(root) || isShadowRoot(root) ? root.fullscreenElement : null) ??
     video.ownerDocument.fullscreenElement ??
     null
   );
@@ -26,7 +24,7 @@ export function containingFullscreenElement(video: HTMLVideoElement): Element | 
     if (node === fullscreen) {
       return fullscreen;
     }
-    node = node.parentNode ?? (node instanceof ShadowRoot ? node.host : null);
+    node = node.parentNode ?? (isShadowRoot(node) ? node.host : null);
   }
   return null;
 }

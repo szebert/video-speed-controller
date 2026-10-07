@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import type { SiteHotkeyAction } from './site-behavior';
+import { mapHotkeyActions, type SiteHotkeyAction } from './hotkey-actions';
 import { isRecord } from '../types/narrow';
+import { isElement, isHtmlElement, isNode } from '../dom/guards';
 
 export type HotkeyBinding = {
   code: string;
@@ -114,47 +115,6 @@ export function hotkeyBindingsEqual(
   );
 }
 
-// Writing out the keys proves completeness at compile time and avoids a
-// runtime import cycle with site-behavior.
-export function mapHotkeyActions<T>(
-  valueFor: (action: SiteHotkeyAction) => T,
-): Record<SiteHotkeyAction, T> {
-  return {
-    openSettings: valueFor('openSettings'),
-    decreaseSpeed: valueFor('decreaseSpeed'),
-    increaseSpeed: valueFor('increaseSpeed'),
-    resetSpeed: valueFor('resetSpeed'),
-    resetSpeedToOne: valueFor('resetSpeedToOne'),
-    jumpToStart: valueFor('jumpToStart'),
-    rewind: valueFor('rewind'),
-    skipBack: valueFor('skipBack'),
-    playPause: valueFor('playPause'),
-    skipForward: valueFor('skipForward'),
-    fastForward: valueFor('fastForward'),
-    jumpToEnd: valueFor('jumpToEnd'),
-    toggleMute: valueFor('toggleMute'),
-    decreaseVolume: valueFor('decreaseVolume'),
-    increaseVolume: valueFor('increaseVolume'),
-    markA: valueFor('markA'),
-    clearMarkA: valueFor('clearMarkA'),
-    jumpToA: valueFor('jumpToA'),
-    markB: valueFor('markB'),
-    clearMarkB: valueFor('clearMarkB'),
-    jumpToB: valueFor('jumpToB'),
-    toggleLoop: valueFor('toggleLoop'),
-    toggleFullscreen: valueFor('toggleFullscreen'),
-    jumpTo10Percent: valueFor('jumpTo10Percent'),
-    jumpTo20Percent: valueFor('jumpTo20Percent'),
-    jumpTo30Percent: valueFor('jumpTo30Percent'),
-    jumpTo40Percent: valueFor('jumpTo40Percent'),
-    jumpTo50Percent: valueFor('jumpTo50Percent'),
-    jumpTo60Percent: valueFor('jumpTo60Percent'),
-    jumpTo70Percent: valueFor('jumpTo70Percent'),
-    jumpTo80Percent: valueFor('jumpTo80Percent'),
-    jumpTo90Percent: valueFor('jumpTo90Percent'),
-  };
-}
-
 export function emptyEffectiveHotkeys(): EffectiveHotkeyMap {
   return mapHotkeyActions(() => null);
 }
@@ -264,14 +224,14 @@ export function hotkeyBindingFromEvent(event: KeyboardEvent): HotkeyBinding | nu
 export function isTypingContext(event: Event): boolean {
   const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
   for (const node of path) {
-    if (!(node instanceof Element)) {
+    if (!isNode(node) || !isElement(node)) {
       continue;
     }
     const tag = node.localName;
     if (tag === 'input' || tag === 'textarea' || tag === 'select') {
       return true;
     }
-    if (node instanceof HTMLElement && node.isContentEditable) {
+    if (isHtmlElement(node) && node.isContentEditable) {
       return true;
     }
     if (node.getAttribute('role') === 'textbox') {

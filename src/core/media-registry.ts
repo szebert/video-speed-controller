@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { OverlayActions } from '../overlay/types';
+import { isDocument, isElement, isParentNode, isShadowRoot, isVideoElement } from '../dom/guards';
 import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 import type { MediaLoopAction, TransportHoldOwner } from './controller-action';
@@ -20,27 +21,6 @@ type RegistryEntry = {
   overlay: VideoOverlay;
   hold?: { owner: TransportHoldOwner; session: TransportSession };
 };
-
-function isElement(node: Node): node is Element {
-  // Node kinds survive cross-window adoption; instanceof uses the original realm.
-  return node.nodeType === Node.ELEMENT_NODE;
-}
-
-function isDocument(node: Node): node is Document {
-  return node.nodeType === Node.DOCUMENT_NODE;
-}
-
-function isVideoElement(node: Node): node is HTMLVideoElement {
-  return (
-    isElement(node) &&
-    node.namespaceURI === 'http://www.w3.org/1999/xhtml' &&
-    node.localName === 'video'
-  );
-}
-
-function isParentNode(node: Node): node is Element | Document | DocumentFragment {
-  return isElement(node) || isDocument(node) || node.nodeType === Node.DOCUMENT_FRAGMENT_NODE;
-}
 
 function pointHitsRect(x: number, y: number, rect: DOMRect): boolean {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
@@ -408,7 +388,6 @@ export class MediaRegistry {
   private handleMutations(records: MutationRecord[]): void {
     const added: Node[] = [];
     const removedVideos: HTMLVideoElement[] = [];
-    const touchedShadows = new Set<ShadowRoot>();
 
     for (const record of records) {
       record.addedNodes.forEach((node) => {
@@ -421,16 +400,11 @@ export class MediaRegistry {
         if (isExtensionHost(node)) {
           return;
         }
-        for (const video of collectVideos(node)) {
-          removedVideos.push(video);
-        }
-        const shadows = collectOpenShadowRoots(node);
-        if (isElement(node) && node.shadowRoot) {
-          shadows.push(node.shadowRoot);
-        }
-        for (const shadow of shadows) {
-          touchedShadows.add(shadow);
-          removedVideos.push(...collectVideos(shadow));
+        // Match discovery's traversal, including videos in nested shadow trees.
+        const roots = [node];
+        for (const root of roots) {
+          removedVideos.push(...collectVideos(root));
+          roots.push(...collectOpenShadowRoots(root));
         }
       });
     }
@@ -446,13 +420,11 @@ export class MediaRegistry {
     }
 
     for (const [root, observer] of this.rootObservers) {
-      if (root instanceof ShadowRoot && !root.host.isConnected) {
+      if (isShadowRoot(root) && !root.host.isConnected) {
         observer.disconnect();
         this.rootObservers.delete(root);
-        touchedShadows.delete(root);
       }
     }
-    void touchedShadows;
   }
 
   private destroyEntry(video: HTMLVideoElement): void {

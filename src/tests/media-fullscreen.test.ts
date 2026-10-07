@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeControllerAction } from '../core/execute-controller-action';
 import {
   canToggleVideoFullscreen,
+  containingFullscreenElement,
+  isNativeVideoFullscreen,
   isVideoFullscreen,
   toggleVideoFullscreen,
 } from '../core/media-fullscreen';
@@ -231,6 +233,28 @@ describe('video fullscreen', () => {
     expect(host.style.visibility).toBe('visible');
   });
 
+  it('renders the overlay in a fullscreen wrapper shadow tree and restores it after exit', () => {
+    const wrapper = document.createElement('div');
+    const shadow = wrapper.attachShadow({ mode: 'open' });
+    const innerHost = document.createElement('section');
+    innerHost.attachShadow({ mode: 'open' }).append(video);
+    shadow.append(innerHost);
+    document.body.append(wrapper);
+    const overlay = registry.getOverlay(video)!;
+
+    fullscreen = wrapper;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    overlay.layout();
+    expect(overlay.host.parentNode).toBe(shadow);
+    expect(overlay.host.style.visibility).toBe('visible');
+
+    fullscreen = null;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    overlay.layout();
+    expect(overlay.host.parentNode).toBe(document.documentElement);
+    expect(overlay.host.style.visibility).toBe('visible');
+  });
+
   it('updates the fullscreen button for wrapper fullscreen and for a different fullscreen video', async () => {
     const wrapper = document.createElement('div');
     document.body.append(wrapper);
@@ -261,6 +285,40 @@ describe('video fullscreen', () => {
     expect(isVideoFullscreen(video)).toBe(true);
     Object.defineProperty(shadow, 'fullscreenElement', { configurable: true, value: null });
     expect(isVideoFullscreen(video)).toBe(true);
+  });
+
+  it('detects native fullscreen and traverses nested adopted foreign shadow roots', () => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    const foreign = frame.contentDocument;
+    if (!foreign) {
+      throw new Error('Expected an iframe document');
+    }
+    const outerHost = foreign.createElement('div');
+    const outerShadow = outerHost.attachShadow({ mode: 'open' });
+    const innerHost = foreign.createElement('section');
+    const innerShadow = innerHost.attachShadow({ mode: 'open' });
+    const adoptedVideo = foreign.createElement('video');
+    innerShadow.append(adoptedVideo);
+    outerShadow.append(innerHost);
+    foreign.body.append(outerHost);
+    document.body.append(document.adoptNode(outerHost));
+    expect(innerShadow instanceof ShadowRoot).toBe(false);
+    expect(outerShadow instanceof ShadowRoot).toBe(false);
+    expect(adoptedVideo.ownerDocument).toBe(document);
+    Object.defineProperty(innerShadow, 'fullscreenElement', {
+      configurable: true,
+      value: adoptedVideo,
+    });
+    fullscreen = outerHost;
+    expect(isNativeVideoFullscreen(adoptedVideo)).toBe(true);
+    expect(containingFullscreenElement(adoptedVideo)).toBe(adoptedVideo);
+    Object.defineProperty(innerShadow, 'fullscreenElement', { configurable: true, value: null });
+    expect(isNativeVideoFullscreen(adoptedVideo)).toBe(false);
+    expect(containingFullscreenElement(adoptedVideo)).toBe(outerHost);
+    expect(isVideoFullscreen(adoptedVideo)).toBe(true);
+    fullscreen = video;
+    expect(isVideoFullscreen(adoptedVideo)).toBe(false);
   });
 
   it('prevents overlapping requests and permits retry when a request settles', async () => {

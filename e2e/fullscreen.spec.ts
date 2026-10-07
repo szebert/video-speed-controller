@@ -99,3 +99,71 @@ test('a fullscreen Permissions Policy disables the button and flashes the bound 
   );
   expect(await site.evaluate(() => document.fullscreenElement)).toBeNull();
 });
+
+test('fullscreen follows an adopted video across nested foreign shadow roots', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  const site = await context.newPage();
+  await setupFullscreen(context, extensionId, serviceWorker, site);
+  await site.evaluate(() => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    const foreign = frame.contentDocument;
+    if (!foreign) {
+      throw new Error('Expected an iframe document');
+    }
+    const player = foreign.createElement('div');
+    player.id = 'adopted-fullscreen-player';
+    const outerShadow = player.attachShadow({ mode: 'open' });
+    const innerHost = foreign.createElement('section');
+    innerHost.id = 'adopted-inner-host';
+    const innerShadow = innerHost.attachShadow({ mode: 'open' });
+    const video = foreign.createElement('video');
+    video.id = 'adopted-fullscreen-video';
+    video.tabIndex = 0;
+    video.width = 320;
+    video.height = 180;
+    video.src = new URL('/rewind.webm', location.href).href;
+    innerShadow.append(video);
+    outerShadow.append(innerHost);
+    const enter = document.createElement('button');
+    enter.textContent = 'Fullscreen adopted player';
+    enter.addEventListener('click', () => {
+      void player.requestFullscreen();
+      video.focus();
+    });
+    document.body.append(enter, document.adoptNode(player));
+    frame.remove();
+  });
+  await expect(site.locator('osvsc-overlay')).toHaveCount(2);
+  await site.getByRole('button', { name: 'Fullscreen adopted player', exact: true }).click();
+  await expect
+    .poll(() => site.evaluate(() => document.fullscreenElement?.id))
+    .toBe('adopted-fullscreen-player');
+  const overlay = site.locator('#adopted-fullscreen-player osvsc-overlay');
+  await expect(overlay).toBeVisible();
+  await expect(overlay.locator('.fullscreen-toggle')).toHaveAttribute(
+    'aria-label',
+    'Fullscreen off',
+  );
+  await site.keyboard.press('f');
+  await expect.poll(() => site.evaluate(() => document.fullscreenElement)).toBeNull();
+  await site.keyboard.press('f');
+  await expect
+    .poll(() =>
+      site.evaluate(
+        () =>
+          document
+            .getElementById('adopted-fullscreen-player')
+            ?.shadowRoot?.getElementById('adopted-inner-host')?.shadowRoot?.fullscreenElement?.id,
+      ),
+    )
+    .toBe('adopted-fullscreen-video');
+  await expect(
+    site.locator('osvsc-overlay .fullscreen-toggle[aria-label="Fullscreen off"]'),
+  ).toHaveCount(1);
+  await site.keyboard.press('f');
+  await expect.poll(() => site.evaluate(() => document.fullscreenElement)).toBeNull();
+});

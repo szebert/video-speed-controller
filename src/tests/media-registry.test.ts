@@ -427,37 +427,72 @@ describe('media registry', () => {
     registry.destroy();
   });
 
-  it('disconnects a shadow observer when its host is gone and rediscovers on reinsert', () => {
+  it('disconnects an adopted foreign shadow observer and creates a new observer on reinsert', async () => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    const foreign = frame.contentDocument;
+    if (!foreign) {
+      throw new Error('Expected an iframe document');
+    }
+    const host = foreign.createElement('div');
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.append(foreign.createElement('span'));
+    foreign.body.append(host);
     const registry = new MediaRegistry(document);
     registries.push(registry);
     registry.start();
-    const host = document.createElement('div');
-    const shadow = host.attachShadow({ mode: 'open' });
-    const node = video();
-    shadow.append(node);
-    document.body.append(host);
-    registry['discover'](document);
-    expect(registry.size).toBe(1);
-    const observersBefore = registry.observerCount;
-    expect(observersBefore).toBeGreaterThan(1);
-
+    const baseline = registry.observerCount;
+    document.body.append(document.adoptNode(host));
+    expect(shadow instanceof ShadowRoot).toBe(false);
+    await vi.waitFor(() => expect(registry.observerCount).toBe(baseline + 1));
+    const observer = registry['rootObservers'].get(shadow);
+    if (!observer) {
+      throw new Error('Expected an observer for the adopted shadow root');
+    }
+    const disconnect = vi.spyOn(observer, 'disconnect');
     host.remove();
-    registry['handleMutations']([
-      {
-        addedNodes: [] as unknown as NodeList,
-        removedNodes: [host] as unknown as NodeList,
-        type: 'childList',
-        target: document.body,
-      } as unknown as MutationRecord,
-    ]);
-    expect(registry.size).toBe(0);
-    expect(registry.observerCount).toBeLessThan(observersBefore);
-
+    await vi.waitFor(() => expect(registry.observerCount).toBe(baseline));
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(registry['rootObservers'].has(shadow)).toBe(false);
     document.body.append(host);
-    registry['discover'](document);
-    expect(registry.size).toBe(1);
-    registry.destroy();
+    await vi.waitFor(() => expect(registry.observerCount).toBe(baseline + 1));
+    expect(registry['rootObservers'].get(shadow)).not.toBe(observer);
+    host.remove();
+    await vi.waitFor(() => expect(registry.observerCount).toBe(baseline));
   });
+
+  it.each([1, 3])(
+    'cleans up %i shadow levels and rediscovers videos on reinsert',
+    async (depth) => {
+      const registry = new MediaRegistry(document);
+      registries.push(registry);
+      registry.start();
+      const baseline = registry.observerCount;
+      const host = document.createElement('div');
+      let shadow = host.attachShadow({ mode: 'open' });
+      for (let level = 1; level < depth; level += 1) {
+        const innerHost = document.createElement('div');
+        shadow.append(innerHost);
+        shadow = innerHost.attachShadow({ mode: 'open' });
+      }
+      const node = video();
+      shadow.append(node);
+      document.body.append(host);
+      await vi.waitFor(() => expect(registry.size).toBe(1));
+      expect(registry.observerCount).toBe(baseline + depth);
+      const overlay = registry.getOverlay(node)!;
+
+      host.remove();
+      await vi.waitFor(() => expect(registry.size).toBe(0));
+      expect(registry.observerCount).toBe(baseline);
+      expect(overlay.host.isConnected).toBe(false);
+
+      document.body.append(host);
+      await vi.waitFor(() => expect(registry.size).toBe(1));
+      expect(registry.observerCount).toBe(baseline + depth);
+      expect(registry.getOverlay(node)).not.toBe(overlay);
+    },
+  );
 
   it('uses one ResizeObserver for every registered video including open shadow', () => {
     restoreResizeObserver = installRecordingResizeObserver();

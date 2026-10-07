@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { OverlayView } from '../overlay/overlay-view';
+import { isElement } from '../dom/guards';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
 import type {
   LoopMark,
@@ -48,7 +49,7 @@ export const OVERLAY_Z_INDEX = '2147483647';
 
 export function isExtensionHost(node: Node): boolean {
   return (
-    node instanceof Element &&
+    isElement(node) &&
     (node.localName === OVERLAY_HOST_TAG || node.localName === HOTKEY_FLASH_HOST_TAG)
   );
 }
@@ -129,14 +130,17 @@ function syncManualPopover(host: HTMLElement, active: boolean): void {
 
 /**
  * A fullscreen player wrapper is the top layer. Descendants paint inside it;
- * a sibling popover does not receive hits. Park the overlay in that wrapper,
+ * a sibling popover does not receive hits. Park the overlay in that wrapper's
+ * shadow tree when present, so it is rendered without requiring a slot,
  * and move it back to the document when fullscreen ends or the video itself
  * is the fullscreen element.
  */
 function placeOverlayHost(host: HTMLElement, video: HTMLVideoElement): void {
   const fullscreen = containingFullscreenElement(video);
   const parent =
-    fullscreen && fullscreen !== video ? fullscreen : video.ownerDocument.documentElement;
+    fullscreen && fullscreen !== video
+      ? (fullscreen.shadowRoot ?? fullscreen)
+      : video.ownerDocument.documentElement;
   if (!parent || host.parentNode === parent) {
     return;
   }

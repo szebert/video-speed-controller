@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { describe, expect, it } from 'vitest';
+import { isSiteHotkeyAction, mapHotkeyActions } from '../settings/hotkey-actions';
 import { JUMP_PERCENT_ACTIONS } from '../core/controller-action';
 import {
   BUILT_IN_HOTKEYS,
@@ -40,6 +41,41 @@ function keydown(
 }
 
 describe('hotkey bindings', () => {
+  it('builds every canonical action once and rejects unrelated property names', () => {
+    const map = mapHotkeyActions((action) => action);
+    expect(Object.keys(map).sort()).toEqual([...SITE_HOTKEY_ACTIONS].sort());
+    expect(new Set(SITE_HOTKEY_ACTIONS).size).toBe(SITE_HOTKEY_ACTIONS.length);
+    for (const action of SITE_HOTKEY_ACTIONS) {
+      expect(map[action]).toBe(action);
+      expect(isSiteHotkeyAction(action)).toBe(true);
+    }
+    expect(isSiteHotkeyAction('constructor')).toBe(false);
+    expect(isSiteHotkeyAction('toString')).toBe(false);
+  });
+
+  it('recognizes an adopted foreign input as a typing context', () => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    try {
+      const foreign = frame.contentDocument;
+      if (!foreign) {
+        throw new Error('Expected an iframe document');
+      }
+      const input = foreign.createElement('input');
+      document.body.append(document.adoptNode(input));
+      try {
+        expect(input instanceof Element).toBe(false);
+        const event = keydown('BracketLeft');
+        Object.defineProperty(event, 'composedPath', { value: () => [input, document, window] });
+        expect(isTypingContext(event)).toBe(true);
+      } finally {
+        input.remove();
+      }
+    } finally {
+      frame.remove();
+    }
+  });
+
   it('accepts only complete assignable bindings', () => {
     expect(isAssignableHotkeyCode('KeyD')).toBe(true);
     expect(isAssignableHotkeyCode('Escape')).toBe(false);

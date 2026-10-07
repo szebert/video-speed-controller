@@ -49,12 +49,41 @@ async function openStackingSite(
   return site;
 }
 
-test('discovers and removes iframe-created videos adopted into light and shadow DOM', async ({
+async function engineObserverCount(context: BrowserContext, page: Page): Promise<number> {
+  const client = await context.newCDPSession(page);
+  try {
+    const { frameTree } = await client.send('Page.getFrameTree');
+    const worlds: number[] = [];
+    client.on('Runtime.executionContextCreated', ({ context: world }) => {
+      if (world.auxData?.frameId === frameTree.frame.id && !world.auxData?.isDefault) {
+        worlds.push(world.id);
+      }
+    });
+    await client.send('Runtime.enable');
+    for (const contextId of worlds) {
+      const { result } = await client.send('Runtime.evaluate', {
+        contextId,
+        expression: 'globalThis.__OSVSC_ENGINE__?.registry.observerCount',
+        returnByValue: true,
+      });
+      const count: unknown = result.value;
+      if (typeof count === 'number') {
+        return count;
+      }
+    }
+    throw new Error('Could not find the content engine in the main frame isolated worlds');
+  } finally {
+    await client.detach();
+  }
+}
+
+test('discovers and removes adopted videos and releases nested foreign shadow observers', async ({
   context,
   extensionId,
   serviceWorker,
 }) => {
   const site = await openStackingSite(context, extensionId, serviceWorker);
+  const baselineObservers = await engineObserverCount(context, site);
   const fromAnotherRealm = await site.evaluate(() => {
     const frame = document.createElement('iframe');
     document.body.append(frame);
@@ -67,15 +96,19 @@ test('discovers and removes iframe-created videos adopted into light and shadow 
     const host = foreignDocument.createElement('div');
     host.id = 'adopted-shadow-host';
     const shadow = host.attachShadow({ mode: 'open' });
+    const innerHost = foreignDocument.createElement('div');
+    const innerShadow = innerHost.attachShadow({ mode: 'open' });
     const shadowVideo = foreignDocument.createElement('video');
     shadowVideo.id = 'adopted-shadow-video';
-    shadow.append(shadowVideo);
+    innerShadow.append(shadowVideo);
+    shadow.append(innerHost);
     document.body.append(document.adoptNode(video), document.adoptNode(host));
     frame.remove();
     return !(video instanceof HTMLVideoElement);
   });
   expect(fromAnotherRealm).toBe(true);
   await expect(site.locator('osvsc-overlay')).toHaveCount(OVERLAY_COUNT + 2);
+  await expect.poll(() => engineObserverCount(context, site)).toBe(baselineObservers + 2);
   const popup = await openPopup(context, extensionId, site, serviceWorker);
   await popup.getByRole('button', { name: 'Faster' }).click();
   await expect
@@ -95,6 +128,7 @@ test('discovers and removes iframe-created videos adopted into light and shadow 
     document.getElementById('adopted-shadow-host')?.remove();
   });
   await expect(site.locator('osvsc-overlay')).toHaveCount(OVERLAY_COUNT);
+  await expect.poll(() => engineObserverCount(context, site)).toBe(baselineObservers);
 });
 
 async function overlayVisibilityForVideo(page: Page, videoId: string): Promise<string> {

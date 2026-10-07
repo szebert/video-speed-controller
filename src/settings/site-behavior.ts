@@ -32,11 +32,18 @@ import {
   emptyEffectiveHotkeys,
   hotkeyBindingsEqual,
   isHotkeyBinding,
-  mapHotkeyActions,
   type EffectiveHotkeyMap,
   type HotkeyBinding,
 } from './hotkey-binding';
 import { isLogicalValue } from './logical-value';
+import {
+  SITE_HOTKEY_ACTIONS,
+  mapHotkeyActions,
+  isSiteHotkeyAction,
+  type SiteHotkeyAction,
+} from './hotkey-actions';
+
+export { SITE_HOTKEY_ACTIONS, isSiteHotkeyAction, type SiteHotkeyAction } from './hotkey-actions';
 
 export type { EffectiveHotkeyMap, HotkeyBinding };
 
@@ -213,75 +220,6 @@ export function overlayPositionFromGrid(row: GridIndex, column: GridIndex): Over
   return POSITION_BY_GRID[row][column];
 }
 
-export type SiteHotkeyAction =
-  | 'openSettings'
-  | 'increaseSpeed'
-  | 'decreaseSpeed'
-  | 'resetSpeed'
-  | 'resetSpeedToOne'
-  | 'jumpToStart'
-  | 'rewind'
-  | 'skipBack'
-  | 'playPause'
-  | 'skipForward'
-  | 'fastForward'
-  | 'jumpToEnd'
-  | 'toggleMute'
-  | 'decreaseVolume'
-  | 'increaseVolume'
-  | 'markA'
-  | 'clearMarkA'
-  | 'jumpToA'
-  | 'markB'
-  | 'clearMarkB'
-  | 'jumpToB'
-  | 'toggleLoop'
-  | 'toggleFullscreen'
-  | 'jumpTo10Percent'
-  | 'jumpTo20Percent'
-  | 'jumpTo30Percent'
-  | 'jumpTo40Percent'
-  | 'jumpTo50Percent'
-  | 'jumpTo60Percent'
-  | 'jumpTo70Percent'
-  | 'jumpTo80Percent'
-  | 'jumpTo90Percent';
-
-export const SITE_HOTKEY_ACTIONS = [
-  'openSettings',
-  'increaseSpeed',
-  'decreaseSpeed',
-  'resetSpeed',
-  'resetSpeedToOne',
-  'jumpToStart',
-  'rewind',
-  'skipBack',
-  'playPause',
-  'skipForward',
-  'fastForward',
-  'jumpToEnd',
-  'toggleMute',
-  'decreaseVolume',
-  'increaseVolume',
-  'markA',
-  'clearMarkA',
-  'jumpToA',
-  'markB',
-  'clearMarkB',
-  'jumpToB',
-  'toggleLoop',
-  'toggleFullscreen',
-  'jumpTo10Percent',
-  'jumpTo20Percent',
-  'jumpTo30Percent',
-  'jumpTo40Percent',
-  'jumpTo50Percent',
-  'jumpTo60Percent',
-  'jumpTo70Percent',
-  'jumpTo80Percent',
-  'jumpTo90Percent',
-] as const satisfies readonly SiteHotkeyAction[];
-
 export const USER_REPEATABLE_ACTIONS = new Set<SiteHotkeyAction>([
   'increaseSpeed',
   'decreaseSpeed',
@@ -357,9 +295,11 @@ export type GlobalBehaviorSettingsV1 = {
   overrides: BehaviorOverrides;
 };
 
-export type ResolvedSiteBehavior = {
-  [K in BehaviorField]: ResolvedSetting<BehaviorFieldValue<K>>;
-} & {
+type ResolvedSettings<T> = {
+  [K in keyof T]: ResolvedSetting<T[K]>;
+};
+
+export type ResolvedSiteBehavior = ResolvedSettings<FieldValueMap> & {
   hotkeys: ResolvedHotkeyMap;
 };
 
@@ -377,10 +317,6 @@ export const BUILT_IN_SITE_BEHAVIOR = builtInSiteBehavior();
 
 export function isOverlayPosition(value: unknown): value is OverlayPosition {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 8;
-}
-
-export function isSiteHotkeyAction(value: unknown): value is SiteHotkeyAction {
-  return typeof value === 'string' && listIncludes(SITE_HOTKEY_ACTIONS, value);
 }
 
 export function isFiniteTimestamp(value: unknown): value is number {
@@ -539,13 +475,12 @@ export function mergeOverrideField<T>(
   return syncField;
 }
 
-type FieldOverrideMap = {
-  [K in BehaviorField]?: Override<BehaviorFieldValue<K>>;
+type SettingOverrides<T> = {
+  [K in keyof T]?: Override<T[K]>;
 };
 
-type ResolvedFieldMap = {
-  [K in BehaviorField]: ResolvedSetting<BehaviorFieldValue<K>>;
-};
+type FieldOverrideMap = SettingOverrides<FieldValueMap>;
+type ResolvedFieldMap = ResolvedSettings<FieldValueMap>;
 
 function fieldOverride<K extends BehaviorField>(
   overrides: BehaviorOverrides,
@@ -553,11 +488,6 @@ function fieldOverride<K extends BehaviorField>(
 ): Override<BehaviorFieldValue<K>> | undefined {
   const fields: FieldOverrideMap = overrides;
   return fields[field];
-}
-
-function builtInField<K extends BehaviorField>(field: K): BehaviorFieldValue<K> {
-  const values: FieldValueMap = BUILT_IN_SITE_BEHAVIOR;
-  return values[field];
 }
 
 function mergeBehaviorField<K extends BehaviorField>(
@@ -571,16 +501,15 @@ function mergeBehaviorField<K extends BehaviorField>(
   );
 }
 
-function resolveBehaviorField<K extends BehaviorField>(
+// Mapping the source model generically preserves the key/value relationship
+// through ResolvedSetting, so mapBehaviorFields can build the resolved model.
+function resolveSettingField<T, K extends keyof T>(
+  builtIn: T,
+  globalOverrides: SettingOverrides<T>,
+  siteOverrides: SettingOverrides<T>,
   field: K,
-  globalOverrides: BehaviorOverrides,
-  siteOverrides: BehaviorOverrides,
-): ResolvedSetting<BehaviorFieldValue<K>> {
-  return resolveOverride(
-    builtInField(field),
-    fieldOverride(globalOverrides, field),
-    fieldOverride(siteOverrides, field),
-  );
+): ResolvedSettings<T>[K] {
+  return resolveOverride(builtIn[field], globalOverrides[field], siteOverrides[field]);
 }
 
 function storedFieldsEqual<K extends BehaviorField>(
@@ -712,45 +641,14 @@ export function resolveSiteBehavior(
   siteOverrides: BehaviorOverrides = {},
   policy?: SpeedPolicy,
 ): ResolvedSiteBehavior {
-  const resolve = <K extends BehaviorField>(field: K) =>
-    resolveBehaviorField(field, globalOverrides, siteOverrides);
+  const builtIn: FieldValueMap = BUILT_IN_SITE_BEHAVIOR;
+  const globalFields: FieldOverrideMap = globalOverrides;
+  const siteFields: FieldOverrideMap = siteOverrides;
   const resolved: ResolvedSiteBehavior = {
     hotkeys: resolvedHotkeysFrom(globalOverrides, siteOverrides),
-    speed: resolve('speed'),
-    defaultSpeed: resolve('defaultSpeed'),
-    rememberLastSpeed: resolve('rememberLastSpeed'),
-    speedMin: resolve('speedMin'),
-    speedMax: resolve('speedMax'),
-    decreaseSpeedStep: resolve('decreaseSpeedStep'),
-    increaseSpeedStep: resolve('increaseSpeedStep'),
-    skipBackSeconds: resolve('skipBackSeconds'),
-    skipForwardSeconds: resolve('skipForwardSeconds'),
-    skipScaleWithPlaybackRate: resolve('skipScaleWithPlaybackRate'),
-    rewindSpeed: resolve('rewindSpeed'),
-    fastForwardSpeed: resolve('fastForwardSpeed'),
-    overlayVisible: resolve('overlayVisible'),
-    overlayPosition: resolve('overlayPosition'),
-    overlayPositionButton: resolve('overlayPositionButton'),
-    overlaySettingsButton: resolve('overlaySettingsButton'),
-    overlayNavigationBar: resolve('overlayNavigationBar'),
-    overlaySeekBar: resolve('overlaySeekBar'),
-    overlayVolumeBar: resolve('overlayVolumeBar'),
-    overlayExtrasBar: resolve('overlayExtrasBar'),
-    overlayHotkeyHints: resolve('overlayHotkeyHints'),
-    overlayAutoHide: resolve('overlayAutoHide'),
-    overlayHoverHold: resolve('overlayHoverHold'),
-    overlayAutoHideDelayMs: resolve('overlayAutoHideDelayMs'),
-    overlayOpacity: resolve('overlayOpacity'),
-    overlayScale: resolve('overlayScale'),
-    buttonFlash: resolve('buttonFlash'),
-    hotkeyFlash: resolve('hotkeyFlash'),
-    flashDelayMs: resolve('flashDelayMs'),
-    flashOpacity: resolve('flashOpacity'),
-    flashScale: resolve('flashScale'),
-    hotkeyConsumeMatchedKeys: resolve('hotkeyConsumeMatchedKeys'),
-    hotkeyRepeat: resolve('hotkeyRepeat'),
-    hotkeyRepeatDelayMs: resolve('hotkeyRepeatDelayMs'),
-    hotkeyRepeatRate: resolve('hotkeyRepeatRate'),
+    ...mapBehaviorFields<ResolvedFieldMap>((field) =>
+      resolveSettingField(builtIn, globalFields, siteFields, field),
+    ),
   };
   resolved.speedMin = clampResolvedSpeedMin(resolved.speedMin);
   resolved.speedMax = clampResolvedSpeedMax(resolved.speedMax);

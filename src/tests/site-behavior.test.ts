@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { JUMP_PERCENT_ACTIONS } from '../core/controller-action';
 import {
   DEFAULT_SPEED_POLICY,
@@ -55,6 +55,7 @@ import {
   withSpeedInherit,
   withSpeedValue,
   type Override,
+  type OverlayPosition,
 } from '../settings/site-behavior';
 import {
   parseBehaviorOverrides,
@@ -66,6 +67,9 @@ import {
 describe('site behavior resolution', () => {
   it('uses built-in defaults when no overrides exist', () => {
     const resolved = resolveSiteBehavior({}, {});
+    expectTypeOf(resolved.speed.value).toEqualTypeOf<number>();
+    expectTypeOf(resolved.rememberLastSpeed.value).toEqualTypeOf<boolean>();
+    expectTypeOf(resolved.overlayPosition.value).toEqualTypeOf<OverlayPosition>();
     expect(resolved.speed).toEqual({ value: 1, source: 'built-in' });
     expect(resolved.overlayPosition).toEqual({
       value: OVERLAY_POSITION.TOP_CENTER,

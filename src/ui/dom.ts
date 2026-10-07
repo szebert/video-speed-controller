@@ -46,7 +46,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(
     if (child == null || child === false) {
       continue;
     }
-    node.append(child instanceof Node ? child : document.createTextNode(child));
+    node.append(typeof child === 'string' ? document.createTextNode(child) : child);
   }
   return node;
 }

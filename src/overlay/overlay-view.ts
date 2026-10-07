@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { speedPolicyFromApplied } from '../core/applied-tab-behavior';
+import { isNode, isShadowRoot } from '../dom/guards';
 import type {
   MediaLoopAction,
   MediaNavigationAction,
@@ -245,7 +246,7 @@ export class OverlayView {
       'focusout',
       (event) => {
         const next = event.relatedTarget;
-        if (next instanceof Node && this.element.contains(next)) {
+        if (isNode(next) && this.element.contains(next)) {
           return;
         }
         this.focusWithin = false;
@@ -1505,7 +1506,7 @@ function hideLoopAction(
 ): void {
   if (!control.hidden && hide) {
     const root = control.getRootNode();
-    if (root instanceof ShadowRoot && root.activeElement === control) {
+    if (isShadowRoot(root) && root.activeElement === control) {
       fallback.focus();
     }
   }

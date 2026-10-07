@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { isSiteHotkeyAction, type SiteHotkeyAction } from '../settings/site-behavior';
+import { isSiteHotkeyAction, type SiteHotkeyAction } from '../settings/hotkey-actions';
 import type { Equal } from '../types/equal';
 import { listIncludes } from '../types/narrow';
 
