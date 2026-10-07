@@ -7,7 +7,7 @@ import {
   OVERLAY_INSET_PX,
   VideoOverlay,
 } from '../core/video-overlay';
-import { MediaRegistry } from '../core/media-registry';
+import { collectOpenShadowRoots, collectVideos, MediaRegistry } from '../core/media-registry';
 import { OverlayView } from '../overlay/overlay-view';
 import { BUILT_IN_HOTKEYS, builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
@@ -149,6 +149,52 @@ describe('media registry', () => {
       .forEach((node) => node.remove());
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('collects videos and open shadows from another window and after adoption', () => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    const foreignDocument = frame.contentDocument;
+    if (!foreignDocument) {
+      throw new Error('Expected an iframe document');
+    }
+    const container = foreignDocument.createElement('div');
+    const node = foreignDocument.createElement('video');
+    const shadowHost = foreignDocument.createElement('section');
+    const shadow = shadowHost.attachShadow({ mode: 'open' });
+    const shadowVideo = foreignDocument.createElement('video');
+    shadow.append(shadowVideo);
+    container.append(node, shadowHost);
+    foreignDocument.body.append(container);
+
+    expect(node instanceof HTMLVideoElement).toBe(false);
+    expect(collectVideos(node)).toEqual([node]);
+    expect(collectVideos(foreignDocument)).toEqual([node]);
+    expect(collectVideos(container)).toEqual([node]);
+    expect(collectVideos(shadow)).toEqual([shadowVideo]);
+    expect(collectOpenShadowRoots(foreignDocument)).toEqual([shadow]);
+    expect(collectOpenShadowRoots(container)).toEqual([shadow]);
+
+    document.body.append(document.adoptNode(container));
+    expect(node.ownerDocument).toBe(document);
+    expect(node instanceof HTMLVideoElement).toBe(false);
+    expect(collectVideos(node)).toEqual([node]);
+    expect(collectVideos(container)).toEqual([node]);
+    expect(collectVideos(shadow)).toEqual([shadowVideo]);
+    expect(collectOpenShadowRoots(container)).toEqual([shadow]);
+  });
+
+  it('collects videos in documents without a window and rejects non-HTML video tags', () => {
+    const detached = document.implementation.createHTMLDocument();
+    const node = detached.createElement('video');
+    const svgVideo = detached.createElementNS('http://www.w3.org/2000/svg', 'video');
+    const fragment = detached.createDocumentFragment();
+    fragment.append(node, svgVideo);
+    expect(detached.defaultView).toBeNull();
+    expect(collectVideos(fragment)).toEqual([node]);
+    expect(collectVideos(svgVideo)).toEqual([]);
+    expect(collectVideos(detached.createTextNode('video'))).toEqual([]);
+    expect(collectVideos(detached.createComment('video'))).toEqual([]);
   });
 
   it('keeps one controller and overlay per video and applies current behavior to new videos', () => {

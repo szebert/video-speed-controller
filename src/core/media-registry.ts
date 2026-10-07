@@ -21,8 +21,25 @@ type RegistryEntry = {
   hold?: { owner: TransportHoldOwner; session: TransportSession };
 };
 
+function isElement(node: Node): node is Element {
+  // Node kinds survive cross-window adoption; instanceof uses the original realm.
+  return node.nodeType === Node.ELEMENT_NODE;
+}
+
+function isDocument(node: Node): node is Document {
+  return node.nodeType === Node.DOCUMENT_NODE;
+}
+
 function isVideoElement(node: Node): node is HTMLVideoElement {
-  return node instanceof HTMLVideoElement;
+  return (
+    isElement(node) &&
+    node.namespaceURI === 'http://www.w3.org/1999/xhtml' &&
+    node.localName === 'video'
+  );
+}
+
+function isParentNode(node: Node): node is Element | Document | DocumentFragment {
+  return isElement(node) || isDocument(node) || node.nodeType === Node.DOCUMENT_FRAGMENT_NODE;
 }
 
 function pointHitsRect(x: number, y: number, rect: DOMRect): boolean {
@@ -34,8 +51,8 @@ export function collectVideos(root: Node): HTMLVideoElement[] {
   if (isVideoElement(root)) {
     videos.push(root);
   }
-  if (root instanceof Element || root instanceof Document || root instanceof ShadowRoot) {
-    videos.push(...root.querySelectorAll('video'));
+  if (isParentNode(root)) {
+    videos.push(...Array.from(root.querySelectorAll<Element>('video')).filter(isVideoElement));
   }
   return videos;
 }
@@ -63,13 +80,13 @@ export function collectOpenShadowRoots(root: Node): ShadowRoot[] {
       shadows.push(element.shadowRoot);
     }
   };
-  if (root instanceof Element) {
+  if (isElement(root)) {
     visitElement(root);
     root.querySelectorAll('*').forEach(visitElement);
-  } else if (root instanceof Document && root.documentElement) {
+  } else if (isDocument(root) && root.documentElement) {
     visitElement(root.documentElement);
     root.documentElement.querySelectorAll('*').forEach(visitElement);
-  } else if (root instanceof ShadowRoot) {
+  } else if (isParentNode(root)) {
     root.querySelectorAll('*').forEach(visitElement);
   }
   return shadows;
@@ -260,11 +277,15 @@ export class MediaRegistry {
       return fullscreen;
     }
     const pictureInPicture = this.document.pictureInPictureElement;
-    if (pictureInPicture instanceof HTMLVideoElement && this.entries.has(pictureInPicture)) {
+    if (
+      pictureInPicture &&
+      isVideoElement(pictureInPicture) &&
+      this.entries.has(pictureInPicture)
+    ) {
       return pictureInPicture;
     }
     const focused = composedActiveElement(this.document);
-    if (focused instanceof HTMLVideoElement && this.entries.has(focused)) {
+    if (focused && isVideoElement(focused) && this.entries.has(focused)) {
       return focused;
     }
     const playing = this.largestVideo((video) => !video.paused && !video.ended);
@@ -289,7 +310,8 @@ export class MediaRegistry {
   private fullscreenHotkeyTarget(): HTMLVideoElement | null {
     const focused = composedActiveElement(this.document);
     if (
-      focused instanceof HTMLVideoElement &&
+      focused &&
+      isVideoElement(focused) &&
       this.entries.has(focused) &&
       focused.isConnected &&
       isVideoFullscreen(focused)
@@ -403,7 +425,7 @@ export class MediaRegistry {
           removedVideos.push(video);
         }
         const shadows = collectOpenShadowRoots(node);
-        if (node instanceof Element && node.shadowRoot) {
+        if (isElement(node) && node.shadowRoot) {
           shadows.push(node.shadowRoot);
         }
         for (const shadow of shadows) {
@@ -452,7 +474,7 @@ export class MediaRegistry {
       return;
     }
     for (const entry of entries) {
-      if (entry.target instanceof HTMLVideoElement && this.entries.has(entry.target)) {
+      if (isVideoElement(entry.target) && this.entries.has(entry.target)) {
         this.requestLayout();
         return;
       }

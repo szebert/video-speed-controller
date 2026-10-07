@@ -2,7 +2,7 @@
 
 import { DEFAULT_SPEED_POLICY } from '../core/speed';
 import type { Equal } from '../types/equal';
-import { keysOf, nonEmpty } from '../types/narrow';
+import { nonEmpty } from '../types/narrow';
 
 export type ReapplyMode = 'none' | 'preserve-target' | 'revalidate-target' | 'resolve-target';
 
@@ -194,7 +194,55 @@ export const BEHAVIOR_FIELDS = {
 export type BehaviorField = keyof typeof BEHAVIOR_FIELDS;
 export type EditableBehaviorField = BehaviorField;
 
-export const EDITABLE_BEHAVIOR_FIELDS = nonEmpty(keysOf(BEHAVIOR_FIELDS));
+// Explicit keys let TypeScript prove both completeness and each field's value
+// type. Adding a registry field requires updating this mapping at compile time.
+export function mapBehaviorFields<T extends Record<BehaviorField, unknown>>(
+  valueFor: <K extends BehaviorField>(field: K) => T[K],
+): { [K in BehaviorField]: T[K] } {
+  return {
+    speed: valueFor('speed'),
+    defaultSpeed: valueFor('defaultSpeed'),
+    rememberLastSpeed: valueFor('rememberLastSpeed'),
+    speedMin: valueFor('speedMin'),
+    speedMax: valueFor('speedMax'),
+    decreaseSpeedStep: valueFor('decreaseSpeedStep'),
+    increaseSpeedStep: valueFor('increaseSpeedStep'),
+    skipBackSeconds: valueFor('skipBackSeconds'),
+    skipForwardSeconds: valueFor('skipForwardSeconds'),
+    skipScaleWithPlaybackRate: valueFor('skipScaleWithPlaybackRate'),
+    rewindSpeed: valueFor('rewindSpeed'),
+    fastForwardSpeed: valueFor('fastForwardSpeed'),
+    overlayVisible: valueFor('overlayVisible'),
+    overlayPosition: valueFor('overlayPosition'),
+    overlayPositionButton: valueFor('overlayPositionButton'),
+    overlaySettingsButton: valueFor('overlaySettingsButton'),
+    overlayNavigationBar: valueFor('overlayNavigationBar'),
+    overlaySeekBar: valueFor('overlaySeekBar'),
+    overlayVolumeBar: valueFor('overlayVolumeBar'),
+    overlayExtrasBar: valueFor('overlayExtrasBar'),
+    overlayHotkeyHints: valueFor('overlayHotkeyHints'),
+    overlayAutoHide: valueFor('overlayAutoHide'),
+    overlayHoverHold: valueFor('overlayHoverHold'),
+    overlayAutoHideDelayMs: valueFor('overlayAutoHideDelayMs'),
+    overlayOpacity: valueFor('overlayOpacity'),
+    overlayScale: valueFor('overlayScale'),
+    buttonFlash: valueFor('buttonFlash'),
+    hotkeyFlash: valueFor('hotkeyFlash'),
+    flashDelayMs: valueFor('flashDelayMs'),
+    flashOpacity: valueFor('flashOpacity'),
+    flashScale: valueFor('flashScale'),
+    hotkeyConsumeMatchedKeys: valueFor('hotkeyConsumeMatchedKeys'),
+    hotkeyRepeat: valueFor('hotkeyRepeat'),
+    hotkeyRepeatDelayMs: valueFor('hotkeyRepeatDelayMs'),
+    hotkeyRepeatRate: valueFor('hotkeyRepeatRate'),
+  };
+}
+
+export const EDITABLE_BEHAVIOR_FIELDS = nonEmpty(
+  Object.keys(BEHAVIOR_FIELDS).filter((key): key is BehaviorField =>
+    Object.hasOwn(BEHAVIOR_FIELDS, key),
+  ),
+);
 
 export type BooleanBehaviorField = {
   [K in BehaviorField]: (typeof BEHAVIOR_FIELDS)[K]['default'] extends boolean ? K : never;

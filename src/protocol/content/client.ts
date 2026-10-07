@@ -2,29 +2,20 @@
 
 // Content-script RPC client. Parses only the unknown response with Mini
 // schemas from this folder. Do not import protocol/schemas here.
-import { narrowed } from '../../types/narrow';
+import type { EndpointResponses, ResponseEndpoints } from '../response-types';
 import { CONTENT_TO_BACKGROUND, type ContentToBackgroundRequest } from './content-background';
 
-type ContentResponse<T extends ContentToBackgroundRequest> =
-  (typeof CONTENT_TO_BACKGROUND)[T['type']]['response'] extends {
-    parse: (data: unknown) => infer R;
-  }
-    ? R
-    : never;
+type ContentResponses = EndpointResponses<typeof CONTENT_TO_BACKGROUND>;
+const contentEndpoints: ResponseEndpoints<ContentResponses> = CONTENT_TO_BACKGROUND;
 
 export async function sendContentRequest<T extends ContentToBackgroundRequest>(
   request: T,
-): Promise<ContentResponse<T> | undefined> {
+): Promise<ContentResponses[T['type']] | undefined> {
   const raw: unknown = await chrome.runtime.sendMessage(request);
-  const schema = CONTENT_TO_BACKGROUND[request.type].response;
+  const type: T['type'] = request.type;
+  const schema = contentEndpoints[type].response;
   const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    return undefined;
-  }
-  return narrowed(
-    parsed.data,
-    (value): value is ContentResponse<T> => schema.safeParse(value).success,
-  );
+  return parsed.success ? parsed.data : undefined;
 }
 
 export function contentFailureMessage(

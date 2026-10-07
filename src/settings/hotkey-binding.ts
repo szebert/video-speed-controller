@@ -114,44 +114,49 @@ export function hotkeyBindingsEqual(
   );
 }
 
-// Both maps list every SiteHotkeyAction. Keys are written out rather than
-// derived from SITE_HOTKEY_ACTIONS so site-behavior can call
-// builtInEffectiveHotkeys() without a runtime import cycle.
-export function emptyEffectiveHotkeys(): EffectiveHotkeyMap {
+// Writing out the keys proves completeness at compile time and avoids a
+// runtime import cycle with site-behavior.
+export function mapHotkeyActions<T>(
+  valueFor: (action: SiteHotkeyAction) => T,
+): Record<SiteHotkeyAction, T> {
   return {
-    openSettings: null,
-    decreaseSpeed: null,
-    increaseSpeed: null,
-    resetSpeed: null,
-    resetSpeedToOne: null,
-    jumpToStart: null,
-    rewind: null,
-    skipBack: null,
-    playPause: null,
-    skipForward: null,
-    fastForward: null,
-    jumpToEnd: null,
-    toggleMute: null,
-    decreaseVolume: null,
-    increaseVolume: null,
-    markA: null,
-    clearMarkA: null,
-    jumpToA: null,
-    markB: null,
-    clearMarkB: null,
-    jumpToB: null,
-    toggleLoop: null,
-    toggleFullscreen: null,
-    jumpTo10Percent: null,
-    jumpTo20Percent: null,
-    jumpTo30Percent: null,
-    jumpTo40Percent: null,
-    jumpTo50Percent: null,
-    jumpTo60Percent: null,
-    jumpTo70Percent: null,
-    jumpTo80Percent: null,
-    jumpTo90Percent: null,
+    openSettings: valueFor('openSettings'),
+    decreaseSpeed: valueFor('decreaseSpeed'),
+    increaseSpeed: valueFor('increaseSpeed'),
+    resetSpeed: valueFor('resetSpeed'),
+    resetSpeedToOne: valueFor('resetSpeedToOne'),
+    jumpToStart: valueFor('jumpToStart'),
+    rewind: valueFor('rewind'),
+    skipBack: valueFor('skipBack'),
+    playPause: valueFor('playPause'),
+    skipForward: valueFor('skipForward'),
+    fastForward: valueFor('fastForward'),
+    jumpToEnd: valueFor('jumpToEnd'),
+    toggleMute: valueFor('toggleMute'),
+    decreaseVolume: valueFor('decreaseVolume'),
+    increaseVolume: valueFor('increaseVolume'),
+    markA: valueFor('markA'),
+    clearMarkA: valueFor('clearMarkA'),
+    jumpToA: valueFor('jumpToA'),
+    markB: valueFor('markB'),
+    clearMarkB: valueFor('clearMarkB'),
+    jumpToB: valueFor('jumpToB'),
+    toggleLoop: valueFor('toggleLoop'),
+    toggleFullscreen: valueFor('toggleFullscreen'),
+    jumpTo10Percent: valueFor('jumpTo10Percent'),
+    jumpTo20Percent: valueFor('jumpTo20Percent'),
+    jumpTo30Percent: valueFor('jumpTo30Percent'),
+    jumpTo40Percent: valueFor('jumpTo40Percent'),
+    jumpTo50Percent: valueFor('jumpTo50Percent'),
+    jumpTo60Percent: valueFor('jumpTo60Percent'),
+    jumpTo70Percent: valueFor('jumpTo70Percent'),
+    jumpTo80Percent: valueFor('jumpTo80Percent'),
+    jumpTo90Percent: valueFor('jumpTo90Percent'),
   };
+}
+
+export function emptyEffectiveHotkeys(): EffectiveHotkeyMap {
+  return mapHotkeyActions(() => null);
 }
 
 export function builtInEffectiveHotkeys(): EffectiveHotkeyMap {

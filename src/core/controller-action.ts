@@ -2,7 +2,7 @@
 
 import { isSiteHotkeyAction, type SiteHotkeyAction } from '../settings/site-behavior';
 import type { Equal } from '../types/equal';
-import { keysOf, listIncludes } from '../types/narrow';
+import { listIncludes } from '../types/narrow';
 
 /** Actions that can have a stored binding. */
 export type { SiteHotkeyAction };
@@ -48,7 +48,9 @@ export const JUMP_PERCENT_BY_ACTION = {
 
 export type JumpPercentAction = keyof typeof JUMP_PERCENT_BY_ACTION;
 
-export const JUMP_PERCENT_ACTIONS = keysOf(JUMP_PERCENT_BY_ACTION);
+export const JUMP_PERCENT_ACTIONS = Object.keys(JUMP_PERCENT_BY_ACTION).filter(
+  (key): key is JumpPercentAction => Object.hasOwn(JUMP_PERCENT_BY_ACTION, key),
+);
 
 /** Hotkey-only volume actions. The overlay volume bar has its own controls. */
 export const MEDIA_VOLUME_ACTIONS = ['toggleMute', 'decreaseVolume', 'increaseVolume'] as const;

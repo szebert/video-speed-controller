@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { isRecord, narrowed } from '../../types/narrow';
+import { isRecord } from '../../types/narrow';
 import { CONTENT_TO_BACKGROUND } from '../content/content-background';
 import { OPTIONS_TO_BACKGROUND } from './options-background';
 import { POPUP_TO_BACKGROUND } from './popup-background';
@@ -14,11 +14,9 @@ export const BACKGROUND_INBOUND = {
 export type BackgroundInboundType = keyof typeof BACKGROUND_INBOUND;
 export type InboundChannel = 'popup' | 'options' | 'content';
 
-export type BackgroundInboundRequest = {
-  [K in BackgroundInboundType]: { type: K } & ReturnType<
-    (typeof BACKGROUND_INBOUND)[K]['request']['parse']
-  >;
-}[BackgroundInboundType];
+export type BackgroundInboundRequest = ReturnType<
+  (typeof BACKGROUND_INBOUND)[BackgroundInboundType]['request']['parse']
+>;
 
 export type ParsedBackgroundInbound = {
   channel: InboundChannel;
@@ -59,9 +57,5 @@ export function parseBackgroundInbound(value: unknown): ParsedBackgroundInbound 
   if (!parsed.success) {
     return null;
   }
-  const request = narrowed(
-    parsed.data,
-    (candidate): candidate is BackgroundInboundRequest => schema.safeParse(candidate).success,
-  );
-  return request ? { channel, request } : null;
+  return { channel, request: parsed.data };
 }

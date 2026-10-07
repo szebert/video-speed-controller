@@ -49,6 +49,54 @@ async function openStackingSite(
   return site;
 }
 
+test('discovers and removes iframe-created videos adopted into light and shadow DOM', async ({
+  context,
+  extensionId,
+  serviceWorker,
+}) => {
+  const site = await openStackingSite(context, extensionId, serviceWorker);
+  const fromAnotherRealm = await site.evaluate(() => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    const foreignDocument = frame.contentDocument;
+    if (!foreignDocument) {
+      throw new Error('Expected an iframe document');
+    }
+    const video = foreignDocument.createElement('video');
+    video.id = 'adopted-video';
+    const host = foreignDocument.createElement('div');
+    host.id = 'adopted-shadow-host';
+    const shadow = host.attachShadow({ mode: 'open' });
+    const shadowVideo = foreignDocument.createElement('video');
+    shadowVideo.id = 'adopted-shadow-video';
+    shadow.append(shadowVideo);
+    document.body.append(document.adoptNode(video), document.adoptNode(host));
+    frame.remove();
+    return !(video instanceof HTMLVideoElement);
+  });
+  expect(fromAnotherRealm).toBe(true);
+  await expect(site.locator('osvsc-overlay')).toHaveCount(OVERLAY_COUNT + 2);
+  const popup = await openPopup(context, extensionId, site, serviceWorker);
+  await popup.getByRole('button', { name: 'Faster' }).click();
+  await expect
+    .poll(() =>
+      site.locator('#adopted-video').evaluate((video: HTMLVideoElement) => video.playbackRate),
+    )
+    .toBe(1.25);
+  await expect
+    .poll(() =>
+      site
+        .locator('#adopted-shadow-video')
+        .evaluate((video: HTMLVideoElement) => video.playbackRate),
+    )
+    .toBe(1.25);
+  await site.evaluate(() => {
+    document.getElementById('adopted-video')?.remove();
+    document.getElementById('adopted-shadow-host')?.remove();
+  });
+  await expect(site.locator('osvsc-overlay')).toHaveCount(OVERLAY_COUNT);
+});
+
 async function overlayVisibilityForVideo(page: Page, videoId: string): Promise<string> {
   return page.evaluate((id) => {
     const video = document.getElementById(id);

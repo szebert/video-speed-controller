@@ -16,11 +16,12 @@ import {
   type SpeedPolicy,
 } from '../core/speed';
 import type { Equal } from '../types/equal';
-import { completeRecord, isRecord, listIncludes } from '../types/narrow';
+import { isRecord, listIncludes } from '../types/narrow';
 import {
   BEHAVIOR_FIELDS,
   BOOLEAN_BEHAVIOR_FIELDS,
   EDITABLE_BEHAVIOR_FIELDS,
+  mapBehaviorFields,
   type BehaviorField,
   type BooleanBehaviorField,
   type EditableBehaviorField,
@@ -31,6 +32,7 @@ import {
   emptyEffectiveHotkeys,
   hotkeyBindingsEqual,
   isHotkeyBinding,
+  mapHotkeyActions,
   type EffectiveHotkeyMap,
   type HotkeyBinding,
 } from './hotkey-binding';
@@ -322,13 +324,15 @@ export type HotkeySettingChange =
 // and behavior-schema (storage) — this file is on the content graph.
 type WidenDefault<T> = T extends boolean ? boolean : T extends number ? number : T;
 
-export type BehaviorFieldValue<K extends BehaviorField> = K extends 'overlayPosition'
-  ? OverlayPosition
-  : WidenDefault<(typeof BEHAVIOR_FIELDS)[K]['default']>;
+type FieldValueMap = {
+  [K in BehaviorField]: K extends 'overlayPosition'
+    ? OverlayPosition
+    : WidenDefault<(typeof BEHAVIOR_FIELDS)[K]['default']>;
+};
 
-export type SiteBehavior = {
-  [K in BehaviorField]: BehaviorFieldValue<K>;
-} & {
+export type BehaviorFieldValue<K extends BehaviorField> = FieldValueMap[K];
+
+export type SiteBehavior = FieldValueMap & {
   hotkeys: EffectiveHotkeyMap;
 };
 
@@ -359,18 +363,14 @@ export type ResolvedSiteBehavior = {
   hotkeys: ResolvedHotkeyMap;
 };
 
-const SITE_BEHAVIOR_KEYS = ['hotkeys', ...EDITABLE_BEHAVIOR_FIELDS] as const;
-
 function builtInSiteBehavior(): SiteBehavior {
-  const behavior: Record<string, unknown> = {
+  const fields: { [K in BehaviorField]: { default: BehaviorFieldValue<K> } } = BEHAVIOR_FIELDS;
+  return {
     // Every action, including the unbound navigation actions. Do not hand-build
     // a speed-only map: missing keys resolve to undefined instead of null.
     hotkeys: builtInEffectiveHotkeys(),
+    ...mapBehaviorFields<FieldValueMap>((field) => fields[field].default),
   };
-  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    behavior[field] = BEHAVIOR_FIELDS[field].default;
-  }
-  return completeRecord<SiteBehavior>(behavior, SITE_BEHAVIOR_KEYS);
 }
 
 export const BUILT_IN_SITE_BEHAVIOR = builtInSiteBehavior();
@@ -543,8 +543,8 @@ type FieldOverrideMap = {
   [K in BehaviorField]?: Override<BehaviorFieldValue<K>>;
 };
 
-type FieldValueMap = {
-  [K in BehaviorField]: BehaviorFieldValue<K>;
+type ResolvedFieldMap = {
+  [K in BehaviorField]: ResolvedSetting<BehaviorFieldValue<K>>;
 };
 
 function fieldOverride<K extends BehaviorField>(
@@ -712,13 +712,46 @@ export function resolveSiteBehavior(
   siteOverrides: BehaviorOverrides = {},
   policy?: SpeedPolicy,
 ): ResolvedSiteBehavior {
-  const draft: Record<string, unknown> = {
+  const resolve = <K extends BehaviorField>(field: K) =>
+    resolveBehaviorField(field, globalOverrides, siteOverrides);
+  const resolved: ResolvedSiteBehavior = {
     hotkeys: resolvedHotkeysFrom(globalOverrides, siteOverrides),
+    speed: resolve('speed'),
+    defaultSpeed: resolve('defaultSpeed'),
+    rememberLastSpeed: resolve('rememberLastSpeed'),
+    speedMin: resolve('speedMin'),
+    speedMax: resolve('speedMax'),
+    decreaseSpeedStep: resolve('decreaseSpeedStep'),
+    increaseSpeedStep: resolve('increaseSpeedStep'),
+    skipBackSeconds: resolve('skipBackSeconds'),
+    skipForwardSeconds: resolve('skipForwardSeconds'),
+    skipScaleWithPlaybackRate: resolve('skipScaleWithPlaybackRate'),
+    rewindSpeed: resolve('rewindSpeed'),
+    fastForwardSpeed: resolve('fastForwardSpeed'),
+    overlayVisible: resolve('overlayVisible'),
+    overlayPosition: resolve('overlayPosition'),
+    overlayPositionButton: resolve('overlayPositionButton'),
+    overlaySettingsButton: resolve('overlaySettingsButton'),
+    overlayNavigationBar: resolve('overlayNavigationBar'),
+    overlaySeekBar: resolve('overlaySeekBar'),
+    overlayVolumeBar: resolve('overlayVolumeBar'),
+    overlayExtrasBar: resolve('overlayExtrasBar'),
+    overlayHotkeyHints: resolve('overlayHotkeyHints'),
+    overlayAutoHide: resolve('overlayAutoHide'),
+    overlayHoverHold: resolve('overlayHoverHold'),
+    overlayAutoHideDelayMs: resolve('overlayAutoHideDelayMs'),
+    overlayOpacity: resolve('overlayOpacity'),
+    overlayScale: resolve('overlayScale'),
+    buttonFlash: resolve('buttonFlash'),
+    hotkeyFlash: resolve('hotkeyFlash'),
+    flashDelayMs: resolve('flashDelayMs'),
+    flashOpacity: resolve('flashOpacity'),
+    flashScale: resolve('flashScale'),
+    hotkeyConsumeMatchedKeys: resolve('hotkeyConsumeMatchedKeys'),
+    hotkeyRepeat: resolve('hotkeyRepeat'),
+    hotkeyRepeatDelayMs: resolve('hotkeyRepeatDelayMs'),
+    hotkeyRepeatRate: resolve('hotkeyRepeatRate'),
   };
-  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    draft[field] = resolveBehaviorField(field, globalOverrides, siteOverrides);
-  }
-  const resolved = completeRecord<ResolvedSiteBehavior>(draft, SITE_BEHAVIOR_KEYS);
   resolved.speedMin = clampResolvedSpeedMin(resolved.speedMin);
   resolved.speedMax = clampResolvedSpeedMax(resolved.speedMax);
   resolved.decreaseSpeedStep = clampResolvedSpeedStep(resolved.decreaseSpeedStep);
@@ -905,26 +938,24 @@ export function hotkeyChangesWouldConflict(
 }
 
 export function toEffectiveBehavior(resolved: ResolvedSiteBehavior): SiteBehavior {
-  const effective: Record<string, unknown> = { hotkeys: toEffectiveHotkeys(resolved) };
-  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    effective[field] = resolved[field].value;
-  }
-  return completeRecord<SiteBehavior>(effective, SITE_BEHAVIOR_KEYS);
+  const fields: ResolvedFieldMap = resolved;
+  return {
+    hotkeys: toEffectiveHotkeys(resolved),
+    ...mapBehaviorFields<FieldValueMap>((field) => fields[field].value),
+  };
 }
 
 function resolvedHotkeysFrom(
   globalOverrides: BehaviorOverrides,
   siteOverrides: BehaviorOverrides,
 ): ResolvedHotkeyMap {
-  const hotkeys: Record<string, unknown> = {};
-  for (const action of SITE_HOTKEY_ACTIONS) {
-    hotkeys[action] = resolveOverride(
+  return mapHotkeyActions((action) =>
+    resolveOverride(
       BUILT_IN_SITE_BEHAVIOR.hotkeys[action],
       globalOverrides.hotkeys?.[action],
       siteOverrides.hotkeys?.[action],
-    );
-  }
-  return completeRecord<ResolvedHotkeyMap>(hotkeys, SITE_HOTKEY_ACTIONS);
+    ),
+  );
 }
 
 export function behaviorOverridesEqual(left: BehaviorOverrides, right: BehaviorOverrides): boolean {
@@ -1048,11 +1079,7 @@ export function resolveAppliedSpeed(
 export function toEditableResolvedBehavior(
   resolved: ResolvedSiteBehavior,
 ): EditableResolvedBehavior {
-  const editable: Record<string, unknown> = {};
-  for (const field of EDITABLE_BEHAVIOR_FIELDS) {
-    editable[field] = resolved[field];
-  }
-  return completeRecord<EditableResolvedBehavior>(editable, EDITABLE_BEHAVIOR_FIELDS);
+  return mapBehaviorFields<EditableResolvedBehavior>((field) => resolved[field]);
 }
 
 export function tombstoneExistingSiteSettings(
