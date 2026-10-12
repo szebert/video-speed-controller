@@ -19,8 +19,33 @@ export type { TransportHoldOwner };
 type RegistryEntry = {
   controller: MediaController;
   overlay: VideoOverlay;
+  geometryAncestors: Element[];
   hold?: { owner: TransportHoldOwner; session: TransportSession };
 };
+
+const MAX_GEOMETRY_ANCESTORS = 6;
+const GEOMETRY_ATTRIBUTES = ['class', 'style', 'hidden'];
+
+function geometryAncestors(video: HTMLVideoElement): Element[] {
+  const ancestors: Element[] = [];
+  let element: Element = video;
+  while (ancestors.length < MAX_GEOMETRY_ANCESTORS) {
+    const root = element.getRootNode();
+    const parent: Element | null =
+      element.assignedSlot ?? element.parentElement ?? (isShadowRoot(root) ? root.host : null);
+    if (
+      !parent ||
+      parent === video.ownerDocument.body ||
+      parent === video.ownerDocument.documentElement ||
+      isExtensionHost(parent)
+    ) {
+      break;
+    }
+    ancestors.push(parent);
+    element = parent;
+  }
+  return ancestors;
+}
 
 function pointHitsRect(x: number, y: number, rect: DOMRect): boolean {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
@@ -76,6 +101,9 @@ export class MediaRegistry {
   private readonly entries = new Map<HTMLVideoElement, RegistryEntry>();
   private readonly rootObservers = new Map<Document | ShadowRoot, MutationObserver>();
   private readonly resizeObserver: ResizeObserver;
+  private readonly geometryObserver: MutationObserver;
+  private readonly geometryReferences = new Map<Element, number>();
+  private geometrySubscriptionsQueued = false;
   private currentBehavior: AppliedTabBehavior | null = null;
   private currentHotkeys: EffectiveHotkeyMap | null = null;
   private destroyed = false;
@@ -90,6 +118,9 @@ export class MediaRegistry {
     this.view = document.defaultView;
     this.resizeObserver = new ResizeObserver((entries) => {
       this.onVideoResize(entries);
+    });
+    this.geometryObserver = new MutationObserver((records) => {
+      this.onGeometryMutations(records);
     });
   }
 
@@ -332,6 +363,9 @@ export class MediaRegistry {
     this.latestPointer = null;
     this.cancelLayout();
     this.resizeObserver.disconnect();
+    this.geometryObserver.disconnect();
+    this.geometryReferences.clear();
+    this.geometrySubscriptionsQueued = false;
     this.detachLayoutListeners();
     for (const entry of this.entries.values()) {
       entry.overlay.destroy();
@@ -347,14 +381,16 @@ export class MediaRegistry {
   private ensureEntry(video: HTMLVideoElement): RegistryEntry {
     const existing = this.entries.get(video);
     if (existing) {
+      this.updateGeometryAncestors(existing, geometryAncestors(video));
       return existing;
     }
     const overlay = new VideoOverlay(video, this.requestLayout, this.actions);
     const controller = new MediaController(video, (owned) => {
       overlay.setControlled(owned);
     });
-    const entry = { controller, overlay };
+    const entry: RegistryEntry = { controller, overlay, geometryAncestors: [] };
     this.entries.set(video, entry);
+    this.updateGeometryAncestors(entry, geometryAncestors(video));
     this.resizeObserver.observe(video);
     if (this.currentBehavior) {
       overlay.setBehavior(this.currentBehavior, this.currentHotkeys ?? undefined);
@@ -386,6 +422,9 @@ export class MediaRegistry {
   }
 
   private handleMutations(records: MutationRecord[]): void {
+    if (this.destroyed) {
+      return;
+    }
     const added: Node[] = [];
     const removedVideos: HTMLVideoElement[] = [];
 
@@ -416,6 +455,11 @@ export class MediaRegistry {
     for (const video of removedVideos) {
       if (!video.isConnected) {
         this.destroyEntry(video);
+      } else {
+        const entry = this.entries.get(video);
+        if (entry) {
+          this.updateGeometryAncestors(entry, geometryAncestors(video));
+        }
       }
     }
 
@@ -434,11 +478,82 @@ export class MediaRegistry {
     }
     this.resizeObserver.unobserve(video);
     this.entries.delete(video);
+    this.updateGeometryAncestors(entry, []);
     entry.hold = undefined;
     entry.overlay.destroy();
     // destroy() ends any active transport session, so a disconnected video
     // never stays stuck at a temporary rate.
     entry.controller.destroy();
+    if (this.entries.size === 0) {
+      this.cancelLayout();
+    }
+  }
+
+  // Bounded invalidation only: these attributes trigger one layout frame, not
+  // transition/animation following. Sibling layout, stylesheet edits, and
+  // body/documentElement attributes are intentionally outside this watch.
+  private updateGeometryAncestors(entry: RegistryEntry, next: Element[]): void {
+    const previous = entry.geometryAncestors;
+    if (previous.length === next.length && previous.every((node, i) => node === next[i])) {
+      return;
+    }
+    let subscriptionsChanged = false;
+    for (const node of previous) {
+      if (next.includes(node)) {
+        continue;
+      }
+      const count = this.geometryReferences.get(node)!;
+      if (count === 1) {
+        this.geometryReferences.delete(node);
+        subscriptionsChanged = true;
+      } else {
+        this.geometryReferences.set(node, count - 1);
+      }
+    }
+    for (const node of next) {
+      if (previous.includes(node)) {
+        continue;
+      }
+      const count = this.geometryReferences.get(node) ?? 0;
+      this.geometryReferences.set(node, count + 1);
+      subscriptionsChanged ||= count === 0;
+    }
+    entry.geometryAncestors = next;
+    if (subscriptionsChanged && !this.geometrySubscriptionsQueued) {
+      this.geometrySubscriptionsQueued = true;
+      // MutationObserver has no selective unobserve. Batch discovery/removal
+      // across roots into one disconnect/reobserve, outside the layout frame.
+      queueMicrotask(() => {
+        this.geometrySubscriptionsQueued = false;
+        if (this.destroyed) {
+          return;
+        }
+        this.onGeometryMutations(this.geometryObserver.takeRecords());
+        this.geometryObserver.disconnect();
+        for (const node of this.geometryReferences.keys()) {
+          this.geometryObserver.observe(node, {
+            attributes: true,
+            attributeFilter: GEOMETRY_ATTRIBUTES,
+            subtree: false,
+          });
+        }
+      });
+    }
+    this.requestLayout();
+  }
+
+  private onGeometryMutations(records: MutationRecord[]): void {
+    if (
+      !this.destroyed &&
+      records.some(
+        (record) =>
+          isElement(record.target) &&
+          !isExtensionHost(record.target) &&
+          this.geometryReferences.has(record.target),
+      )
+    ) {
+      this.requestLayout();
+    }
   }
 
   private onVideoResize(entries: ResizeObserverEntry[]): void {
@@ -500,6 +615,16 @@ export class MediaRegistry {
     this.requestLayout();
   };
 
+  private readonly onFullscreenSignal = (): void => {
+    if (this.destroyed) {
+      return;
+    }
+    for (const entry of this.entries.values()) {
+      entry.overlay.refreshFullscreenState();
+    }
+    this.requestLayout();
+  };
+
   private readonly onWindowPointer = (event: Event): void => {
     if (this.destroyed || !(event instanceof PointerEvent)) {
       return;
@@ -534,7 +659,8 @@ export class MediaRegistry {
     this.view.addEventListener('scroll', this.onLayoutSignal, capture);
     this.document.addEventListener('scroll', this.onLayoutSignal, capture);
     this.view.addEventListener('resize', this.onLayoutSignal);
-    this.document.addEventListener('fullscreenchange', this.onLayoutSignal);
+    this.document.addEventListener('fullscreenchange', this.onFullscreenSignal);
+    this.document.addEventListener('fullscreenerror', this.onFullscreenSignal);
     this.view.addEventListener('pointermove', this.onWindowPointer, capture);
     this.view.addEventListener('pointerdown', this.onWindowPointer, capture);
     this.view.addEventListener('blur', this.onPageHide);
@@ -549,7 +675,8 @@ export class MediaRegistry {
     this.view.removeEventListener('scroll', this.onLayoutSignal, capture);
     this.document.removeEventListener('scroll', this.onLayoutSignal, capture);
     this.view.removeEventListener('resize', this.onLayoutSignal);
-    this.document.removeEventListener('fullscreenchange', this.onLayoutSignal);
+    this.document.removeEventListener('fullscreenchange', this.onFullscreenSignal);
+    this.document.removeEventListener('fullscreenerror', this.onFullscreenSignal);
     this.view.removeEventListener('pointermove', this.onWindowPointer, capture);
     this.view.removeEventListener('pointerdown', this.onWindowPointer, capture);
     this.view.removeEventListener('blur', this.onPageHide);

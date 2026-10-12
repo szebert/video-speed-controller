@@ -79,6 +79,7 @@ describe('video fullscreen', () => {
         });
       },
     });
+    registry.start();
     registry.setBehavior(
       tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true, overlayHotkeyHints: true }),
       {
@@ -288,6 +289,9 @@ describe('video fullscreen', () => {
   });
 
   it('detects native fullscreen and traverses nested adopted foreign shadow roots', () => {
+    // This helper-only case uses foreign jsdom nodes, whose EventTargets reject
+    // this window's AbortSignal. Browser discovery is covered by Playwright.
+    registry.destroy();
     const frame = document.createElement('iframe');
     document.body.append(frame);
     const foreign = frame.contentDocument;

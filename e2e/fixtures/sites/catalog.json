@@ -1,0 +1,1042 @@
+[
+  {
+    "id": "youtube",
+    "name": "YouTube",
+    "hosts": ["youtube.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public VOD, live, Shorts; SPA navigation matters."
+  },
+  {
+    "id": "twitch",
+    "name": "Twitch",
+    "hosts": ["twitch.tv"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public live, VOD/clips, ads, dynamic player replacement."
+  },
+  {
+    "id": "reddit",
+    "name": "Reddit",
+    "hosts": ["reddit.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Native video, embedded third-party video, infinite feed, modal viewer."
+  },
+  {
+    "id": "facebook",
+    "name": "Facebook",
+    "hosts": ["facebook.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "brittle",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public posts/Reels."
+  },
+  {
+    "id": "instagram",
+    "name": "Instagram",
+    "hosts": ["instagram.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "brittle",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public Reels/posts."
+  },
+  {
+    "id": "tiktok",
+    "name": "TikTok",
+    "hosts": ["tiktok.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public videos, feed navigation, modal overlays."
+  },
+  {
+    "id": "x",
+    "name": "X",
+    "hosts": ["x.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "brittle",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public posts/clips."
+  },
+  {
+    "id": "tubi",
+    "name": "Tubi",
+    "hosts": ["tubitv.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Free ad-supported playback. Account features are a later suite."
+  },
+  {
+    "id": "vimeo",
+    "name": "Vimeo",
+    "hosts": ["vimeo.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public videos. Embedded player is separate coverage later."
+  },
+  {
+    "id": "dailymotion",
+    "name": "Dailymotion",
+    "hosts": ["dailymotion.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public videos."
+  },
+  {
+    "id": "rumble",
+    "name": "Rumble",
+    "hosts": ["rumble.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public videos."
+  },
+  {
+    "id": "kick",
+    "name": "Kick",
+    "hosts": ["kick.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public live streams."
+  },
+  {
+    "id": "pluto-tv",
+    "name": "Pluto TV",
+    "hosts": ["pluto.tv"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Live FAST, VOD, ads."
+  },
+  {
+    "id": "roku-channel",
+    "name": "The Roku Channel",
+    "hosts": ["therokuchannel.roku.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Free VOD/live."
+  },
+  {
+    "id": "plex",
+    "name": "Plex",
+    "hosts": ["plex.tv"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Free movies and free live TV."
+  },
+  {
+    "id": "vix",
+    "name": "ViX",
+    "hosts": ["vix.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "ViX Gratis only. Premium is later."
+  },
+  {
+    "id": "espn",
+    "name": "ESPN",
+    "hosts": ["espn.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Stable highlight or news video, not an authenticated live broadcast."
+  },
+  {
+    "id": "nfl",
+    "name": "NFL",
+    "hosts": ["nfl.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Highlight/news video only, not an authenticated live broadcast."
+  },
+  {
+    "id": "nba",
+    "name": "NBA",
+    "hosts": ["nba.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Highlight/news video only, not an authenticated live broadcast."
+  },
+  {
+    "id": "mlb",
+    "name": "MLB",
+    "hosts": ["mlb.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Highlight/news video only, not an authenticated live broadcast."
+  },
+  {
+    "id": "nhl",
+    "name": "NHL",
+    "hosts": ["nhl.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Highlight/news video only, not an authenticated live broadcast."
+  },
+  {
+    "id": "fox-sports",
+    "name": "FOX Sports",
+    "hosts": ["foxsports.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Highlight/news video only, not an authenticated live broadcast."
+  },
+  {
+    "id": "cbs-sports",
+    "name": "CBS Sports",
+    "hosts": ["cbssports.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Highlight/news video only, not an authenticated live broadcast."
+  },
+  {
+    "id": "nbc-sports",
+    "name": "NBC Sports",
+    "hosts": ["nbcsports.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Highlight/news video only, not an authenticated live broadcast."
+  },
+  {
+    "id": "ufc",
+    "name": "UFC",
+    "hosts": ["ufc.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Highlight/news video only, not an authenticated live broadcast."
+  },
+  {
+    "id": "bilibili",
+    "name": "Bilibili",
+    "hosts": ["bilibili.com", "bilibili.tv"],
+    "auth": "none",
+    "geo": "restricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public/free content. Region variants stay one entry for now."
+  },
+  {
+    "id": "iqiyi",
+    "name": "iQIYI",
+    "hosts": ["iq.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Guest mode."
+  },
+  {
+    "id": "youku",
+    "name": "Youku",
+    "hosts": ["youku.tv"],
+    "auth": "none",
+    "geo": "restricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public/free where region permits."
+  },
+  {
+    "id": "wetv",
+    "name": "WeTV",
+    "hosts": ["wetv.vip"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Free episodes only. VIP episodes are later."
+  },
+  {
+    "id": "vk-video",
+    "name": "VK Video",
+    "hosts": ["vk.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public video."
+  },
+  {
+    "id": "rutube",
+    "name": "RuTube",
+    "hosts": ["rutube.ru"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public video."
+  },
+  {
+    "id": "niconico",
+    "name": "Niconico",
+    "hosts": ["nicovideo.jp"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public video."
+  },
+  {
+    "id": "abema",
+    "name": "ABEMA",
+    "hosts": ["abema.tv"],
+    "auth": "none",
+    "geo": "restricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Free content."
+  },
+  {
+    "id": "viu",
+    "name": "Viu",
+    "hosts": ["viu.com"],
+    "auth": "none",
+    "geo": "restricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Free/ad-supported in supported regions."
+  },
+  {
+    "id": "streamable",
+    "name": "Streamable",
+    "hosts": ["streamable.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public video URL."
+  },
+  {
+    "id": "loom",
+    "name": "Loom",
+    "hosts": ["loom.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "One dedicated public recording."
+  },
+  {
+    "id": "google-drive",
+    "name": "Google Drive",
+    "hosts": ["drive.google.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Anyone-with-the-link video fixture."
+  },
+  {
+    "id": "google-photos",
+    "name": "Google Photos",
+    "hosts": ["photos.google.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public shared video fixture."
+  },
+  {
+    "id": "dropbox",
+    "name": "Dropbox",
+    "hosts": ["dropbox.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public shared video preview."
+  },
+  {
+    "id": "internet-archive",
+    "name": "Internet Archive",
+    "hosts": ["archive.org"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Permanent HTML5 media."
+  },
+  {
+    "id": "patreon",
+    "name": "Patreon",
+    "hosts": ["patreon.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public creator/video post. Paid posts stay out."
+  },
+  {
+    "id": "linkedin",
+    "name": "LinkedIn",
+    "hosts": ["linkedin.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "brittle",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public video post."
+  },
+  {
+    "id": "threads",
+    "name": "Threads",
+    "hosts": ["threads.com"],
+    "auth": "none",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Public video post. SPA/feed behavior."
+  },
+  {
+    "id": "viki",
+    "name": "Viki",
+    "hosts": ["viki.com"],
+    "auth": "free-account",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Free videos still need an account."
+  },
+  {
+    "id": "dazn",
+    "name": "DAZN",
+    "hosts": ["dazn.com"],
+    "auth": "free-account",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Registration is required. Paid entitlements are needed for much of the useful live coverage."
+  },
+  {
+    "id": "zee5",
+    "name": "ZEE5",
+    "hosts": ["zee5.com"],
+    "auth": "free-account",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Playback needs an account, including free/ad-supported titles that require registration."
+  },
+  {
+    "id": "sonyliv",
+    "name": "SonyLIV",
+    "hosts": ["sonyliv.com"],
+    "auth": "free-account",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account/OTP. Some content is free after authentication."
+  },
+  {
+    "id": "discord",
+    "name": "Discord",
+    "hosts": ["discord.com"],
+    "auth": "free-account",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account/session for the web app. This is the Discord site test, not its public CDN."
+  },
+  {
+    "id": "netflix",
+    "name": "Netflix",
+    "hosts": ["netflix.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account, entitlement, DRM, SPA navigation."
+  },
+  {
+    "id": "prime-video",
+    "name": "Amazon Prime Video",
+    "hosts": ["primevideo.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account and entitlement. DRM."
+  },
+  {
+    "id": "disney-plus",
+    "name": "Disney+",
+    "hosts": ["disneyplus.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account and subscription. DRM."
+  },
+  {
+    "id": "hulu",
+    "name": "Hulu",
+    "hosts": ["hulu.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account and subscription. DRM."
+  },
+  {
+    "id": "hbo-max",
+    "name": "HBO Max",
+    "hosts": ["hbomax.com", "max.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account and subscription. DRM. Stays generic in this slice."
+  },
+  {
+    "id": "paramount-plus",
+    "name": "Paramount+",
+    "hosts": ["paramountplus.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account and subscription."
+  },
+  {
+    "id": "peacock",
+    "name": "Peacock",
+    "hosts": ["peacocktv.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account required for the streaming product."
+  },
+  {
+    "id": "youtube-tv",
+    "name": "YouTube TV",
+    "hosts": ["tv.youtube.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Google account and active subscription."
+  },
+  {
+    "id": "crunchyroll",
+    "name": "Crunchyroll",
+    "hosts": ["crunchyroll.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Representative playback is authenticated/Premium."
+  },
+  {
+    "id": "apple-tv",
+    "name": "Apple TV",
+    "hosts": ["tv.apple.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Apple Account and entitlement. Public trailers are not sufficient."
+  },
+  {
+    "id": "sling",
+    "name": "Sling",
+    "hosts": ["sling.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account/subscription."
+  },
+  {
+    "id": "fubo",
+    "name": "Fubo",
+    "hosts": ["fubo.tv"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account/subscription."
+  },
+  {
+    "id": "discovery-plus",
+    "name": "Discovery+",
+    "hosts": ["discoveryplus.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account/subscription."
+  },
+  {
+    "id": "starz",
+    "name": "Starz",
+    "hosts": ["starz.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account/subscription."
+  },
+  {
+    "id": "amc-plus",
+    "name": "AMC+",
+    "hosts": ["amcplus.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account/subscription."
+  },
+  {
+    "id": "mgm-plus",
+    "name": "MGM+",
+    "hosts": ["mgmplus.com"],
+    "auth": "subscription",
+    "geo": "unrestricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Account/subscription."
+  },
+  {
+    "id": "jiohotstar",
+    "name": "JioHotstar",
+    "hosts": ["hotstar.com"],
+    "auth": "subscription",
+    "geo": "restricted",
+    "stability": "stable",
+    "policy": "generic",
+    "checks": {
+      "fixtureIdentified": false,
+      "externalSmoke": false,
+      "genericEvaluated": false,
+      "builtinPolicyRequired": false
+    },
+    "notes": "Authenticated and region-specific."
+  }
+]

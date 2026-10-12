@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OS VSC overlay geometry fixture</title>
+    <style>
+      body {
+        margin: 40px;
+      }
+
+      .player {
+        display: flow-root;
+        width: 640px;
+        height: 400px;
+      }
+
+      video {
+        display: block;
+        width: 320px;
+        height: 180px;
+        background: #000;
+      }
+
+      .player.shifted video {
+        margin-left: 120px;
+        margin-top: 70px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="player" class="player">
+      <video id="video" controls muted></video>
+    </div>
+  </body>
+</html>

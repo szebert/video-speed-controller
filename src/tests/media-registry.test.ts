@@ -86,6 +86,11 @@ function setVideoRect(
     }) as DOMRect;
 }
 
+// Flush native MutationObserver delivery and the queued subscription rebuild.
+async function flushMutations(): Promise<void> {
+  await new Promise<void>(queueMicrotask);
+}
+
 function withFullscreenElement(element: Element): () => void {
   const previous = Object.getOwnPropertyDescriptor(document, 'fullscreenElement');
   Object.defineProperty(document, 'fullscreenElement', {
@@ -143,6 +148,8 @@ describe('media registry', () => {
     restoreResizeObserver?.();
     restoreResizeObserver = undefined;
     document.body.replaceChildren();
+    document.body.removeAttribute('class');
+    document.documentElement.removeAttribute('class');
     document.documentElement.querySelectorAll(OVERLAY_HOST_TAG).forEach((node) => node.remove());
     document.documentElement
       .querySelectorAll(HOTKEY_FLASH_HOST_TAG)
@@ -426,6 +433,245 @@ describe('media registry', () => {
     expect(registry.size).toBe(0);
     registry.destroy();
   });
+
+  it.each(['light DOM', 'open shadow root'])(
+    'keeps the same entry and replaces geometry subscriptions on a move into %s',
+    async (destination) => {
+      const raf = installRafQueue();
+      const source = document.createElement('div');
+      const target = document.createElement('section');
+      const shadow = target.attachShadow({ mode: 'open' });
+      const inner = document.createElement('div');
+      shadow.append(inner);
+      const node = video();
+      source.append(node);
+      document.body.append(source, target);
+      const registry = new MediaRegistry(document);
+      registries.push(registry);
+      registry.start();
+      registry.setBehavior(
+        tabBehavior(1, { overlayAutoHide: false, overlayPosition: OVERLAY_POSITION.TOP_LEFT }),
+      );
+      await flushMutations();
+      raf.flush();
+      await flushMutations();
+      const controller = registry.getController(node);
+      const overlay = registry.getOverlay(node)!;
+      const observe = vi.spyOn(registry['geometryObserver'], 'observe');
+      const disconnect = vi.spyOn(registry['geometryObserver'], 'disconnect');
+      const frames = vi.mocked(window.requestAnimationFrame);
+      frames.mockClear();
+      setVideoRect(node, { left: 120, top: 70, width: 160, height: 90 });
+      (destination === 'light DOM' ? target : inner).append(node);
+      await flushMutations();
+      expect(registry.getController(node)).toBe(controller);
+      expect(registry.getOverlay(node)).toBe(overlay);
+      expect(registry['geometryReferences'].has(source)).toBe(false);
+      expect(registry['geometryReferences'].has(target)).toBe(true);
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      expect(observe.mock.calls.map(([element]) => element)).not.toContain(source);
+      expect(frames).toHaveBeenCalledTimes(1);
+      raf.flush();
+      await flushMutations();
+      expect(overlay.host.style.left).toBe(`${120 + OVERLAY_INSET_PX}px`);
+      expect(overlay.host.style.top).toBe(`${70 + OVERLAY_INSET_PX}px`);
+      expect(registry['layoutRaf']).toBeNull();
+      frames.mockClear();
+      source.className = 'old-parent';
+      await flushMutations();
+      expect(frames).not.toHaveBeenCalled();
+      target.className = 'new-parent';
+      await flushMutations();
+      expect(frames).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([20, 50, 100])(
+    'batches geometry watching for %i distinct video chains and returns to idle',
+    async (count) => {
+      const raf = installRafQueue();
+      const parents: Element[] = [];
+      const nodes: HTMLVideoElement[] = [];
+      for (let i = 0; i < count; i++) {
+        let parent: Element = document.body;
+        for (let depth = 0; depth < 8; depth++) {
+          const next = document.createElement('div');
+          parent.append(next);
+          parent = next;
+        }
+        const node = video();
+        parent.append(node);
+        parents.push(parent);
+        nodes.push(node);
+      }
+      const registry = new MediaRegistry(document);
+      registries.push(registry);
+      const observe = vi.spyOn(registry['geometryObserver'], 'observe');
+      const disconnect = vi.spyOn(registry['geometryObserver'], 'disconnect');
+      registry.start();
+      registry.setBehavior(tabBehavior(1, { overlayAutoHide: false }));
+      await flushMutations();
+      expect(observe).toHaveBeenCalledTimes(count * 6);
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      expect(registry['geometryReferences'].size).toBe(count * 6);
+      expect(observe.mock.calls.every(([, options]) => options?.subtree === false)).toBe(true);
+      expect(observe.mock.calls[0]?.[1]?.attributeFilter).toEqual(['class', 'style', 'hidden']);
+      raf.flush();
+      await flushMutations();
+      const frames = vi.mocked(window.requestAnimationFrame);
+      frames.mockClear();
+      observe.mockClear();
+      disconnect.mockClear();
+      document.body.className = 'unwatched-body';
+      document.documentElement.className = 'unwatched-root';
+      parents[0]!.setAttribute('data-unrelated', 'changed');
+      parents[0]!.firstElementChild!.className = 'unwatched-descendant';
+      await flushMutations();
+      expect(frames).not.toHaveBeenCalled();
+      for (const parent of parents) {
+        for (let i = 0; i < 10; i++) parent.className = `changed-${i}`;
+      }
+      await flushMutations();
+      expect(frames).toHaveBeenCalledTimes(1);
+      expect(observe).not.toHaveBeenCalled();
+      expect(disconnect).not.toHaveBeenCalled();
+      raf.flush();
+      await flushMutations();
+      expect(registry['layoutRaf']).toBeNull();
+      expect(frames).toHaveBeenCalledTimes(1);
+      const extra = document.createElement('div');
+      document.body.append(extra);
+      for (const node of nodes) extra.append(node);
+      await flushMutations();
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      expect(registry['geometryReferences'].size).toBe(1);
+      expect(registry['geometryReferences'].get(extra)).toBe(count);
+      for (const node of nodes) node.remove();
+      await flushMutations();
+      expect(registry.size).toBe(0);
+      expect(registry['geometryReferences'].size).toBe(0);
+      expect(registry['layoutRaf']).toBeNull();
+      expect(disconnect).toHaveBeenCalledTimes(2);
+      frames.mockClear();
+      extra.className = 'removed';
+      await flushMutations();
+      expect(frames).not.toHaveBeenCalled();
+    },
+  );
+
+  it('watches shared ancestors once and disconnects pending geometry work on destroy', async () => {
+    const raf = installRafQueue();
+    const parent = document.createElement('div');
+    parent.append(video(), video());
+    document.body.append(parent);
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const observe = vi.spyOn(registry['geometryObserver'], 'observe');
+    const disconnect = vi.spyOn(registry['geometryObserver'], 'disconnect');
+    registry.start();
+    await flushMutations();
+    expect(observe).toHaveBeenCalledTimes(1);
+    expect(registry['geometryReferences'].get(parent)).toBe(2);
+    raf.flush();
+    parent.firstElementChild!.remove();
+    await flushMutations();
+    expect(registry['geometryReferences'].get(parent)).toBe(1);
+    expect(observe).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    raf.flush();
+    parent.className = 'queue-layout';
+    await flushMutations();
+    expect(registry['layoutRaf']).not.toBeNull();
+    registry.destroy();
+    expect(registry['geometryReferences'].size).toBe(0);
+    expect(registry['layoutRaf']).toBeNull();
+    const frames = vi.mocked(window.requestAnimationFrame);
+    frames.mockClear();
+    parent.className = 'destroyed';
+    await flushMutations();
+    raf.flush();
+    expect(frames).not.toHaveBeenCalled();
+    expect(disconnect).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reconnect an attribute observer when destroyed before its queued subscription rebuild', async () => {
+    installRafQueue();
+    const parent = document.createElement('div');
+    parent.append(video());
+    document.body.append(parent);
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    const observe = vi.spyOn(registry['geometryObserver'], 'observe');
+    registry.start();
+    registry.destroy();
+    await flushMutations();
+    expect(observe).not.toHaveBeenCalled();
+    expect(registry['geometryReferences'].size).toBe(0);
+    expect(registry['layoutRaf']).toBeNull();
+  });
+
+  it.each([1, 5, 20])(
+    'owns one fullscreen listener pair for %i videos and refreshes views before layout',
+    async (count) => {
+      const raf = installRafQueue();
+      const add = vi.spyOn(document, 'addEventListener');
+      const remove = vi.spyOn(document, 'removeEventListener');
+      const nodes = Array.from({ length: count }, () => video());
+      document.body.append(...nodes);
+      const registry = new MediaRegistry(document);
+      registries.push(registry);
+      registry.start();
+      registry.setBehavior(tabBehavior(1, { overlayAutoHide: false, overlayExtrasBar: true }));
+      await flushMutations();
+      raf.flush();
+      const overlays = nodes.map((node) => registry.getOverlay(node)!);
+      const refreshes = overlays.map((overlay) => vi.spyOn(overlay, 'refreshFullscreenState'));
+      for (const event of ['fullscreenchange', 'fullscreenerror']) {
+        expect(add.mock.calls.filter(([type]) => type === event)).toHaveLength(1);
+      }
+      const frames = vi.mocked(window.requestAnimationFrame);
+      frames.mockClear();
+      const restore = withFullscreenElement(nodes[0]!);
+      try {
+        document.dispatchEvent(new Event('fullscreenchange'));
+        expect(refreshes.every((refresh) => refresh.mock.calls.length === 1)).toBe(true);
+        expect(
+          overlays[0]!.host.shadowRoot
+            ?.querySelector('.fullscreen-toggle')
+            ?.getAttribute('aria-pressed'),
+        ).toBe('true');
+        expect(
+          overlays[0]!.host.shadowRoot
+            ?.querySelector('.fullscreen-toggle')
+            ?.getAttribute('aria-label'),
+        ).toBe('Fullscreen off');
+        expect(frames).toHaveBeenCalledTimes(1);
+        raf.flush();
+        // Visibility remains hidden in native fullscreen; the button still must refresh.
+        restore();
+        document.dispatchEvent(new Event('fullscreenerror'));
+        expect(
+          overlays[0]!.host.shadowRoot
+            ?.querySelector('.fullscreen-toggle')
+            ?.getAttribute('aria-pressed'),
+        ).toBe('false');
+        expect(refreshes.every((refresh) => refresh.mock.calls.length === 2)).toBe(true);
+        registry.destroy();
+        for (const event of ['fullscreenchange', 'fullscreenerror']) {
+          const registration = add.mock.calls.find(([type]) => type === event)!;
+          expect(
+            remove.mock.calls.some(
+              ([type, listener]) => type === event && listener === registration[1],
+            ),
+          ).toBe(true);
+          document.dispatchEvent(new Event(event));
+        }
+        expect(refreshes.every((refresh) => refresh.mock.calls.length === 2)).toBe(true);
+      } finally {
+        restore();
+      }
+    },
+  );
 
   it('disconnects an adopted foreign shadow observer and creates a new observer on reinsert', async () => {
     const frame = document.createElement('iframe');

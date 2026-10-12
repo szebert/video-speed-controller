@@ -313,20 +313,15 @@ export class VideoOverlay {
     }
     video.addEventListener('emptied', () => this.resetLoopForNewMedia(), { signal });
     video.addEventListener('volumechange', () => this.onVolumeChange(), { signal });
-    for (const type of ['fullscreenchange', 'fullscreenerror'] as const) {
-      document.addEventListener(
-        type,
-        () => {
-          this.syncView();
-          this.requestLayout();
-        },
-        { signal },
-      );
-    }
   }
 
   get speedReadout(): HTMLButtonElement | null {
     return this.view.speedReadout.isConnected ? this.view.speedReadout : null;
+  }
+
+  /** The registry owns document fullscreen events and schedules their layout. */
+  refreshFullscreenState(): void {
+    this.syncView();
   }
 
   setBehavior(behavior: AppliedTabBehavior, hotkeys?: EffectiveHotkeyMap): void {
