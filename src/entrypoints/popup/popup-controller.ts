@@ -13,6 +13,8 @@ import {
 import { adjustSpeed } from '@/core/speed';
 import { t } from '@/i18n/t';
 import { sendPopupRequest } from '@/protocol/rpc';
+import { RECON_ENABLED, emitRecon, reconError, reconHostname } from '@/diagnostics/recon-transport';
+import { observeActivation, observeGrant, recordAccess } from '@/diagnostics/recon-popup';
 import {
   adjustmentSpeed,
   popupSpeedPolicy,
@@ -50,6 +52,15 @@ async function loadPopup(): Promise<PopupSession | null> {
   );
   if (!tab?.id || !tab.url) {
     return null;
+  }
+  if (RECON_ENABLED) {
+    emitRecon('popup.target', {
+      tabId: tab.id,
+      hostname: reconHostname(tab.url),
+      activeTabId: active?.id,
+      toolbarPopup: current == null,
+    });
+    void recordAccess(tab.url, tab.id);
   }
   const state = await sendPopupRequest({
     type: 'GET_POPUP_STATE',
@@ -132,7 +143,21 @@ export class PopupController {
     if (!view?.supported || view.siteAccess) {
       return undefined;
     }
-    return requestExactOriginAccess(view.url);
+    if (!RECON_ENABLED) return requestExactOriginAccess(view.url);
+    const gesture = navigator.userActivation?.isActive ?? false;
+    try {
+      const grant = requestExactOriginAccess(view.url);
+      if (RECON_ENABLED) observeGrant(grant, view.url, view.tabId, gesture);
+      return grant;
+    } catch (error) {
+      if (RECON_ENABLED)
+        emitRecon('permission.result', {
+          tabId: view.tabId,
+          outcome: 'threw',
+          error: reconError(error),
+        });
+      throw error;
+    }
   }
 
   private async load(): Promise<void> {
@@ -223,11 +248,13 @@ export class PopupController {
       if (!current) {
         return;
       }
-      const response = await sendPopupRequest({
+      const operation = sendPopupRequest({
         type: 'ENABLE_SITE',
         tabId: current.tabId,
         url: current.url,
       });
+      if (RECON_ENABLED) observeActivation(operation, current.tabId);
+      const response = await operation;
       if (!response?.ok) {
         this.notice = response?.error ?? t('settingsSaveError');
       }

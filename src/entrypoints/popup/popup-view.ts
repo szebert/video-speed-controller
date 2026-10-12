@@ -27,6 +27,8 @@ import { switchControl, syncSwitch } from '@/ui/components/switch';
 import { ThemeController } from '@/ui/theme-controller';
 import { popupSpeedPolicy, shownSpeed, type PopupState } from './popup-model';
 import { PopupController } from './popup-controller';
+import { RECON_ENABLED } from '@/diagnostics/recon-transport';
+import { checkpointButton } from '@/diagnostics/recon-popup';
 
 const THEME_ICONS = {
   dark: 'moon',
@@ -189,6 +191,9 @@ export class PopupView {
     }
     if (state.notice) {
       main.append(this.notice(state.notice));
+    }
+    if (RECON_ENABLED && state.view?.supported) {
+      main.append(checkpointButton(state.view.tabId, state.view.url));
     }
     const theme = this.theme.getState().theme;
     return el(

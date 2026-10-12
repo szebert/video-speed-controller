@@ -6,6 +6,7 @@ import { defineConfig } from 'wxt';
 
 const e2eBuild = process.env.OSVSC_E2E === '1';
 const analyzeBundle = process.env.OSVSC_ANALYZE === '1';
+const reconRequested = process.env.OSVSC_RECON === '1';
 
 function packageFromModuleId(id: string): string {
   const marker = 'node_modules/';
@@ -64,33 +65,52 @@ export default defineConfig({
       enabled: 9,
     },
   },
-  vite: () => ({
+  vite: ({ command }) => ({
+    define: {
+      'import.meta.env.OSVSC_RECON': JSON.stringify(
+        command === 'serve' && reconRequested ? '1' : '',
+      ),
+      'import.meta.env.OSVSC_RECON_ENDPOINT': JSON.stringify(
+        command === 'serve' && reconRequested ? (process.env.OSVSC_RECON_ENDPOINT ?? '') : '',
+      ),
+    },
     plugins: [tailwindcss(), ...(analyzeBundle ? [analyzeBundlePlugin()] : [])],
   }),
-  manifest: {
-    default_locale: 'en',
-    name: '__MSG_extName__',
-    short_name: '__MSG_extShortName__',
-    description: '__MSG_extDescription__',
-    minimum_chrome_version: '119',
-    permissions: ['storage', 'activeTab', 'scripting'],
-    optional_host_permissions: ['http://*/*', 'https://*/*'],
-    ...(e2eBuild ? { host_permissions: ['http://127.0.0.1:4173/*'] } : {}),
-    icons: {
-      16: 'icons/icon-16.png',
-      32: 'icons/icon-32.png',
-      48: 'icons/icon-48.png',
-      128: 'icons/icon-128.png',
-    },
-    action: {
-      default_title: '__MSG_actionTitle__',
-      default_icon: {
+  ...(reconRequested ? { webExt: { disabled: true } } : {}),
+  manifest: ({ command }) => {
+    const recon = command === 'serve' && reconRequested;
+    return {
+      default_locale: 'en',
+      name: recon ? 'OSVSC Recon (local diagnostics)' : '__MSG_extName__',
+      short_name: '__MSG_extShortName__',
+      description: '__MSG_extDescription__',
+      minimum_chrome_version: '119',
+      permissions: ['storage', 'activeTab', 'scripting'],
+      optional_host_permissions: ['http://*/*', 'https://*/*'],
+      ...(e2eBuild || recon
+        ? {
+            host_permissions: [
+              ...(e2eBuild ? ['http://127.0.0.1:4173/*'] : []),
+              ...(recon ? ['http://127.0.0.1/*'] : []),
+            ],
+          }
+        : {}),
+      icons: {
         16: 'icons/icon-16.png',
         32: 'icons/icon-32.png',
         48: 'icons/icon-48.png',
         128: 'icons/icon-128.png',
       },
-    },
+      action: {
+        default_title: '__MSG_actionTitle__',
+        default_icon: {
+          16: 'icons/icon-16.png',
+          32: 'icons/icon-32.png',
+          48: 'icons/icon-48.png',
+          128: 'icons/icon-128.png',
+        },
+      },
+    };
   },
   zip: {
     artifactTemplate: 'opensource-video-speed-controller-{{version}}-{{browser}}.zip',

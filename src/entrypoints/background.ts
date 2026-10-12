@@ -29,6 +29,8 @@ import { authorizeBackgroundInbound } from '../background/authorize-inbound';
 import { parseBackgroundInbound } from '../protocol/schemas/background-inbound';
 import { restrictStorageAccess } from '../storage/restrict-access';
 import { clearTabState } from '../storage/tab-state';
+import { RECON_ENABLED } from '../diagnostics/recon-transport';
+import { startReconBackground } from '../diagnostics/recon-background';
 
 function respondWithError(
   sendResponse: (response?: unknown) => void,
@@ -42,6 +44,7 @@ function respondWithError(
 }
 
 export default defineBackground(() => {
+  if (RECON_ENABLED) startReconBackground();
   chrome.runtime.onInstalled.addListener(() => {
     schedulePermissionsReconcile('onInstalled');
   });

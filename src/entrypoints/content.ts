@@ -13,6 +13,8 @@ import { contentFailureMessage, sendContentRequest } from '../protocol/content/c
 import type { ContentToBackgroundRequest } from '../protocol/content/content-background';
 import { seekTo, setMediaVolume } from '../core/media-navigation';
 import type { OverlayActions } from '../overlay/types';
+import { RECON_ENABLED } from '../diagnostics/recon-transport';
+import { startReconContent } from '../diagnostics/recon-content';
 
 async function sendOverlayIntent(
   request: Extract<
@@ -134,6 +136,11 @@ export default defineContentScript({
 
     if (!engine.listening) {
       engine.listening = true;
+      let stopRecon: (() => void) | undefined;
+      if (RECON_ENABLED) {
+        stopRecon = startReconContent();
+        ctx.onInvalidated(stopRecon);
+      }
       const onMessage = (
         message: unknown,
         _sender: chrome.runtime.MessageSender,
@@ -150,6 +157,10 @@ export default defineContentScript({
         }
         if (inbound.type === 'RECONCILE_ACCESS') {
           reconcileAccess(inbound.allowedHostPatterns);
+          if (RECON_ENABLED && !engine.active) {
+            stopRecon?.();
+            stopRecon = undefined;
+          }
           return false;
         }
         return false;

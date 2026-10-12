@@ -26,8 +26,8 @@
     "checks": {
       "fixtureIdentified": true,
       "externalSmoke": false,
-      "genericEvaluated": false,
-      "builtinPolicyRequired": false
+      "genericEvaluated": true,
+      "builtinPolicyRequired": true
     },
     "notes": "Public live, VOD/clips, ads, dynamic player replacement."
   },
