@@ -8,7 +8,7 @@
     "stability": "stable",
     "policy": "generic",
     "checks": {
-      "fixtureIdentified": false,
+      "fixtureIdentified": true,
       "externalSmoke": false,
       "genericEvaluated": false,
       "builtinPolicyRequired": false
@@ -24,7 +24,7 @@
     "stability": "stable",
     "policy": "generic",
     "checks": {
-      "fixtureIdentified": false,
+      "fixtureIdentified": true,
       "externalSmoke": false,
       "genericEvaluated": false,
       "builtinPolicyRequired": false

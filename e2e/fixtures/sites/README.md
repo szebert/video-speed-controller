@@ -15,9 +15,12 @@ records a verified need, including a fix still pending:
 | `builtin`     | `true`   | Built-in policy implemented            |
 | `builtin`     | `false`  | Invalid                                |
 
-`fixtureIdentified` means a representative fixture has been selected;
-`externalSmoke` means the external browser check has run; `genericEvaluated`
-means generic behavior was assessed. None of these checks implies a policy.
+`fixtureIdentified` means a specific representative URL has been selected and
+visited; it does not imply successful playback or a completed evaluation.
+`externalSmoke` means an automated external browser smoke test has run;
+`genericEvaluated` means the generic-runtime checklist was completed, including
+through manual reconnaissance. A manual pass leaves `externalSmoke` false.
+None of these checks implies a policy.
 Classify failures as media, anchor, stacking, lifecycle, fullscreen, or
 presentation before proposing a policy field. A catalog row does not justify
 adding site-specific runtime code.
