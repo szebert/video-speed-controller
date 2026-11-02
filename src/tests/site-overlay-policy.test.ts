@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { isStandardYouTubeWatch, resolveStackingMount } from '../core/site-overlay-policy';
+import {
+  isStandardYouTubeWatch,
+  resolveStackingMount,
+  stackingInvalidationEvents,
+  YOUTUBE_PLAYER_Z_INDEX,
+} from '../core/site-overlay-policy';
 
 function watchPage(): { video: HTMLVideoElement; player: HTMLElement } {
   const player = document.createElement('div');
@@ -17,10 +22,15 @@ describe('resolveStackingMount', () => {
     document.body.replaceChildren();
   });
 
-  it('returns #movie_player only for a standard YouTube watch URL', () => {
+  it('returns #movie_player only for a standard www.youtube.com watch URL', () => {
     const { video, player } = watchPage();
-    expect(resolveStackingMount(video, 'https://www.youtube.com/watch?v=mKIH0cvMcIM')).toBe(player);
-    expect(resolveStackingMount(video, 'https://m.youtube.com/watch?v=1')).toBe(player);
+    expect(resolveStackingMount(video, 'https://www.youtube.com/watch?v=mKIH0cvMcIM')).toEqual({
+      element: player,
+      zIndex: YOUTUBE_PLAYER_Z_INDEX,
+    });
+    expect(resolveStackingMount(video, 'https://m.youtube.com/watch?v=1')).toBeNull();
+    expect(resolveStackingMount(video, 'https://youtube.com/watch?v=1')).toBeNull();
+    expect(resolveStackingMount(video, 'https://music.youtube.com/watch?v=1')).toBeNull();
     expect(resolveStackingMount(video, 'https://www.youtube.com/shorts/abc')).toBeNull();
     expect(resolveStackingMount(video, 'https://www.youtube.com/embed/abc')).toBeNull();
     expect(resolveStackingMount(video, 'https://www.youtube-nocookie.com/watch?v=1')).toBeNull();
@@ -33,16 +43,34 @@ describe('resolveStackingMount', () => {
     const outer = document.createElement('ytd-player');
     const { video, player } = watchPage();
     outer.append(player);
-    expect(resolveStackingMount(video, 'https://www.youtube.com/watch?v=1')).toBe(player);
+    expect(resolveStackingMount(video, 'https://www.youtube.com/watch?v=1')).toEqual({
+      element: player,
+      zIndex: YOUTUBE_PLAYER_Z_INDEX,
+    });
     player.append(document.createElement('ytd-masthead'));
     expect(resolveStackingMount(video, 'https://www.youtube.com/watch?v=1')).toBeNull();
     document.body.append(video);
     expect(resolveStackingMount(video, 'https://www.youtube.com/watch?v=1')).toBeNull();
   });
 
-  it('recognizes only http(s) youtube.com watch pages', () => {
+  it('recognizes only http(s) www.youtube.com watch pages', () => {
     expect(isStandardYouTubeWatch('https://www.youtube.com/watch?v=1')).toBe(true);
+    expect(isStandardYouTubeWatch('https://www.youtube.com/feed/subscriptions')).toBe(false);
+    expect(isStandardYouTubeWatch('https://m.youtube.com/watch?v=1')).toBe(false);
     expect(isStandardYouTubeWatch('not a url')).toBe(false);
     expect(isStandardYouTubeWatch('file:///watch')).toBe(false);
+  });
+
+  it('names a navigation signal only for the verified YouTube host', () => {
+    expect(stackingInvalidationEvents('https://www.youtube.com/watch?v=1')).toEqual([
+      'yt-navigate-finish',
+    ]);
+    expect(stackingInvalidationEvents('https://www.youtube.com/')).toEqual(['yt-navigate-finish']);
+    expect(stackingInvalidationEvents('https://m.youtube.com/watch?v=1')).toEqual([]);
+    expect(stackingInvalidationEvents('https://www.youtube.com/shorts/abc')).toEqual([
+      'yt-navigate-finish',
+    ]);
+    expect(stackingInvalidationEvents('http://127.0.0.1:4173/watch')).toEqual([]);
+    expect(stackingInvalidationEvents('not a url')).toEqual([]);
   });
 });

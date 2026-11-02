@@ -7,6 +7,7 @@ import {
   placePlayerMount,
   releasePlayerMount,
 } from './player-mount';
+import type { PlayerStackingMount } from './player-mount';
 import { isElement } from '../dom/guards';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
 import type {
@@ -153,6 +154,27 @@ function placeOverlayHost(host: HTMLElement, video: HTMLVideoElement): void {
   parent.append(host);
 }
 
+function overlayAnchor(
+  rect: DOMRect,
+  position: AppliedTabBehavior['overlayPosition'],
+): { x: number; y: number } {
+  const { row, column } = overlayPositionToGrid(position);
+  return {
+    x:
+      column === 0
+        ? rect.left + OVERLAY_INSET_PX
+        : column === 1
+          ? rect.left + rect.width / 2
+          : rect.right - OVERLAY_INSET_PX,
+    y:
+      row === 0
+        ? rect.top + OVERLAY_INSET_PX
+        : row === 1
+          ? rect.top + rect.height / 2
+          : rect.bottom - OVERLAY_INSET_PX,
+  };
+}
+
 function flashLabel(payload: HotkeyFlashPayload): string {
   if (payload.kind === 'media') {
     return payload.detail ? `${payload.label} ${payload.detail}` : payload.label;
@@ -212,7 +234,7 @@ export class VideoOverlay {
   private loopRaf: number | null = null;
   private loopEnforcing = false;
   /** Cached policy mount. Layout does not resolve site selectors. */
-  private stackingMount: Element | null = null;
+  private stackingMount: PlayerStackingMount | null = null;
   private readonly abort = new AbortController();
 
   constructor(
@@ -426,9 +448,14 @@ export class VideoOverlay {
    * Stores a policy mount. Null, or a node that does not contain this video,
    * restores the fixed root portal on the next layout.
    */
-  setStackingMount(mount: Element | null): void {
-    const next = mount && mount.isConnected && mount.contains(this.video) ? mount : null;
-    if (next === this.stackingMount) {
+  setStackingMount(mount: PlayerStackingMount | null): void {
+    const element = mount?.element;
+    const next =
+      mount && element && element.isConnected && element.contains(this.video) ? mount : null;
+    if (
+      next?.element === this.stackingMount?.element &&
+      next?.zIndex === this.stackingMount?.zIndex
+    ) {
       return;
     }
     this.stackingMount = next;
@@ -438,10 +465,11 @@ export class VideoOverlay {
   layout(measureRect: () => DOMRect = () => this.video.getBoundingClientRect()): void {
     const fullscreen = containingFullscreenElement(this.video);
     const wrapperFullscreen = fullscreen != null && fullscreen !== this.video;
-    const mount = this.stackingMount?.contains(this.video) ? this.stackingMount : null;
-    if (wrapperFullscreen || !hostStaysInMount(this.host, mount)) {
-      placeOverlayHost(this.host, this.video);
-    }
+    const requested = this.stackingMount;
+    const mount =
+      requested && requested.element.isConnected && requested.element.contains(this.video)
+        ? requested
+        : null;
     let cached: DOMRect | undefined;
     const measure = (): DOMRect => {
       cached ??= measureRect();
@@ -456,37 +484,45 @@ export class VideoOverlay {
       this.syncView(visible);
     }
     this.applyPositionTransform();
-    if (!visible || !this.behavior) {
-      this.layoutFlash(measure);
-      return;
-    }
-    const { row, column } = overlayPositionToGrid(this.behavior.overlayPosition);
-    const x =
-      column === 0
-        ? rect.left + OVERLAY_INSET_PX
-        : column === 1
-          ? rect.left + rect.width / 2
-          : rect.right - OVERLAY_INSET_PX;
-    const y =
-      row === 0
-        ? rect.top + OVERLAY_INSET_PX
-        : row === 1
-          ? rect.top + rect.height / 2
-          : rect.bottom - OVERLAY_INSET_PX;
-    if (!wrapperFullscreen && mount && placePlayerMount(this.host, mount, x, y)) {
-      this.layoutFlash(measure);
-      return;
-    }
-    releasePlayerMount(this.host);
-    if (!wrapperFullscreen) {
+    const anchor =
+      rect && this.behavior ? overlayAnchor(rect, this.behavior.overlayPosition) : null;
+
+    if (wrapperFullscreen) {
       placeOverlayHost(this.host, this.video);
+      this.applyRootPortalBox(anchor);
+      this.layoutFlash(measure);
+      return;
     }
+    if (
+      anchor &&
+      mount &&
+      placePlayerMount(this.host, mount.element, anchor.x, anchor.y, mount.zIndex)
+    ) {
+      this.layoutFlash(measure);
+      return;
+    }
+    // Hidden inside the player keeps the mount. Leaving it, including while
+    // hidden, still restores the fixed portal.
+    if (!anchor && mount && hostStaysInMount(this.host, mount.element)) {
+      this.layoutFlash(measure);
+      return;
+    }
+    placeOverlayHost(this.host, this.video);
+    this.applyRootPortalBox(anchor);
+    this.layoutFlash(measure);
+  }
+
+  /** Fixed portal box. Coordinates stay unchanged while the overlay is hidden. */
+  private applyRootPortalBox(anchor: { x: number; y: number } | null): void {
+    releasePlayerMount(this.host);
     this.host.style.setProperty('position', 'fixed', 'important');
     this.host.style.setProperty('z-index', OVERLAY_Z_INDEX, 'important');
     this.host.style.setProperty('pointer-events', 'none', 'important');
-    this.host.style.setProperty('left', `${x}px`, 'important');
-    this.host.style.setProperty('top', `${y}px`, 'important');
-    this.layoutFlash(measure);
+    if (!anchor) {
+      return;
+    }
+    this.host.style.setProperty('left', `${anchor.x}px`, 'important');
+    this.host.style.setProperty('top', `${anchor.y}px`, 'important');
   }
 
   /** Grid translate is independent of the video rect and of visibility. */

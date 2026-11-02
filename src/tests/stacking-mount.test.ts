@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-import { afterEach, describe, expect, it } from 'vitest';
-import { ordinaryPlayerOffset, PLAYER_LOCAL_Z_INDEX } from '../core/player-mount';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ordinaryPlayerOffset } from '../core/player-mount';
 import {
   OVERLAY_HOST_TAG,
   OVERLAY_INSET_PX,
@@ -27,7 +27,11 @@ function rect(left: number, top: number, width: number, height: number): DOMRect
   } as DOMRect;
 }
 
-function layoutOverlay(position: OverlayPosition, mount: HTMLElement | null): VideoOverlay {
+function layoutOverlay(
+  position: OverlayPosition,
+  mount: HTMLElement | null,
+  zIndex = '60',
+): VideoOverlay {
   const video = document.createElement('video');
   video.getBoundingClientRect = () => rect(100, 80, 640, 360);
   (mount ?? document.body).append(video);
@@ -35,10 +39,25 @@ function layoutOverlay(position: OverlayPosition, mount: HTMLElement | null): Vi
   overlay.setBehavior(tabBehavior(1.25, { overlayAutoHide: false, overlayPosition: position }));
   overlay.setControlled(true);
   if (mount) {
-    overlay.setStackingMount(mount);
+    overlay.setStackingMount({ element: mount, zIndex });
   }
   overlay.layout();
   return overlay;
+}
+
+function withFullscreenElement(element: Element): () => void {
+  const previous = Object.getOwnPropertyDescriptor(document, 'fullscreenElement');
+  Object.defineProperty(document, 'fullscreenElement', {
+    configurable: true,
+    get: () => element,
+  });
+  return () => {
+    if (previous) {
+      Object.defineProperty(document, 'fullscreenElement', previous);
+    } else {
+      Reflect.deleteProperty(document, 'fullscreenElement');
+    }
+  };
 }
 
 describe('player-local placement', () => {
@@ -68,7 +87,7 @@ describe('player-local placement', () => {
       const overlay = layoutOverlay(position, mount);
       expect(overlay.host.parentElement).toBe(mount);
       expect(overlay.host.style.position).toBe('absolute');
-      expect(overlay.host.style.zIndex).toBe(PLAYER_LOCAL_Z_INDEX);
+      expect(overlay.host.style.zIndex).toBe('60');
       expect(overlay.host.style.pointerEvents).toBe('none');
       expect(overlay.host.style.left).toBe(`${viewportX - 40}px`);
       expect(overlay.host.style.top).toBe(`${viewportY - 30}px`);
@@ -99,5 +118,189 @@ describe('player-local placement', () => {
     expect(overlay.host.parentElement).toBe(document.documentElement);
     expect(overlay.host.style.position).toBe('fixed');
     expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+  });
+
+  it('uses the z-index supplied by the policy and rejects a value that is not a level', () => {
+    const mount = document.createElement('div');
+    mount.style.position = 'relative';
+    mount.getBoundingClientRect = () => rect(40, 30, 700, 400);
+    document.body.append(mount);
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, mount, '70');
+    expect(overlay.host.style.zIndex).toBe('70');
+    overlay.setStackingMount({ element: mount, zIndex: '60; color: red' });
+    overlay.layout();
+    expect(overlay.host.parentElement).toBe(document.documentElement);
+    expect(overlay.host.style.position).toBe('fixed');
+    expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+  });
+
+  it.each([
+    [
+      'transform',
+      (node: HTMLElement) => {
+        node.style.transform = 'scale(2)';
+      },
+    ],
+    [
+      'filter',
+      (node: HTMLElement) => {
+        node.style.filter = 'blur(1px)';
+      },
+    ],
+    [
+      'will-change',
+      (node: HTMLElement) => {
+        node.style.willChange = 'transform';
+      },
+    ],
+  ] as const)('falls back when an ancestor %s would scale local coordinates', (_name, style) => {
+    const ancestor = document.createElement('div');
+    style(ancestor);
+    const mount = document.createElement('div');
+    mount.style.position = 'relative';
+    mount.getBoundingClientRect = () => rect(80, 60, 700, 400);
+    ancestor.append(mount);
+    document.body.append(ancestor);
+    expect(ordinaryPlayerOffset(mount, 100, 80)).toBeNull();
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, mount);
+    expect(overlay.host.parentElement).toBe(document.documentElement);
+    expect(overlay.host.style.position).toBe('fixed');
+    expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+  });
+
+  it('falls back when a shadow host above the player is transformed', () => {
+    const shadowHost = document.createElement('div');
+    shadowHost.style.transform = 'scale(2)';
+    const mount = document.createElement('div');
+    mount.style.position = 'relative';
+    mount.getBoundingClientRect = () => rect(80, 60, 700, 400);
+    shadowHost.attachShadow({ mode: 'open' }).append(mount);
+    document.body.append(shadowHost);
+    expect(ordinaryPlayerOffset(mount, 100, 80)).toBeNull();
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, mount);
+    expect(overlay.host.parentElement).toBe(document.documentElement);
+    expect(overlay.host.style.position).toBe('fixed');
+  });
+
+  it('keeps player placement while hidden and restores the portal when the mount is cleared', () => {
+    const mount = document.createElement('div');
+    mount.style.position = 'relative';
+    mount.getBoundingClientRect = () => rect(40, 30, 700, 400);
+    document.body.append(mount);
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, mount);
+    overlay.setBehavior(tabBehavior(1, { overlayVisible: false, overlayAutoHide: false }));
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    expect(overlay.host.parentElement).toBe(mount);
+    expect(overlay.host.style.position).toBe('absolute');
+    expect(overlay.host.style.zIndex).toBe('60');
+
+    overlay.setStackingMount(null);
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    expect(overlay.host.parentElement).toBe(document.documentElement);
+    expect(overlay.host.style.position).toBe('fixed');
+    expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+  });
+
+  it('restores the fixed portal when auto-hide expires before the watch mount is cleared', () => {
+    vi.useFakeTimers();
+    try {
+      const mount = document.createElement('div');
+      mount.style.position = 'relative';
+      mount.getBoundingClientRect = () => rect(40, 30, 700, 400);
+      document.body.append(mount);
+      const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, mount);
+      overlay.setBehavior(
+        tabBehavior(1, {
+          overlayAutoHide: true,
+          overlayAutoHideDelayMs: 200,
+          overlayPosition: OVERLAY_POSITION.TOP_LEFT,
+        }),
+      );
+      vi.advanceTimersByTime(200);
+      overlay.setStackingMount(null);
+      overlay.layout();
+      expect(overlay.host.style.visibility).toBe('hidden');
+      expect(overlay.host.parentElement).toBe(document.documentElement);
+      expect(overlay.host.style.position).toBe('fixed');
+      expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('restores fixed placement across fullscreen while the overlay stays hidden', () => {
+    const wrap = document.createElement('div');
+    const mount = document.createElement('div');
+    mount.style.position = 'relative';
+    mount.getBoundingClientRect = () => rect(40, 30, 700, 400);
+    wrap.append(mount);
+    document.body.append(wrap);
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, mount);
+    overlay.setBehavior(tabBehavior(1, { overlayVisible: false, overlayAutoHide: false }));
+    overlay.layout();
+    const restore = withFullscreenElement(wrap);
+    try {
+      overlay.layout();
+      expect(overlay.host.style.visibility).toBe('hidden');
+      expect(overlay.host.parentElement).toBe(wrap);
+      expect(overlay.host.style.position).toBe('fixed');
+      expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+    } finally {
+      restore();
+    }
+    overlay.layout();
+    expect(overlay.host.style.visibility).toBe('hidden');
+    expect(overlay.host.style.position).toBe('fixed');
+    expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+    overlay.setBehavior(
+      tabBehavior(1, {
+        overlayVisible: true,
+        overlayAutoHide: false,
+        overlayPosition: OVERLAY_POSITION.TOP_LEFT,
+      }),
+    );
+    overlay.layout();
+    expect(overlay.host.parentElement).toBe(mount);
+    expect(overlay.host.style.position).toBe('absolute');
+    expect(overlay.host.style.zIndex).toBe('60');
+  });
+
+  it('lets a mounted control receive one click and keeps the press off the player', () => {
+    const mount = document.createElement('div');
+    mount.style.position = 'relative';
+    mount.getBoundingClientRect = () => rect(40, 30, 700, 400);
+    let presses = 0;
+    let playerClicks = 0;
+    mount.addEventListener('mousedown', (event) => {
+      presses += 1;
+      event.preventDefault();
+    });
+    mount.addEventListener('click', () => {
+      playerClicks += 1;
+    });
+    document.body.append(mount);
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, mount);
+    const faster =
+      overlay.host.shadowRoot?.querySelector<HTMLButtonElement>('[aria-label="Faster"]');
+    if (!faster) {
+      throw new Error('Expected a Faster button');
+    }
+    let clicks = 0;
+    faster.addEventListener('click', () => {
+      clicks += 1;
+    });
+    const pointerUp = new PointerEvent('pointerup', { bubbles: true, composed: true, button: 0 });
+    faster.dispatchEvent(pointerUp);
+    expect(clicks).toBe(0);
+    faster.dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true, composed: true, cancelable: true }),
+    );
+    faster.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, composed: true }));
+    faster.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    expect(clicks).toBe(1);
+    expect(presses).toBe(0);
+    expect(playerClicks).toBe(0);
   });
 });

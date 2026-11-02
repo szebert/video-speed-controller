@@ -673,34 +673,65 @@ describe('media registry', () => {
     },
   );
 
-  it.each([1, 5, 20])('owns one watch-page navigation listener for %i videos', (count) => {
+  it.each([1, 5, 20])(
+    'shares one popstate listener and does not listen for site signals off YouTube for %i videos',
+    (count) => {
+      const add = vi.spyOn(window, 'addEventListener');
+      const remove = vi.spyOn(window, 'removeEventListener');
+      const registry = new MediaRegistry(document);
+      registries.push(registry);
+      registry.start();
+      for (let index = 0; index < count; index += 1) {
+        const node = video();
+        document.body.append(node);
+        registry.ensureController(node);
+      }
+      expect(add.mock.calls.filter(([type]) => type === 'yt-navigate-finish')).toHaveLength(0);
+      expect(add.mock.calls.filter(([type]) => type === 'popstate')).toHaveLength(1);
+      const refresh = vi.spyOn(VideoOverlay.prototype, 'setStackingMount');
+      window.dispatchEvent(new Event('popstate'));
+      expect(refresh).toHaveBeenCalledTimes(count);
+      registry.destroy();
+      const registration = add.mock.calls.find(([type]) => type === 'popstate');
+      expect(
+        remove.mock.calls.some(
+          ([type, listener]) => type === 'popstate' && listener === registration?.[1],
+        ),
+      ).toBe(true);
+      refresh.mockClear();
+      window.dispatchEvent(new Event('popstate'));
+      window.dispatchEvent(new Event('yt-navigate-finish'));
+      expect(refresh).not.toHaveBeenCalled();
+    },
+  );
+
+  it('subscribes to the policy signal and drops it when the policy no longer names it', async () => {
+    const policy = await import('../core/site-overlay-policy');
+    const events = vi
+      .spyOn(policy, 'stackingInvalidationEvents')
+      .mockReturnValue(['yt-navigate-finish']);
     const add = vi.spyOn(window, 'addEventListener');
     const remove = vi.spyOn(window, 'removeEventListener');
     const registry = new MediaRegistry(document);
     registries.push(registry);
-    registry.start();
-    for (let index = 0; index < count; index += 1) {
+    try {
+      registry.start();
+      expect(add.mock.calls.filter(([type]) => type === 'yt-navigate-finish')).toHaveLength(1);
       const node = video();
       document.body.append(node);
       registry.ensureController(node);
+      const refresh = vi.spyOn(VideoOverlay.prototype, 'setStackingMount');
+      window.dispatchEvent(new Event('yt-navigate-finish'));
+      expect(refresh).toHaveBeenCalledTimes(1);
+      events.mockReturnValue([]);
+      window.dispatchEvent(new Event('popstate'));
+      expect(remove.mock.calls.some(([type]) => type === 'yt-navigate-finish')).toBe(true);
+      refresh.mockClear();
+      window.dispatchEvent(new Event('yt-navigate-finish'));
+      expect(refresh).not.toHaveBeenCalled();
+    } finally {
+      events.mockRestore();
     }
-    expect(add.mock.calls.filter(([type]) => type === 'yt-navigate-finish')).toHaveLength(1);
-    expect(add.mock.calls.filter(([type]) => type === 'popstate')).toHaveLength(1);
-    const refresh = vi.spyOn(VideoOverlay.prototype, 'setStackingMount');
-    window.dispatchEvent(new Event('yt-navigate-finish'));
-    expect(refresh).toHaveBeenCalledTimes(count);
-    registry.destroy();
-    for (const event of ['yt-navigate-finish', 'popstate'] as const) {
-      const registration = add.mock.calls.find(([type]) => type === event);
-      expect(
-        remove.mock.calls.some(
-          ([type, listener]) => type === event && listener === registration?.[1],
-        ),
-      ).toBe(true);
-    }
-    refresh.mockClear();
-    window.dispatchEvent(new Event('yt-navigate-finish'));
-    expect(refresh).not.toHaveBeenCalled();
   });
 
   it('disconnects an adopted foreign shadow observer and creates a new observer on reinsert', async () => {

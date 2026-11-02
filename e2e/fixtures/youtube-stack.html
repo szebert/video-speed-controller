@@ -8,6 +8,10 @@
       body {
         margin: 0;
       }
+      #enter-fullscreen {
+        position: relative;
+        z-index: 3000;
+      }
       #masthead-container {
         position: fixed;
         z-index: 2020;
@@ -65,7 +69,7 @@
     <div id="fs-wrap">
       <button id="enter-fullscreen" type="button">Enter wrapper fullscreen</button>
       <div id="movie_player">
-        <video id="main" width="640" height="360"></video>
+        <video id="main" width="640" height="360" muted playsinline src="/rewind.webm"></video>
         <div class="html5-video-container"></div>
         <button id="native-gap" type="button">Native control</button>
         <div id="native-menu" hidden>
@@ -75,7 +79,13 @@
     </div>
     <script>
       window.__playerClicks = 0;
-      document.getElementById('movie_player').addEventListener('click', () => {
+      window.__playerPresses = 0;
+      const player = document.getElementById('movie_player');
+      player.addEventListener('mousedown', (event) => {
+        window.__playerPresses += 1;
+        event.preventDefault();
+      });
+      player.addEventListener('click', () => {
         window.__playerClicks += 1;
       });
       document.getElementById('enter-fullscreen').addEventListener('click', () => {

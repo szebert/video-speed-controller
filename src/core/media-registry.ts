@@ -7,7 +7,7 @@ import type { AppliedTabBehavior } from './applied-tab-behavior';
 import type { MediaLoopAction, TransportHoldOwner } from './controller-action';
 import { MediaController, type TransportSession } from './media-controller';
 import { isVideoFullscreen } from './media-fullscreen';
-import { resolveStackingMount } from './site-overlay-policy';
+import { resolveStackingMount, stackingInvalidationEvents } from './site-overlay-policy';
 import {
   isExtensionHost,
   VideoOverlay,
@@ -105,6 +105,7 @@ export class MediaRegistry {
   private readonly geometryObserver: MutationObserver;
   private readonly geometryReferences = new Map<Element, number>();
   private geometrySubscriptionsQueued = false;
+  private readonly stackingSignals = new Set<string>();
   private currentBehavior: AppliedTabBehavior | null = null;
   private currentHotkeys: EffectiveHotkeyMap | null = null;
   private destroyed = false;
@@ -634,7 +635,31 @@ export class MediaRegistry {
     for (const [video, entry] of this.entries) {
       entry.overlay.setStackingMount(resolveStackingMount(video, pageUrl));
     }
+    this.syncStackingSignals();
   };
+
+  /** Policy names the extra events. popstate stays registered for every page. */
+  private syncStackingSignals(): void {
+    const view = this.view;
+    if (!view) {
+      return;
+    }
+    const next = new Set(stackingInvalidationEvents(view.location.href));
+    for (const type of this.stackingSignals) {
+      if (!next.has(type)) {
+        view.removeEventListener(type, this.onNavigationSignal);
+      }
+    }
+    for (const type of next) {
+      if (!this.stackingSignals.has(type)) {
+        view.addEventListener(type, this.onNavigationSignal);
+      }
+    }
+    this.stackingSignals.clear();
+    for (const type of next) {
+      this.stackingSignals.add(type);
+    }
+  }
 
   private readonly onFullscreenSignal = (): void => {
     if (this.destroyed) {
@@ -683,7 +708,7 @@ export class MediaRegistry {
     this.document.addEventListener('fullscreenchange', this.onFullscreenSignal);
     this.document.addEventListener('fullscreenerror', this.onFullscreenSignal);
     this.view.addEventListener('popstate', this.onNavigationSignal);
-    this.view.addEventListener('yt-navigate-finish', this.onNavigationSignal);
+    this.syncStackingSignals();
     this.view.addEventListener('pointermove', this.onWindowPointer, capture);
     this.view.addEventListener('pointerdown', this.onWindowPointer, capture);
     this.view.addEventListener('blur', this.onPageHide);
@@ -701,7 +726,10 @@ export class MediaRegistry {
     this.document.removeEventListener('fullscreenchange', this.onFullscreenSignal);
     this.document.removeEventListener('fullscreenerror', this.onFullscreenSignal);
     this.view.removeEventListener('popstate', this.onNavigationSignal);
-    this.view.removeEventListener('yt-navigate-finish', this.onNavigationSignal);
+    for (const type of this.stackingSignals) {
+      this.view.removeEventListener(type, this.onNavigationSignal);
+    }
+    this.stackingSignals.clear();
     this.view.removeEventListener('pointermove', this.onWindowPointer, capture);
     this.view.removeEventListener('pointerdown', this.onWindowPointer, capture);
     this.view.removeEventListener('blur', this.onPageHide);

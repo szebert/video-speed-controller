@@ -120,8 +120,12 @@ were not part of this checkpoint.
 A temporary `#movie_player` mount on that same watch page then kept the header
 and search box above the overlay, kept overlay buttons and sliders working on
 the video, and let clicks in the gaps between controls reach YouTube. Empty
-overlay space is not a hit target. The mount is limited to `/watch` and
-`#movie_player`. A transformed player falls back to the root portal.
+overlay space is not a hit target. The mount is limited to `www.youtube.com/watch`
+and `#movie_player`. Mobile YouTube, Shorts, and embeds stay on the generic
+portal. A transformed player, or a transformed ancestor, falls back to the root
+portal. The local stacking level and the `yt-navigate-finish` signal belong to
+that policy. A live native-menu overlap check on YouTube is still outstanding;
+the synthetic fixture covers the menu.
 
 ## Twitch: checklist with findings
 

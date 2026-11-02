@@ -13,7 +13,7 @@
       "genericEvaluated": true,
       "builtinPolicyRequired": true
     },
-    "notes": "Public VOD, live, Shorts; SPA navigation matters. Standard /watch pages mount the overlay in #movie_player so the sticky header stays above it. Only the visible controls take clicks. Shorts and embeds stay on the generic portal."
+    "notes": "Public VOD, live, Shorts; SPA navigation matters. www.youtube.com/watch pages mount the overlay in #movie_player so the sticky header stays above it. Only the visible controls take clicks. Mobile, Shorts, and embeds stay on the generic portal."
   },
   {
     "id": "twitch",
