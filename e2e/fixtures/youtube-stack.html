@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>YouTube watch stacking fixture</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+      }
+      #masthead-container {
+        position: fixed;
+        z-index: 2020;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 20px;
+        background: white;
+      }
+      #search {
+        margin: 16px 0 0 300px;
+        width: 240px;
+        height: 24px;
+      }
+      #movie_player {
+        position: relative;
+        z-index: 0;
+        width: 640px;
+        height: 360px;
+        background: black;
+      }
+      video {
+        position: absolute;
+        inset: 0;
+        width: 640px;
+        height: 360px;
+      }
+      .html5-video-container {
+        position: absolute;
+        z-index: 10;
+        inset: 0;
+        pointer-events: none;
+      }
+      #native-gap {
+        position: absolute;
+        z-index: 59;
+        right: 8px;
+        bottom: 8px;
+      }
+      #native-menu {
+        position: absolute;
+        z-index: 2300;
+        top: 0;
+        left: 0;
+        width: 280px;
+        height: 200px;
+        background: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="masthead-container">
+      <input id="search" name="search_query" aria-label="Search" />
+    </div>
+    <div id="fs-wrap">
+      <button id="enter-fullscreen" type="button">Enter wrapper fullscreen</button>
+      <div id="movie_player">
+        <video id="main" width="640" height="360"></video>
+        <div class="html5-video-container"></div>
+        <button id="native-gap" type="button">Native control</button>
+        <div id="native-menu" hidden>
+          <button id="native-menu-item" type="button">Playback speed</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      window.__playerClicks = 0;
+      document.getElementById('movie_player').addEventListener('click', () => {
+        window.__playerClicks += 1;
+      });
+      document.getElementById('enter-fullscreen').addEventListener('click', () => {
+        document.getElementById('fs-wrap').requestFullscreen();
+      });
+    </script>
+  </body>
+</html>

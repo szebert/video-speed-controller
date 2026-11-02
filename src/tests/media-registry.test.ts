@@ -673,6 +673,36 @@ describe('media registry', () => {
     },
   );
 
+  it.each([1, 5, 20])('owns one watch-page navigation listener for %i videos', (count) => {
+    const add = vi.spyOn(window, 'addEventListener');
+    const remove = vi.spyOn(window, 'removeEventListener');
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    for (let index = 0; index < count; index += 1) {
+      const node = video();
+      document.body.append(node);
+      registry.ensureController(node);
+    }
+    expect(add.mock.calls.filter(([type]) => type === 'yt-navigate-finish')).toHaveLength(1);
+    expect(add.mock.calls.filter(([type]) => type === 'popstate')).toHaveLength(1);
+    const refresh = vi.spyOn(VideoOverlay.prototype, 'setStackingMount');
+    window.dispatchEvent(new Event('yt-navigate-finish'));
+    expect(refresh).toHaveBeenCalledTimes(count);
+    registry.destroy();
+    for (const event of ['yt-navigate-finish', 'popstate'] as const) {
+      const registration = add.mock.calls.find(([type]) => type === event);
+      expect(
+        remove.mock.calls.some(
+          ([type, listener]) => type === event && listener === registration?.[1],
+        ),
+      ).toBe(true);
+    }
+    refresh.mockClear();
+    window.dispatchEvent(new Event('yt-navigate-finish'));
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it('disconnects an adopted foreign shadow observer and creates a new observer on reinsert', async () => {
     const frame = document.createElement('iframe');
     document.body.append(frame);

@@ -98,9 +98,30 @@ with **one OSVSC host**. Initial metadata readiness is not a playback pass.
 
 The playback blocker is independent of the demonstrated permission grant.
 The intended playing-video, controls, geometry, fullscreen, overlap, and SPA
-navigation checks remain pending. No YouTube policy need is inferred from
-this failed playback session. An earlier Twitch access candidate,
+navigation checks remain pending for those two URLs. No YouTube policy need is
+inferred from this failed playback session. An earlier Twitch access candidate,
 <https://www.twitch.tv/monstercat>, was offline and was not selected.
+
+## YouTube stacking on a playable watch page
+
+Fixture: <https://www.youtube.com/watch?v=mKIH0cvMcIM>. Recorded 2026-11-01
+with `pnpm recon:dev`, checkpoint sequence 40 in
+`session-1793576146341.ndjson`. The diagnostic log does not store page URLs;
+the operator supplied this one. Playback was advancing at 0.25× with the same
+target speed and had not surrendered. The overlay position was top center
+(`settings.position` 1). The video border box started at y = 22, so its top
+was already under the masthead. The overlay host was still on `html`, visible,
+and occupied about x = 794–1111 and y = 30–130. Clicks in that band, including
+one at y = 22, hit the overlay’s Faster and Slower buttons. The operator
+confirmed the overlay received the click instead of the header search bar.
+That is the stacking failure for standard `/watch` pages. Shorts and embeds
+were not part of this checkpoint.
+
+A temporary `#movie_player` mount on that same watch page then kept the header
+and search box above the overlay, kept overlay buttons and sliders working on
+the video, and let clicks in the gaps between controls reach YouTube. Empty
+overlay space is not a hit target. The mount is limited to `/watch` and
+`#movie_player`. A transformed player falls back to the root portal.
 
 ## Twitch: checklist with findings
 

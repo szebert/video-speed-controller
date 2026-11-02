@@ -90,7 +90,7 @@ export default defineConfig({
       ...(e2eBuild || recon
         ? {
             host_permissions: [
-              ...(e2eBuild ? ['http://127.0.0.1:4173/*'] : []),
+              ...(e2eBuild ? ['http://127.0.0.1:4173/*', 'https://www.youtube.com/*'] : []),
               ...(recon ? ['http://127.0.0.1/*'] : []),
             ],
           }

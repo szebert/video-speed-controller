@@ -7,6 +7,7 @@ import type { AppliedTabBehavior } from './applied-tab-behavior';
 import type { MediaLoopAction, TransportHoldOwner } from './controller-action';
 import { MediaController, type TransportSession } from './media-controller';
 import { isVideoFullscreen } from './media-fullscreen';
+import { resolveStackingMount } from './site-overlay-policy';
 import {
   isExtensionHost,
   VideoOverlay,
@@ -392,6 +393,7 @@ export class MediaRegistry {
     this.entries.set(video, entry);
     this.updateGeometryAncestors(entry, geometryAncestors(video));
     this.resizeObserver.observe(video);
+    this.refreshStackingMount(video);
     if (this.currentBehavior) {
       overlay.setBehavior(this.currentBehavior, this.currentHotkeys ?? undefined);
       controller.setTarget(this.currentBehavior.targetSpeed);
@@ -459,6 +461,7 @@ export class MediaRegistry {
         const entry = this.entries.get(video);
         if (entry) {
           this.updateGeometryAncestors(entry, geometryAncestors(video));
+          this.refreshStackingMount(video);
         }
       }
     }
@@ -615,6 +618,24 @@ export class MediaRegistry {
     this.requestLayout();
   };
 
+  private refreshStackingMount(video: HTMLVideoElement): void {
+    const entry = this.entries.get(video);
+    if (!entry || !this.view) {
+      return;
+    }
+    entry.overlay.setStackingMount(resolveStackingMount(video, this.view.location.href));
+  }
+
+  private readonly onNavigationSignal = (): void => {
+    if (this.destroyed || !this.view) {
+      return;
+    }
+    const pageUrl = this.view.location.href;
+    for (const [video, entry] of this.entries) {
+      entry.overlay.setStackingMount(resolveStackingMount(video, pageUrl));
+    }
+  };
+
   private readonly onFullscreenSignal = (): void => {
     if (this.destroyed) {
       return;
@@ -661,6 +682,8 @@ export class MediaRegistry {
     this.view.addEventListener('resize', this.onLayoutSignal);
     this.document.addEventListener('fullscreenchange', this.onFullscreenSignal);
     this.document.addEventListener('fullscreenerror', this.onFullscreenSignal);
+    this.view.addEventListener('popstate', this.onNavigationSignal);
+    this.view.addEventListener('yt-navigate-finish', this.onNavigationSignal);
     this.view.addEventListener('pointermove', this.onWindowPointer, capture);
     this.view.addEventListener('pointerdown', this.onWindowPointer, capture);
     this.view.addEventListener('blur', this.onPageHide);
@@ -677,6 +700,8 @@ export class MediaRegistry {
     this.view.removeEventListener('resize', this.onLayoutSignal);
     this.document.removeEventListener('fullscreenchange', this.onFullscreenSignal);
     this.document.removeEventListener('fullscreenerror', this.onFullscreenSignal);
+    this.view.removeEventListener('popstate', this.onNavigationSignal);
+    this.view.removeEventListener('yt-navigate-finish', this.onNavigationSignal);
     this.view.removeEventListener('pointermove', this.onWindowPointer, capture);
     this.view.removeEventListener('pointerdown', this.onWindowPointer, capture);
     this.view.removeEventListener('blur', this.onPageHide);

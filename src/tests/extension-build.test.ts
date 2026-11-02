@@ -7,7 +7,7 @@ describe('isE2eExtensionManifest', () => {
   it('accepts the OSVSC_E2E extension artifact', () => {
     expect(
       isE2eExtensionManifest({
-        host_permissions: ['http://127.0.0.1:4173/*'],
+        host_permissions: ['http://127.0.0.1:4173/*', 'https://www.youtube.com/*'],
         options_ui: { page: 'options.html', open_in_tab: true },
       }),
     ).toBe(true);

@@ -30,7 +30,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  pointer-events: auto;
+  pointer-events: none;
   transform: scale(var(--overlay-scale));
   transform-origin: var(--origin-x) var(--origin-y);
 }
@@ -164,6 +164,7 @@
   position: absolute;
   left: 0;
   z-index: 1;
+  pointer-events: auto;
   display: grid;
   grid-template-columns: repeat(3, 1.25rem);
   gap: 2px;

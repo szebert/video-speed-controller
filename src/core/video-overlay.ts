@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { OverlayView } from '../overlay/overlay-view';
+import {
+  hostStaysInMount,
+  installPlayerMountGuards,
+  placePlayerMount,
+  releasePlayerMount,
+} from './player-mount';
 import { isElement } from '../dom/guards';
 import { applyOverlayStyles } from '../overlay/overlay-sheet';
 import type {
@@ -205,6 +211,8 @@ export class VideoOverlay {
   private savedPageLoop: boolean | null = null;
   private loopRaf: number | null = null;
   private loopEnforcing = false;
+  /** Cached policy mount. Layout does not resolve site selectors. */
+  private stackingMount: Element | null = null;
   private readonly abort = new AbortController();
 
   constructor(
@@ -217,6 +225,7 @@ export class VideoOverlay {
     const document = video.ownerDocument;
     this.host = document.createElement(OVERLAY_HOST_TAG);
     styleExtensionHost(this.host);
+    installPlayerMountGuards(this.host, this.abort.signal);
 
     const shadow = this.host.attachShadow({ mode: 'open' });
     applyOverlayStyles(shadow);
@@ -413,8 +422,26 @@ export class VideoOverlay {
     );
   }
 
+  /**
+   * Stores a policy mount. Null, or a node that does not contain this video,
+   * restores the fixed root portal on the next layout.
+   */
+  setStackingMount(mount: Element | null): void {
+    const next = mount && mount.isConnected && mount.contains(this.video) ? mount : null;
+    if (next === this.stackingMount) {
+      return;
+    }
+    this.stackingMount = next;
+    this.requestLayout();
+  }
+
   layout(measureRect: () => DOMRect = () => this.video.getBoundingClientRect()): void {
-    placeOverlayHost(this.host, this.video);
+    const fullscreen = containingFullscreenElement(this.video);
+    const wrapperFullscreen = fullscreen != null && fullscreen !== this.video;
+    const mount = this.stackingMount?.contains(this.video) ? this.stackingMount : null;
+    if (wrapperFullscreen || !hostStaysInMount(this.host, mount)) {
+      placeOverlayHost(this.host, this.video);
+    }
     let cached: DOMRect | undefined;
     const measure = (): DOMRect => {
       cached ??= measureRect();
@@ -446,6 +473,17 @@ export class VideoOverlay {
         : row === 1
           ? rect.top + rect.height / 2
           : rect.bottom - OVERLAY_INSET_PX;
+    if (!wrapperFullscreen && mount && placePlayerMount(this.host, mount, x, y)) {
+      this.layoutFlash(measure);
+      return;
+    }
+    releasePlayerMount(this.host);
+    if (!wrapperFullscreen) {
+      placeOverlayHost(this.host, this.video);
+    }
+    this.host.style.setProperty('position', 'fixed', 'important');
+    this.host.style.setProperty('z-index', OVERLAY_Z_INDEX, 'important');
+    this.host.style.setProperty('pointer-events', 'none', 'important');
     this.host.style.setProperty('left', `${x}px`, 'important');
     this.host.style.setProperty('top', `${y}px`, 'important');
     this.layoutFlash(measure);

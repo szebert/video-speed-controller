@@ -16,6 +16,7 @@ export type ExtensionManifest = {
 export function isE2eExtensionManifest(manifest: ExtensionManifest): boolean {
   return (
     Boolean(manifest.host_permissions?.includes('http://127.0.0.1:4173/*')) &&
+    Boolean(manifest.host_permissions?.includes('https://www.youtube.com/*')) &&
     manifest.options_ui?.page === 'options.html' &&
     manifest.options_ui.open_in_tab === true
   );
