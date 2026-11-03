@@ -18,7 +18,14 @@ describe('ensureCurrentTabEngine', () => {
     };
 
     await expect(ensureCurrentTabEngine(11, scripting)).resolves.toBeUndefined();
-    expect(scripting.executeScript).toHaveBeenCalledTimes(1);
+    expect(scripting.executeScript).toHaveBeenCalledTimes(2);
+    expect(scripting.executeScript).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { tabId: 11, allFrames: true },
+        world: 'MAIN',
+        func: expect.any(Function),
+      }),
+    );
     expect(scripting.executeScript).toHaveBeenCalledWith(
       expect.objectContaining({
         target: { tabId: 11, allFrames: true },
@@ -51,6 +58,7 @@ describe('ensureCurrentTabEngine', () => {
     await expect(ensureCurrentTabEngine(11, scripting)).resolves.toBeUndefined();
     expect(calls).toEqual([
       { target: { tabId: 11, allFrames: true }, files: undefined },
+      { target: { tabId: 11, allFrames: true }, files: undefined },
       { target: { tabId: 11, frameIds: [3, 7] }, files: [CONTENT_SCRIPT_FILE] },
     ]);
   });
@@ -75,11 +83,12 @@ describe('ensureCurrentTabEngine', () => {
     await expect(ensureCurrentTabEngine(11, scripting)).resolves.toBeUndefined();
     expect(calls).toEqual([
       { tabId: 11, allFrames: true },
+      { tabId: 11, allFrames: true },
       { tabId: 11, frameIds: [0] },
       { tabId: 11, frameIds: [3] },
     ]);
     expect(scripting.executeScript).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({ files: [CONTENT_SCRIPT_FILE] }),
     );
   });
@@ -137,11 +146,12 @@ describe('ensureCurrentTabEngine', () => {
     await expect(ensureCurrentTabEngine(11, scripting)).resolves.toBeUndefined();
     expect(calls).toEqual([
       { tabId: 11, allFrames: true },
+      { tabId: 11, allFrames: true },
       { tabId: 11, frameIds: [0] },
       { tabId: 11, frameIds: [0] },
     ]);
     expect(scripting.executeScript).toHaveBeenNthCalledWith(
-      3,
+      4,
       expect.objectContaining({ files: [CONTENT_SCRIPT_FILE] }),
     );
   });
@@ -159,7 +169,7 @@ describe('ensureCurrentTabEngine', () => {
     };
 
     await expect(ensureCurrentTabEngine(11, scripting)).resolves.toBeUndefined();
-    expect(scripting.executeScript).toHaveBeenCalledTimes(2);
+    expect(scripting.executeScript).toHaveBeenCalledTimes(3);
     expect(scripting.executeScript).not.toHaveBeenCalledWith(
       expect.objectContaining({ files: [CONTENT_SCRIPT_FILE] }),
     );
@@ -177,7 +187,7 @@ describe('ensureCurrentTabEngine', () => {
       ),
     };
     await expect(ensureCurrentTabEngine(11, scripting)).rejects.toThrow('top frame blocked');
-    expect(scripting.executeScript).toHaveBeenCalledTimes(2);
+    expect(scripting.executeScript).toHaveBeenCalledTimes(3);
   });
 
   it('treats a child-frame inject failure as non-fatal when the top engine is live', async () => {

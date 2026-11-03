@@ -5,28 +5,44 @@ import {
   CONTENT_SCRIPT_FILE,
   reconcileContentScripts,
   RUNTIME_SCRIPT_ID,
+  SHADOW_ATTACH_SCRIPT_FILE,
+  SHADOW_ATTACH_SCRIPT_ID,
 } from '../access/content-registration';
 import type { ScriptingApi } from '../access/content-registration';
 
 function mockScripting() {
   const registered: chrome.scripting.RegisteredContentScript[] = [];
   const api: ScriptingApi = {
-    getRegisteredContentScripts: vi.fn(async () => [...registered]),
-    registerContentScripts: vi.fn(async (scripts) => {
-      if (registered.some((item) => item.id === scripts[0]?.id)) {
-        throw new Error('Duplicate script id');
+    getRegisteredContentScripts: vi.fn(async (filter) => {
+      if (!filter?.ids) {
+        return [...registered];
       }
-      registered.push(...scripts);
+      return registered.filter((item) => filter.ids?.includes(item.id));
+    }),
+    registerContentScripts: vi.fn(async (scripts) => {
+      for (const script of scripts) {
+        if (registered.some((item) => item.id === script.id)) {
+          throw new Error('Duplicate script id');
+        }
+        registered.push(script);
+      }
     }),
     updateContentScripts: vi.fn(async (scripts) => {
-      const index = registered.findIndex((item) => item.id === scripts[0]?.id);
-      if (index < 0) {
-        throw new Error('Missing script id');
+      for (const script of scripts) {
+        const index = registered.findIndex((item) => item.id === script.id);
+        if (index < 0) {
+          throw new Error('Missing script id');
+        }
+        registered[index] = script;
       }
-      registered[index] = scripts[0]!;
     }),
-    unregisterContentScripts: vi.fn(async () => {
-      registered.splice(0, registered.length);
+    unregisterContentScripts: vi.fn(async (filter) => {
+      const ids = filter?.ids;
+      for (let index = registered.length - 1; index >= 0; index -= 1) {
+        if (!ids || ids.includes(registered[index]!.id)) {
+          registered.splice(index, 1);
+        }
+      }
     }),
   };
   return { api, registered };
@@ -49,13 +65,20 @@ describe('content script registration', () => {
 
     expect(scripting.api.registerContentScripts).toHaveBeenCalledTimes(1);
     expect(scripting.api.updateContentScripts).toHaveBeenCalledTimes(2);
-    expect(scripting.registered).toHaveLength(1);
-    expect(scripting.registered[0]?.id).toBe(RUNTIME_SCRIPT_ID);
+    expect(scripting.registered).toHaveLength(2);
+    expect(scripting.registered.map((script) => script.id)).toEqual([
+      RUNTIME_SCRIPT_ID,
+      SHADOW_ATTACH_SCRIPT_ID,
+    ]);
     expect(scripting.registered[0]?.js).toEqual([CONTENT_SCRIPT_FILE]);
+    expect(scripting.registered[1]?.js).toEqual([SHADOW_ATTACH_SCRIPT_FILE]);
+    expect(scripting.registered[1]?.runAt).toBe('document_start');
+    expect(scripting.registered[1]?.world).toBe('MAIN');
     expect(scripting.registered[0]?.matches).toEqual([
       'https://reddit.com:443/*',
       'https://youtube.com:443/*',
     ]);
+    expect(scripting.registered[1]?.matches).toEqual(scripting.registered[0]?.matches);
     expect(scripting.registered[0]?.persistAcrossSessions).toBe(true);
     expect(scripting.registered[0]?.allFrames).toBe(true);
     expect(scripting.registered[0]?.matchOriginAsFallback).toBe(true);
@@ -71,7 +94,7 @@ describe('content script registration', () => {
     await reconcileContentScripts(['https://*/*'], scripting.api);
     await reconcileContentScripts([], scripting.api);
     expect(scripting.api.unregisterContentScripts).toHaveBeenCalledWith({
-      ids: [RUNTIME_SCRIPT_ID],
+      ids: [RUNTIME_SCRIPT_ID, SHADOW_ATTACH_SCRIPT_ID],
     });
     expect(scripting.registered).toHaveLength(0);
   });

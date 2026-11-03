@@ -3,7 +3,11 @@
 import { selectHttpHttpsHostPatterns, type HostPattern } from './site-access';
 
 export const RUNTIME_SCRIPT_ID = 'osvsc-runtime';
+export const SHADOW_ATTACH_SCRIPT_ID = 'osvsc-shadow-attach';
 export const CONTENT_SCRIPT_FILE = 'content-scripts/content.js';
+export const SHADOW_ATTACH_SCRIPT_FILE = 'content-scripts/shadow-attach.js';
+
+const SCRIPT_IDS = [RUNTIME_SCRIPT_ID, SHADOW_ATTACH_SCRIPT_ID] as const;
 
 export type ScriptingApi = {
   getRegisteredContentScripts: (filter?: {
@@ -14,39 +18,55 @@ export type ScriptingApi = {
   unregisterContentScripts: (filter?: { ids?: string[] }) => Promise<void>;
 };
 
-const runtimeScript = (matches: HostPattern[]): chrome.scripting.RegisteredContentScript => ({
-  id: RUNTIME_SCRIPT_ID,
-  js: [CONTENT_SCRIPT_FILE],
-  matches,
-  allFrames: true,
-  matchOriginAsFallback: true,
-  persistAcrossSessions: true,
-  runAt: 'document_idle',
-  world: 'ISOLATED',
-});
+function runtimeScripts(matches: HostPattern[]): chrome.scripting.RegisteredContentScript[] {
+  const shared = {
+    matches,
+    allFrames: true,
+    matchOriginAsFallback: true,
+    persistAcrossSessions: true,
+  } as const;
+  return [
+    {
+      ...shared,
+      id: RUNTIME_SCRIPT_ID,
+      js: [CONTENT_SCRIPT_FILE],
+      runAt: 'document_idle',
+      world: 'ISOLATED',
+    },
+    {
+      ...shared,
+      id: SHADOW_ATTACH_SCRIPT_ID,
+      js: [SHADOW_ATTACH_SCRIPT_FILE],
+      runAt: 'document_start',
+      world: 'MAIN',
+    },
+  ];
+}
 
 export async function reconcileContentScripts(
   origins: readonly string[],
   scripting: ScriptingApi = chrome.scripting,
 ): Promise<HostPattern[]> {
   const matches = selectHttpHttpsHostPatterns(origins);
-  const existing = await scripting.getRegisteredContentScripts({
-    ids: [RUNTIME_SCRIPT_ID],
-  });
-  const present = existing.some((script) => script.id === RUNTIME_SCRIPT_ID);
+  const existing = await scripting.getRegisteredContentScripts({ ids: [...SCRIPT_IDS] });
+  const presentIds = new Set(existing.map((script) => script.id));
 
   if (matches.length === 0) {
-    if (present) {
-      await scripting.unregisterContentScripts({ ids: [RUNTIME_SCRIPT_ID] });
+    const active = SCRIPT_IDS.filter((id) => presentIds.has(id));
+    if (active.length > 0) {
+      await scripting.unregisterContentScripts({ ids: [...active] });
     }
     return matches;
   }
 
-  if (!present) {
-    await scripting.registerContentScripts([runtimeScript(matches)]);
-    return matches;
+  const desired = runtimeScripts(matches);
+  const missing = desired.filter((script) => !presentIds.has(script.id));
+  const present = desired.filter((script) => presentIds.has(script.id));
+  if (missing.length > 0) {
+    await scripting.registerContentScripts(missing);
   }
-
-  await scripting.updateContentScripts([runtimeScript(matches)]);
+  if (present.length > 0) {
+    await scripting.updateContentScripts(present);
+  }
   return matches;
 }

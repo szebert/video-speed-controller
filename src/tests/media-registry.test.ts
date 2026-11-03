@@ -12,6 +12,7 @@ import { OverlayView } from '../overlay/overlay-view';
 import { BUILT_IN_HOTKEYS, builtInEffectiveHotkeys } from '../settings/hotkey-binding';
 import { OVERLAY_POSITION } from '../settings/site-behavior';
 import { tabBehavior } from './tab-behavior-fixture';
+import { installAttachShadowHook, SHADOW_ATTACHED_EVENT } from '../core/shadow-attach';
 
 class RecordingResizeObserver {
   static instances: RecordingResizeObserver[] = [];
@@ -139,6 +140,7 @@ function capturePointerAdds(add: ReturnType<typeof vi.spyOn>): { move: number; d
 
 describe('media registry', () => {
   const registries: MediaRegistry[] = [];
+  const nativeAttachShadow = Element.prototype.attachShadow;
   let restoreResizeObserver: (() => void) | undefined;
 
   afterEach(() => {
@@ -156,6 +158,8 @@ describe('media registry', () => {
       .forEach((node) => node.remove());
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    Element.prototype.attachShadow = nativeAttachShadow;
   });
 
   it('collects videos and open shadows from another window and after adoption', () => {
@@ -189,6 +193,127 @@ describe('media registry', () => {
     expect(collectVideos(container)).toEqual([node]);
     expect(collectVideos(shadow)).toEqual([shadowVideo]);
     expect(collectOpenShadowRoots(container)).toEqual([shadow]);
+  });
+
+  it('finds a video inside a shadow root hidden from element.shadowRoot', () => {
+    const loader = document.createElement('section');
+    const loaderShadow = loader.attachShadow({ mode: 'closed' });
+    loaderShadow.append(document.createElement('slot'));
+    const player = document.createElement('div');
+    const playerShadow = player.attachShadow({ mode: 'closed' });
+    const node = video();
+    playerShadow.append(node);
+    loader.append(player);
+    expect(loader.shadowRoot).toBeNull();
+    expect(player.shadowRoot).toBeNull();
+    vi.stubGlobal('chrome', {
+      dom: {
+        openOrClosedShadowRoot: (element: HTMLElement) => {
+          if (element === loader) {
+            return loaderShadow;
+          }
+          if (element === player) {
+            return playerShadow;
+          }
+          return null;
+        },
+      },
+    });
+    try {
+      expect(collectOpenShadowRoots(loader)).toEqual([loaderShadow, playerShadow]);
+      document.body.append(loader);
+      const registry = new MediaRegistry(document);
+      registries.push(registry);
+      registry.start();
+      registry.setBehavior(tabBehavior(1.25, { overlayAutoHide: false }));
+      expect(registry.getController(node)?.targetSpeed).toBe(1.25);
+      expect(registry.getOverlay(node)?.host.isConnected).toBe(true);
+      expect(node.playbackRate).toBe(1.25);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('discovers videos added after an already-scanned host attaches an open root', async () => {
+    installAttachShadowHook();
+    const host = document.createElement('section');
+    document.body.append(host);
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false }));
+    const shadow = host.attachShadow({ mode: 'open' });
+    const node = video();
+    shadow.append(node);
+    expect(registry.getController(node)).toBeUndefined();
+    await flushMutations();
+    expect(registry.getController(node)?.targetSpeed).toBe(1.5);
+    expect(registry.getOverlay(node)?.host.isConnected).toBe(true);
+    expect(node.playbackRate).toBe(1.5);
+
+    const added = video();
+    shadow.append(added);
+    await flushMutations();
+    expect(registry.getController(added)?.targetSpeed).toBe(1.5);
+  });
+
+  it('discovers a late root inside an already-observed closed root', async () => {
+    installAttachShadowHook();
+    const host = document.createElement('div');
+    const outer = host.attachShadow({ mode: 'closed' });
+    const innerHost = document.createElement('section');
+    outer.append(innerHost);
+    document.body.append(host);
+    vi.stubGlobal('chrome', {
+      dom: {
+        openOrClosedShadowRoot: (element: HTMLElement) => (element === host ? outer : null),
+      },
+    });
+    try {
+      const registry = new MediaRegistry(document);
+      registries.push(registry);
+      registry.start();
+      registry.setBehavior(tabBehavior(1.5, { overlayAutoHide: false }));
+      const shadow = innerHost.attachShadow({ mode: 'open' });
+      const node = video();
+      shadow.append(node);
+      expect(registry.getController(node)).toBeUndefined();
+      await flushMutations();
+      expect(registry.getController(node)?.targetSpeed).toBe(1.5);
+      expect(registry.getOverlay(node)?.host.isConnected).toBe(true);
+      expect(registry.observerCount).toBe(3);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('removes root notification listeners on removal and registry destruction', async () => {
+    installAttachShadowHook();
+    const host = document.createElement('div');
+    const shadow = host.attachShadow({ mode: 'open' });
+    document.body.append(host);
+    const documentRemove = vi.spyOn(document, 'removeEventListener');
+    const shadowAdd = vi.spyOn(shadow, 'addEventListener');
+    const shadowRemove = vi.spyOn(shadow, 'removeEventListener');
+    const registry = new MediaRegistry(document);
+    registries.push(registry);
+    registry.start();
+    const listener = shadowAdd.mock.calls.find(([type]) => type === SHADOW_ATTACHED_EVENT)?.[1];
+    expect(listener).toBeTypeOf('function');
+
+    host.remove();
+    await flushMutations();
+    expect(registry.observerCount).toBe(1);
+    expect(shadowRemove).toHaveBeenCalledWith(SHADOW_ATTACHED_EVENT, listener, true);
+
+    document.body.append(host);
+    await flushMutations();
+    expect(registry.observerCount).toBe(2);
+    shadowRemove.mockClear();
+    registry.destroy();
+    expect(registry.observerCount).toBe(0);
+    expect(shadowRemove).toHaveBeenCalledWith(SHADOW_ATTACHED_EVENT, listener, true);
+    expect(documentRemove).toHaveBeenCalledWith(SHADOW_ATTACHED_EVENT, listener, true);
   });
 
   it('collects videos in documents without a window and rejects non-HTML video tags', () => {

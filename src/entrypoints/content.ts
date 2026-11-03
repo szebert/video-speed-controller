@@ -133,7 +133,6 @@ export default defineContentScript({
   runAt: 'document_idle',
   main(ctx) {
     const engine = startEngine(overlayActions);
-
     if (!engine.listening) {
       engine.listening = true;
       let stopRecon: (() => void) | undefined;

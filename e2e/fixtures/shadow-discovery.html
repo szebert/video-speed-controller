@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OS VSC late shadow discovery fixture</title>
+  </head>
+  <body>
+    <div id="declarative">
+      <template shadowrootmode="open">
+        <video id="initial-video" width="320" height="180" muted controls></video>
+      </template>
+    </div>
+    <div id="late-open"></div>
+    <section id="late-closed"></section>
+    <div id="outer-closed"></div>
+    <script>
+      const outer = document.getElementById('outer-closed');
+      const outerRoot = outer.attachShadow({ mode: 'closed' });
+      const inner = document.createElement('section');
+      outerRoot.append(inner);
+      window.shadowDiscoveryFixture = {
+        outer,
+        inner,
+        hookPresentAtParse: Reflect.get(Element.prototype.attachShadow, 'osvscHooked') === true,
+      };
+    </script>
+  </body>
+</html>

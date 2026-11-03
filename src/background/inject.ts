@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { CONTENT_SCRIPT_FILE } from '../access/content-registration';
+import { installAttachShadowHook } from '../core/shadow-attach';
 
 export type ScriptInjector = {
   executeScript: (
@@ -103,6 +104,16 @@ export async function ensureCurrentTabEngine(
   tabId: number,
   scripting: ScriptInjector = chrome.scripting,
 ): Promise<void> {
+  try {
+    await scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: 'MAIN',
+      func: installAttachShadowHook,
+    });
+  } catch {
+    // A frame can reject the page-world hook. Shadows that already exist are
+    // still found by the registry walk.
+  }
   const allFrames = await probeFrames(scripting, { tabId, allFrames: true });
   if (allFrames) {
     const { topMissing, childIds } = missingEngineFrames(allFrames);

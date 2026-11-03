@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { OverlayActions } from '../overlay/types';
-import { isDocument, isElement, isParentNode, isShadowRoot, isVideoElement } from '../dom/guards';
+import {
+  isDocument,
+  isElement,
+  isHtmlElement,
+  isNode,
+  isParentNode,
+  isShadowRoot,
+  isVideoElement,
+} from '../dom/guards';
 import type { EffectiveHotkeyMap } from '../settings/hotkey-binding';
 import type { AppliedTabBehavior } from './applied-tab-behavior';
 import type { MediaLoopAction, TransportHoldOwner } from './controller-action';
 import { MediaController, type TransportSession } from './media-controller';
 import { isVideoFullscreen } from './media-fullscreen';
+import { SHADOW_ATTACHED_EVENT } from './shadow-attach';
 import { resolveStackingMount, stackingInvalidationEvents } from './site-overlay-policy';
 import {
   isExtensionHost,
@@ -64,14 +73,36 @@ export function collectVideos(root: Node): HTMLVideoElement[] {
 }
 
 /**
- * Deepest focused element across open shadow boundaries. This repo discovers
- * videos inside open shadow roots, where `document.activeElement` only reports
- * the outermost host.
+ * Open author roots, including declarative roots, use the standard accessor.
+ * Chrome's extension API also exposes closed author roots.
+ */
+function hostedShadowRoot(element: Element): ShadowRoot | null {
+  const shadow = element.shadowRoot;
+  if (shadow) {
+    return shadow;
+  }
+  if (typeof chrome === 'undefined' || !chrome.dom || !isHtmlElement(element)) {
+    return null;
+  }
+  try {
+    return chrome.dom.openOrClosedShadowRoot(element);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Deepest focused element across shadow boundaries. `document.activeElement`
+ * stops at the outermost host.
  */
 export function composedActiveElement(document: Document): Element | null {
   let active = document.activeElement;
-  while (active?.shadowRoot?.activeElement) {
-    active = active.shadowRoot.activeElement;
+  while (active) {
+    const inner = hostedShadowRoot(active)?.activeElement;
+    if (!inner) {
+      return active;
+    }
+    active = inner;
   }
   return active;
 }
@@ -82,8 +113,9 @@ export function collectOpenShadowRoots(root: Node): ShadowRoot[] {
     if (isExtensionHost(element)) {
       return;
     }
-    if (element.shadowRoot) {
-      shadows.push(element.shadowRoot);
+    const shadow = hostedShadowRoot(element);
+    if (shadow) {
+      shadows.push(shadow);
     }
   };
   if (isElement(root)) {
@@ -374,10 +406,40 @@ export class MediaRegistry {
       entry.controller.destroy();
     }
     this.entries.clear();
-    for (const observer of this.rootObservers.values()) {
+    for (const [root, observer] of this.rootObservers) {
       observer.disconnect();
+      root.removeEventListener(SHADOW_ATTACHED_EVENT, this.onShadowAttached, true);
     }
     this.rootObservers.clear();
+  }
+
+  private readonly onShadowAttached = (event: Event): void => {
+    if (this.destroyed) {
+      return;
+    }
+    // The first path entry is the attaching host, or an enclosing closed
+    // host. Each observed root listens too, so its own listener can see the
+    // inner host that a document listener cannot. Do not rescan ancestors.
+    const host = event.composedPath()[0];
+    if (isNode(host) && isElement(host)) {
+      this.adoptShadowHost(host);
+    }
+  };
+
+  private adoptShadowHost(element: Element): void {
+    if (
+      !element.isConnected ||
+      element.ownerDocument !== this.document ||
+      isExtensionHost(element)
+    ) {
+      return;
+    }
+    const shadow = hostedShadowRoot(element);
+    if (!shadow || this.rootObservers.has(shadow)) {
+      return;
+    }
+    this.observeRoot(shadow);
+    this.discover(shadow);
   }
 
   private ensureEntry(video: HTMLVideoElement): RegistryEntry {
@@ -421,6 +483,7 @@ export class MediaRegistry {
       this.handleMutations(records);
     });
     observer.observe(root, { childList: true, subtree: true });
+    root.addEventListener(SHADOW_ATTACHED_EVENT, this.onShadowAttached, true);
     this.rootObservers.set(root, observer);
   }
 
@@ -470,6 +533,7 @@ export class MediaRegistry {
     for (const [root, observer] of this.rootObservers) {
       if (isShadowRoot(root) && !root.host.isConnected) {
         observer.disconnect();
+        root.removeEventListener(SHADOW_ATTACHED_EVENT, this.onShadowAttached, true);
         this.rootObservers.delete(root);
       }
     }
