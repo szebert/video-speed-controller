@@ -63,7 +63,9 @@ export function checkpointButton(tabId: number, url: string): HTMLButtonElement 
     void (async () => {
       try {
         if (!(await recordAccess(url, tabId)))
-          throw new Error('Permission inspection could not be saved. Check the local recorder.');
+          throw new Error(
+            'Permission inspection could not be saved. Keep pnpm recon:dev running and reload the extension after restarting it.',
+          );
         const response: unknown = await chrome.runtime.sendMessage({
           type: RECON_CHECKPOINT,
           tabId,

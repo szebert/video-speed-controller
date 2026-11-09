@@ -7,32 +7,40 @@ export const RECON_CHECKPOINT = 'OSVSC_RECON_CHECKPOINT';
 export type ReconData = Record<string, unknown>;
 
 /** Content uses runtime messaging; only the background fetches localhost. */
-export async function recordRecon(event: string, data: ReconData): Promise<void> {
+async function sendRecon(event: string, data: ReconData, bestEffort: boolean): Promise<void> {
   if (!RECON_ENABLED) return;
   const response: unknown = await chrome.runtime.sendMessage({
     type: RECON_EVENT,
     event,
     data,
     at: new Date().toISOString(),
+    ...(bestEffort ? { bestEffort: true } : {}),
   });
   if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true) {
-    throw new Error(
-      'Local recording failed. Keep pnpm recon:dev running and reload the extension.',
-    );
+    const detail =
+      response &&
+      typeof response === 'object' &&
+      'error' in response &&
+      typeof response.error === 'string'
+        ? response.error
+        : 'Keep pnpm recon:dev running and reload the extension after restarting it.';
+    throw new Error(`Local recording failed. ${detail}`);
   }
 }
 
-let warned = false;
+/** Explicit records must receive a persisted acknowledgement, even during backoff. */
+export function recordRecon(event: string, data: ReconData): Promise<void> {
+  return sendRecon(event, data, false);
+}
+
 export function emitRecon(event: string, data: ReconData): void {
   if (!RECON_ENABLED) return;
   void (async () => {
     try {
-      await recordRecon(event, data);
-    } catch (error) {
-      if (!warned) {
-        warned = true;
-        console.warn('OSVSC recon receiver unavailable', error);
-      }
+      await sendRecon(event, data, true);
+    } catch {
+      // Restarts can disconnect every tab/frame at once. The background reports
+      // receiver state at debug level; passive events never create Chrome errors.
     }
   })();
 }

@@ -43,6 +43,17 @@ build for performance benchmarks. Each recording session has a separate ignored 
 bounded to 25 MiB. Events are saved before a checkpoint reports success. If the
 receiver stops, checkpoints report a failure; automatic events are not buffered.
 
+During a receiver outage, automatic writes share an event-driven retry backoff
+from one to 30 seconds across all tabs and frames. The background console reports
+the outage and recovery once at debug level, without adding extension warnings.
+Events during the backoff are dropped. **Record checkpoint** always tries
+immediately and still reports failure if it cannot save.
+
+Restarting `recon:dev` creates a new log and session token. Once WXT is ready,
+reload the unpacked extension and the test pages, then record a checkpoint to
+confirm the new session is receiving events. Old Chrome error entries remain
+until you clear them. A regular `pnpm dev` session has no recorder.
+
 Stop with Ctrl+C. Running regular `pnpm dev` and reloading the extension removes
 recording and its popup button. Production builds always exclude the logger and its
 localhost permission, even if `OSVSC_RECON=1` is set. Recording does not update the

@@ -38,6 +38,7 @@ describe('opt-in reconnaissance diagnostics', () => {
         request: vi.fn(),
       },
       tabs: {
+        sendMessage: vi.fn(async () => ({ ok: true })),
         getCurrent: vi.fn(async () => undefined),
         query: vi.fn(async () => [{ id: 7, url: 'https://www.youtube.com/watch?v=private-token' }]),
       },
@@ -59,6 +60,131 @@ describe('opt-in reconnaissance diagnostics', () => {
     emitRecon('ignored', {});
     await recordRecon('ignored', {});
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps automatic receiver and invalidated-context failures quiet while explicit records reject', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { emitRecon, recordRecon } = await import('../diagnostics/recon-transport');
+    sendMessage.mockResolvedValue({ ok: false, error: 'Receiver stopped' });
+    emitRecon('content.snapshot', {});
+    await expect(recordRecon('content.checkpoint', {})).rejects.toThrow('Receiver stopped');
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'content.snapshot', bestEffort: true }),
+    );
+    sendMessage.mockRejectedValue(new Error('Extension context invalidated'));
+    emitRecon('content.stopped', {});
+    await expect(recordRecon('content.checkpoint', {})).rejects.toThrow(
+      'Extension context invalidated',
+    );
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('shares automatic retry backoff across frames and permissions, then resumes on a later event', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Receiver stopped'));
+    vi.stubGlobal('fetch', fetchMock);
+    const { startReconBackground } = await import('../diagnostics/recon-background');
+    startReconBackground();
+    const onMessage = addListener.mock.calls[0]![0];
+    const automatic = (frameId: number): ReturnType<typeof vi.fn> => {
+      const response = vi.fn();
+      onMessage(
+        { type: 'OSVSC_RECON_EVENT', event: 'content.snapshot', data: {}, bestEffort: true },
+        { id: 'extid', tab: { id: 7 }, frameId },
+        response,
+      );
+      return response;
+    };
+    await vi.advanceTimersByTimeAsync(0);
+    let attempts = 1;
+    for (const delay of [1000, 2000, 4000, 8000, 16000, 30000, 30000]) {
+      const skipped = automatic(0);
+      automatic(1);
+      vi.mocked(chrome.permissions.onAdded.addListener).mock.calls[0]![0]({
+        origins: ['https://example.com/*'],
+      });
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      automatic(2);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchMock).toHaveBeenCalledTimes(attempts);
+      expect(skipped).toHaveBeenCalledWith({ ok: false, error: 'Receiver stopped' });
+      await vi.advanceTimersByTimeAsync(1);
+      // Recovery is driven by events, with no timer that polls the receiver.
+      expect(fetchMock).toHaveBeenCalledTimes(attempts);
+      const retry = automatic(0);
+      automatic(1);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchMock).toHaveBeenCalledTimes(++attempts);
+      expect(retry).toHaveBeenCalledWith({ ok: false, error: 'Receiver stopped' });
+    }
+    expect(debug).toHaveBeenCalledTimes(1);
+    fetchMock.mockResolvedValue({ ok: true });
+    await vi.advanceTimersByTimeAsync(30000);
+    const recovered = automatic(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(recovered).toHaveBeenCalledWith({ ok: true });
+    expect(debug).toHaveBeenCalledTimes(2);
+    const next = automatic(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(next).toHaveBeenCalledWith({ ok: true });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('tries manual checkpoints immediately during backoff and reports failure until saved', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Receiver stopped'));
+    vi.stubGlobal('fetch', fetchMock);
+    const { startReconBackground } = await import('../diagnostics/recon-background');
+    startReconBackground();
+    await vi.advanceTimersByTimeAsync(0);
+    const onMessage = addListener.mock.calls[0]![0];
+    const response = vi.fn();
+    const checkpoint = () =>
+      onMessage(
+        { type: 'OSVSC_RECON_CHECKPOINT', tabId: 7 },
+        { id: 'extid', url: chrome.runtime.getURL('popup.html') },
+        response,
+      );
+    checkpoint();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(response).toHaveBeenLastCalledWith({ ok: false, error: 'Receiver stopped' });
+    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValue({ ok: true });
+    checkpoint();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      7,
+      { type: 'OSVSC_RECON_CHECKPOINT' },
+      { frameId: 0 },
+    );
+    expect(response).toHaveBeenLastCalledWith({ ok: true });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('shows recording failures in the checkpoint button and allows an immediate retry', async () => {
+    vi.useFakeTimers();
+    sendMessage.mockResolvedValue({ ok: false, error: 'Receiver stopped' });
+    const { checkpointButton } = await import('../diagnostics/recon-popup');
+    const button = checkpointButton(7, 'https://www.youtube.com/watch');
+    button.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(button.textContent).toContain('Recording failed:');
+    expect(button.textContent).toContain('reload the extension');
+    expect(button.disabled).toBe(false);
+    sendMessage.mockResolvedValue({ ok: true });
+    button.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(button.textContent).toBe('Checkpoint saved ✓');
+    expect(button.disabled).toBe(false);
   });
 
   it('calls the native grant synchronously, returns its original promise, and logs the exact-port result', async () => {
@@ -270,14 +396,21 @@ describe('opt-in reconnaissance diagnostics', () => {
     ).toBe(true);
     expect(response).not.toHaveBeenCalled();
     persist({ ok: true });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(response).toHaveBeenCalledWith({ ok: true });
+    await vi.waitFor(() => expect(response).toHaveBeenCalledWith({ ok: true }));
     response.mockClear();
     fetchMock.mockRejectedValue(new Error('Receiver stopped'));
     onMessage({ type: 'OSVSC_RECON_EVENT', event: 'test', data: {} }, { id: 'extid' }, response);
     await vi.waitFor(() =>
       expect(response).toHaveBeenCalledWith({ ok: false, error: 'Receiver stopped' }),
+    );
+    response.mockClear();
+    fetchMock.mockResolvedValue({ ok: false, status: 404 });
+    onMessage({ type: 'OSVSC_RECON_EVENT', event: 'test', data: {} }, { id: 'extid' }, response);
+    await vi.waitFor(() =>
+      expect(response).toHaveBeenCalledWith({
+        ok: false,
+        error: 'Local recorder session changed. Reload the extension after restarting recon:dev.',
+      }),
     );
     expect(onMessage({ type: 'OSVSC_RECON_EVENT' }, { id: 'other-extension' }, response)).toBe(
       false,

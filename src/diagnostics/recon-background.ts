@@ -2,7 +2,7 @@
 
 import { RECON_CHECKPOINT, RECON_EVENT, reconError } from './recon-transport';
 
-async function persist(
+async function writeEvent(
   event: string,
   data: unknown,
   sender?: chrome.runtime.MessageSender,
@@ -22,10 +22,65 @@ async function persist(
     }),
     signal: AbortSignal.timeout(4000),
   });
-  if (!response.ok) throw new Error(`Local receiver returned ${response.status}`);
+  if (!response.ok) {
+    if (response.status === 404)
+      throw new Error(
+        'Local recorder session changed. Reload the extension after restarting recon:dev.',
+      );
+    throw new Error(`Local receiver returned ${response.status}`);
+  }
 }
 
 export function startReconBackground(): void {
+  // Shared by all tabs and frames. This is disposable connection state; a new
+  // service worker simply tries again. Events missed during an outage are dropped.
+  let unavailable: string | null = null;
+  let retryAt = 0;
+  let retryDelay = 1000;
+  let retryPending = false;
+  const persist = async (
+    event: string,
+    data: unknown,
+    sender?: chrome.runtime.MessageSender,
+    sourceAt?: unknown,
+    bestEffort = false,
+  ): Promise<void> => {
+    if (bestEffort && (Date.now() < retryAt || retryPending)) {
+      throw new Error(unavailable ?? 'Local recording is reconnecting.');
+    }
+    const probing = bestEffort && unavailable !== null;
+    if (probing) retryPending = true;
+    try {
+      await writeEvent(event, data, sender, sourceAt);
+      if (unavailable !== null) console.debug('OSVSC recon receiver available; recording resumed.');
+      unavailable = null;
+      retryAt = 0;
+      retryDelay = 1000;
+    } catch (error) {
+      if (unavailable === null) {
+        console.debug(
+          'OSVSC recon receiver unavailable; automatic recording paused. Keep recon:dev running and reload the extension after restarting it.',
+          reconError(error),
+        );
+      }
+      unavailable = reconError(error);
+      retryAt = Date.now() + retryDelay;
+      retryDelay = Math.min(retryDelay * 2, 30000);
+      throw error;
+    } finally {
+      if (probing) retryPending = false;
+    }
+  };
+  const automatic = (event: string, data: unknown): void => {
+    void (async () => {
+      try {
+        await persist(event, data, undefined, undefined, true);
+      } catch {
+        // Connection state is reported once per outage above, never as a warning.
+      }
+    })();
+  };
+
   chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (!message || typeof message !== 'object' || !('type' in message)) return false;
     if (message.type !== RECON_EVENT && message.type !== RECON_CHECKPOINT) return false;
@@ -36,7 +91,13 @@ export function startReconBackground(): void {
           if (!('event' in message) || typeof message.event !== 'string' || !('data' in message)) {
             throw new Error('Invalid diagnostic event');
           }
-          await persist(message.event, message.data, sender, 'at' in message ? message.at : null);
+          await persist(
+            message.event,
+            message.data,
+            sender,
+            'at' in message ? message.at : null,
+            'bestEffort' in message && message.bestEffort === true,
+          );
         } else {
           if (sender.url !== chrome.runtime.getURL('popup.html') || sender.tab) {
             throw new Error('Checkpoint must come from the toolbar popup');
@@ -65,7 +126,7 @@ export function startReconBackground(): void {
     return true;
   });
   const permissionEvent = (event: string, permissions: chrome.permissions.Permissions): void => {
-    void persist(event, permissions).catch((error) => console.warn('OSVSC recon', error));
+    automatic(event, permissions);
   };
   chrome.permissions.onAdded.addListener((permissions) =>
     permissionEvent('permission.added', permissions),
@@ -73,7 +134,5 @@ export function startReconBackground(): void {
   chrome.permissions.onRemoved.addListener((permissions) =>
     permissionEvent('permission.removed', permissions),
   );
-  void persist('background.ready', { version: chrome.runtime.getManifest().version }).catch(
-    (error) => console.warn('OSVSC recon', error),
-  );
+  automatic('background.ready', { version: chrome.runtime.getManifest().version });
 }
