@@ -29,7 +29,7 @@ function rect(left: number, top: number, width: number, height: number): DOMRect
 
 function layoutOverlay(
   position: OverlayPosition,
-  mount: HTMLElement | null,
+  mount: HTMLElement | ShadowRoot | null,
   zIndex = '60',
 ): VideoOverlay {
   const video = document.createElement('video');
@@ -132,6 +132,72 @@ describe('player-local placement', () => {
     expect(overlay.host.parentElement).toBe(document.documentElement);
     expect(overlay.host.style.position).toBe('fixed');
     expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+  });
+
+  it('uses the shadow host box and keeps a hidden overlay in its root until the video leaves', () => {
+    const player = document.createElement('shreddit-player');
+    player.style.position = 'relative';
+    player.style.borderStyle = 'solid';
+    player.style.borderLeftWidth = '4px';
+    player.style.borderTopWidth = '6px';
+    player.getBoundingClientRect = () => rect(40, 30, 700, 400);
+    const root = player.attachShadow({ mode: 'open' });
+    document.body.append(player);
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, root, '1');
+    expect(overlay.host.parentNode).toBe(root);
+    expect(overlay.host.style.position).toBe('absolute');
+    expect(overlay.host.style.zIndex).toBe('1');
+    expect(overlay.host.style.left).toBe('64px');
+    expect(overlay.host.style.top).toBe('52px');
+    overlay.setBehavior(tabBehavior(1, { overlayVisible: false, overlayAutoHide: false }));
+    overlay.layout();
+    expect(overlay.host.parentNode).toBe(root);
+    const video = root.querySelector('video')!;
+    document.body.append(video);
+    overlay.layout();
+    expect(overlay.host.parentNode).toBe(document.documentElement);
+    expect(overlay.host.style.position).toBe('fixed');
+    overlay.destroy();
+  });
+
+  it('uses fixed fullscreen placement and returns to a local shadow mount on exit', () => {
+    const player = document.createElement('shreddit-player');
+    player.style.position = 'relative';
+    player.getBoundingClientRect = () => rect(40, 30, 700, 400);
+    const root = player.attachShadow({ mode: 'open' });
+    document.body.append(player);
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, root, '1');
+    const restore = withFullscreenElement(player);
+    try {
+      overlay.layout();
+      expect(overlay.host.parentNode).toBe(root);
+      expect(overlay.host.style.position).toBe('fixed');
+      expect(overlay.host.style.zIndex).toBe(OVERLAY_Z_INDEX);
+    } finally {
+      restore();
+    }
+    overlay.layout();
+    expect(overlay.host.parentNode).toBe(root);
+    expect(overlay.host.style.position).toBe('absolute');
+    expect(overlay.host.style.zIndex).toBe('1');
+    overlay.destroy();
+  });
+
+  it('rejects a shadow mount slotted into a transformed wrapper', () => {
+    const outer = document.createElement('div');
+    const wrapper = document.createElement('div');
+    wrapper.style.transform = 'scale(2)';
+    wrapper.append(document.createElement('slot'));
+    outer.attachShadow({ mode: 'open' }).append(wrapper);
+    const player = document.createElement('shreddit-player');
+    player.style.position = 'relative';
+    const root = player.attachShadow({ mode: 'open' });
+    outer.append(player);
+    document.body.append(outer);
+    expect(ordinaryPlayerOffset(root, 100, 80)).toBeNull();
+    const overlay = layoutOverlay(OVERLAY_POSITION.TOP_LEFT, root, '1');
+    expect(overlay.host.parentNode).toBe(document.documentElement);
+    overlay.destroy();
   });
 
   it.each([

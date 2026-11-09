@@ -127,6 +127,39 @@ portal. The local stacking level and the `yt-navigate-finish` signal belong to
 that policy. A live native-menu overlap check on YouTube is still outstanding;
 the synthetic fixture covers the menu.
 
+## Reddit: Shreddit header stacking
+
+Recorded 2026-11-08 with the operator's Chrome session and `pnpm recon:dev`.
+In `session-1794176324117.ndjson`, clicks 253 and 255 at y = 30 and y = 28
+reached OSVSC's Slower and Faster controls over the header. The video started
+at y = 13, and the overlay was mounted on `html` at y = 21. The operator
+confirmed that OSVSC covered the header and intercepted its clicks.
+
+Checkpoint 64 in `session-1794177064514.ndjson` captured the video as a direct
+child of `shreddit-player`'s shadow root. The host had `position: relative`,
+`isolation: isolate`, no transform, and the same bounds as the video. A native
+control click in that session showed `shreddit-media-ui` at local z-index 2.
+
+The policy is limited to HTTP(S) `www.reddit.com` pages and this direct-child
+Shreddit structure. OSVSC mounts in the same shadow root at local z-index 1,
+above the video and below the native media UI. The shared mount measures the
+shadow host's border box and follows assigned slots when checking ancestor
+transforms. Other Reddit players and hosts retain the generic portal. No media
+discovery delay, setting, permission, or native-control visibility rule is added.
+
+Focused unit coverage includes host and structure boundaries, shadow-root
+coordinates, hidden/reparented videos, fullscreen restoration, and transformed
+slot ancestors. The operator then confirmed that the header and OSVSC controls
+both worked in `session-1794177310485.ndjson`. Header clicks 36 and 56 at y = 20
+and y = 37 reached Reddit's search textarea rather than OSVSC. Snapshot 57 kept
+OSVSC visible at y = 29, in the player's shadow root with absolute positioning
+and z-index 1, while its control hit tests selected header elements. Faster and
+Slower clicks 19, 22, 48, and 51 reached OSVSC over the video; the associated
+snapshots recorded matching playback-rate and target-speed changes. Verification
+used automatic recorded events and the operator's observations; no final manual
+checkpoint was present. Live fullscreen and native menu checks were not part of
+this pass.
+
 ## Twitch: checklist with findings
 
 Fixture: <https://www.twitch.tv/caseoh_>, public live channel, with an ad break

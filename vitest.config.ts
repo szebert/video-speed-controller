@@ -14,7 +14,11 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/tests/**/*.test.ts', 'scripts/**/*.test.mjs'],
     globals: false,
-    setupFiles: ['./src/tests/resize-observer-stub.ts', './src/tests/fail-on-act-warnings.ts'],
+    setupFiles: [
+      './src/tests/resize-observer-stub.ts',
+      './src/tests/fail-on-act-warnings.ts',
+      './src/tests/jsdom-web-storage.ts',
+    ],
     css: true,
   },
 });

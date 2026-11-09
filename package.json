@@ -1,6 +1,6 @@
 {
   "name": "video-speed-controller",
-  "version": "0.1.0",
+  "version": "0.8.0",
   "private": true,
   "license": "GPL-3.0-only",
   "description": "Open source Chrome extension for controlling HTML5 video playback speed.",

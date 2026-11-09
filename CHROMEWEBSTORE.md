@@ -19,7 +19,7 @@ Open Source Video Speed Controller (OS VSC) lets you speed up or slow down HTML5
 
 - **storage** — Save the user’s per-site playback-speed preference.
 - **activeTab** — Read the current tab URL when the user opens the popup so the popup can show that site’s state. Opening the popup does not inject or persist host access.
-- **scripting** — Inject the isolated-world playback engine into a tab after the user grants that site.
+- **scripting** — Apply playback controls and find newly added video players on sites the user enables.
 - **optional host permissions (`http://*/*`, `https://*/*`)** — Requested one origin at a time from the popup, or as both wildcards from Settings when the user enables all sites. Not granted at install.
 
 ## Privacy practices

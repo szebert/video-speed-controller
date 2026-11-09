@@ -5,7 +5,7 @@ import { getActiveEngine } from '../core/video-speed-engine';
 import { isElement, isNode, isShadowRoot } from '../dom/guards';
 import { RECON_CHECKPOINT, emitRecon, recordRecon, reconError } from './recon-transport';
 
-function rect(element: Element): Record<string, number> {
+function rect(element: Element): { x: number; y: number; width: number; height: number } {
   const { x, y, width, height } = element.getBoundingClientRect();
   return { x, y, width, height };
 }
@@ -39,6 +39,41 @@ function composedContains(ancestor: Element | null, element: Element): boolean {
   return false;
 }
 
+/** Bounded structural evidence only: no attributes containing page text or URLs. */
+function stackingAncestors(element: Element): unknown[] {
+  const ancestors: unknown[] = [];
+  let node: Element | null = element;
+  while (node && ancestors.length < 16) {
+    const style = getComputedStyle(node);
+    const root = node.getRootNode();
+    const slot: HTMLSlotElement | null = node.assignedSlot;
+    const parent: Element | null =
+      slot ?? node.parentElement ?? (isShadowRoot(root) ? root.host : null);
+    ancestors.push({
+      element: describe(node),
+      bounds: rect(node),
+      parentVia: slot ? 'slot' : node.parentElement ? 'parent' : parent ? 'shadow-host' : null,
+      style: {
+        display: style.display,
+        position: style.position,
+        zIndex: style.zIndex,
+        isolation: style.isolation,
+        opacity: style.opacity,
+        overflowX: style.overflowX,
+        overflowY: style.overflowY,
+        transform: style.transform,
+        // Filters can reference URLs; mounting only needs to know if one exists.
+        filter: style.filter && style.filter !== 'none' ? 'present' : style.filter,
+        perspective: style.perspective,
+        contain: style.contain,
+        willChange: style.willChange,
+      },
+    });
+    node = parent;
+  }
+  return ancestors;
+}
+
 export function startReconContent(): () => void {
   const abort = new AbortController();
   const roots = new Set<Document | ShadowRoot>();
@@ -63,9 +98,13 @@ export function startReconContent(): () => void {
     discover();
     const engine = getActiveEngine();
     const behavior = engine?.registry.behavior;
+    // Manual checkpoints inspect up to four on-screen videos. Automatic events
+    // keep their existing cost, even on feeds containing many hidden players.
+    let ancestryBudget = reason === 'operator-checkpoint' ? 4 : 0;
     return {
       reason,
       hostname: location.hostname,
+      viewport: { width: window.innerWidth, height: window.innerHeight },
       engineActive: !!engine,
       managedVideos: engine?.registry.size ?? 0,
       fullscreen: describe(document.fullscreenElement),
@@ -86,10 +125,21 @@ export function startReconContent(): () => void {
           const previous = playbackSamples.get(video);
           playbackSamples.set(video, { at: Date.now(), time: video.currentTime });
           const style = host ? getComputedStyle(host) : null;
+          const bounds = rect(video);
+          const captureAncestors =
+            ancestryBudget > 0 &&
+            bounds.width > 0 &&
+            bounds.height > 0 &&
+            bounds.x < window.innerWidth &&
+            bounds.y < window.innerHeight &&
+            bounds.x + bounds.width > 0 &&
+            bounds.y + bounds.height > 0;
+          if (captureAncestors) ancestryBudget--;
           return {
             id: identity(video),
             controllerId: controller ? identity(controller) : null,
-            bounds: rect(video),
+            bounds,
+            ...(captureAncestors ? { stackingAncestors: stackingAncestors(video) } : {}),
             readyState: video.readyState,
             paused: video.paused,
             seeking: video.seeking,
@@ -112,7 +162,13 @@ export function startReconContent(): () => void {
                   visibility: style?.visibility,
                   display: style?.display,
                   opacity: style?.opacity,
-                  parent: describe(host.parentElement),
+                  position: style?.position,
+                  zIndex: style?.zIndex,
+                  parent: describe(
+                    host.parentElement ??
+                      (isShadowRoot(host.parentNode) ? host.parentNode.host : null),
+                  ),
+                  parentIsShadowRoot: isShadowRoot(host.parentNode),
                   inFullscreen: composedContains(document.fullscreenElement, host),
                   controls: [
                     ...(host.shadowRoot?.querySelectorAll('button, input, [role="slider"]') ?? []),
@@ -235,6 +291,7 @@ export function startReconContent(): () => void {
         x: event.clientX,
         y: event.clientY,
         target: describe(path[0] ?? null),
+        ...(path[0] && !overlay ? { stackingAncestors: stackingAncestors(path[0]) } : {}),
         overlay: !!overlay,
         control: overlay
           ? path

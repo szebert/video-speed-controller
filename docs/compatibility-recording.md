@@ -31,6 +31,11 @@ text, media source URLs, input values, or keyboard input. Permission patterns do
 the extension's granted hosts. Visual priority and intended pointer priority require
 your observation; a hit test alone does not establish a compatibility failure.
 
+Manual checkpoints also record up to 16 ancestors for each of four on-screen videos,
+including shadow/slot boundaries, bounds, and stacking-related computed styles.
+Clicks outside OSVSC record the same structural details for their target. These help
+identify player mounts and header stacking without copying page text or URLs.
+
 Snapshots follow events; media progress is sampled at most once every five seconds
 per video. A 250 ms timer coalesces bursts and stops when idle. There is no polling
 loop. This instrumentation adds observers and DOM measurements, so use a regular

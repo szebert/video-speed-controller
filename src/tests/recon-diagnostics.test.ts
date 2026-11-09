@@ -27,7 +27,7 @@ describe('opt-in reconnaissance diagnostics', () => {
         id: 'extid',
         sendMessage,
         getURL: (path: string) => `chrome-extension://extid/${path}`,
-        getManifest: () => ({ version: '0.1.0' }),
+        getManifest: () => ({ version: '0.8.0' }),
         onMessage: { addListener, removeListener },
       },
       permissions: {
@@ -184,6 +184,71 @@ describe('opt-in reconnaissance diagnostics', () => {
     video.dispatchEvent(new Event('playing'));
     await vi.advanceTimersByTimeAsync(6000);
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('captures bounded stacking ancestry across slots and shadow roots only at checkpoints', async () => {
+    vi.useFakeTimers();
+    const player = document.createElement('shreddit-player');
+    const mount = document.createElement('div');
+    mount.style.position = 'relative';
+    mount.style.zIndex = '1';
+    mount.style.filter = 'url(https://example.com/private-filter?token=secret)';
+    mount.append(document.createElement('slot'));
+    player.attachShadow({ mode: 'open' }).append(mount);
+    const visibleVideos = Array.from({ length: 6 }, () => {
+      const video = document.createElement('video');
+      video.src = 'https://example.com/private-media?token=secret';
+      video.setAttribute('aria-label', 'private-page-text');
+      video.getBoundingClientRect = () => new DOMRect(20, 30, 640, 360);
+      return video;
+    });
+    player.append(visibleVideos[0]!);
+    const hidden = document.createElement('video');
+    const offscreen = document.createElement('video');
+    offscreen.getBoundingClientRect = () => new DOMRect(20, -400, 640, 360);
+    document.body.append(hidden, offscreen, player, ...visibleVideos.slice(1));
+    const { startReconContent } = await import('../diagnostics/recon-content');
+    const stop = startReconContent();
+    const onMessage = addListener.mock.calls[0]![0];
+    onMessage({ type: 'OSVSC_RECON_CHECKPOINT' }, { id: 'extid' }, vi.fn());
+    await Promise.resolve();
+    await Promise.resolve();
+    const checkpoint = sendMessage.mock.calls.find(
+      ([message]) => message.event === 'content.checkpoint',
+    )![0];
+    expect(
+      checkpoint.data.videos.filter(
+        (video: { stackingAncestors?: unknown[] }) => video.stackingAncestors,
+      ),
+    ).toHaveLength(4);
+    expect(checkpoint.data.videos[0].stackingAncestors).toBeUndefined();
+    expect(checkpoint.data.videos[1].stackingAncestors).toBeUndefined();
+    expect(checkpoint.data.videos[2].stackingAncestors).toEqual([
+      expect.objectContaining({
+        element: expect.objectContaining({ tag: 'video' }),
+        parentVia: 'slot',
+      }),
+      expect.objectContaining({
+        element: expect.objectContaining({ tag: 'slot' }),
+        parentVia: 'parent',
+      }),
+      expect.objectContaining({
+        element: expect.objectContaining({ tag: 'div' }),
+        parentVia: 'shadow-host',
+        style: expect.objectContaining({ position: 'relative', zIndex: '1', filter: 'present' }),
+      }),
+      expect.objectContaining({ element: expect.objectContaining({ tag: 'shreddit-player' }) }),
+      expect.objectContaining({ element: expect.objectContaining({ tag: 'body' }) }),
+      expect.objectContaining({ element: expect.objectContaining({ tag: 'html' }) }),
+    ]);
+    expect(JSON.stringify(checkpoint)).not.toMatch(/secret|private-media|private-page-text/);
+    sendMessage.mockClear();
+    await vi.advanceTimersByTimeAsync(250);
+    const automatic = sendMessage.mock.calls.find(
+      ([message]) => message.event === 'content.snapshot',
+    )![0];
+    expect(JSON.stringify(automatic)).not.toContain('stackingAncestors');
+    stop();
   });
 
   it('acknowledges background recording only after persistence and reports receiver errors', async () => {

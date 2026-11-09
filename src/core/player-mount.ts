@@ -2,9 +2,9 @@
 
 import { isShadowRoot } from '../dom/guards';
 
-/** A resolved in-player mount. The site policy chooses the element and level. */
+/** A resolved in-player mount. A shadow root uses its host's coordinate box. */
 export type PlayerStackingMount = {
-  element: Element;
+  element: Element | ShadowRoot;
   zIndex: string;
 };
 
@@ -24,6 +24,9 @@ function ordinaryBox(style: CSSStyleDeclaration): boolean {
 }
 
 function parentOrShadowHost(element: Element): Element | null {
+  if (element.assignedSlot) {
+    return element.assignedSlot;
+  }
   if (element.parentElement) {
     return element.parentElement;
   }
@@ -48,7 +51,7 @@ function ancestorBreaksLocalCoordinates(mount: Element, view: Window): boolean {
 
 /** Ordinary boxes only. A transform or filter falls back to the root portal. */
 export function ordinaryPlayerOffset(
-  mount: Element,
+  mount: Element | ShadowRoot,
   viewportX: number,
   viewportY: number,
 ): { x: number; y: number } | null {
@@ -56,11 +59,12 @@ export function ordinaryPlayerOffset(
   if (!view || !mount.isConnected) {
     return null;
   }
-  const style = view.getComputedStyle(mount);
+  const box = isShadowRoot(mount) ? mount.host : mount;
+  const style = view.getComputedStyle(box);
   if (style.position === 'static' || !ordinaryBox(style)) {
     return null;
   }
-  if (ancestorBreaksLocalCoordinates(mount, view)) {
+  if (ancestorBreaksLocalCoordinates(box, view)) {
     return null;
   }
   const borderLeft = Number.parseFloat(style.borderLeftWidth);
@@ -68,7 +72,7 @@ export function ordinaryPlayerOffset(
   if (!Number.isFinite(borderLeft) || !Number.isFinite(borderTop)) {
     return null;
   }
-  const rect = mount.getBoundingClientRect();
+  const rect = box.getBoundingClientRect();
   return {
     x: viewportX - rect.left - borderLeft,
     y: viewportY - rect.top - borderTop,
@@ -97,13 +101,13 @@ export function installPlayerMountGuards(host: HTMLElement, signal: AbortSignal)
   }
 }
 
-export function hostStaysInMount(host: HTMLElement, mount: Element | null): boolean {
+export function hostStaysInMount(host: HTMLElement, mount: Element | ShadowRoot | null): boolean {
   return mount != null && mount.isConnected && host.parentNode === mount;
 }
 
 export function placePlayerMount(
   host: HTMLElement,
-  mount: Element,
+  mount: Element | ShadowRoot,
   viewportX: number,
   viewportY: number,
   zIndex: string,
